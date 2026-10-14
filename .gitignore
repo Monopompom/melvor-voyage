@@ -1,0 +1,7 @@
+__pycache__/
+# Build output
+dist/
+# OS and editor noise
+.DS_Store
+# Node
+node_modules/

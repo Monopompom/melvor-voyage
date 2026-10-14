@@ -1,0 +1,7 @@
+/* Voyage: Far Shores */
+.voyage-ui { font-size: 0.95rem; }
+#voyage-here { min-width: 260px; max-width: 360px; pointer-events: auto; }
+.voyage-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.4); vertical-align: -1px; margin-right: 5px; }
+.voyage-legend { margin-top: 4px; line-height: 1.7; }
+.voyage-legend .voyage-swatch { margin-left: 2px; }
+.voyage-skills { margin-top: 4px; }
