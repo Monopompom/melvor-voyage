@@ -5,7 +5,7 @@ A mod for **Melvor Idle v1.3.1** that needs **Atlas of Discovery**. Every hex of
 cursedlands, shoals and open water) and features such as forest, river or snow, and skills only work where their
 terrain is. Woodcutting needs trees. You have to go there.
 
-This is an early build (phase 2 of 8): the map overlay, the "You are here" panel, the full set of location rules,
+This is an early build (phase 3 of 8, in progress): the map overlay, the "You are here" panel, the full set of location rules,
 combat and trade tied to the map, and a compass to find your way. Travel is still the vanilla instant travel.
 Provisions, the ship and the timed voyage come later.
 
@@ -28,9 +28,13 @@ Provisions, the ship and the timed voyage come later.
   The bank is your cargo hold until you get there.
 - **The Wayfinder's Compass.** A free item in your bank, with 2,500 GP to reach your first trading place. When a skill
   is locked and you know of nowhere it works, the message tells you how far the nearest place is (Hot, Warm, Cold,
-  Freezing) and which way. It never names the place: survey in Cartography for that. Sellable; the shop sells another.
+  Freezing) and which way. At first it never names the place: survey in Cartography for that, or level the Voyage skill. Sellable; the shop sells another.
 - **Stranded?** Broke, far from any market, and nothing here earns GP: try to sell and a wandering trader turns up. He
   pays half, and only until you can afford the road.
+- **The Voyage skill.** A passive skill in the sidebar with its own page. Every hex you travel gives Voyage XP
+  (water hexes more), and earlier travels count once when you first load. Levels sharpen the compass: at 10 it says
+  how many hexes away, at 25 the name of the place. "Manage voyage" on the map and "Show map" on the page link the
+  two. The ship will live on this page.
 - **Worker Folks.** With Worker Folks loaded, hiring, promoting and firing need a town or port, like Township.
 
 ## Settings (Mod Settings, section Voyage)

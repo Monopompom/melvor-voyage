@@ -53,11 +53,8 @@ export function install(ctx, { state, rules, terrainMod, log }) {
         sentences.push(`Nearest known: ${near.distance} ${near.distance === 1 ? 'hex' : 'hexes'} ${dir}${poi}.`);
       } else {
         sentences.push('None known yet.');
-        const reading = state.compass?.readingFor(id, pos);
-        if (reading !== undefined) {
-          const word = reading.word.charAt(0).toUpperCase() + reading.word.slice(1);
-          sentences.push(`Compass: ${word}, ${reading.dir}${reading.across ? ', across the water' : ''}.`);
-        }
+        const reading = state.compass?.describe(state.compass?.readingFor(id, pos));
+        if (reading !== undefined) sentences.push(reading.text);
       }
       const hint = sentences.join(' ');
       locked.push(`<img class="skill-icon-xs voyage-skill-locked" src="${skill.media}" title="${esc(name)}: locked. ${esc(hint)}">`);
@@ -65,6 +62,12 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     const rulesNote = off ? ' <small class="text-muted">(rules off)</small>' : state.settings.strictness() === 'relaxed' ? ' <small class="text-muted">(relaxed)</small>' : '';
     return `<div class="voyage-skillrow"><small class="text-muted">Works:</small> ${works.join('') || '<small>none</small>'}${rulesNote}</div>` +
       (locked.length > 0 ? `<div class="voyage-skillrow"><small class="text-muted">Locked:</small> ${locked.join('')}</div>` : '');
+  };
+
+  /** "Manage voyage": the cross-link to the Voyage skill page; hidden when the page is not registered. */
+  const manageLink = () => {
+    try { if (game.pages.getObjectByID('voyage:Voyage') === undefined) return ''; } catch { return ''; }
+    return '<button type="button" class="btn btn-sm btn-info voyage-manage-link"><i class="fa fa-ship mr-1"></i>Manage voyage</button>';
   };
 
   /** Trade status on its own line under the terrain line; empty while trade is not gated. */
@@ -93,6 +96,10 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     panel.className = 'voyage-ui block block-rounded bg-combat-inner-dark p-2 mb-2';
     panel.addEventListener('click', (e) => {
       if (e.target instanceof Element && e.target.closest('.voyage-trader-link')) { e.preventDefault(); state.trader?.offer(); }
+      if (e.target instanceof Element && e.target.closest('.voyage-manage-link')) {
+        e.preventDefault();
+        try { const page = game.pages.getObjectByID('voyage:Voyage'); if (page !== undefined) changePage(page); } catch (err) { log('Manage voyage link failed', err); }
+      }
     });
     // Under the location search bar (top-left of the map), after its results drop-down so results still open
     // right below the input. Falls back to the bottom-left overlay if the search bar is not where we expect.
@@ -130,7 +137,7 @@ export function install(ctx, { state, rules, terrainMod, log }) {
       const features = d.features.length > 0 ? ` · ${esc(d.features.join(', '))}` : '';
       const mode = state.mode === 'relaxed' ? '<div><small class="text-warning">Map differs from the terrain table: rules off.</small></div>' : '';
       panel.innerHTML =
-        `<div class="font-w600">You are here</div>` +
+        `<div class="d-flex justify-content-between align-items-center mb-1"><span class="font-w600">You are here</span>${manageLink()}</div>` +
         `<div>${swatch}${esc(d.label)}<small class="text-muted">${features}${where}</small></div>` +
         tradeLine() +
         mode +

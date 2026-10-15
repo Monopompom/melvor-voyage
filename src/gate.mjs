@@ -50,7 +50,6 @@ const HIRE_PURCHASE_PREFIX = 'worker_folks:Hire_';
 /** What to tell a player who knows of no place yet: surveying is how the map opens up. */
 const SURVEY_HINT = 'Survey the hexes around you in Cartography to find';
 
-const DIRECTION_WORDS = { N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west' };
 
 export function install(ctx, { state, rules, terrainMod, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -96,14 +95,7 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     const place = hex.poi ? ` (${poiName(hex)})` : hex.area ? ` (${terrainMod.areaLabel(hex.area)})` : '';
     return `${distance} hex${distance === 1 ? '' : 'es'} ${dir}${place}`;
   };
-  const compassLine = (reading) => {
-    if (reading === undefined) return undefined;
-    const dir = DIRECTION_WORDS[reading.dir] ?? reading.dir;
-    const across = reading.across ? ', across the water' : '';
-    const word = reading.word.charAt(0).toUpperCase() + reading.word.slice(1);
-    const text = `Compass: ${word}, pointing ${dir}${across}.`;
-    return { text, html: `<span class="voyage-compass-line">Compass: <b class="voyage-compass-${reading.word}">${word}</b>, pointing ${dir}${across}.</span>` };
-  };
+  const compassLine = (reading) => state.compass?.describe(reading);
   const modal = (title, icon, lines, { withMap = true } = {}) => {
     try {
       const page = game.pages.getObjectByID('melvorAoD:Cartography');

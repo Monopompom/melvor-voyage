@@ -28,3 +28,9 @@
 
 /* settings: the Strictness dropdown sits under its two-line hint, lined up with the label */
 .form-inline:has(.voyage-setting-hint) > .dropdown { margin: 0.5rem 0 0.25rem 0.5rem; }
+
+/* phase 3a: the Voyage skill page */
+.bg-voyage { background-color: #1f4e6b !important; }
+.border-voyage { border-color: #c9a227 !important; }
+.voyage-compass-stages div + div { margin-top: 4px; }
+.voyage-manage-link { font-size: .9rem; padding: .2rem .6rem; white-space: nowrap; }

@@ -1,7 +1,7 @@
 // Console helpers for development builds only (setup.mjs loads this when DEV is true; the release
 // build leaves it out of player zips). Exposed as `voyageDev` on window.
 
-export function install(ctx, { state, terrainMod, rules, log }) {
+export function install(ctx, { state, terrainMod, rules, model, log }) {
   const cartography = () => game.cartography;
   const map = () => cartography()?.activeMap;
 
@@ -156,8 +156,22 @@ export function install(ctx, { state, terrainMod, rules, log }) {
       const hex = map()?.getHex(new HexCoords(near.hex.q, near.hex.r));
       return { coords: hex ? display(hex) : undefined, ...near.hex, distance: near.distance, dir: terrainMod.directionLabel(pos, near.hex) };
     },
+    /**
+     * Sets the Voyage skill level (compass stages: 10 adds the hex count, 25 the place name), or shows the skill's
+     * record when called without a level. voyageDev.voyage(25)
+     */
+    voyage(level) {
+      const s = state.voyageSkill?.();
+      if (s === undefined) return 'Voyage skill not registered';
+      if (level !== undefined) {
+        s.setXP(exp.levelToXP(Math.max(1, Math.min(level, s.maxLevelCap))) + 1);
+        s.renderQueue.page = true;
+        state.onSettingsChange();
+      }
+      return { level: s.level, xp: Math.floor(s.xp), record: { ...s.record }, futureSave: s.futureRaw !== undefined };
+    },
     state,
   };
   window.voyageDev = api;
-  log('voyageDev ready: reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader()');
+  log('voyageDev ready: reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), voyage(level)');
 }

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://melvoridle.com/assets/schema/gameData.json",
+  "namespace": "voyage",
+  "data": {
+    "pages": [
+      {
+        "id": "Voyage",
+        "media": "assets/voyage_skill.png",
+        "containerID": "voyage-container",
+        "headerBgClass": "bg-voyage",
+        "hasGameGuide": false,
+        "canBeDefault": true,
+        "skills": ["voyage:Voyage"],
+        "skillSidebarCategoryID": "Passive"
+      }
+    ],
+    "skillData": [
+      {
+        "skillID": "voyage:Voyage",
+        "data": {
+          "customMilestones": [
+            { "type": "Custom", "level": 1, "name": "Compass: how close and which way", "media": "assets/media/skills/cartography/cartography.png" },
+            { "type": "Custom", "level": 10, "name": "Compass: how many hexes away", "media": "assets/media/skills/cartography/cartography.png" },
+            { "type": "Custom", "level": 25, "name": "Compass: the name of the place", "media": "assets/media/skills/cartography/cartography.png" }
+          ]
+        }
+      }
+    ]
+  }
+}

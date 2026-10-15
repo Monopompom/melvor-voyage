@@ -1,0 +1,37 @@
+<template id="voyage-page-template">
+  <div class="content d-none voyage-ui" id="voyage-container">
+    <div class="skill-info">
+      <skill-header data-skill-id="voyage:Voyage"></skill-header>
+    </div>
+    <div class="row">
+      <div class="col-12 col-lg-6">
+        <div class="block block-rounded border-top border-voyage border-4x">
+          <div class="block-content p-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h5 class="font-w600 mb-0">Ship</h5>
+              <button type="button" class="btn btn-sm btn-primary" data-voyage="show-map">Show map</button>
+            </div>
+            <div data-voyage="ship"></div>
+          </div>
+        </div>
+        <div class="block block-rounded border-top border-voyage border-4x">
+          <div class="block-content p-3">
+            <h5 class="font-w600 mb-2">Travels</h5>
+            <div data-voyage="travels"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="block block-rounded border-top border-voyage border-4x">
+          <div class="block-content p-3">
+            <div class="d-flex align-items-center mb-2">
+              <img class="skill-icon-sm mr-2" data-voyage="compass-icon" />
+              <h5 class="font-w600 mb-0">Wayfinder's Compass</h5>
+            </div>
+            <div data-voyage="compass"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

@@ -5,9 +5,12 @@
 //
 // Phase 2 (map rules): the full tier table with Strict/Relaxed, combat placement with one-hex
 // grace, the trade gate, Township in towns, sidebar dimming and the Wayfinder's Compass. Travel is vanilla.
+//
+// Phase 3a: the Voyage skill shell: a passive skill with its own page, save block, XP per hex
+// travelled and the compass levels (4.17).
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-15.24';
+export const BUILD = '2026-10-15.30';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -32,6 +35,19 @@ export async function setup(ctx) {
   const table = await ctx.loadData('data/hex_terrain.json');
   // Items and shop entries (the compass). Registered before any character loads.
   try { await ctx.gameData.addPackage('data/package.json'); } catch (e) { console.error('[Voyage] data package failed; the compass is unavailable', e); }
+
+  // The Voyage skill (phase 3a): the class first, then the data (page, milestones) that references it. A failure here
+  // leaves the skill out and everything else running.
+  const model = await ctx.loadModule('src/voyage-model.mjs');
+  let voyageSkillOk = false;
+  try {
+    await ctx.loadTemplates('ui/templates.html');
+    const { createVoyageClass } = await ctx.loadModule('src/voyage-skill.mjs');
+    const { Voyage } = createVoyageClass({ model, log });
+    ctx.gameData.buildPackage((pkg) => { pkg.skills.add(Voyage); }).add();
+    await ctx.gameData.addPackage('data/skill.json');
+    voyageSkillOk = true;
+  } catch (e) { console.error('[Voyage] the Voyage skill failed to register; the rules still run', e); }
 
   // The loader calls a setting's onChange(newValue, oldValue) BEFORE it stores newValue, so section.get()
   // inside the handler still returns the old value. Each handler therefore records the new value itself.
@@ -119,13 +135,48 @@ export async function setup(ctx) {
   const compassMod = await ctx.loadModule('src/compass.mjs');
   const traderMod = await ctx.loadModule('src/trader.mjs');
   const stranded = await ctx.loadModule('src/stranded.mjs');
+  const voyagePage = await ctx.loadModule('src/voyage-page.mjs');
+  const markers = await ctx.loadModule('src/markers.mjs');
   knowledgeMod.install(ctx, { state, terrainMod, log });
   overlay.install(ctx, { state, terrainMod, log });
   gate.install(ctx, { state, rules, terrainMod, log });
-  compassMod.install(ctx, { state, rules, terrainMod, log });
+  compassMod.install(ctx, { state, rules, terrainMod, model, log });
   traderMod.install(ctx, { state, rules, terrainMod, stranded, log });
   herePanel.install(ctx, { state, rules, terrainMod, log });
-  if (DEV) (await ctx.loadModule('src/dev.mjs')).install(ctx, { state, terrainMod, rules, log });
+  markers.install(ctx, { log });
+  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, log }) : undefined;
+  /** The Voyage skill object, or undefined when it did not register. */
+  const voyageSkill = () => { try { return voyageSkillOk ? game.skills.getObjectByID(model.SKILL_ID) : undefined; } catch { return undefined; } };
+  const markPage = () => { const s = voyageSkill(); if (s !== undefined) s.renderQueue.page = true; };
+  state.listeners.push(markPage);
+  state.voyageSkill = voyageSkill;
+
+  // XP per hex travelled (decided 15 Oct 2026). movePlayer is the one vanilla travel path; it returns early when the
+  // costs are not owned, so the reward goes only to a move that really landed. Free moves (ignoreCosts: game events,
+  // dev teleports) give nothing. The path runs from the destination (index 0) back to the start.
+  if (voyageSkillOk) {
+    ctx.patch(Cartography, 'movePlayer').replace(function (original, path, ignoreCosts, ...rest) {
+      const from = this.activeMap?.playerPosition;
+      const result = original(path, ignoreCosts, ...rest);
+      try {
+        const dest = path?.[0];
+        if (!ignoreCosts && dest !== undefined && from !== dest && this.activeMap?.playerPosition === dest) {
+          const steps = [];
+          for (let i = 0; i < path.length - 1; i++) {
+            const next = path[i];
+            const prev = path[i + 1];
+            const rec = state.recordAt(next);
+            const water = rec !== undefined ? rec.t === 'water' || rec.t === 'shoal' : next.isWater === true;
+            steps.push({ water, fastTravel: prev.canFastTravelTo(next) });
+          }
+          voyageSkill()?.onTravelled(steps);
+        }
+      } catch (e) { log('travel XP failed', e); }
+      return result;
+    });
+  }
+
+  if (DEV) (await ctx.loadModule('src/dev.mjs')).install(ctx, { state, terrainMod, rules, model, log });
 
   ctx.onCharacterLoaded(() => {
     if (DEV) {
@@ -154,6 +205,18 @@ export async function setup(ctx) {
     } catch (e) {
       console.error('[Voyage] load failed, staying dormant', e);
       state.mode = 'dormant';
+    }
+    // Voyage skill: XP once for the hexes travelled before it existed, then the page.
+    try {
+      const s = voyageSkill();
+      if (s !== undefined) {
+        if (page !== undefined) s.pageRenderer = page.render;
+        const xp = s.backfill(game.stats.Cartography.get(19 /* CartographyStats.HexesTravelled */));
+        if (xp > 0) log(`Voyage backfill: ${xp} XP for earlier travels`);
+        s.renderQueue.page = true;
+      }
+    } catch (e) {
+      console.error('[Voyage] Voyage skill load failed', e);
     }
   });
 }

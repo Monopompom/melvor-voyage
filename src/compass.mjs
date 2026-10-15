@@ -3,6 +3,9 @@
 // the player's own landmass; when the only target is overseas the reading says so. Needs the item in the bank.
 // Granted once per character with a starter purse and a one-time welcome popup; sellable for 1 GP and sold again by
 // the shop (data/package.json). Hidden while the table is not trusted (relaxed mode) or rules are off.
+// Grows with the Voyage skill (phase 3a): level 1 is temperature and direction, later levels add the hex count and
+// then the name of the place (voyage-model.mjs COMPASS_LEVELS). Readings are memoised without the level; the level is
+// applied when a reading is put into words (`describe`).
 //
 // "Once" is decided by the compass's own TimesFound stat, which lives in the game save. Character storage is only a
 // second record: the loader saves it for mods installed through the Mod Manager, and a Creator Toolkit zip lost it
@@ -19,7 +22,9 @@ const SAVE_VERSION = 1;
  */
 const STARTER_GP = 2500;
 
-export function install(ctx, { state, rules, terrainMod, log }) {
+const DIRECTION_WORDS = { N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west' };
+
+export function install(ctx, { state, rules, terrainMod, model, log }) {
   const load = () => {
     try {
       const raw = ctx.characterStorage.getItem(SAVE_KEY);
@@ -41,7 +46,39 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     const same = mass === undefined ? undefined : terrainMod.nearestIn(candidates, pos, (rec) => ok(rec) && state.terrain.landmass(rec.q, rec.r) === mass);
     const found = same ?? terrainMod.nearestIn(candidates, pos, ok);
     if (found === undefined) return undefined;
-    return { word: word(found.distance), dir: terrainMod.directionLabel(pos, found.hex), distance: found.distance, across: same === undefined && mass !== undefined };
+    return { word: word(found.distance), dir: terrainMod.directionLabel(pos, found.hex), distance: found.distance, target: found.hex, across: same === undefined && mass !== undefined };
+  };
+
+  const voyageLevel = () => { try { return game.skills.getObjectByID(model.SKILL_ID)?.level ?? 1; } catch { return 1; } };
+
+  /** The target's name for the top compass stage: its POI (discovered or not), its area or dungeon, else its terrain. */
+  const placeName = (rec) => {
+    if (rec === undefined) return undefined;
+    try {
+      const poi = game.cartography?.activeMap?.getHex(new HexCoords(rec.q, rec.r))?.pointOfInterest;
+      if (poi !== undefined) return poi.name;
+    } catch {}
+    if (rec.area) return terrainMod.areaLabel(rec.area);
+    if (rec.dungeon) return terrainMod.areaLabel(rec.dungeon);
+    return terrainMod.CLASS_INFO[rec.t]?.label;
+  };
+
+  /**
+   * A reading in words for the player's Voyage level: { text, html }. Level 1: "Compass: Warm, pointing north-east."
+   * Level 10 adds "4 hexes away", level 25 the place: "Compass: Warm, pointing north-east, 4 hexes away (Wet Forest)."
+   */
+  const describe = (reading) => {
+    if (reading === undefined) return undefined;
+    const detail = model.compassDetail(voyageLevel());
+    const dir = DIRECTION_WORDS[reading.dir] ?? reading.dir;
+    const steps = detail.steps ? `, ${reading.distance} ${reading.distance === 1 ? 'hex' : 'hexes'} away` : '';
+    const name = detail.name ? placeName(reading.target) : undefined;
+    const place = name ? ` (${name})` : '';
+    const across = reading.across ? ', across the water' : '';
+    const word = reading.word.charAt(0).toUpperCase() + reading.word.slice(1);
+    const tail = `, pointing ${dir}${steps}${place}${across}.`;
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    return { text: `Compass: ${word}${tail}`, html: `<span class="voyage-compass-line">Compass: <b class="voyage-compass-${reading.word}">${word}</b>${esc(tail)}</span>` };
   };
 
   const memo = new Map();
@@ -64,6 +101,7 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     available,
     readingFor: (skillId, pos) => (available() ? readingFor(skillId, pos) : undefined),
     readingTo: (hexes, pos) => (available() ? readingTo(hexes, pos) : undefined),
+    describe,
   };
   state.listeners.push(() => memo.clear());
 
@@ -78,7 +116,7 @@ export function install(ctx, { state, rules, terrainMod, log }) {
           '<div><b>Cartography is how you find your way.</b> Survey the hexes around you to learn what is there; the map, the hints and travel all open up as you survey.</div>' +
           '<div><b>Get to a trading place first.</b> You can sell and buy only in a town, port or market, or next to one, and a new journey does not start next to one. Survey toward the nearest and travel there.</div>' +
           gp +
-          '<div>The <b>Wayfinder\'s Compass</b> in your bank helps when you know of nowhere a locked skill works: it says how close the nearest place is (<b class="voyage-compass-hot">Hot</b>, <b class="voyage-compass-warm">Warm</b>, <b class="voyage-compass-cold">Cold</b>, <b class="voyage-compass-freezing">Freezing</b>) and which way to walk. It sells for 1 GP, and the shop sells another if you lose it.</div>' +
+          '<div>The <b>Wayfinder\'s Compass</b> works while it is in your bank. When you try a skill that doesn\'t work where you stand on the map (Mining, Woodcutting, Smithing and the like) and you don\'t know where it works, the compass tells you how close the nearest place is (<b class="voyage-compass-hot">Hot</b>, <b class="voyage-compass-warm">Warm</b>, <b class="voyage-compass-cold">Cold</b>, <b class="voyage-compass-freezing">Freezing</b>) and which way to walk. Levelling the <b>Voyage</b> skill makes it sharper. If you lose it, the shop has another.</div>' +
           '</div></div>',
         icon: 'info',
         confirmButtonText: 'Got it',
