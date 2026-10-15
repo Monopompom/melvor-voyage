@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -15,17 +15,46 @@ export const XP_PER_HEX = { land: 20, water: 40 };
 /** Compass detail by Voyage level. Level 1 is today's reading: temperature and direction (decided 15 Oct 2026). */
 export const COMPASS_LEVELS = { steps: 10, name: 25 };
 
+/**
+ * `ship` is `{ hull, q, r }` or null (phase 3b): the hull id of ship-model.mjs HULLS and the hex it floats on.
+ * `shipChecked` turns true after the first load with ships, which places a free dinghy for a character that phase 2
+ * left on the water or on another landmass (existing characters). It runs once per character.
+ */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, ship: null, shipChecked: false };
 }
 
 /**
  * Steps keyed by the version they migrate FROM, applied in order up to SAVE_VERSION. Each step is pure and returns a
  * new record. Empty until the record changes shape (the Worker Folks rule).
  */
-export const MIGRATIONS = {};
+export const MIGRATIONS = {
+  // 3b: no ship yet; the first load with ships decides whether the character gets a free dinghy
+  1: (rec) => ({ ...rec, v: 2, ship: null, shipChecked: false }),
+};
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
+
+/** A saved ship, or null when it is missing or malformed. `hulls` is the set of known hull ids. */
+function cleanShip(ship, hulls) {
+  if (ship === null || typeof ship !== 'object') return null;
+  if (!hulls.includes(ship.hull) || !Number.isInteger(ship.q) || !Number.isInteger(ship.r)) return null;
+  return { hull: ship.hull, q: ship.q, r: ship.r };
+}
+
+/** Hull ids a save may name. Kept here so the model stays free of imports; ship-model.mjs HULLS must match. */
+export const HULL_IDS = ['dinghy'];
+
+function clean(rec) {
+  return {
+    v: SAVE_VERSION,
+    landHexes: count(rec.landHexes),
+    waterHexes: count(rec.waterHexes),
+    backfilled: rec.backfilled === true,
+    ship: cleanShip(rec.ship, HULL_IDS),
+    shipChecked: rec.shipChecked === true,
+  };
+}
 
 /**
  * Reads a saved JSON string. Never throws: unreadable data gives a fresh record with `corrupt`, a newer version than
@@ -46,23 +75,23 @@ export function loadSave(json) {
     report.applied.push(rec.v);
     rec = step(rec);
   }
-  const save = { v: SAVE_VERSION, landHexes: count(rec.landHexes), waterHexes: count(rec.waterHexes), backfilled: rec.backfilled === true };
-  return { save, report };
+  return { save: clean(rec), report };
 }
 
 export function serializeSave(save) {
-  return JSON.stringify({ v: SAVE_VERSION, landHexes: count(save.landHexes), waterHexes: count(save.waterHexes), backfilled: save.backfilled === true });
+  return JSON.stringify(clean(save));
 }
 
 /**
- * XP for one move. `steps` are the hexes entered, each `{ water, fastTravel }`. Fast-travel hops give nothing here:
- * phase 3c makes them sailing and pays them by distance.
+ * XP for one move. `steps` are the hexes entered, each `{ water, fastTravel, free }`. Fast-travel hops give nothing
+ * here (phase 3c makes them sailing and pays them by distance), nor do `free` steps: the homeward rule's moves back
+ * within the hull's reach. Neither counts as a hex travelled.
  */
 export function xpForSteps(steps) {
   let land = 0;
   let water = 0;
   for (const s of steps) {
-    if (s.fastTravel) continue;
+    if (s.fastTravel || s.free) continue;
     if (s.water) water += 1; else land += 1;
   }
   return { land, water, xp: land * XP_PER_HEX.land + water * XP_PER_HEX.water };

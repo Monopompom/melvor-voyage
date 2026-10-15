@@ -6,8 +6,8 @@ cursedlands, shoals and open water) and features such as forest, river or snow, 
 terrain is. Woodcutting needs trees. You have to go there.
 
 This is an early build (phase 3 of 8, in progress): the map overlay, the "You are here" panel, the full set of location rules,
-combat and trade tied to the map, and a compass to find your way. Travel is still the vanilla instant travel.
-Provisions, the ship and the timed voyage come later.
+combat and trade tied to the map, a compass to find your way, and a boat for the water. Travel is still instant.
+Provisions and the timed voyage come later.
 
 ## What it does
 
@@ -34,7 +34,12 @@ Provisions, the ship and the timed voyage come later.
 - **The Voyage skill.** A passive skill in the sidebar with its own page. Every hex you travel gives Voyage XP
   (water hexes more), and earlier travels count once when you first load. Levels sharpen the compass: at 10 it says
   how many hexes away, at 25 the name of the place. "Manage voyage" on the map and "Show map" on the page link the
-  two. The ship will live on this page.
+  two.
+- **A boat for the water.** On foot you walk on land only. Build a dinghy on the Voyage page (500 GP and 50 Normal
+  Logs, standing on a coast); it goes into the water next to you. Step onto it to board, sail up to 2 hexes from land,
+  and step ashore on any coast: the boat waits where you left it, shown on the map with its anchor. Some islands
+  need a bigger ship, in step with the dungeons on them: a dinghy can't land on the Cursed or the Ominous Isle. If you were already
+  out on the water or on another island when you installed this version, you get a dinghy for free.
 - **Worker Folks.** With Worker Folks loaded, hiring, promoting and firing need a town or port, like Township.
 
 ## Settings (Mod Settings, section Voyage)
@@ -42,7 +47,14 @@ Provisions, the ship and the timed voyage come later.
 - **Terrain overlay**: tint on or off.
 - **Voyage rules**: off turns every location lock off. The overlay and the panel stay.
 - **Strictness**: Strict locks gathering and crafting; Relaxed locks gathering only.
+- **Resource zones**: each ore, tree, fish, crop, thieving target and constellation is found only in its own places (iron and copper
+  are in different regions; the panel's skill icons list what is found on your hex). Off: the skill's terrain decides alone.
 - **Combat needs its area** and **Trade only near markets**: each can be switched off on its own.
+
+## Languages
+
+Every text of the mod comes from its language files. Only English ships for now; the game's language setting
+picks the matching file when one exists.
 
 ## Safety
 

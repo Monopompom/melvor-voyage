@@ -27,8 +27,8 @@ test('a save from a newer build is flagged, not downgraded', () => {
 });
 
 test('bad counters are cleaned on load', () => {
-  const { save } = loadSave(JSON.stringify({ v: 1, landHexes: -4, waterHexes: 2.7, backfilled: 'yes' }));
-  assert.deepEqual(save, { v: 1, landHexes: 0, waterHexes: 2, backfilled: false });
+  const { save } = loadSave(JSON.stringify({ v: SAVE_VERSION, landHexes: -4, waterHexes: 2.7, backfilled: 'yes', ship: 'boat' }));
+  assert.deepEqual(save, { ...defaultSave(), waterHexes: 2 });
 });
 
 test('XP per hex: water worth more, fast-travel hops give nothing', () => {

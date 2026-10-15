@@ -1,0 +1,209 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import {
+  HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach,
+} from '../src/ship-model.mjs';
+import { HULL_IDS, loadSave, serializeSave, defaultSave, xpForSteps } from '../src/voyage-model.mjs';
+import { createTerrain, hexDistance, NEIGHBOURS } from '../src/terrain.mjs';
+
+const land = (q, r) => ({ q, r, t: 'grasslands' });
+const sea = (q, r, shore) => ({ q, r, t: 'water', shore });
+const dinghy = (q, r) => ({ hull: 'dinghy', q, r });
+
+test('hull ids in the save model match the hull table', () => {
+  assert.deepEqual(HULL_IDS, Object.keys(HULLS));
+  assert.equal(HULLS.dinghy.reach, 2);
+  assert.ok(DINGHY_BUILD.gp > 0 && DINGHY_BUILD.items.length > 0);
+});
+
+test('off the ship, land only: the one sea hex you may enter from land is the ship\'s', () => {
+  assert.equal(canStep(land(0, 0), land(1, 0), null), true);
+  assert.equal(canStep(land(0, 0), sea(1, 0, 1), null), false);
+  assert.equal(canStep(land(0, 0), sea(1, 0, 1), dinghy(5, 5)), false);
+  assert.equal(canStep(land(0, 0), sea(1, 0, 1), dinghy(1, 0)), true);
+});
+
+test('aboard: sail within reach, land on any coast, the homeward rule beyond reach', () => {
+  const ship = dinghy(1, 0);
+  assert.equal(canStep(sea(1, 0, 1), sea(2, 0, 2), ship), true);
+  assert.equal(canStep(sea(2, 0, 2), sea(3, 0, 3), ship), false, 'reach is 2');
+  assert.equal(canStep(sea(1, 0, 1), land(0, 0), ship), true);
+  // out of reach (an old save): only moves that never take it farther from land
+  assert.equal(canStep(sea(9, 0, 5), sea(8, 0, 4), ship), true);
+  assert.equal(canStep(sea(9, 0, 5), sea(9, 1, 5), ship), true);
+  assert.equal(canStep(sea(9, 0, 5), sea(10, 0, 6), ship), false);
+  // on the sea with no ship: only closer to land
+  assert.equal(canStep(sea(9, 0, 5), sea(9, 1, 5), null), false);
+  assert.equal(canStep(sea(9, 0, 5), sea(8, 0, 4), null), true);
+});
+
+test('free steps: beyond the reach and without a ship', () => {
+  assert.equal(isFreeStep(sea(0, 0, 2), dinghy(0, 0)), false);
+  assert.equal(isFreeStep(sea(0, 0, 3), dinghy(0, 0)), true);
+  assert.equal(isFreeStep(sea(0, 0, 1), null), true);
+  assert.equal(isFreeStep(land(0, 0), null), false);
+  assert.deepEqual(xpForSteps([{ water: true, free: true }, { water: true }]).water, 1);
+});
+
+test('the ship follows you across the sea and waits where you step ashore', () => {
+  const ship = dinghy(1, 0);
+  // board from land, sail two hexes, land
+  const path = [land(0, 0), sea(1, 0, 1), sea(2, 0, 2), sea(3, 0, 1), land(4, 0)];
+  assert.deepEqual(shipAfterPath(path, ship), dinghy(3, 0));
+  assert.equal(isAboard(land(4, 0), shipAfterPath(path, ship)), false);
+  // end on the water: still aboard
+  assert.deepEqual(shipAfterPath(path.slice(0, 3), ship), dinghy(2, 0));
+  assert.equal(isAboard(sea(2, 0, 2), dinghy(2, 0)), true);
+  // a walk on land leaves it alone (same object)
+  assert.equal(shipAfterPath([land(0, 0), land(0, 1)], ship), ship);
+  // rules off: crossing the sea elsewhere does not move it
+  assert.equal(shipAfterPath([land(0, 0), sea(0, 1, 1), land(0, 2)], ship), ship);
+  assert.equal(shipAfterPath(path, null), null);
+});
+
+test('a dinghy is launched next to the coast you stand on', () => {
+  assert.deepEqual(launchSpot(land(0, 0), [land(1, 0), { ...sea(0, 1, 1), t: 'shoal' }, sea(1, -1, 1)]), sea(1, -1, 1));
+  assert.deepEqual(launchSpot(land(0, 0), [land(1, 0), { ...sea(0, 1, 1), t: 'shoal' }]).t, 'shoal');
+  assert.equal(launchSpot(land(0, 0), [land(1, 0)]), undefined);
+  assert.equal(launchSpot(sea(0, 0, 1), [land(1, 0)]), undefined);
+});
+
+test('free dinghy: under a player on the water, next to their island away from the start, none at home', async () => {
+  const table = JSON.parse(await readFile(new URL('../data/hex_terrain.json', import.meta.url), 'utf8'));
+  const terrain = createTerrain(table);
+  const all = [...terrain.all()];
+  const start = all.find((h) => h.t === 'grasslands' && terrain.landmass(h.q, h.r) !== undefined);
+  const home = terrain.landmass(start.q, start.r);
+  const water = all.find((h) => h.t === 'water' && h.shore === 3);
+  assert.deepEqual(freeBoatSpot(water, start, terrain, hexDistance), { q: water.q, r: water.r });
+  assert.equal(freeBoatSpot(start, start, terrain, hexDistance), undefined);
+  const island = all.find((h) => h.t !== 'water' && h.t !== 'shoal' && h.cloud !== true && terrain.landmass(h.q, h.r) !== undefined && terrain.landmass(h.q, h.r) !== home);
+  const spot = freeBoatSpot(island, start, terrain, hexDistance);
+  assert.ok(spot !== undefined);
+  const rec = terrain.get(spot.q, spot.r);
+  assert.equal(rec.shore, 1);
+  assert.ok(terrain.neighbours(spot.q, spot.r).some((n) => terrain.landmass(n.q, n.r) === terrain.landmass(island.q, island.r)));
+});
+
+test('every water and shoal hex has a shore distance; land has none', async () => {
+  const table = JSON.parse(await readFile(new URL('../data/hex_terrain.json', import.meta.url), 'utf8'));
+  for (const h of table.hexes) {
+    if (h.t === 'water' || h.t === 'shoal') assert.ok(Number.isInteger(h.shore) && h.shore >= 1, `${h.q},${h.r}`);
+    else assert.equal(h.shore, undefined, `${h.q},${h.r}`);
+  }
+  assert.equal(table.hexes.filter((h) => h.shore !== undefined && h.shore <= 2).length, 352);
+});
+
+test('save v1 migrates to v2 with no ship; a ship round-trips; a bad ship is dropped', () => {
+  const { save, report } = loadSave(JSON.stringify({ v: 1, landHexes: 4, waterHexes: 0, backfilled: true }));
+  assert.deepEqual(report.applied, [1]);
+  assert.deepEqual(save, { ...defaultSave(), landHexes: 4, backfilled: true });
+  const withShip = { ...defaultSave(), ship: dinghy(3, 7), shipChecked: true };
+  assert.deepEqual(loadSave(serializeSave(withShip)).save, withShip);
+  assert.equal(loadSave(JSON.stringify({ ...withShip, ship: { hull: 'raft', q: 1, r: 1 } })).save.ship, null);
+  assert.equal(loadSave(JSON.stringify({ ...withShip, ship: { hull: 'dinghy', q: 1.5, r: 1 } })).save.ship, null);
+});
+
+const loadTerrain = async () => createTerrain(JSON.parse(await readFile(new URL('../data/hex_terrain.json', import.meta.url), 'utf8')));
+
+test('island tiers: a small hull can\'t land on a bigger hull\'s island, but may leave it and walk on it', () => {
+  const geo = { islandTier: (rec) => (rec.q === 9 ? 2 : 1), home: (rec) => rec.shore ?? 0 };
+  const ship = dinghy(8, 0);
+  assert.equal(canStep(sea(8, 0, 1), land(9, 0), ship, geo), false);
+  assert.equal(canStep(sea(8, 0, 1), land(7, 0), ship, geo), true);
+  assert.equal(canStep(land(9, 0), land(9, 1), ship, geo), true);
+  assert.equal(canStep(sea(8, 0, 1), land(9, 0), null, geo), true, 'swimming home lands anywhere');
+});
+
+test('every island anchor is on its own landmass, off the mainland', async () => {
+  const terrain = await loadTerrain();
+  const lms = ISLANDS.map((i) => { const rec = terrain.poi(i.anchor); assert.ok(rec, i.anchor); return terrain.landmass(rec.q, rec.r); });
+  assert.equal(new Set(lms).size, ISLANDS.length);
+  const start = terrain.get(15, 9);
+  assert.ok(!lms.includes(terrain.landmass(start.q, start.r)));
+  const idx = seaIndex(terrain);
+  assert.equal(idx.islandTier(terrain.poi('OminousPort')), 3);
+  assert.equal(idx.islandTier(start), 1);
+  assert.equal(idx.islandOf(start), undefined);
+});
+
+/** Hexes a dinghy launched at `from` can reach (clouds excluded, like the game's unsurveyable corners). */
+const sailFrom = (terrain, idx, from) => {
+  const ship = { hull: 'dinghy', q: from.q, r: from.r };
+  const seen = new Set([from]);
+  const queue = [from];
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    for (const [dq, dr] of NEIGHBOURS) {
+      const n = terrain.get(cur.q + dq, cur.r + dr);
+      if (n === undefined || n.cloud === true || seen.has(n) || !canStep(cur, n, ship, idx)) continue;
+      seen.add(n);
+      if (isSea(n)) queue.push(n); // stepping ashore ends this crossing
+    }
+  }
+  return seen;
+};
+
+test('dinghy on the real map: lands on tier 1 islands, never on the Cursed or Ominous Isle, reaches Deep Sea Ship', async () => {
+  const terrain = await loadTerrain();
+  const idx = seaIndex(terrain);
+  const start = terrain.get(15, 9);
+  const launch = launchSpot(start, terrain.neighbours(start.q, start.r));
+  // island hopping: sail from every coast reached so far
+  const landed = new Set();
+  let frontier = [launch];
+  const done = new Set();
+  while (frontier.length > 0) {
+    const next = [];
+    for (const from of frontier) {
+      for (const h of sailFrom(terrain, idx, from)) {
+        if (isSea(h)) continue;
+        const name = idx.islandOf(h)?.id ?? 'mainland';
+        if (!landed.has(name)) landed.add(name);
+        for (const n of terrain.neighbours(h.q, h.r)) if (isSea(n) && n.cloud !== true && !done.has(n)) { done.add(n); next.push(n); }
+      }
+    }
+    frontier = next;
+  }
+  assert.deepEqual([...landed].sort(), ['frost', 'golden', 'mainland', 'western']);
+  // Deep Sea Ship (3 hexes out) is fought from the next hex, which a dinghy reaches
+  const dss = terrain.dungeon('DeepSeaShip') ?? [...terrain.all()].find((h) => h.dungeon === 'DeepSeaShip');
+  assert.ok(dss !== undefined && dss.shore === 3);
+  assert.ok(terrain.neighbours(dss.q, dss.r).some((n) => isSea(n) && idx.home(n, 1) <= HULLS.dinghy.reach));
+});
+
+test('no trap: from every sea hex a dinghy can reach a shore it may land on', async () => {
+  const terrain = await loadTerrain();
+  const idx = seaIndex(terrain);
+  const stuck = [];
+  for (const h of terrain.all()) {
+    if (!isSea(h) || h.cloud === true) continue;
+    const reached = sailFrom(terrain, idx, h);
+    if (![...reached].some((r) => !isSea(r))) stuck.push(`${h.q},${h.r} shore ${h.shore}`);
+  }
+  assert.deepEqual(stuck, []);
+});
+
+test('the corner pocket (0,9): 2 hexes from land behind cloud, so a dinghy there is beyond reach and heads out', async () => {
+  const terrain = await loadTerrain();
+  const idx = seaIndex(terrain);
+  const pocket = terrain.get(0, 9);
+  assert.equal(pocket.shore, 2);
+  const ship = dinghy(0, 9);
+  assert.ok(idx.home(pocket, 1) > HULLS.dinghy.reach);
+  assert.equal(beyondReach(pocket, ship, idx), true);
+  assert.equal(canStep(pocket, terrain.get(0, 8), ship, idx), true);
+  assert.equal(isFreeStep(terrain.get(0, 8), ship, idx), true);
+});
+
+test('next to a higher-tier island counts as beyond a dinghy\'s reach unless a landable coast is near', async () => {
+  const terrain = await loadTerrain();
+  const idx = seaIndex(terrain);
+  const port = terrain.poi('OminousPort');
+  const off = terrain.neighbours(port.q, port.r).filter(isSea);
+  assert.ok(off.length > 0);
+  for (const h of off) assert.ok(idx.home(h, 3) === 1 && idx.home(h, 1) >= 1);
+  // the brig may land at Ominous Port: its distance is 1 there
+  assert.ok(off.some((h) => idx.home(h, 1) > idx.home(h, 3)));
+});

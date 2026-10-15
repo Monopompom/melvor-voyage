@@ -8,15 +8,20 @@
 //
 // Phase 3a: the Voyage skill shell: a passive skill with its own page, save block, XP per hex
 // travelled and the compass levels (4.17).
+// Phase 3b: the ship (4.3): off the ship, land only; a dinghy built on the Voyage page; the ship waits where you step
+// ashore; player and ship markers; a free dinghy for characters phase 2 left on the water or overseas.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-15.30';
+export const BUILD = '2026-10-16.54';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
 export async function setup(ctx) {
   const log = DEV ? (...args) => console.log('[Voyage]', ...args) : () => {};
   console.info(`[Voyage] Far Shores — build ${BUILD}`);
+  // Every player-facing text comes from languages/<code>.json (Translatable text); merged before anything reads it.
+  const { mergeLang } = await ctx.loadModule('src/lang-merge.mjs');
+  await (await ctx.loadModule('src/lang.mjs')).install(ctx, { mergeLang });
 
   // Hard requirement: Atlas of Discovery. Without it the mod registers nothing and never throws.
   const hasAoD = () => {
@@ -25,7 +30,7 @@ export async function setup(ctx) {
   if (!hasAoD()) {
     console.warn('[Voyage] Atlas of Discovery is not enabled; Voyage stays dormant.');
     ctx.onInterfaceReady(() => {
-      try { game.notifications.createErrorNotification('voyage:noaod', 'Voyage: Far Shores needs Atlas of Discovery and stays dormant.'); } catch {}
+      try { game.notifications.createErrorNotification('voyage:noaod', getLangString('MOD_VOY_NOTICE_NO_AOD')); } catch {}
     });
     return;
   }
@@ -33,12 +38,30 @@ export async function setup(ctx) {
   const terrainMod = await ctx.loadModule('src/terrain.mjs');
   const rules = await ctx.loadModule('src/rules.mjs');
   const table = await ctx.loadData('data/hex_terrain.json');
+  // Resource zones: where each ore, tree, fish, crop and thieving target is found. Without the table
+  // the zones stay off and every action follows its skill's rule.
+  let zonesMod;
+  let zoneTable;
+  try { zonesMod = await ctx.loadModule('src/zones.mjs'); zoneTable = await ctx.loadData('data/zones.json'); } catch (e) { console.error('[Voyage] zone table failed; resource zones are off', e); zonesMod = undefined; }
   // Items and shop entries (the compass). Registered before any character loads.
   try { await ctx.gameData.addPackage('data/package.json'); } catch (e) { console.error('[Voyage] data package failed; the compass is unavailable', e); }
+  // Names that live in the data files come from the language file too (the English there is the fallback). The shop
+  // purchase takes its name and description from the item.
+  try {
+    const compass = game.items.getObjectByID('voyage:Wayfinder_Compass');
+    if (compass !== undefined) {
+      compass._name = getLangString('MOD_VOY_ITEM_COMPASS_NAME');
+      compass._customDescription = getLangString('MOD_VOY_ITEM_COMPASS_DESC');
+      compass._modifiedDescription = undefined;
+    }
+    const category = game.shop.categories.getObjectByID('voyage:Voyage');
+    if (category !== undefined) category._name = getLangString('MOD_VOY_SHOP_CATEGORY');
+  } catch (e) { console.error('[Voyage] data names not translated', e); }
 
   // The Voyage skill (phase 3a): the class first, then the data (page, milestones) that references it. A failure here
   // leaves the skill out and everything else running.
   const model = await ctx.loadModule('src/voyage-model.mjs');
+  const shipModel = await ctx.loadModule('src/ship-model.mjs');
   let voyageSkillOk = false;
   try {
     await ctx.loadTemplates('ui/templates.html');
@@ -46,6 +69,13 @@ export async function setup(ctx) {
     const { Voyage } = createVoyageClass({ model, log });
     ctx.gameData.buildPackage((pkg) => { pkg.skills.add(Voyage); }).add();
     await ctx.gameData.addPackage('data/skill.json');
+    // Milestone names: MOD_VOY_MILESTONE_<n>, n = 1.. in model.COMPASS_STAGES order (data/skill.json keeps the English).
+    try {
+      game.skills.getObjectByID(model.SKILL_ID)?.milestones.forEach((m) => {
+        const i = model.COMPASS_STAGES.findIndex((stage) => stage.level === m.level);
+        if (i >= 0 && m._milestoneID === undefined && '_name' in m) m._name = getLangString(`MOD_VOY_MILESTONE_${i + 1}`);
+      });
+    } catch (e) { console.error('[Voyage] milestone names not translated', e); }
     voyageSkillOk = true;
   } catch (e) { console.error('[Voyage] the Voyage skill failed to register; the rules still run', e); }
 
@@ -78,15 +108,34 @@ export async function setup(ctx) {
   // class lets css/voyage.css space the dropdown below it.
   const strictnessHint = document.createElement('span');
   strictnessHint.className = 'voyage-setting-hint';
-  strictnessHint.append('Strict: gathering needs terrain, crafting needs a workshop or town.', document.createElement('br'), 'Relaxed: only gathering is tied to terrain.');
+  strictnessHint.append(getLangString('MOD_VOY_SETTING_STRICTNESS_HINT_STRICT'), document.createElement('br'), getLangString('MOD_VOY_SETTING_STRICTNESS_HINT_RELAXED'));
   section.add([
-    { type: 'switch', name: 'overlay', label: 'Terrain overlay', hint: 'Tint surveyed hexes by terrain on the Cartography map.', default: true, onChange: onChange('overlay') },
-    { type: 'switch', name: 'rules', label: 'Voyage rules', hint: 'Off: nothing is locked by location; the overlay and the panel stay.', default: true, onChange: onChange('rules') },
-    { type: 'dropdown', name: 'strictness', label: 'Strictness', hint: strictnessHint,
-      options: [{ value: 'strict', display: 'Strict' }, { value: 'relaxed', display: 'Relaxed' }], default: 'strict', onChange: onChange('strictness') },
-    { type: 'switch', name: 'combat', label: 'Combat needs its area', hint: 'Fight only on the area\'s hex or next to it. Dungeons and strongholds too.', default: true, onChange: onChange('combat') },
-    { type: 'switch', name: 'trade', label: 'Trade only near markets', hint: 'Sell and buy only in or next to a town, port or market.', default: true, onChange: onChange('trade') },
+    { type: 'switch', name: 'overlay', label: getLangString('MOD_VOY_SETTING_OVERLAY'), hint: getLangString('MOD_VOY_SETTING_OVERLAY_HINT'), default: true, onChange: onChange('overlay') },
+    { type: 'switch', name: 'rules', label: getLangString('MOD_VOY_SETTING_RULES'), hint: getLangString('MOD_VOY_SETTING_RULES_HINT'), default: true, onChange: onChange('rules') },
+    { type: 'dropdown', name: 'strictness', label: getLangString('MOD_VOY_SETTING_STRICTNESS'), hint: strictnessHint,
+      options: [{ value: 'strict', display: getLangString('MOD_VOY_SETTING_STRICTNESS_STRICT') }, { value: 'relaxed', display: getLangString('MOD_VOY_SETTING_STRICTNESS_RELAXED') }], default: 'strict', onChange: onChange('strictness') },
+    { type: 'switch', name: 'zones', label: getLangString('MOD_VOY_SETTING_ZONES'), hint: getLangString('MOD_VOY_SETTING_ZONES_HINT'), default: true, onChange: onChange('zones') },
+    { type: 'switch', name: 'combat', label: getLangString('MOD_VOY_SETTING_COMBAT'), hint: getLangString('MOD_VOY_SETTING_COMBAT_HINT'), default: true, onChange: onChange('combat') },
+    { type: 'switch', name: 'trade', label: getLangString('MOD_VOY_SETTING_TRADE'), hint: getLangString('MOD_VOY_SETTING_TRADE_HINT'), default: true, onChange: onChange('trade') },
   ]);
+
+  /** The game's offline loop (tab in the background, or back after a while): see state.onSettingsChange. */
+  const offline = {
+    held: 0,
+    started: 0,
+    active() { try { return game._isInOnlineLoop === false; } catch { return false; } },
+  };
+  ctx.patch(Game, 'enterOfflineLoop').after(function () {
+    offline.held = 0;
+    offline.started = performance.now();
+    log(`offline loop entered: replaying ${Math.round((Date.now() - this.tickTimestamp) / 1000)} s, action ${this.activeAction?.id ?? 'none'}`);
+  });
+  ctx.patch(Game, 'exitOfflineLoop').after(function () {
+    const held = offline.held;
+    offline.held = 0;
+    log(`offline loop left after ${Math.round(performance.now() - offline.started)} ms; ${held} held refresh(es)`);
+    if (held > 0) setTimeout(() => state.onSettingsChange(), 0);
+  });
 
   /** Shared runtime state. mode: 'dormant' until the save is checked, then 'strict' or 'relaxed' (table mismatch). */
   const state = {
@@ -99,9 +148,16 @@ export async function setup(ctx) {
       rules: () => flag('rules'),
       strictness: () => (value('strictness') === 'relaxed' ? 'relaxed' : 'strict'),
       combat: () => flag('combat'),
+      zones: () => flag('zones'),
       trade: () => flag('trade'),
     },
-    onSettingsChange() { this.listeners.forEach((fn) => { try { fn(); } catch (e) { log(e); } }); },
+    onSettingsChange() {
+      // Offline catch-up: the game replays the missed ticks behind its "offline progress" box, and a survey or a
+      // trader leaving inside it would redraw the map, panel and sidebar and run the stop checks once per event.
+      // Hold them; they run once when the game leaves the offline loop (patch below).
+      if (offline.active()) { offline.held++; return; }
+      this.listeners.forEach((fn) => { try { fn(); } catch (e) { log(e); } });
+    },
     /** True while the gates apply: table trusted, rules on, not in Golbin Raid, tutorial done. */
     active() {
       try { return this.mode === 'strict' && this.settings.rules() && !game.isGolbinRaid && game.tutorial?.complete !== false; } catch { return false; }
@@ -127,51 +183,76 @@ export async function setup(ctx) {
     rateAt: () => 1,
   };
 
+  // Things for after the tutorial (the user, 16 Oct 2026): the welcome popup with the compass and purse, and the free
+  // unlock notice. Run now when the tutorial is done (or the mode has none); otherwise when it completes, once the
+  // game's own "tutorial complete" box is closed (SwalLocale.fire would replace it).
+  const tutorialWaiters = [];
+  const runWhenNoModal = (fns, tries = 0) => {
+    let open = false;
+    try { open = typeof Swal !== 'undefined' && Swal.isVisible(); } catch {}
+    if (open && tries < 600) { setTimeout(() => runWhenNoModal(fns, tries + 1), 500); return; }
+    for (const fn of fns) { try { fn(); } catch (e) { console.error('[Voyage] after-tutorial step failed', e); } }
+  };
+  state.afterTutorial = (fn) => {
+    let done = true;
+    try { done = game.tutorial?.complete !== false; } catch {}
+    if (done) fn(); else { tutorialWaiters.push(fn); log('waiting for the tutorial to end'); }
+  };
+  ctx.patch(Tutorial, 'completeTutorial').after(() => {
+    const fns = tutorialWaiters.splice(0);
+    if (fns.length > 0) setTimeout(() => runWhenNoModal(fns), 500);
+  });
+
   ctx.loadStylesheet('css/voyage.css');
   const overlay = await ctx.loadModule('src/overlay.mjs');
   const gate = await ctx.loadModule('src/gate.mjs');
   const herePanel = await ctx.loadModule('src/here-panel.mjs');
   const knowledgeMod = await ctx.loadModule('src/knowledge.mjs');
+  // Not a rule: restarts the game loop when the game's own focus event is missed (src/focus-fix.mjs).
+  try { (await ctx.loadModule('src/focus-fix.mjs')).install(ctx, { log }); } catch (e) { console.error('[Voyage] focus fix failed', e); }
   const compassMod = await ctx.loadModule('src/compass.mjs');
   const traderMod = await ctx.loadModule('src/trader.mjs');
   const stranded = await ctx.loadModule('src/stranded.mjs');
   const voyagePage = await ctx.loadModule('src/voyage-page.mjs');
   const markers = await ctx.loadModule('src/markers.mjs');
+  const shipMod = await ctx.loadModule('src/ship.mjs');
+  const unlocks = await ctx.loadModule('src/unlocks.mjs');
   knowledgeMod.install(ctx, { state, terrainMod, log });
   overlay.install(ctx, { state, terrainMod, log });
-  gate.install(ctx, { state, rules, terrainMod, log });
+  state.zoneTable = zoneTable;
+  gate.install(ctx, { state, rules, terrainMod, zones: zonesMod, log });
   compassMod.install(ctx, { state, rules, terrainMod, model, log });
   traderMod.install(ctx, { state, rules, terrainMod, stranded, log });
   herePanel.install(ctx, { state, rules, terrainMod, log });
-  markers.install(ctx, { log });
-  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, log }) : undefined;
   /** The Voyage skill object, or undefined when it did not register. */
   const voyageSkill = () => { try { return voyageSkillOk ? game.skills.getObjectByID(model.SKILL_ID) : undefined; } catch { return undefined; } };
+  state.voyageSkill = voyageSkill;
+  unlocks.install(ctx, { state, log });
+  // The ship keeps its state in the skill's save, so without the skill it stays inert and travel is vanilla.
+  const ship = shipMod.install(ctx, { state, model, shipModel, terrainMod, log });
+  markers.install(ctx, { state, log });
+  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, log }) : undefined;
   const markPage = () => { const s = voyageSkill(); if (s !== undefined) s.renderQueue.page = true; };
   state.listeners.push(markPage);
-  state.voyageSkill = voyageSkill;
 
-  // XP per hex travelled (decided 15 Oct 2026). movePlayer is the one vanilla travel path; it returns early when the
-  // costs are not owned, so the reward goes only to a move that really landed. Free moves (ignoreCosts: game events,
-  // dev teleports) give nothing. The path runs from the destination (index 0) back to the start.
+  // XP per hex travelled (decided 15 Oct 2026) and the ship following the move. movePlayer is the one vanilla travel
+  // path; it returns early when the costs are not owned, so both apply only to a move that really landed. Free moves
+  // (ignoreCosts: game events, dev teleports) give no XP but still carry the ship. The path runs from the
+  // destination (index 0) back to the start. The steps are read before the move: the homeward rule depends on the
+  // ship's reach where the move began.
   if (voyageSkillOk) {
     ctx.patch(Cartography, 'movePlayer').replace(function (original, path, ignoreCosts, ...rest) {
       const from = this.activeMap?.playerPosition;
+      let steps;
+      try { steps = Array.isArray(path) ? ship.stepsOf(path) : undefined; } catch (e) { log('travel steps failed', e); }
       const result = original(path, ignoreCosts, ...rest);
       try {
         const dest = path?.[0];
-        if (!ignoreCosts && dest !== undefined && from !== dest && this.activeMap?.playerPosition === dest) {
-          const steps = [];
-          for (let i = 0; i < path.length - 1; i++) {
-            const next = path[i];
-            const prev = path[i + 1];
-            const rec = state.recordAt(next);
-            const water = rec !== undefined ? rec.t === 'water' || rec.t === 'shoal' : next.isWater === true;
-            steps.push({ water, fastTravel: prev.canFastTravelTo(next) });
-          }
-          voyageSkill()?.onTravelled(steps);
+        if (dest !== undefined && from !== dest && this.activeMap?.playerPosition === dest) {
+          if (!ignoreCosts && steps !== undefined) voyageSkill()?.onTravelled(steps);
+          ship.afterMove(path);
         }
-      } catch (e) { log('travel XP failed', e); }
+      } catch (e) { log('travel XP or ship move failed', e); }
       return result;
     });
   }
@@ -198,7 +279,7 @@ export async function setup(ctx) {
       log(`table ${table.meta.builtAt} (${table.meta.hexCount} hexes, hash ${table.meta.waterHash}): ${state.mode}`, check.reasons);
       if (!check.ok) {
         ctx.onInterfaceReady(() => {
-          try { game.notifications.createErrorNotification('voyage:mismatch', 'Voyage: the map differs from the terrain table. Location rules are off until the mod is updated.'); } catch {}
+          try { game.notifications.createErrorNotification('voyage:mismatch', getLangString('MOD_VOY_NOTICE_TABLE_MISMATCH')); } catch {}
         });
       }
       state.onSettingsChange();
@@ -210,7 +291,7 @@ export async function setup(ctx) {
     try {
       const s = voyageSkill();
       if (s !== undefined) {
-        if (page !== undefined) s.pageRenderer = page.render;
+        if (page !== undefined) { s.pageRenderer = page.render; s.pageSignature = page.signature; }
         const xp = s.backfill(game.stats.Cartography.get(19 /* CartographyStats.HexesTravelled */));
         if (xp > 0) log(`Voyage backfill: ${xp} XP for earlier travels`);
         s.renderQueue.page = true;
@@ -218,5 +299,7 @@ export async function setup(ctx) {
     } catch (e) {
       console.error('[Voyage] Voyage skill load failed', e);
     }
+    // The ship: the one-time free dinghy for characters out on the water or overseas, then the markers.
+    ship.loaded();
   });
 }

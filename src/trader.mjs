@@ -1,7 +1,9 @@
 // The wandering trader: the floor under the trade gate. A player who is stranded (trade refused
 // here, the road to any trading spot unaffordable, no way to earn GP here) meets a trader when they try to sell or
-// click the panel line. He buys at half price on this hex until the road is affordable, then moves on. On a barren
-// hex with nothing worth selling he spares exactly the GP for one step to a hex where a gathering skill works.
+// click the panel line. He buys at half price on this hex until the road is affordable, then moves on. With nothing
+// worth selling he spares exactly the GP for the road to the nearest place where combat pays (Adventure: every skill
+// starts locked, so combat is the only income; decided 15 Oct 2026), or failing that one step to a hex where an
+// unlocked gathering skill works. Roads follow the ship rules (src/ship.mjs `allows`).
 //
 // Route and verdict are pure (src/stranded.mjs). This module reads the live map and economy, fails toward
 // "stranded" on any error (a wrong offer is better than a soft lock), and never touches anything while the gates are off.
@@ -12,13 +14,18 @@ const HALF = 0.5;
 export function install(ctx, { state, rules, terrainMod, stranded, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const keyOf = (hex) => terrainMod.hexKey(hex.q, hex.r);
+  // Player-facing text comes from languages/<code>.json (Translatable text).
+  const hexes = (n) => templateLangString(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });
   /** The trader met on this stranded spell: { key, coinsGiven }; undefined when none is here. */
   let met;
 
   // ------------------------------------------------------------------------------------------------ the road
   const neighboursOf = (map) => (hex) => {
     const out = [];
-    HexCoords.axialDirVectors.forEach((_, i) => { const n = map.getHex(HexCoords.axialNeighbor(hex, i)); if (n !== undefined) out.push(n); });
+    HexCoords.axialDirVectors.forEach((_, i) => {
+      const n = map.getHex(HexCoords.axialNeighbor(hex, i));
+      if (n !== undefined && (state.ship?.allows?.(hex, n) ?? true)) out.push(n);
+    });
     return out;
   };
   const tradeSpot = (hex) => {
@@ -39,6 +46,44 @@ export function install(ctx, { state, rules, terrainMod, stranded, log }) {
     // Items: the costs object checks GP too; with GP covered separately, a failed check means missing items.
     const itemsOwned = costs.getItemQuantityArray().every(({ item, quantity }) => game.bank.getQty(item) >= quantity);
     return { path: found.path, gp, itemsOwned };
+  };
+
+  // ------------------------------------------------------------------------------------------------ combat road
+  /**
+   * Where combat pays for this player: hex key -> area, for every combat or slayer area they may enter (its entry
+   * requirements met) whose monsters drop GP, on its tagged hexes and one hex around (the combat placement rule).
+   * Rebuilt per call: cheap next to the route search, and requirements change as the player levels.
+   */
+  const combatSpots = () => {
+    const spots = new Map();
+    try { if (!game.tutorial.complete) return spots; } catch {} // the gate is off during the tutorial
+    game.combatAreas.forEach((area) => {
+      if (area === game.unknownCombatArea || notAreaKind(area)) return;
+      if (!game.checkRequirements(area.entryRequirements ?? []) || !(area.monsters ?? []).some(gpDrop)) return;
+      const places = state.terrain.placesFor(area.id);
+      // Grace of one hex (rules.PLACE_GRACE). An unplaced area may be fought anywhere, so gpSources already counts it.
+      for (const p of places) {
+        for (const h of [p, ...state.terrain.neighbours(p.q, p.r)]) {
+          const k = terrainMod.hexKey(h.q, h.r);
+          if (!spots.has(k)) spots.set(k, area);
+        }
+      }
+    });
+    return spots;
+  };
+  /** Cheapest road to a place where combat pays: { path, gp, itemsOwned, area }, or undefined. */
+  const combatRoad = (pos) => {
+    if (!state.settings.combat()) return undefined; // combat works anywhere: gpSources already says so
+    const cart = game.cartography;
+    const map = cart.activeMap;
+    const mult = cart.travelCostMultiplier;
+    const spots = combatSpots();
+    if (spots.size === 0) return undefined;
+    const found = stranded.cheapestRoute(pos, { neighbours: neighboursOf(map), stepCost: (h) => h.getCombinedCost(mult), isGoal: (h) => spots.has(keyOf(h)), key: keyOf });
+    if (found === undefined) return undefined;
+    const costs = cart.getTravelCosts(found.path);
+    const itemsOwned = costs.getItemQuantityArray().every(({ item, quantity }) => game.bank.getQty(item) >= quantity);
+    return { path: found.path, gp: gpOf(costs), itemsOwned, area: spots.get(keyOf(found.path[0])) };
   };
 
   // ------------------------------------------------------------------------------------------------ GP sources
@@ -95,32 +140,57 @@ export function install(ctx, { state, rules, terrainMod, stranded, log }) {
   };
 
   // ------------------------------------------------------------------------------------------------ verdict
-  /** { stranded, reason, road } for the player's hex; stranded on any error so the floor never fails closed. */
+  /** { stranded, reason, road, combat } for the player's hex; stranded on any error so the floor never fails closed. */
   const verdict = () => {
     const pos = state.position();
+    if (pos === undefined) return { stranded: false, reason: 'no position' };
     const tradeLocked = state.tradeLocked?.() === true;
-    if (!tradeLocked || pos === undefined) return { stranded: false, reason: 'can trade here' };
+    const canSell = sellableItem();
+    // Cheap exit for the common case: trade works here and there is something to sell.
+    if (!tradeLocked && canSell) return { stranded: false, reason: 'can trade here' };
     try {
-      const r = road(pos);
-      const v = stranded.strandedVerdict({ tradeLocked, route: r, gp: game.gp.amount, gpSources: gpSources(pos) });
-      return { ...v, road: r, pos };
+      const sources = gpSources(pos);
+      // Nothing to sell yet, but an unlocked gathering skill works here: gather first, then the trade road counts.
+      if (!canSell) {
+        const rec = state.recordAt(pos);
+        const opts = state.ruleOpts();
+        if (GATHERING.some((id) => game.skills.getObjectByID(id)?.isUnlocked !== false && rules.allowedAt(id, rec, opts))) sources.push('gathering');
+      }
+      if (sources.length > 0) return { stranded: false, reason: `earns GP: ${sources.join(', ')}`, pos };
+      const r = canSell ? road(pos) : undefined;
+      const combat = combatRoad(pos);
+      const v = stranded.strandedVerdict({ tradeLocked, route: r, gp: game.gp.amount, gpSources: sources, canSell, combatRoute: combat });
+      return { ...v, road: r, combat, canSell, pos };
     } catch (e) {
       console.error('[Voyage] stranded check failed; treating as stranded', e);
       return { stranded: true, reason: 'check failed', pos };
     }
   };
 
-  /** Spare coins on a barren hex with nothing to sell: GP for one step to the cheapest neighbour where gathering works. */
-  const spareCoins = (pos) => {
+  /**
+   * Spare coins when there is nothing to sell: the GP for the road to the nearest place where combat pays, or else
+   * for one step to the cheapest neighbour where an unlocked gathering skill works. undefined when he can't help so.
+   */
+  const spareCoins = (v) => {
+    const pos = v.pos;
+    if (v.canSell !== false && sellableItem()) return undefined;
+    if (v.combat !== undefined && v.combat.itemsOwned !== false) {
+      const need = v.combat.gp - game.gp.amount;
+      const dest = v.combat.path[0];
+      const at = (() => { try { const o = dest.to_oddq(); return `${o.col}, ${o.row}`; } catch { return `${dest.q}, ${dest.r}`; } })();
+      if (need > 0) return { gp: need, to: v.combat.area?.name ?? getLangString('MOD_VOY_TRADER_SOME_AREA'), at, dir: terrainMod.directionLabel(pos, dest), steps: v.combat.path.length - 1, combat: true };
+    }
     try {
       const rec = state.recordAt(pos);
       const opts = state.ruleOpts();
-      if (GATHERING.some((id) => rules.allowedAt(id, rec, opts)) || sellableItem()) return undefined;
+      const gathering = GATHERING.filter((id) => game.skills.getObjectByID(id)?.isUnlocked !== false);
+      if (gathering.length === 0 || gathering.some((id) => rules.allowedAt(id, rec, opts))) return undefined;
       const cart = game.cartography;
       let best;
       for (const n of neighboursOf(cart.activeMap)(pos)) {
         const nrec = state.recordAt(n);
-        if (!GATHERING.some((id) => rules.allowedAt(id, nrec, opts))) continue;
+        if (!gathering.some((id) => rules.allowedAt(id, nrec, opts))) continue;
+        if (!(state.ship?.allows?.(pos, n) ?? true)) continue;
         if ((n.travelCost.items ?? []).length > 0) continue;
         const gp = (n.travelCost.currencies ?? []).reduce((s, { currency, quantity }) => s + (currency === game.gp ? Math.floor(quantity * cart.travelCostMultiplier) : 0), 0);
         if (best === undefined || gp < best.gp) best = { hex: n, gp };
@@ -152,7 +222,7 @@ export function install(ctx, { state, rules, terrainMod, stranded, log }) {
       if (!moved && verdict().stranded) return;
       met = undefined;
       log(`wandering trader left (${moved ? 'moved' : 'no longer stranded'})`);
-      try { game.notifications.createSuccessNotification('voyage:trader', moved ? 'You leave the wandering trader behind.' : 'The wandering trader moves on: you can afford the road now.', game.gp.media); } catch {}
+      try { game.notifications.createSuccessNotification('voyage:trader', getLangString(moved ? 'MOD_VOY_TRADER_LEFT_BEHIND' : 'MOD_VOY_TRADER_MOVES_ON'), game.gp.media); } catch {}
       state.onSettingsChange();
     }, 0);
   };
@@ -166,24 +236,34 @@ export function install(ctx, { state, rules, terrainMod, stranded, log }) {
     const v = verdict();
     log(`stranded check: ${v.reason}`);
     if (!v.stranded) return false;
-    const coins = spareCoins(v.pos);
-    const lines = [
-      'Looks like you\'re stranded here. Good timing: a wandering trader is just passing by.',
-      'He looks over your goods and offers <b>half</b> of what a market would pay. <i>You see his eyes spark for a moment: he knows you have no other choice.</i>',
-      'He stays until you can afford the road to a trading place.',
-    ];
-    if (coins !== undefined) lines.push(`You have nothing worth selling, and nothing grows or swims here. He sighs and spares you <b>${numberWithCommas(coins.gp)} GP</b>, just enough for one step ${esc(coins.dir)}.`);
+    const coins = spareCoins(v);
+    const lines = [getLangString('MOD_VOY_TRADER_ARRIVES')];
+    if (v.canSell !== false) {
+      lines.push(getLangString('MOD_VOY_TRADER_HALF_PRICE'));
+      lines.push(getLangString('MOD_VOY_TRADER_STAYS'));
+    }
+    if (coins?.combat) {
+      lines.push(templateLangString('MOD_VOY_TRADER_SPARES_COMBAT', {
+        gp: numberWithCommas(coins.gp), area: esc(coins.to), at: coins.at, hexes: hexes(coins.steps), dir: esc(getLangString(`MOD_VOY_DIR_${coins.dir}`)),
+      }));
+    } else if (coins !== undefined) {
+      lines.push(templateLangString('MOD_VOY_TRADER_SPARES_STEP', { gp: numberWithCommas(coins.gp), dir: esc(getLangString(`MOD_VOY_DIR_SHORT_${coins.dir}`)) }));
+    } else if (v.canSell === false) {
+      lines.push(getLangString('MOD_VOY_TRADER_NO_ROAD'));
+    }
+    const hasOffer = coins !== undefined || v.canSell !== false;
     try {
       SwalLocale.fire({
-        title: 'Stranded?',
+        title: getLangString('MOD_VOY_TRADER_TITLE'),
+        width: '36em', // an eighth wider than the 32em default, so the opening line fits on two lines (user feedback)
         html: `<div class="text-left voyage-locked"><img class="skill-icon-sm mr-2" src="${game.gp.media}"><div class="voyage-locked-lines">${lines.map((l) => `<div>${l}</div>`).join('')}</div></div>`,
         icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: coins !== undefined ? 'Thank him' : 'Trade with him',
-        cancelButtonText: 'Not now',
+        showCancelButton: hasOffer,
+        confirmButtonText: getLangString(coins !== undefined ? 'MOD_VOY_TRADER_BUTTON_THANK' : hasOffer ? 'MOD_VOY_TRADER_BUTTON_TRADE' : 'MOD_VOY_BUTTON_OK'),
+        cancelButtonText: getLangString('MOD_VOY_TRADER_BUTTON_NOT_NOW'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ popup: 'voyage-ui' }) : { popup: 'voyage-ui' },
       }).then((result) => {
-        if (!result.isConfirmed) return;
+        if (!result.isConfirmed || !hasOffer) return;
         met = { key: keyOf(v.pos), coinsGiven: false };
         if (coins !== undefined) {
           game.gp.add(coins.gp);
@@ -216,9 +296,9 @@ export function install(ctx, { state, rules, terrainMod, stranded, log }) {
     /** For the panel: 'here' while he is here, 'stranded' when an offer would be made, undefined otherwise. */
     status() {
       if (present()) return 'here';
-      if (state.tradeLocked?.() !== true) return undefined;
       return verdict().stranded ? 'stranded' : undefined;
     },
     verdict,
+    combatRoad: (pos) => { try { return combatRoad(pos); } catch (e) { log('combat road failed', e); return undefined; } },
   };
 }

@@ -42,6 +42,14 @@ export const FEATURE_INFO = Object.fromEntries(FEATURES.map((f) => [f, { label: 
 Object.assign(FEATURE_INFO.forest, { label: 'Forest', css: '#006400' });
 Object.assign(FEATURE_INFO.tree, { label: 'Trees', css: '#2e8b57' });
 
+/**
+ * Language keys (languages/en.json) for the labels above. The English labels stay here for the tests and logs; the
+ * game shows getLangString(key). tests/lang-keys.test.mjs checks the two agree.
+ */
+export const classKey = (cls) => `MOD_VOY_TERRAIN_${cls}`;
+export const CLOUD_KEY = 'MOD_VOY_TERRAIN_CLOUD';
+export const featureKey = (f) => `MOD_VOY_FEATURE_${f}`;
+
 export const isSea = (rec) => rec !== undefined && SEA_CLASSES.includes(rec.t);
 export const isCloud = (rec) => rec !== undefined && rec.cloud === true;
 export const hasFeature = (rec, f) => Array.isArray(rec?.f) && rec.f.includes(f);

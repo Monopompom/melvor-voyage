@@ -47,11 +47,10 @@ const ENTRY_POINTS = [
 /** Worker Folks' Hiring skill and its hire purchases (shop ids `worker_folks:Hire_<Tier>`). */
 const HIRING_ID = 'worker_folks:Hiring';
 const HIRE_PURCHASE_PREFIX = 'worker_folks:Hire_';
-/** What to tell a player who knows of no place yet: surveying is how the map opens up. */
-const SURVEY_HINT = 'Survey the hexes around you in Cartography to find';
+/** The trade refusal sentence per trade kind (languages/en.json). */
+const TRADE_ONLY_KEYS = { sell: 'MOD_VOY_GATE_TRADE_ONLY_SELL', buy: 'MOD_VOY_GATE_TRADE_ONLY_BUY' };
 
-
-export function install(ctx, { state, rules, terrainMod, log }) {
+export function install(ctx, { state, rules, terrainMod, zones, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   /** Map colours are picked for tinting hexes; for text on the dark modal, lift dark ones towards white. */
@@ -66,20 +65,35 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     return `#${lift(ch(16))}${lift(ch(8))}${lift(ch(0))}`;
   };
   const coloured = (label, css) => ({ text: label, html: `<b style="color:${textColour(css)}">${esc(label)}</b>` });
-  const biome = (cls) => { const info = terrainMod.CLASS_INFO[cls]; return coloured(info?.label ?? cls, info?.css); };
-  const feature = (f) => { const info = terrainMod.FEATURE_INFO[f]; return coloured(info?.label ?? f, info?.css); };
+  const biome = (cls) => { const info = terrainMod.CLASS_INFO[cls]; return coloured(info === undefined ? cls : getLangString(terrainMod.classKey(cls)), info?.css); };
+  const feature = (f) => { const info = terrainMod.FEATURE_INFO[f]; return coloured(info === undefined ? f : getLangString(terrainMod.featureKey(f)), info?.css); };
   const placeName = (name) => coloured(terrainMod.areaLabel(name));
-  const join = (parts, sep = ' or ') => ({ text: parts.map((p) => p.text).join(sep), html: parts.map((p) => p.html).join(sep) });
+  const ruleNoun = (skillId) => getLangString(rules.ruleNounKey(skillId));
+  /** The skill's name as the rules show it (Magic is "Alt. Magic"), else the game's own name. */
+  const skillLabel = (skillId, fallback) => { const k = rules.ruleLabelKey(skillId); return k === undefined ? fallback : getLangString(k); };
+  const join = (parts) => {
+    const sep = getLangString('MOD_VOY_GATE_LIST_OR');
+    return { text: parts.map((p) => p.text).join(sep), html: parts.map((p) => p.html).join(sep) };
+  };
+  /**
+   * One modal line from a language key: `vars` are HTML-safe (escaped or coloured() html); the plain text for the
+   * notification fallback is the same line with the tags stripped.
+   */
+  const unesc = (s) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+  const line = (key, vars = {}) => {
+    const html = templateLangString(key, vars);
+    return { text: unesc(html.replace(/<[^>]*>/g, '')), html };
+  };
 
   /** What the rule asks for, e.g. "Forest or Trees", each term coloured. */
   const need = (skillId) => {
     const terms = rules.ruleTerms(skillId);
-    if (terms.land) return coloured(rules.ruleNoun(skillId));
+    if (terms.land) return coloured(ruleNoun(skillId));
     const parts = [...terms.classes.map(biome), ...terms.features.map(feature), ...terms.pois.map(placeName), ...terms.areas.map(placeName)];
-    return parts.length === 0 ? coloured(rules.ruleNoun(skillId)) : join(parts);
+    return parts.length === 0 ? coloured(ruleNoun(skillId)) : join(parts);
   };
   /** Where the player is: biome, or "Cloud" when the hex is under cloud. */
-  const here = (rec) => (rec.cloud === true ? coloured(terrainMod.CLOUD_INFO.label, terrainMod.CLOUD_INFO.css) : biome(rec.t));
+  const here = (rec) => (rec.cloud === true ? coloured(getLangString(terrainMod.CLOUD_KEY), terrainMod.CLOUD_INFO.css) : biome(rec.t));
 
   /** Human name of the POI on a table hex, via the live map when it is discovered; the raw id otherwise. */
   const poiName = (rec) => {
@@ -91,9 +105,11 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     return terrainMod.areaLabel(rec.poi);
   };
   const whereIs = (pos, hex, distance) => {
-    const dir = terrainMod.directionLabel(pos, hex);
-    const place = hex.poi ? ` (${poiName(hex)})` : hex.area ? ` (${terrainMod.areaLabel(hex.area)})` : '';
-    return `${distance} hex${distance === 1 ? '' : 'es'} ${dir}${place}`;
+    const dir = getLangString(`MOD_VOY_DIR_SHORT_${terrainMod.directionLabel(pos, hex)}`);
+    const name = hex.poi ? poiName(hex) : hex.area ? terrainMod.areaLabel(hex.area) : undefined;
+    const place = name === undefined ? '' : templateLangString('MOD_VOY_GATE_WHERE_PLACE', { name });
+    const hexes = templateLangString(distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${distance}` });
+    return templateLangString('MOD_VOY_GATE_WHERE', { hexes, dir, place });
   };
   const compassLine = (reading) => state.compass?.describe(reading);
   const modal = (title, icon, lines, { withMap = true } = {}) => {
@@ -105,8 +121,8 @@ export function install(ctx, { state, rules, terrainMod, log }) {
         html: `<div class="text-left voyage-locked">${img}<div class="voyage-locked-lines">${lines.map((l) => `<div>${l.html}</div>`).join('')}</div></div>`,
         icon: 'warning',
         showCancelButton: withMap,
-        confirmButtonText: withMap ? 'Go to map' : 'OK',
-        cancelButtonText: 'Stay',
+        confirmButtonText: getLangString(withMap ? 'MOD_VOY_GATE_BUTTON_MAP' : 'MOD_VOY_BUTTON_OK'),
+        cancelButtonText: getLangString('MOD_VOY_GATE_BUTTON_STAY'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ popup: 'voyage-ui' }) : { popup: 'voyage-ui' },
       }).then((result) => { if (withMap && result.isConfirmed && page !== undefined) changePage(page); });
     } catch (e) {
@@ -131,19 +147,19 @@ export function install(ctx, { state, rules, terrainMod, log }) {
   const describe = (skill, skillId, { pos, rec }) => {
     const n = need(skillId);
     const h = here(rec);
-    const name = rules.ruleLabel(skillId, skill?.name ?? skillId);
-    const lines = [{ text: `${name} needs ${n.text}. You are on ${h.text}.`, html: `${esc(name)} needs ${n.html}. You are on ${h.html}.` }];
+    const name = skillLabel(skillId, skill?.name ?? skillId);
+    const lines = [line('MOD_VOY_GATE_NEEDS', { name: esc(name), need: n.html, here: h.html })];
     const near = state.nearestFor(skillId, pos);
     if (near !== undefined) {
       const terms = rules.ruleTerms(skillId);
       const match = terms.classes.includes(near.hex.t) ? biome(near.hex.t)
         : terms.features.some((f) => terrainMod.hasFeature(near.hex, f)) ? feature(terms.features.find((f) => terrainMod.hasFeature(near.hex, f)))
           : near.hex.poi && terms.pois.includes(near.hex.poi) ? placeName(near.hex.poi)
-            : near.hex.area && terms.areas.includes(near.hex.area) ? placeName(near.hex.area) : coloured(rules.ruleNoun(skillId));
+            : near.hex.area && terms.areas.includes(near.hex.area) ? placeName(near.hex.area) : coloured(ruleNoun(skillId));
       const where = whereIs(pos, near.hex, near.distance);
-      lines.push({ text: `Nearest ${match.text}: ${where}.`, html: `Nearest ${match.html}: ${esc(where)}.` });
+      lines.push(line('MOD_VOY_GATE_NEAREST', { match: match.html, where: esc(where) }));
     } else {
-      lines.push({ text: `You know of no ${n.text} yet. ${SURVEY_HINT} one.`, html: `You know of no ${n.html} yet. ${SURVEY_HINT} one.` });
+      lines.push(line('MOD_VOY_GATE_NONE_KNOWN', { need: n.html }));
       // The compass only speaks when the map has nothing to say: a known place already gives distance and way.
       const compass = compassLine(state.compass?.readingFor(skillId, pos));
       if (compass !== undefined) lines.push(compass);
@@ -154,7 +170,7 @@ export function install(ctx, { state, rules, terrainMod, log }) {
   const showLocked = (skill, skillId, locked) => {
     const d = describe(skill, skillId, locked);
     log(`refused ${skillId} at (${locked.pos.q},${locked.pos.r}) ${locked.rec.t}`);
-    modal(`${d.name} is locked here`, skill?.media, d.lines);
+    modal(templateLangString('MOD_VOY_GATE_LOCKED_TITLE', { name: d.name }), skill?.media, d.lines);
   };
 
   // Layer 1: entry points, checked before the selection changes.
@@ -233,11 +249,183 @@ export function install(ctx, { state, rules, terrainMod, log }) {
           if (!rules.isGated(id) || !item.rootEl) continue;
           const locked = lockedHere(id) !== undefined;
           item.rootEl.classList.toggle('voyage-dim', locked);
-          item.rootEl.title = locked ? `Locked here: needs ${need(id).text}` : '';
+          item.rootEl.title = locked ? templateLangString('MOD_VOY_GATE_SIDEBAR_LOCKED', { need: need(id).text }) : '';
         }
       }
     } catch (e) { log('sidebar dim failed', e); }
   };
+
+  // ---------------------------------------------------------------------------------------------------- zones
+  // Resource zones (setting "Resource zones"): an ore, tree, fish, crop or thieving target works only
+  // where its zone takes the hex, on top of the skill's own rule above. The table is data/zones.json (state.zoneTable);
+  // actions it does not list follow the skill rule alone.
+  const ASTROLOGY = 'melvorD:Astrology';
+  const zoneIndex = new Map(); // action id -> { skillId, zone }
+  for (const [skillId, s] of Object.entries(state.zoneTable?.skills ?? {})) {
+    for (const [id, zone] of Object.entries(s.actions ?? {})) zoneIndex.set(id, { skillId, zone });
+  }
+  const zonesOn = () => zones !== undefined && on() && state.settings.zones();
+  const nbOf = (rec) => state.terrain.neighbours(rec.q, rec.r);
+  /** The zone takes the hex, or (a grace hex) one of the full-rate neighbours that lift it (src/zones.mjs). */
+  const allowsHere = (z, rec) => zones.zoneAllowsWithGrace(z.zone, rec, nbOf, rules.graceFrom(z.skillId, rec, state.ruleOpts()));
+  /** undefined when the action may run here (or zones are off); otherwise { pos, rec, skillId, zone }. */
+  const zoneLocked = (action) => {
+    if (!zonesOn() || action === undefined || action === null) return undefined;
+    const z = zoneIndex.get(action.id);
+    if (z === undefined) return undefined;
+    const pos = state.position();
+    const rec = state.recordAt(pos);
+    if (rec === undefined) return undefined;
+    return allowsHere(z, rec) ? undefined : { pos, rec, ...z };
+  };
+  /** Every hex where the action works (skill rule and zone), memoised per action and strictness. */
+  const zoneHexes = new Map();
+  state.listeners.push(() => zoneHexes.clear());
+  const zoneCandidates = (actionId) => {
+    const z = zoneIndex.get(actionId);
+    if (z === undefined || state.terrain === undefined) return [];
+    const opts = state.ruleOpts();
+    const key = `${actionId}|${opts.strictness}`;
+    let list = zoneHexes.get(key);
+    if (list === undefined) {
+      list = [];
+      for (const rec of state.terrain.all()) {
+        if (rec.cloud === true || !rules.allowedAt(z.skillId, rec, opts) || !allowsHere(z, rec)) continue;
+        list.push(rec);
+      }
+      zoneHexes.set(key, list);
+    }
+    return list;
+  };
+  const hexDistance = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
+  /** What the zone names, coloured: "Desert or Badlands or Rock or the coast". */
+  const zoneNeed = (zone) => {
+    const t = zones.zoneTerms(zone);
+    const parts = [...t.classes.map(biome), ...t.features.map(feature), ...t.places.map(placeName)];
+    if (zone.terms.some((x) => x.coast === true)) parts.push(coloured(getLangString('MOD_VOY_ZONE_COAST')));
+    if (zone.terms.some((x) => x.shore !== undefined)) parts.push(coloured(getLangString('MOD_VOY_ZONE_SEA')));
+    return join(parts);
+  };
+  /** A row range in words: "in the north, row 12 or further north", "between rows 12 and 22". */
+  const latText = ([min, max]) => (min <= 0 ? templateLangString('MOD_VOY_ZONE_LAT_NORTH', { row: `${max}` })
+    : max === undefined ? templateLangString('MOD_VOY_ZONE_LAT_SOUTH', { row: `${min}` })
+      : templateLangString('MOD_VOY_ZONE_LAT_BAND', { min: `${min}`, max: `${max}` }));
+  /** One term in words, for the sky (Astrology): "Mountain or Highlands, between rows 6 and 24"; "near Magic". */
+  const termText = (term) => {
+    const bits = [];
+    const what = [...(term.t ?? []).map(biome), ...(term.f ?? []).map(feature)];
+    if (what.length > 0) bits.push(join(what).html);
+    if (term.near !== undefined) {
+      const near = [...(term.near.t ?? []).map(biome), ...(term.near.f ?? []).map(feature), ...[...(term.near.area ?? []), ...(term.near.poi ?? [])].map(placeName)];
+      bits.push(templateLangString('MOD_VOY_ZONE_NEAR', { what: join(near).html }));
+    }
+    if (term.coast === true) bits.push(coloured(getLangString('MOD_VOY_ZONE_COAST')).html);
+    if (term.shore !== undefined) bits.push(coloured(getLangString('MOD_VOY_ZONE_SEA')).html);
+    if (term.lat !== undefined) bits.push(esc(latText(term.lat)));
+    return bits.length > 0 ? bits.join(', ') : esc(getLangString('MOD_VOY_ZONE_ANYWHERE'));
+  };
+  /** The modal's first lines. A sky zone (Astrology: rows and a dark sky) is told term by term. */
+  const zoneLines = (name, zone) => {
+    const t = zones.zoneTerms(zone);
+    if (t.lat === undefined && t.away.length === 0) return [line('MOD_VOY_ZONE_NEEDS', { name: esc(name), need: zoneNeed(zone).html })];
+    const where = [...new Set(zone.terms.map(termText))].join(esc(getLangString('MOD_VOY_ZONE_TERM_OR')));
+    const lines = [line('MOD_VOY_ZONE_SKY_NEEDS', { name: esc(name), where })];
+    if (t.away.length > 0) lines.push(line('MOD_VOY_ZONE_SKY_DARK'));
+    return lines;
+  };
+  const showZoneLocked = (action, { pos, zone, skillId }) => {
+    const name = action.name ?? action.id;
+    const lines = zoneLines(name, zone);
+    const all = zoneCandidates(action.id);
+    let best;
+    for (const rec of all) {
+      if (!state.knowledge?.isKnown(rec)) continue;
+      const d = hexDistance(pos, rec);
+      if (best === undefined || d < best.distance) best = { hex: rec, distance: d };
+    }
+    if (best !== undefined) lines.push(line('MOD_VOY_ZONE_NEAREST', { where: esc(whereIs(pos, best.hex, best.distance)) }));
+    else {
+      lines.push(line('MOD_VOY_ZONE_NONE_KNOWN'));
+      const compass = compassLine(state.compass?.readingTo(all, pos));
+      if (compass !== undefined) lines.push(compass);
+    }
+    log(`refused ${action.id} at (${pos?.q},${pos?.r}): outside its zone`);
+    modal(templateLangString(skillId === ASTROLOGY ? 'MOD_VOY_ZONE_SKY_TITLE' : 'MOD_VOY_ZONE_TITLE', { name }), action.media, lines);
+  };
+  /**
+   * Zone entry points, after the skill's own (Layer 1 above): `action(...args)` returns the action being started, or
+   * undefined when the call stops or deselects (always allowed). `quiet` refuses without a modal and returns `refused`.
+   */
+  const ZONE_ENTRIES = [
+    { name: 'Mining.onRockClick', cls: () => Mining, method: 'onRockClick', action(rock) { return this.isActive && this.selectedRock === rock ? undefined : rock; } },
+    { name: 'Woodcutting.selectTree', cls: () => Woodcutting, method: 'selectTree', action(tree) { return this.activeTrees?.has(tree) ? undefined : tree; } },
+    { name: 'Fishing.onAreaStartButtonClick', cls: () => Fishing, method: 'onAreaStartButtonClick', action(area) { return this.isActive && this.activeFishingArea === area ? undefined : this.selectedAreaFish?.get(area); } },
+    { name: 'Thieving.startThieving', cls: () => Thieving, method: 'startThieving', action(area, npc) { return npc; } },
+    { name: 'Farming.plantRecipe', cls: () => Farming, method: 'plantRecipe', action(recipe) { return recipe; } },
+    { name: 'Farming.plantAllRecipe', cls: () => Farming, method: 'plantAllRecipe', action(recipe) { return recipe; } },
+    { name: 'Farming.plantAllSelectedOnClick', cls: () => Farming, method: 'plantAllSelectedOnClick',
+      action(category) { return this.getPlotsForCategory(category).map((p) => p.selectedRecipe).find((r) => r !== undefined && zoneLocked(r) !== undefined); } },
+    // Planting all plots plants each one here: a plot whose seed is outside its zone stays empty (-1, as vanilla does
+    // for a seed it cannot afford), the others are planted.
+    { name: 'Farming.plantPlot', cls: () => Farming, method: 'plantPlot', quiet: true, refused: -1, action(plot, recipe) { return recipe; } },
+    // Astrology has no skill rule; its constellations are zoned by the sky.
+    { name: 'Astrology.studyConstellationOnClick', cls: () => Astrology, method: 'studyConstellationOnClick',
+      action(constellation) { return this.isActive && this.studiedConstellation === constellation ? undefined : constellation; } },
+  ];
+  for (const ze of ZONE_ENTRIES) {
+    let cls;
+    try { cls = ze.cls(); } catch { cls = undefined; }
+    if (typeof cls !== 'function' || typeof cls.prototype?.[ze.method] !== 'function') { console.warn(`[Voyage] zone entry ${ze.name} not found; not zoned`); continue; }
+    ctx.patch(cls, ze.method).replace(function (original, ...args) {
+      try {
+        if (zonesOn()) {
+          const action = ze.action.apply(this, args);
+          const locked = zoneLocked(action);
+          // Where the skill itself is locked, its own gate speaks (the skill modal, not the zone one).
+          if (locked !== undefined && rules.allowedAt(locked.skillId, locked.rec, state.ruleOpts())) {
+            if (!ze.quiet) showZoneLocked(action, locked);
+            return ze.refused;
+          }
+        }
+      } catch (e) { console.error('[Voyage] zone gate failed open', e); }
+      return original(...args);
+    });
+  }
+  /** The zoned actions a running skill is doing now (several trees at once for Woodcutting). */
+  const runningActions = (skill) => {
+    try {
+      switch (skill.id) {
+        case 'melvorD:Mining': return [skill.selectedRock];
+        case 'melvorD:Woodcutting': return [...(skill.activeTrees ?? [])];
+        case 'melvorD:Fishing': return [skill.activeFish];
+        case 'melvorD:Thieving': return [skill.currentNPC];
+        case 'melvorD:Astrology': return [skill.studiedConstellation];
+        default: return [];
+      }
+    } catch { return []; }
+  };
+  /**
+   * The zoned actions of a skill that work on the player's hex, at or below the skill's level, for the panel tooltip.
+   * Empty when zones are off or the skill is not zoned.
+   */
+  state.zoneActionsHere = (skillId) => {
+    try {
+      if (!zonesOn()) return [];
+      const table = state.zoneTable?.skills?.[skillId]?.actions;
+      const skill = game.skills.getObjectByID(skillId);
+      if (table === undefined || skill === undefined) return [];
+      const out = [];
+      for (const id of Object.keys(table)) {
+        const action = skill.actions?.getObjectByID(id);
+        if (action === undefined || (action.level ?? 1) > skill.level || (action.abyssalLevel ?? 0) > 0) continue;
+        if (zoneLocked(action) === undefined) out.push(action);
+      }
+      return out;
+    } catch (e) { log('zone actions failed', e); return []; }
+  };
+  state.zonesOn = zonesOn;
+  /** Zoned skills without a skill rule (Astrology): the panel shows them only while zones are on. */
+  state.zonedUngated = () => (zonesOn() ? Object.keys(state.zoneTable?.skills ?? {}).filter((id) => !rules.isGated(id)) : []);
 
   // ---------------------------------------------------------------------------------------------------- combat
   const warnedUnplaced = new Set();
@@ -253,19 +441,40 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     }
     return res.allowed ? undefined : { pos, nearest: res.nearest };
   };
+  /**
+   * Combat and slayer areas the player may enter from this hex: placed on the map, on it or next to it, entry
+   * requirements met. Unplaced areas (allowed anywhere) are left out. For the panel's "Combat:" line and the lock
+   * modal (user report, 15 Oct 2026: a player next to Golbin Village didn't know they could fight there).
+   */
+  const combatHere = () => {
+    if (!on() || !state.settings.combat()) return [];
+    const pos = state.position();
+    if (pos === undefined) return [];
+    const out = [];
+    game.combatAreas.forEach((area) => {
+      if (area === game.unknownCombatArea || typeof area.id !== 'string') return;
+      const places = state.terrain.placesFor(area.id);
+      if (places.length === 0 || !rules.combatAllowedAt(places, pos).allowed) return;
+      try { if (!game.checkRequirements(area.entryRequirements ?? [])) return; } catch {}
+      out.push(area);
+    });
+    return out;
+  };
   const showLockedArea = (area, { pos, nearest }) => {
     const name = area.name ?? area.id;
-    const lines = [{ text: `You must stand on ${name} or next to it to fight there.`, html: `You must stand on <b>${esc(name)}</b> or next to it to fight there.` }];
+    const lines = [line('MOD_VOY_GATE_AREA_STAND', { name: esc(name) })];
+    const here = combatHere();
+    if (here.length > 0) lines.push(line('MOD_VOY_GATE_AREA_HERE', { names: esc(here.map((a) => a.name).join(', ')) }));
     if (nearest !== undefined && state.knowledge?.isKnown(nearest.hex)) {
       const where = whereIs(pos, nearest.hex, nearest.distance);
-      lines.push({ text: `It is ${where}.`, html: `It is ${esc(where)}.` });
+      lines.push(line('MOD_VOY_GATE_AREA_WHERE', { where: esc(where) }));
     } else {
-      lines.push({ text: `You do not know where ${name} is yet. ${SURVEY_HINT} it.`, html: `You do not know where <b>${esc(name)}</b> is yet. ${SURVEY_HINT} it.` });
+      lines.push(line('MOD_VOY_GATE_AREA_UNKNOWN', { name: esc(name) }));
       const compass = compassLine(state.compass?.readingTo(state.terrain.placesFor(area.id), pos));
       if (compass !== undefined) lines.push(compass);
     }
     log(`refused combat in ${area.id} at (${pos?.q},${pos?.r})`);
-    modal(`${name} is out of reach`, area.media, lines);
+    modal(templateLangString('MOD_VOY_GATE_AREA_TITLE', { name }), area.media, lines);
   };
   ctx.patch(CombatManager, 'checkAreaEntryRequirements').replace(function (original, area) {
     try {
@@ -292,18 +501,18 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     return out;
   };
   const showNoTrade = (what, { pos }) => {
-    const lines = [{ text: `You can ${what} only in a town, port or market, or next to one.`, html: `You can ${esc(what)} only in a <b>town</b>, <b>port</b> or <b>market</b>, or next to one.` }];
+    const lines = [line(TRADE_ONLY_KEYS[what] ?? TRADE_ONLY_KEYS.sell)];
     const near = terrainMod.nearestIn(tradeCandidates(), pos, (rec) => state.knowledge?.isKnown(rec) !== false);
     if (near !== undefined) {
       const where = whereIs(pos, near.hex, near.distance);
-      lines.push({ text: `Nearest known trading place: ${where}.`, html: `Nearest known trading place: ${esc(where)}.` });
+      lines.push(line('MOD_VOY_GATE_TRADE_NEAREST', { where: esc(where) }));
     } else {
-      lines.push({ text: `You know of no trading place yet. ${SURVEY_HINT} one.`, html: `You know of no trading place yet. ${SURVEY_HINT} one.` });
+      lines.push(line('MOD_VOY_GATE_TRADE_NONE_KNOWN'));
       const compass = compassLine(state.compass?.readingTo(tradeCandidates(), pos));
       if (compass !== undefined) lines.push(compass);
     }
     log(`refused trade (${what}) at (${pos?.q},${pos?.r})`);
-    modal('No one to trade with here', undefined, lines);
+    modal(getLangString('MOD_VOY_GATE_TRADE_TITLE'), undefined, lines);
   };
   const tradeGate = (cls, method, what, quiet = false) => {
     if (typeof cls !== 'function' || typeof cls.prototype?.[method] !== 'function') { console.warn(`[Voyage] trade entry ${method} not found`); return; }
@@ -339,6 +548,7 @@ export function install(ctx, { state, rules, terrainMod, log }) {
   state.tradeLocked = () => tradeLocked() !== undefined;
   /** True when the area cannot be fought from the player's hex (the trader's GP-source check reads it). */
   state.combatLocked = (area) => combatLocked(area) !== undefined;
+  state.combatHere = () => { try { return combatHere(); } catch (e) { log('combat here failed', e); return []; } };
 
   // ---------------------------------------------------------------------------------------------------- hiring
   // Worker Folks may load after Voyage, so its class is looked up once the character (and every mod) is in.
@@ -371,13 +581,23 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     try {
       if (!on()) return;
       const rec = state.recordAt(state.position());
-      for (const id of rules.gatedSkillIds()) {
+      // Gated skills, plus Astrology (no rule of its own; ungated skills pass allowedAt, so only its zones stop it).
+      const ids = new Set([...rules.gatedSkillIds(), ...(zonesOn() ? Object.keys(state.zoneTable?.skills ?? {}) : [])]);
+      for (const id of ids) {
         const skill = game.skills.getObjectByID(id);
         if (skill === undefined || !skill.isActive || game.activeAction !== skill) continue;
-        if (rules.allowedAt(id, rec, state.ruleOpts())) continue;
+        if (rules.allowedAt(id, rec, state.ruleOpts())) {
+          // The skill works here, but what it is doing may be outside its zone (an iron rock on a copper hex).
+          const off = runningActions(skill).find((a) => zoneLocked(a) !== undefined);
+          if (off !== undefined && skill.stop()) {
+            log(`stopped ${off.id} (${cause}): outside its zone`);
+            try { game.notifications.createErrorNotification('voyage:stopped', templateLangString('MOD_VOY_ZONE_STOPPED', { name: off.name ?? off.id })); } catch {}
+          }
+          continue;
+        }
         if (skill.stop()) {
           log(`stopped ${id} (${cause}) at (${rec?.q},${rec?.r}) ${rec?.t}`);
-          try { game.notifications.createErrorNotification('voyage:stopped', `${rules.ruleLabel(id, skill.name)} stopped: it does not work here.`); } catch {}
+          try { game.notifications.createErrorNotification('voyage:stopped', templateLangString('MOD_VOY_GATE_STOPPED', { name: skillLabel(id, skill.name) })); } catch {}
         }
       }
       const cm = game.combat;
@@ -385,7 +605,7 @@ export function install(ctx, { state, rules, terrainMod, log }) {
         const name = cm.selectedArea.name ?? cm.selectedArea.id;
         if (cm.stop()) {
           log(`stopped combat in ${name} (${cause})`);
-          const text = cause === 'move' ? `You left ${name}: the fight is over.` : `${name} is out of reach from here: the fight is over.`;
+          const text = templateLangString(cause === 'move' ? 'MOD_VOY_GATE_FIGHT_LEFT' : 'MOD_VOY_GATE_FIGHT_OUT_OF_REACH', { name });
           try { game.notifications.createErrorNotification('voyage:stopped', text); } catch {}
         }
       }

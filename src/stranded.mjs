@@ -66,13 +66,21 @@ export function cheapestRoute(start, { neighbours, stepCost, isGoal, key }) {
 }
 
 /**
- * The stranded verdict. A player is stranded when trade is refused here, the cheapest way to a trading spot is not
- * affordable (it would leave 0 GP or less, or needs items they lack; no route at all counts as unaffordable), and no
- * way to earn GP works for them here. `gpSources` lists the working ones by name.
+ * The stranded verdict. A player is stranded when no way to earn GP works for them here (`gpSources`, by name), they
+ * can't afford the road to a place where combat pays (`combatRoute`; arriving with 0 GP is fine, the fighting pays),
+ * and trading can't get them out: either they have nothing to sell (`canSell` false, e.g. Adventure with every
+ * skill locked) or trade is refused here and the cheapest road to a trading spot is not affordable (it would leave
+ * 0 GP or less, or needs items they lack; no route at all counts as unaffordable).
  */
-export function strandedVerdict({ tradeLocked, route, gp, gpSources = [] }) {
-  if (!tradeLocked) return { stranded: false, reason: 'can trade here' };
+export function strandedVerdict({ tradeLocked, route, gp, gpSources = [], canSell = true, combatRoute }) {
   if (gpSources.length > 0) return { stranded: false, reason: `earns GP: ${gpSources.join(', ')}` };
-  if (route !== undefined && route.itemsOwned !== false && gp - route.gp > 0) return { stranded: false, reason: `can afford the road (${route.gp} GP)` };
-  return { stranded: true, reason: route === undefined ? 'no route to trade' : `the road costs ${route.gp} GP, has ${gp}` };
+  if (combatRoute !== undefined && combatRoute.itemsOwned !== false && gp >= combatRoute.gp) {
+    return { stranded: false, reason: `can afford the road to combat (${combatRoute.gp} GP)` };
+  }
+  if (canSell) {
+    if (!tradeLocked) return { stranded: false, reason: 'can trade here' };
+    if (route !== undefined && route.itemsOwned !== false && gp - route.gp > 0) return { stranded: false, reason: `can afford the road (${route.gp} GP)` };
+  }
+  const why = !canSell ? 'nothing to sell' : route === undefined ? 'no route to trade' : `the road costs ${route.gp} GP, has ${gp}`;
+  return { stranded: true, reason: combatRoute === undefined ? why : `${why}; the road to combat costs ${combatRoute.gp} GP` };
 }

@@ -1,0 +1,3686 @@
+{
+ "version": 1,
+ "start": {
+  "q": 14,
+  "r": 10
+ },
+ "skills": {
+  "melvorD:Mining": {
+   "actions": {
+    "melvorD:Rune_Essence": {
+     "level": 1,
+     "why": "essence is stone touched by old magic: near temples, magic sites and ruins, or loose rock",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "magic",
+         "temple",
+         "holy",
+         "monolith",
+         "ruin"
+        ]
+       }
+      },
+      {
+       "f": [
+        "rock"
+       ]
+      }
+     ]
+    },
+    "melvorD:Copper_Ore": {
+     "level": 1,
+     "why": "copper belts of dry, red country",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "desert",
+         "badlands"
+        ]
+       }
+      },
+      {
+       "f": [
+        "rock",
+        "sand"
+       ]
+      }
+     ]
+    },
+    "melvorD:Tin_Ore": {
+     "level": 1,
+     "why": "cassiterite washes into streams; Cornish-style coastal granite",
+     "terms": [
+      {
+       "f": [
+        "river"
+       ]
+      },
+      {
+       "coast": true
+      },
+      {
+       "f": [
+        "rocky",
+        "cliff"
+       ]
+      }
+     ]
+    },
+    "melvorD:Iron_Ore": {
+     "level": 15,
+     "why": "red banded iron in the badlands, bog iron by swamps, mountain lodes",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "badlands",
+         "swamplands"
+        ]
+       }
+      },
+      {
+       "t": [
+        "mountain",
+        "highlands"
+       ]
+      },
+      {
+       "f": [
+        "cave"
+       ]
+      }
+     ]
+    },
+    "melvorD:Coal_Ore": {
+     "level": 30,
+     "why": "seams from buried forests and swamps, in the hills",
+     "terms": [
+      {
+       "t": [
+        "highlands"
+       ]
+      },
+      {
+       "t": [
+        "mountain",
+        "badlands"
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "forest"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 2,
+        "t": [
+         "swamplands"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Silver_Ore": {
+     "level": 30,
+     "why": "veins in hard rock: cliffs, caves, rocky peaks",
+     "terms": [
+      {
+       "f": [
+        "cliff",
+        "cave"
+       ]
+      },
+      {
+       "t": [
+        "mountain"
+       ],
+       "f": [
+        "rocky"
+       ]
+      }
+     ]
+    },
+    "melvorD:Gold_Ore": {
+     "level": 40,
+     "why": "placer gold in rivers below the hills; desert lodes",
+     "terms": [
+      {
+       "f": [
+        "river"
+       ],
+       "near": {
+        "r": 1,
+        "t": [
+         "mountain",
+         "badlands",
+         "desert",
+         "highlands"
+        ]
+       }
+      },
+      {
+       "t": [
+        "desert"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "pyramid"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Mithril_Ore": {
+     "level": 50,
+     "why": "cold, high and far: the frozen north (by boat)",
+     "terms": [
+      {
+       "t": [
+        "snowlands"
+       ]
+      },
+      {
+       "f": [
+        "snow"
+       ]
+      }
+     ]
+    },
+    "melvorD:Adamantite_Ore": {
+     "level": 70,
+     "why": "volcanic ground",
+     "terms": [
+      {
+       "t": [
+        "lavalands"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "lava",
+         "hot"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Runite_Ore": {
+     "level": 80,
+     "why": "where runes were first carved",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "area": [
+         "RunicRuins",
+         "WizardTower",
+         "StrongholdOfMagic"
+        ]
+       }
+      },
+      {
+       "f": [
+        "magic"
+       ]
+      }
+     ]
+    },
+    "melvorD:Dragonite_Ore": {
+     "level": 95,
+     "why": "dragon country",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "area": [
+         "StrongholdOfDragons",
+         "LavaLake"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 2,
+        "poi": [
+         "DragonValley"
+        ]
+       }
+      },
+      {
+       "t": [
+        "lavalands"
+       ]
+      }
+     ]
+    },
+    "melvorAoD:Crystal": {
+     "level": 40,
+     "why": "caves and ice",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "cave"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 2,
+        "area": [
+         "CrystalCaves",
+         "CrystalDepths"
+        ]
+       }
+      },
+      {
+       "f": [
+        "iceberg"
+       ]
+      }
+     ]
+    },
+    "melvorAoD:Pure_Crystal": {
+     "level": 85,
+     "why": "deep in caves and ice",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "area": [
+         "CrystalCaves",
+         "CrystalDepths"
+        ]
+       }
+      },
+      {
+       "f": [
+        "cave"
+       ]
+      },
+      {
+       "f": [
+        "iceberg"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Corundumite_Ore": {
+     "level": 100,
+     "why": "hot dry ground",
+     "terms": [
+      {
+       "t": [
+        "desert"
+       ]
+      },
+      {
+       "f": [
+        "hot"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Pure_Essence": {
+     "level": 100,
+     "why": "purest near holy places",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "holy",
+         "monolith",
+         "magic"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Onyx": {
+     "level": 100,
+     "why": "volcanic glass country",
+     "terms": [
+      {
+       "t": [
+        "lavalands"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "lava"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Iridium_Ore": {
+     "level": 102,
+     "why": "deep, hard rock",
+     "terms": [
+      {
+       "t": [
+        "badlands"
+       ],
+       "f": [
+        "rocky",
+        "rock"
+       ]
+      },
+      {
+       "f": [
+        "cave"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Palladium_Ore": {
+     "level": 105,
+     "why": "high peaks",
+     "terms": [
+      {
+       "t": [
+        "snowlands"
+       ],
+       "f": [
+        "mountain"
+       ]
+      },
+      {
+       "t": [
+        "mountain"
+       ],
+       "f": [
+        "cliff"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Augite_Ore": {
+     "level": 108,
+     "why": "volcanic",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "lava",
+         "hot"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Oricha": {
+     "level": 110,
+     "why": "sacred ground",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "holy",
+         "temple"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Meteorite_Ore": {
+     "level": 112,
+     "why": "impact wastes",
+     "terms": [
+      {
+       "t": [
+        "wastelands",
+        "badlands"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "ruin"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Divinite_Ore": {
+     "level": 115,
+     "why": "near holy ground",
+     "terms": [
+      {
+       "near": {
+        "r": 3,
+        "f": [
+         "holy"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "temple"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Cerulean": {
+     "level": 118,
+     "why": "blue ice",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "iceberg",
+         "lake"
+        ]
+       }
+      },
+      {
+       "t": [
+        "snowlands"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "melvorD:Woodcutting": {
+   "actions": {
+    "melvorD:Normal": {
+     "level": 1,
+     "why": "everywhere trees grow",
+     "terms": [
+      {}
+     ]
+    },
+    "melvorD:Oak": {
+     "level": 10,
+     "why": "temperate lowland woods",
+     "terms": [
+      {
+       "t": [
+        "grasslands",
+        "kingslands"
+       ]
+      }
+     ]
+    },
+    "melvorD:Willow": {
+     "level": 25,
+     "why": "by water",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "river",
+         "lake",
+         "swamp"
+        ]
+       }
+      },
+      {
+       "coast": true
+      }
+     ]
+    },
+    "melvorD:Teak": {
+     "level": 35,
+     "why": "warm, by sand and swamp",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "beach",
+         "desert",
+         "swamplands"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Maple": {
+     "level": 45,
+     "why": "cool uplands",
+     "terms": [
+      {
+       "t": [
+        "kingslands"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff",
+         "mountain"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Mahogany": {
+     "level": 55,
+     "why": "tropical, swampy",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "t": [
+         "swamplands"
+        ]
+       }
+      },
+      {
+       "t": [
+        "beach"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "holy"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Yew": {
+     "level": 60,
+     "why": "churchyard yews, old royal forests",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "temple",
+         "ruin",
+         "holy"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "area": [
+         "Graveyard"
+        ]
+       }
+      },
+      {
+       "t": [
+        "kingslands"
+       ],
+       "f": [
+        "forest"
+       ]
+      }
+     ]
+    },
+    "melvorD:Magic": {
+     "level": 75,
+     "why": "magic sites",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "magic",
+         "monolith"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Redwood": {
+     "level": 90,
+     "why": "foggy cliff coasts, the cold north",
+     "terms": [
+      {
+       "f": [
+        "forest"
+       ],
+       "coast": true,
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff"
+        ]
+       }
+      },
+      {
+       "t": [
+        "snowlands"
+       ],
+       "f": [
+        "forest"
+       ]
+      }
+     ]
+    },
+    "melvorAoD:Unholy": {
+     "level": 40,
+     "why": "cursed and haunted ground: graveyards, cobwebbed woods, dungeon mouths",
+     "terms": [
+      {
+       "t": [
+        "cursedlands"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "area": [
+         "Graveyard"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "curse",
+         "cobweb",
+         "dungeon"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorAoD:Cursed": {
+     "level": 65,
+     "why": "cursed ground; on the mainland, round the Graveyard and the cobwebbed woods",
+     "terms": [
+      {
+       "t": [
+        "cursedlands"
+       ]
+      },
+      {
+       "near": {
+        "r": 2,
+        "area": [
+         "Graveyard"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "cobweb"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Spruce": {
+     "level": 100,
+     "why": "snow forests",
+     "terms": [
+      {
+       "t": [
+        "snowlands"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Hornbeam": {
+     "level": 102,
+     "why": "the King's lands",
+     "terms": [
+      {
+       "t": [
+        "kingslands"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Grove": {
+     "level": 105,
+     "why": "sacred groves",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "holy",
+         "temple"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Linden": {
+     "level": 108,
+     "why": "river meadows",
+     "terms": [
+      {
+       "t": [
+        "grasslands"
+       ],
+       "f": [
+        "river"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Elderwood": {
+     "level": 110,
+     "why": "ancient woods by ruins",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "ruin",
+         "monolith"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Red_Oak": {
+     "level": 112,
+     "why": "red country",
+     "terms": [
+      {
+       "t": [
+        "badlands"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Revenant": {
+     "level": 115,
+     "why": "haunted woods",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "dungeon",
+         "curse"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Mystic": {
+     "level": 118,
+     "why": "magic sites",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "magic"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Carrion": {
+     "level": 120,
+     "why": "blighted ground",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "toxic",
+         "curse"
+        ]
+       }
+      },
+      {
+       "t": [
+        "wastelands"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "melvorD:Fishing": {
+   "actions": {
+    "melvorD:Raw_Shrimp": {
+     "level": 1,
+     "why": "shallow shore water",
+     "terms": [
+      {
+       "t": [
+        "shoal",
+        "beach"
+       ]
+      },
+      {
+       "coast": true
+      },
+      {
+       "shore": [
+        1,
+        1
+       ]
+      }
+     ]
+    },
+    "melvorD:Raw_Sardine": {
+     "level": 5,
+     "why": "coastal shoals",
+     "terms": [
+      {
+       "shore": [
+        1,
+        2
+       ]
+      },
+      {
+       "coast": true
+      }
+     ]
+    },
+    "melvorD:Raw_Blowfish": {
+     "level": 8,
+     "why": "warm shallows and beaches",
+     "terms": [
+      {
+       "shore": [
+        1,
+        2
+       ],
+       "near": {
+        "r": 2,
+        "t": [
+         "beach",
+         "desert"
+        ]
+       }
+      },
+      {
+       "f": [
+        "coral"
+       ]
+      },
+      {
+       "t": [
+        "beach"
+       ]
+      }
+     ]
+    },
+    "melvorD:Raw_Herring": {
+     "level": 10,
+     "why": "open coastal sea, harbours",
+     "terms": [
+      {
+       "shore": [
+        1,
+        2
+       ]
+      },
+      {
+       "f": [
+        "port",
+        "fisherman"
+       ]
+      }
+     ]
+    },
+    "melvorD:Raw_Seahorse": {
+     "level": 15,
+     "why": "sandy shallows and coral",
+     "terms": [
+      {
+       "f": [
+        "coral"
+       ]
+      },
+      {
+       "t": [
+        "shoal"
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "sand"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Trout": {
+     "level": 20,
+     "why": "fresh water",
+     "terms": [
+      {
+       "f": [
+        "river",
+        "lake"
+       ]
+      }
+     ]
+    },
+    "melvorD:Leaping_Trout": {
+     "level": 20,
+     "why": "running rivers",
+     "terms": [
+      {
+       "f": [
+        "river"
+       ]
+      }
+     ]
+    },
+    "melvorAoD:Raw_Mackerel": {
+     "level": 20,
+     "why": "open water",
+     "terms": [
+      {
+       "shore": [
+        2,
+        2
+       ]
+      },
+      {
+       "shore": [
+        1,
+        1
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "port"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Poison_Fish": {
+     "level": 30,
+     "why": "toxic and swampy water",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "toxic",
+         "swamp"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Salmon": {
+     "level": 35,
+     "why": "cold rivers below the hills",
+     "terms": [
+      {
+       "f": [
+        "river"
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff",
+         "mountain",
+         "snow"
+        ]
+       }
+      },
+      {
+       "shore": [
+        1,
+        2
+       ],
+       "near": {
+        "r": 2,
+        "t": [
+         "snowlands"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Leaping_Salmon": {
+     "level": 35,
+     "why": "rivers that leap",
+     "terms": [
+      {
+       "f": [
+        "river",
+        "waterfall"
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff",
+         "mountain",
+         "waterfall"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Lobster": {
+     "level": 40,
+     "why": "rocky shores (pots from the rocks or the boat)",
+     "terms": [
+      {
+       "shore": [
+        1,
+        1
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff",
+         "rock",
+         "rocky"
+        ]
+       }
+      },
+      {
+       "coast": true,
+       "f": [
+        "cliff",
+        "rock",
+        "rocky"
+       ]
+      }
+     ]
+    },
+    "melvorAoD:Raw_Halibut": {
+     "level": 40,
+     "why": "cold, deeper water",
+     "terms": [
+      {
+       "shore": [
+        1,
+        2
+       ],
+       "near": {
+        "r": 3,
+        "t": [
+         "snowlands"
+        ],
+        "f": [
+         "iceberg"
+        ]
+       }
+      },
+      {
+       "shore": [
+        2,
+        2
+       ],
+       "near": {
+        "r": 2,
+        "f": [
+         "cliff"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Skeleton_Fish": {
+     "level": 45,
+     "why": "wrecks and cursed water",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "wreckage",
+         "curse",
+         "cursed",
+         "ruin"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "area": [
+         "Graveyard"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Swordfish": {
+     "level": 50,
+     "why": "open sea",
+     "terms": [
+      {
+       "shore": [
+        2,
+        2
+       ]
+      }
+     ]
+    },
+    "melvorD:Raw_Anglerfish": {
+     "level": 50,
+     "why": "dark water: caves, wrecks, under cliffs",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "cave",
+         "kraken",
+         "wreckage"
+        ]
+       }
+      },
+      {
+       "shore": [
+        2,
+        2
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Fanfish": {
+     "level": 55,
+     "why": "warm reefs",
+     "terms": [
+      {
+       "shore": [
+        1,
+        2
+       ],
+       "near": {
+        "r": 2,
+        "t": [
+         "beach"
+        ]
+       }
+      },
+      {
+       "f": [
+        "coral"
+       ]
+      }
+     ]
+    },
+    "melvorD:Raw_Crab": {
+     "level": 60,
+     "why": "sandy beaches",
+     "terms": [
+      {
+       "f": [
+        "crab"
+       ]
+      },
+      {
+       "t": [
+        "beach"
+       ]
+      },
+      {
+       "t": [
+        "shoal",
+        "water"
+       ],
+       "shore": [
+        1,
+        1
+       ],
+       "near": {
+        "r": 1,
+        "t": [
+         "beach"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Carp": {
+     "level": 65,
+     "why": "still fresh water",
+     "terms": [
+      {
+       "f": [
+        "lake",
+        "swamp"
+       ]
+      }
+     ]
+    },
+    "melvorD:Raw_Shark": {
+     "level": 70,
+     "why": "warm open sea",
+     "terms": [
+      {
+       "shore": [
+        2,
+        2
+       ],
+       "near": {
+        "r": 3,
+        "t": [
+         "beach",
+         "desert"
+        ],
+        "f": [
+         "coral"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "kraken"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Leaping_Broad_Fish": {
+     "level": 70,
+     "why": "falls and gorges",
+     "terms": [
+      {
+       "f": [
+        "waterfall"
+       ]
+      },
+      {
+       "f": [
+        "river"
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Cave_Fish": {
+     "level": 75,
+     "why": "cave pools",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "cave"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorAoD:Raw_Tilapia": {
+     "level": 75,
+     "why": "warm fresh water",
+     "terms": [
+      {
+       "f": [
+        "river",
+        "lake"
+       ],
+       "near": {
+        "r": 1,
+        "t": [
+         "desert",
+         "swamplands",
+         "beach"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Magic_Fish": {
+     "level": 80,
+     "why": "enchanted water",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "magic",
+         "holy",
+         "monolith"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Manta_Ray": {
+     "level": 85,
+     "why": "warm deep water",
+     "terms": [
+      {
+       "shore": [
+        2,
+        2
+       ],
+       "near": {
+        "r": 3,
+        "f": [
+         "coral",
+         "holy"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Raw_Whale": {
+     "level": 95,
+     "why": "cold open ocean",
+     "terms": [
+      {
+       "shore": [
+        2,
+        2
+       ],
+       "near": {
+        "r": 3,
+        "f": [
+         "iceberg"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "kraken",
+         "storm"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Lava_Fish": {
+     "level": 100,
+     "why": "lava pools",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "lava"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Spike_Fish": {
+     "level": 101,
+     "why": "jungle waters",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "swamplands"
+        ]
+       }
+      },
+      {
+       "f": [
+        "coral"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Raw_Rockfish": {
+     "level": 102,
+     "why": "rocky water",
+     "terms": [
+      {
+       "shore": [
+        1,
+        1
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff",
+         "rocky"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Blue_Crab": {
+     "level": 104,
+     "why": "jungle and beach",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "swamplands"
+        ]
+       }
+      },
+      {
+       "t": [
+        "beach"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Raw_Magma_Fish": {
+     "level": 105,
+     "why": "magma",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "lava",
+         "hot"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Large_Blowfish": {
+     "level": 106,
+     "why": "jungle waters",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "t": [
+         "swamplands"
+        ]
+       }
+      },
+      {
+       "f": [
+        "coral"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Raw_Static_Jellyfish": {
+     "level": 108,
+     "why": "stormy water, under cliffs",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "storm"
+        ]
+       }
+      },
+      {
+       "t": [
+        "shoal"
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Frost_Crab": {
+     "level": 110,
+     "why": "frozen sea",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "iceberg",
+         "snow"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Magma_Eel": {
+     "level": 112,
+     "why": "magma",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "lava"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Frozen_Manta_Ray": {
+     "level": 113,
+     "why": "frozen sea",
+     "terms": [
+      {
+       "shore": [
+        1,
+        2
+       ],
+       "near": {
+        "r": 2,
+        "f": [
+         "iceberg"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Ghost_Fish": {
+     "level": 115,
+     "why": "midnight waters",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "wreckage",
+         "curse",
+         "cursed"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Mystic_Seahorse": {
+     "level": 116,
+     "why": "mystic pond",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "magic",
+         "holy"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Terrorfish": {
+     "level": 118,
+     "why": "midnight waters",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "curse",
+         "cursed",
+         "kraken"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Raw_Mystic_Shark": {
+     "level": 120,
+     "why": "mystic waters",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "magic",
+         "holy"
+        ]
+       }
+      },
+      {
+       "shore": [
+        2,
+        2
+       ],
+       "near": {
+        "r": 3,
+        "f": [
+         "holy"
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "melvorD:Farming": {
+   "actions": {
+    "melvorD:Potatoes": {
+     "level": 1,
+     "why": "grows anywhere farmable",
+     "terms": [
+      {}
+     ]
+    },
+    "melvorD:Onions": {
+     "level": 5,
+     "why": "grows anywhere farmable",
+     "terms": [
+      {}
+     ]
+    },
+    "melvorD:Cabbage": {
+     "level": 7,
+     "why": "cool green fields",
+     "terms": [
+      {
+       "t": [
+        "grasslands",
+        "kingslands"
+       ]
+      }
+     ]
+    },
+    "melvorD:Tomatoes": {
+     "level": 12,
+     "why": "warm and sunny",
+     "terms": [
+      {
+       "coast": true
+      },
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "desert",
+         "beach"
+        ]
+       }
+      },
+      {
+       "f": [
+        "farm"
+       ]
+      }
+     ]
+    },
+    "melvorD:Sweetcorn": {
+     "level": 20,
+     "why": "plains",
+     "terms": [
+      {
+       "t": [
+        "kingslands"
+       ]
+      },
+      {
+       "f": [
+        "farm"
+       ]
+      },
+      {
+       "t": [
+        "grasslands"
+       ],
+       "f": [
+        "river"
+       ]
+      }
+     ]
+    },
+    "melvorAoD:Ancient_Wildberry": {
+     "level": 20,
+     "why": "woodland edges",
+     "terms": [
+      {
+       "f": [
+        "forest",
+        "tree"
+       ]
+      }
+     ]
+    },
+    "melvorD:Strawberries": {
+     "level": 31,
+     "why": "gardens and market farms",
+     "terms": [
+      {
+       "t": [
+        "kingslands"
+       ]
+      },
+      {
+       "f": [
+        "farm"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "market"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Cherry": {
+     "level": 40,
+     "why": "orchard slopes",
+     "terms": [
+      {
+       "t": [
+        "kingslands"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff",
+         "mountain"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Watermelon": {
+     "level": 47,
+     "why": "hot and sandy",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "desert",
+         "beach"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorAoD:Ancient_Corn": {
+     "level": 50,
+     "why": "ancient fields by the old ruins",
+     "terms": [
+      {
+       "t": [
+        "desert"
+       ]
+      },
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "pyramid",
+         "ruin"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Snape_Grass": {
+     "level": 61,
+     "why": "wet ground",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "swamp",
+         "lake"
+        ]
+       }
+      },
+      {
+       "coast": true
+      }
+     ]
+    },
+    "melvorD:Carrot": {
+     "level": 69,
+     "why": "light sandy soil",
+     "terms": [
+      {
+       "f": [
+        "sand"
+       ]
+      },
+      {
+       "t": [
+        "kingslands"
+       ]
+      }
+     ]
+    },
+    "melvorAoD:Ancient_Carrot": {
+     "level": 69,
+     "why": "old sandy fields",
+     "terms": [
+      {
+       "f": [
+        "sand"
+       ]
+      },
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "ruin",
+         "pyramid"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Garum_Herb": {
+     "level": 5,
+     "why": "by the water",
+     "terms": [
+      {
+       "coast": true
+      },
+      {
+       "f": [
+        "river"
+       ]
+      }
+     ]
+    },
+    "melvorD:Sourweed_Herb": {
+     "level": 15,
+     "why": "damp ground",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "swamp",
+         "lake",
+         "river"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Mantalyme_Herb": {
+     "level": 25,
+     "why": "meadows",
+     "terms": [
+      {
+       "t": [
+        "grasslands"
+       ]
+      }
+     ]
+    },
+    "melvorD:Lemontyle_Herb": {
+     "level": 35,
+     "why": "sunny, dry",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "desert",
+         "beach"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Oxilyme_Herb": {
+     "level": 50,
+     "why": "river banks",
+     "terms": [
+      {
+       "f": [
+        "river"
+       ]
+      }
+     ]
+    },
+    "melvorF:Poraxx_Herb": {
+     "level": 60,
+     "why": "foothills",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "mountain",
+         "cliff"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:Pigtayle_Herb": {
+     "level": 70,
+     "why": "rich farmland",
+     "terms": [
+      {
+       "f": [
+        "farm"
+       ]
+      },
+      {
+       "t": [
+        "kingslands"
+       ]
+      }
+     ]
+    },
+    "melvorF:Barrentoe_Herb": {
+     "level": 80,
+     "why": "barren edges",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "badlands",
+         "wastelands"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Oak_Logs": {
+     "level": 15,
+     "why": "as Woodcutting",
+     "terms": [
+      {
+       "t": [
+        "grasslands",
+        "kingslands"
+       ]
+      }
+     ]
+    },
+    "melvorD:Willow_Logs": {
+     "level": 30,
+     "why": "as Woodcutting",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "river",
+         "lake",
+         "swamp"
+        ]
+       }
+      },
+      {
+       "coast": true
+      }
+     ]
+    },
+    "melvorD:Maple_Logs": {
+     "level": 45,
+     "why": "as Woodcutting",
+     "terms": [
+      {
+       "t": [
+        "kingslands"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "cliff",
+         "mountain"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorD:Yew_Logs": {
+     "level": 60,
+     "why": "as Woodcutting",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "temple",
+         "ruin",
+         "holy"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "area": [
+         "Graveyard"
+        ]
+       }
+      },
+      {
+       "t": [
+        "kingslands"
+       ],
+       "f": [
+        "forest"
+       ]
+      }
+     ]
+    },
+    "melvorD:Magic_Logs": {
+     "level": 75,
+     "why": "near magic sites",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "magic",
+         "monolith"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:Apple": {
+     "level": 70,
+     "why": "orchards",
+     "terms": [
+      {
+       "t": [
+        "kingslands"
+       ]
+      },
+      {
+       "f": [
+        "farm"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Pumpkin": {
+     "level": 100,
+     "why": "farms",
+     "terms": [
+      {
+       "f": [
+        "farm"
+       ]
+      },
+      {
+       "t": [
+        "kingslands"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Chilli": {
+     "level": 105,
+     "why": "hot",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "desert"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Mushrooms": {
+     "level": 115,
+     "why": "damp and dark",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "cave",
+         "swamp"
+        ]
+       }
+      },
+      {
+       "f": [
+        "forest"
+       ],
+       "near": {
+        "r": 1,
+        "f": [
+         "river",
+         "lake"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Starfruit": {
+     "level": 118,
+     "why": "enchanted gardens",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "holy",
+         "magic"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Snowcress_Herb": {
+     "level": 102,
+     "why": "cold edges",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "snow",
+         "cliff"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Bitterlyme_Herb": {
+     "level": 106,
+     "why": "bitter ground",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "badlands"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Moonwort_Herb": {
+     "level": 112,
+     "why": "by night-haunted places",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "temple",
+         "curse",
+         "ruin"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Wurmtayle_Herb": {
+     "level": 118,
+     "why": "foul water",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "toxic",
+         "swamp"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Bananas": {
+     "level": 100,
+     "why": "tropical coast",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "beach"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Grove_Logs": {
+     "level": 105,
+     "why": "as Woodcutting",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "holy",
+         "temple"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Elderwood_Logs": {
+     "level": 110,
+     "why": "as Woodcutting",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "ruin",
+         "monolith"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:Carrion_Logs": {
+     "level": 120,
+     "why": "near blighted ground",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "toxic",
+         "curse"
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "melvorD:Thieving": {
+   "actions": {
+    "melvorF:MAN": {
+     "level": 1,
+     "why": "any town",
+     "terms": [
+      {
+       "f": [
+        "city",
+        "capital",
+        "building",
+        "alleyways",
+        "square",
+        "market",
+        "port"
+       ]
+      }
+     ]
+    },
+    "melvorF:WOMAN": {
+     "level": 4,
+     "why": "any town",
+     "terms": [
+      {
+       "f": [
+        "city",
+        "capital",
+        "building",
+        "alleyways",
+        "square",
+        "market",
+        "port"
+       ]
+      }
+     ]
+    },
+    "melvorF:GOLBIN": {
+     "level": 8,
+     "why": "golbin camps",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "poi": [
+         "GolbinVillage"
+        ]
+       }
+      },
+      {
+       "f": [
+        "camp"
+       ]
+      }
+     ]
+    },
+    "melvorF:BANDIT_THUG": {
+     "level": 12,
+     "why": "camps and the badlands",
+     "terms": [
+      {
+       "f": [
+        "camp"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "poi": [
+         "BanditHideout"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "badlands"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:GOLBIN_CHIEF": {
+     "level": 16,
+     "why": "Golbin Village",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "poi": [
+         "GolbinVillage"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:MARAUDER": {
+     "level": 21,
+     "why": "bandit country",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "poi": [
+         "BanditHideout"
+        ]
+       }
+      },
+      {
+       "f": [
+        "camp",
+        "ruin"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "badlands"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:ASSISTANT_COOK": {
+     "level": 26,
+     "why": "kitchens of towns",
+     "terms": [
+      {
+       "f": [
+        "city",
+        "capital",
+        "castle",
+        "port"
+       ]
+      }
+     ]
+    },
+    "melvorF:MERCHANT": {
+     "level": 31,
+     "why": "markets",
+     "terms": [
+      {
+       "f": [
+        "market",
+        "port",
+        "city",
+        "capital"
+       ]
+      }
+     ]
+    },
+    "melvorF:CHEF": {
+     "level": 34,
+     "why": "great houses",
+     "terms": [
+      {
+       "f": [
+        "capital",
+        "castle",
+        "city"
+       ]
+      }
+     ]
+    },
+    "melvorF:BOB_THE_FARMER": {
+     "level": 39,
+     "why": "farms",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "farm"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:DOCK_HAND": {
+     "level": 45,
+     "why": "docks",
+     "terms": [
+      {
+       "f": [
+        "port",
+        "lighthouse",
+        "boat"
+       ]
+      }
+     ]
+    },
+    "melvorF:TROLL": {
+     "level": 49,
+     "why": "under the hills",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "cave",
+         "mountain"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "poi": [
+         "GiantDungeon"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:FISHERMAN": {
+     "level": 54,
+     "why": "fishing villages",
+     "terms": [
+      {
+       "f": [
+        "port",
+        "fisherman"
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "fisherman"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:CYCLOPS": {
+     "level": 57,
+     "why": "the Cave of Giants",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "poi": [
+         "GiantDungeon"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "cave",
+         "mountain"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:LUMBERJACK": {
+     "level": 61,
+     "why": "by the woods",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "forest"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:SQUIRE": {
+     "level": 66,
+     "why": "castles",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "knights",
+         "castle",
+         "capital"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:MINER": {
+     "level": 70,
+     "why": "mining camps",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "mine",
+         "rocky",
+         "cave"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:ACOLYTE": {
+     "level": 75,
+     "why": "temples",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "temple",
+         "magic",
+         "holy"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "area": [
+         "WizardTower"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:COURT_JESTER": {
+     "level": 79,
+     "why": "the court",
+     "terms": [
+      {
+       "f": [
+        "capital",
+        "castle"
+       ]
+      }
+     ]
+    },
+    "melvorF:WIZARD": {
+     "level": 84,
+     "why": "the Wizard Tower",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "magic"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "area": [
+         "WizardTower"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:KNIGHT": {
+     "level": 88,
+     "why": "the Fort",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "knights",
+         "castle"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorF:PRINCESS": {
+     "level": 92,
+     "why": "the Royal Castle",
+     "terms": [
+      {
+       "f": [
+        "capital",
+        "castle"
+       ]
+      }
+     ]
+    },
+    "melvorF:KING": {
+     "level": 95,
+     "why": "the Royal Castle",
+     "terms": [
+      {
+       "f": [
+        "capital",
+        "castle"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:EXPLORER": {
+     "level": 100,
+     "why": "lost ruins",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "ruin",
+         "pyramid",
+         "wreckage"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:NECROMANCER": {
+     "level": 102,
+     "why": "the undead palace",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "curse",
+         "dungeon"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:PILGRIM": {
+     "level": 104,
+     "why": "pilgrim roads",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "desert"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "holy",
+         "temple"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:ADVENTURER": {
+     "level": 105,
+     "why": "lost ruins",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "ruin",
+         "pyramid",
+         "dungeon"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:DARK_KNIGHT": {
+     "level": 108,
+     "why": "the undead palace",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "curse",
+         "castle"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:SAGE": {
+     "level": 110,
+     "why": "the mushroom forest's wise",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "magic",
+         "temple"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:TREASURE_HUNTER": {
+     "level": 110,
+     "why": "lost ruins",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "ruin",
+         "pyramid",
+         "wreckage"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:TRAVELLING_MERCHANT": {
+     "level": 112,
+     "why": "desert caravans",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "desert"
+        ]
+       }
+      },
+      {
+       "f": [
+        "market"
+       ]
+      }
+     ]
+    },
+    "melvorTotH:VAMPIRE": {
+     "level": 114,
+     "why": "twilight: cursed ground, dungeons, graveyards",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "cursedlands"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "curse",
+         "dungeon"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 2,
+        "area": [
+         "Graveyard"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:MADREMONTE": {
+     "level": 116,
+     "why": "deep forest",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "forest"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "swamplands"
+        ]
+       }
+      }
+     ]
+    },
+    "melvorTotH:VAMPIRE_LORD": {
+     "level": 118,
+     "why": "twilight: cursed ground, graveyards, dark castles",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "t": [
+         "cursedlands"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 2,
+        "area": [
+         "Graveyard"
+        ]
+       }
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "castle"
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "melvorD:Astrology": {
+   "actions": {
+    "melvorF:Deedree": {
+     "level": 1,
+     "why": "low over the home country: the middle of the map, under a dark sky",
+     "terms": [
+      {
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        12,
+        22
+       ]
+      }
+     ]
+    },
+    "melvorF:Iridan": {
+     "level": 10,
+     "why": "a central band, a little further north than Deedree",
+     "terms": [
+      {
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        8,
+        20
+       ]
+      }
+     ]
+    },
+    "melvorF:Ameria": {
+     "level": 20,
+     "why": "the fisher's stars: southern sky, seen over the water",
+     "terms": [
+      {
+       "coast": true,
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        16
+       ]
+      },
+      {
+       "t": [
+        "beach"
+       ],
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        16
+       ]
+      },
+      {
+       "shore": [
+        1,
+        3
+       ],
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        16
+       ]
+      }
+     ]
+    },
+    "melvorF:Terra": {
+     "level": 30,
+     "why": "seen from high ground",
+     "terms": [
+      {
+       "t": [
+        "mountain",
+        "highlands",
+        "snowlands",
+        "badlands"
+       ],
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        6,
+        24
+       ]
+      },
+      {
+       "f": [
+        "mountain",
+        "cliff"
+       ],
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        6,
+        24
+       ]
+      }
+     ]
+    },
+    "melvorF:Vale": {
+     "level": 40,
+     "why": "wide open lowlands",
+     "terms": [
+      {
+       "t": [
+        "grasslands",
+        "kingslands",
+        "desert"
+       ],
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        10,
+        24
+       ]
+      }
+     ]
+    },
+    "melvorAoD:Nysa": {
+     "level": 45,
+     "why": "the navigator's star: out at sea, or by a lighthouse",
+     "terms": [
+      {
+       "shore": [
+        1,
+        4
+       ],
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ]
+      },
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "lighthouse"
+        ]
+       },
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    "melvorF:Syllia": {
+     "level": 50,
+     "why": "a northern constellation",
+     "terms": [
+      {
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        0,
+        12
+       ]
+      }
+     ]
+    },
+    "melvorF:Arachi": {
+     "level": 60,
+     "why": "near magic sites, or the far north",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "magic",
+         "monolith"
+        ]
+       },
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ]
+      },
+      {
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        0,
+        8
+       ]
+      }
+     ]
+    },
+    "melvorF:Ko": {
+     "level": 70,
+     "why": "a southern constellation",
+     "terms": [
+      {
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        20
+       ]
+      }
+     ]
+    },
+    "melvorF:Tellus": {
+     "level": 80,
+     "why": "deep in the southern sky: the far south",
+     "terms": [
+      {
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        22
+       ]
+      }
+     ]
+    },
+    "melvorF:Hyden": {
+     "level": 90,
+     "why": "from holy ground or the highest peaks",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "holy",
+         "temple"
+        ]
+       },
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ]
+      },
+      {
+       "t": [
+        "mountain",
+        "snowlands"
+       ],
+       "f": [
+        "mountain"
+       ],
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    "melvorF:Qimican": {
+     "level": 95,
+     "why": "the far north, or by the monolith",
+     "terms": [
+      {
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        0,
+        5
+       ]
+      },
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "monolith"
+        ]
+       },
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Variel": {
+     "level": 100,
+     "why": "the astronomer's star: only from the high peaks",
+     "terms": [
+      {
+       "t": [
+        "snowlands",
+        "mountain"
+       ],
+       "f": [
+        "mountain"
+       ],
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ]
+      },
+      {
+       "t": [
+        "mountain"
+       ],
+       "f": [
+        "cliff"
+       ],
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Haemir": {
+     "level": 105,
+     "why": "the township star: in the country just outside a town",
+     "terms": [
+      {
+       "near": {
+        "r": 2,
+        "f": [
+         "city",
+         "capital"
+        ]
+       },
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Rosaniya": {
+     "level": 110,
+     "why": "the farthest south",
+     "terms": [
+      {
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        25
+       ]
+      }
+     ]
+    },
+    "melvorTotH:Ashtar": {
+     "level": 115,
+     "why": "the war star: over battlefields, or the far north",
+     "terms": [
+      {
+       "near": {
+        "r": 1,
+        "f": [
+         "slayer_area",
+         "stronghold_area"
+        ]
+       },
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ]
+      },
+      {
+       "not": [
+        {
+         "f": [
+          "city",
+          "capital",
+          "market",
+          "port",
+          "square",
+          "alleyways"
+         ],
+         "r": 1
+        },
+        {
+         "f": [
+          "forest"
+         ]
+        }
+       ],
+       "lat": [
+        0,
+        6
+       ]
+      }
+     ]
+    }
+   }
+  }
+ }
+}

@@ -24,20 +24,20 @@ export const SKILL_RULES = {
     flags: { coast: 0.8 }, ship: ['water', 'shoal'], noun: 'water',
   },
   'melvorD:Farming': { tier: 'terrain', classes: { grasslands: 1, kingslands: 1 }, features: { farm: 1 }, combos: [['desert', 'river', 0.8]], noun: 'grasslands or a farm' },
-  'melvorD:Thieving': { tier: 'terrain', features: { city: 1, capital: 1, market: 1, port: 1, building: 0.8, camp: 0.8 }, noun: 'a town, market or port' },
+  'melvorD:Thieving': { tier: 'terrain', features: { city: 1, capital: 1, market: 1, port: 1, building: 0.8, camp: 0.8 }, grace: 1, noun: 'a town, market or port' },
   'melvorD:Firemaking': { tier: 'land', noun: 'dry land' },
   'melvorD:Cooking': { tier: 'land', noun: 'dry land' },
   'melvorD:Smithing': { tier: 'place', features: { forge: 1, city: 1, capital: 1, camp: 1, port: 0.8 }, grace: 1, noun: 'a forge, town or camp' },
-  'melvorD:Crafting': { tier: 'place', features: { stoneworkers: 1, city: 1, capital: 1, camp: 1, port: 1 }, noun: 'a workshop, town, camp or port' },
+  'melvorD:Crafting': { tier: 'place', features: { stoneworkers: 1, city: 1, capital: 1, camp: 1, port: 1 }, grace: 1, noun: 'a workshop, town, camp or port' },
   'melvorD:Fletching': { tier: 'place', features: { city: 1, capital: 1, camp: 1, port: 1, forest: 0.8 }, noun: 'a town, camp or port' },
   'melvorD:Herblore': { tier: 'place', features: { farm: 1, market: 1, city: 1, capital: 1 }, pois: { FrostyHaven: 1 }, grace: 1, noun: 'a farm, market or town' },
-  'melvorD:Runecrafting': { tier: 'place', features: { magic: 1, temple: 1, capital: 1 }, noun: 'a magic site, temple or the capital' },
+  'melvorD:Runecrafting': { tier: 'place', features: { magic: 1, temple: 1, capital: 1 }, grace: 1, noun: 'a magic site, temple or the capital' },
   // The Magic skill object doubles as Alt. Magic (game.altMagic.id === 'melvorD:Magic'); combat Magic never asks.
-  'melvorD:Magic': { tier: 'place', features: { magic: 1, temple: 1 }, noun: 'a magic site or temple', label: 'Alt. Magic' },
+  'melvorD:Magic': { tier: 'place', features: { magic: 1, temple: 1 }, grace: 1, noun: 'a magic site or temple', label: 'Alt. Magic' },
   'melvorD:Summoning': { tier: 'place', features: { monolith: 1, magic: 1, temple: 0.8 }, grace: 1, noun: 'a monolith, magic site or temple' },
-  'melvorD:Township': { tier: 'place', features: { city: 1, capital: 1, port: 1 }, noun: 'a town or port' },
+  'melvorD:Township': { tier: 'place', features: { city: 1, capital: 1, port: 1 }, grace: 1, noun: 'a town or port' },
   // Worker Folks' Hiring follows Township: staff changes (hire, promote, fire) need a town or port.
-  'worker_folks:Hiring': { tier: 'place', features: { city: 1, capital: 1, port: 1 }, noun: 'a town or port' },
+  'worker_folks:Hiring': { tier: 'place', features: { city: 1, capital: 1, port: 1 }, grace: 1, noun: 'a town or port' },
   'melvorItA:Harvesting': { tier: 'terrain', areas: { IntoTheAbyss: 1 }, noun: 'the Abyss' },
 };
 
@@ -86,6 +86,19 @@ export function rateAt(skillId, record, opts = {}) {
   return own;
 }
 
+/**
+ * The neighbours that lift `record` by grace: full-rate hexes next to it, when the rule has grace and the hex itself
+ * is below full rate (land, not under cloud, the rule applying under this strictness). Empty otherwise. Resource zones
+ * use them: a grace hex works for an action whose zone takes one of these (src/zones.mjs zoneAllowsWithGrace).
+ */
+export function graceFrom(skillId, record, opts = {}) {
+  const rule = SKILL_RULES[skillId];
+  if (rule?.grace === undefined || record === undefined || record.cloud === true || isSea(record)) return [];
+  if (opts.strictness === 'relaxed' && rule.tier === 'place') return [];
+  if (ownRate(rule, record) >= 1 || typeof opts.neighbours !== 'function') return [];
+  return opts.neighbours(record).filter((n) => n !== undefined && ownRate(rule, n) >= 1);
+}
+
 /** True when the skill may start on the hex (at any rate). */
 export function allowedAt(skillId, record, opts) {
   return rateAt(skillId, record, opts) > 0;
@@ -103,6 +116,16 @@ export function ruleNoun(skillId) {
 
 export function ruleLabel(skillId, fallback) {
   return SKILL_RULES[skillId]?.label ?? fallback;
+}
+
+/** Language keys for ruleNoun and ruleLabel (the English stays above for tests; tests/lang-keys.test.mjs). */
+const localId = (skillId) => String(skillId).split(':').pop();
+export function ruleNounKey(skillId) {
+  return SKILL_RULES[skillId]?.noun === undefined ? 'MOD_VOY_RULE_NOUN_DEFAULT' : `MOD_VOY_RULE_NOUN_${localId(skillId)}`;
+}
+/** Undefined when the rule keeps the skill's own (game-translated) name. */
+export function ruleLabelKey(skillId) {
+  return SKILL_RULES[skillId]?.label === undefined ? undefined : `MOD_VOY_RULE_LABEL_${localId(skillId)}`;
 }
 
 /** The classes, features, pois and areas a rule names, for display and for candidate lookup. */

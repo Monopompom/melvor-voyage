@@ -5,7 +5,7 @@
     "pages": [
       {
         "id": "Voyage",
-        "media": "assets/voyage_skill.png",
+        "media": "assets/icon.png",
         "containerID": "voyage-container",
         "headerBgClass": "bg-voyage",
         "hasGameGuide": false,

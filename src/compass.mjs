@@ -22,9 +22,16 @@ const SAVE_VERSION = 1;
  */
 const STARTER_GP = 2500;
 
-const DIRECTION_WORDS = { N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west' };
+/** Reading words, coldest last; also the CSS class suffix (voyage-compass-<word>) and the key MOD_VOY_COMPASS_WORD_<WORD>. */
+const WORDS = ['hot', 'warm', 'cold', 'freezing'];
 
 export function install(ctx, { state, rules, terrainMod, model, log }) {
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // Player-facing text comes from languages/<code>.json (Translatable text).
+  const hexes = (n) => templateLangString(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });
+  const dirWord = (dir) => (dir ? getLangString(`MOD_VOY_DIR_${dir}`) : '');
+  const wordText = (w) => getLangString(`MOD_VOY_COMPASS_WORD_${w.toUpperCase()}`);
+  const wordHtml = (w) => `<b class="voyage-compass-${w}">${esc(wordText(w))}</b>`;
   const load = () => {
     try {
       const raw = ctx.characterStorage.getItem(SAVE_KEY);
@@ -60,7 +67,7 @@ export function install(ctx, { state, rules, terrainMod, model, log }) {
     } catch {}
     if (rec.area) return terrainMod.areaLabel(rec.area);
     if (rec.dungeon) return terrainMod.areaLabel(rec.dungeon);
-    return terrainMod.CLASS_INFO[rec.t]?.label;
+    return terrainMod.CLASS_INFO[rec.t] === undefined ? undefined : getLangString(terrainMod.classKey(rec.t));
   };
 
   /**
@@ -70,15 +77,17 @@ export function install(ctx, { state, rules, terrainMod, model, log }) {
   const describe = (reading) => {
     if (reading === undefined) return undefined;
     const detail = model.compassDetail(voyageLevel());
-    const dir = DIRECTION_WORDS[reading.dir] ?? reading.dir;
-    const steps = detail.steps ? `, ${reading.distance} ${reading.distance === 1 ? 'hex' : 'hexes'} away` : '';
     const name = detail.name ? placeName(reading.target) : undefined;
-    const place = name ? ` (${name})` : '';
-    const across = reading.across ? ', across the water' : '';
-    const word = reading.word.charAt(0).toUpperCase() + reading.word.slice(1);
-    const tail = `, pointing ${dir}${steps}${place}${across}.`;
-    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    return { text: `Compass: ${word}${tail}`, html: `<span class="voyage-compass-line">Compass: <b class="voyage-compass-${reading.word}">${word}</b>${esc(tail)}</span>` };
+    const parts = {
+      dir: dirWord(reading.dir),
+      steps: detail.steps ? templateLangString('MOD_VOY_COMPASS_STEPS', { hexes: hexes(reading.distance) }) : '',
+      place: name ? templateLangString('MOD_VOY_COMPASS_PLACE', { name }) : '',
+      across: reading.across ? getLangString('MOD_VOY_COMPASS_ACROSS') : '',
+    };
+    // The html escapes everything but the coloured word, which goes in through a marker.
+    const MARK = '\u0001';
+    const html = esc(templateLangString('MOD_VOY_COMPASS_READING', { ...parts, word: MARK })).replace(MARK, wordHtml(reading.word));
+    return { text: templateLangString('MOD_VOY_COMPASS_READING', { ...parts, word: wordText(reading.word) }), html: `<span class="voyage-compass-line">${html}</span>` };
   };
 
   const memo = new Map();
@@ -105,21 +114,38 @@ export function install(ctx, { state, rules, terrainMod, model, log }) {
   };
   state.listeners.push(() => memo.clear());
 
+  /**
+   * The first-steps paragraph. Where skills are bought (Adventure) every skill starts locked and there is nothing to
+   * sell, so the first coins come from combat: name the nearest area that pays, with its road (user report, 15 Oct
+   * 2026: a player who wanders off spends the purse before finding one). Elsewhere: get to a trading place.
+   */
+  const firstSteps = () => {
+    const trade = getLangString('MOD_VOY_COMPASS_FIRST_TRADE');
+    try {
+      if (game.currentGamemode?.allowSkillUnlock !== true || !state.settings.combat()) return trade;
+      const pos = state.position();
+      const road = pos === undefined ? undefined : state.trader?.combatRoad(pos);
+      if (road === undefined || road.area === undefined) return trade;
+      const steps = road.path.length - 1;
+      const dir = dirWord(terrainMod.directionLabel(pos, road.path[0]));
+      const at = (() => { try { const o = road.path[0].to_oddq(); return `${o.col}, ${o.row}`; } catch { return `${road.path[0].q}, ${road.path[0].r}`; } })();
+      return templateLangString('MOD_VOY_COMPASS_FIRST_COMBAT', { area: esc(road.area.name), at, hexes: hexes(steps), dir: esc(dir), gp: numberWithCommas(road.gp) });
+    } catch (e) { log('first steps failed', e); return trade; }
+  };
+
   const popup = (it, purse) => {
     try {
-      const gp = purse > 0 ? `<div>You also have <b>${numberWithCommas(purse)} GP</b> for the road.</div>` : '';
+      const gp = purse > 0 ? ` ${templateLangString('MOD_VOY_COMPASS_WELCOME_PURSE', { gp: numberWithCommas(purse) })}` : '';
       SwalLocale.fire({
-        title: `<img class="voyage-title-icon" src="${it.media}">Far Shores`,
-        width: '43em', // a third wider than the 32em default: the welcome has four paragraphs
+        title: `<img class="voyage-title-icon" src="${it.media}">${getLangString('MOD_VOY_COMPASS_WELCOME_TITLE')}`,
+        width: '40em', // wider than the 32em default: three paragraphs (compacted on request, build .42)
         html: '<div class="text-left voyage-locked"><div class="voyage-locked-lines">' +
-          '<div>Skills now work only where the land allows: trees for Woodcutting, water for Fishing, a town for crafting.</div>' +
-          '<div><b>Cartography is how you find your way.</b> Survey the hexes around you to learn what is there; the map, the hints and travel all open up as you survey.</div>' +
-          '<div><b>Get to a trading place first.</b> You can sell and buy only in a town, port or market, or next to one, and a new journey does not start next to one. Survey toward the nearest and travel there.</div>' +
-          gp +
-          '<div>The <b>Wayfinder\'s Compass</b> works while it is in your bank. When you try a skill that doesn\'t work where you stand on the map (Mining, Woodcutting, Smithing and the like) and you don\'t know where it works, the compass tells you how close the nearest place is (<b class="voyage-compass-hot">Hot</b>, <b class="voyage-compass-warm">Warm</b>, <b class="voyage-compass-cold">Cold</b>, <b class="voyage-compass-freezing">Freezing</b>) and which way to walk. Levelling the <b>Voyage</b> skill makes it sharper. If you lose it, the shop has another.</div>' +
+          `<div>${getLangString('MOD_VOY_COMPASS_WELCOME_LAND')}</div>` +
+          `<div>${firstSteps()}${gp}</div>` +
+          `<div>${templateLangString('MOD_VOY_COMPASS_WELCOME_COMPASS', { scale: WORDS.map(wordHtml).join(', ') })}</div>` +
           '</div></div>',
         icon: 'info',
-        confirmButtonText: 'Got it',
+        confirmButtonText: getLangString('MOD_VOY_BUTTON_GOT_IT'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ popup: 'voyage-ui' }) : { popup: 'voyage-ui' },
       });
     } catch (e) { log('welcome popup failed', e); }
@@ -128,7 +154,9 @@ export function install(ctx, { state, rules, terrainMod, model, log }) {
   /** True when this character has ever had the compass: the game save remembers it even when storage does not. */
   const everFound = (it) => { try { return game.stats.itemFindCount(it) > 0; } catch { return false; } };
 
-  ctx.onInterfaceReady(() => {
+  // After the tutorial (setup.mjs afterTutorial): the purse and the welcome are for the map, which opens then.
+  ctx.onInterfaceReady(() => state.afterTutorial(grant));
+  function grant() {
     try {
       if (state.mode !== 'strict') return;
       const save = load();
@@ -148,5 +176,5 @@ export function install(ctx, { state, rules, terrainMod, model, log }) {
       log(`compass and ${purse} GP granted`);
       setTimeout(() => popup(it, purse), 500);
     } catch (e) { console.error('[Voyage] compass grant failed', e); }
-  });
+  }
 }

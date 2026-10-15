@@ -10,7 +10,7 @@ export function createVoyageClass({ model, log }) {
   class Voyage extends Skill {
     constructor(namespace, game) {
       super(namespace, 'Voyage', game);
-      this._media = 'assets/voyage_skill.png';
+      this._media = 'assets/icon.png';
       this.renderQueue = new SkillRenderQueue();
       this.renderQueue.page = false;
       this.record = model.defaultSave();
@@ -18,9 +18,12 @@ export function createVoyageClass({ model, log }) {
       this.futureRaw = undefined;
       /** Set by setup: renders the page body (src/voyage-page.mjs). */
       this.pageRenderer = undefined;
+      /** Set by setup: a string that changes when what the open page shows changes (GP, logs, position). */
+      this.pageSignature = undefined;
+      this._pageSig = undefined;
     }
 
-    get name() { return 'Voyage'; }
+    get name() { return getLangString('SKILL_NAME_Voyage'); }
     /**
      * Never greyed in the sidebar. The game dims a skill whose realm options lack the current realm, and a plain Skill
      * has none (Skill.getRealmOptions returns []), so Voyage looked disabled. It works in every realm.
@@ -52,20 +55,25 @@ export function createVoyageClass({ model, log }) {
     }
 
     // ---- unlock --------------------------------------------------------------------------------------
-    /** A gamemode with a fixed starting-skill list and no skill unlocks (Ancient Relics) would lock Voyage forever. */
-    get mustStayUnlocked() {
-      const mode = this.game.currentGamemode;
-      return mode.startingSkills !== undefined && !mode.allowSkillUnlock;
-    }
+    // Voyage is always unlocked (decided 15 Oct 2026): it holds the ship, so the mod can't play without it. In modes
+    // that buy skills (Adventure) it is free, and the next skill's price goes up one step by itself, since the game
+    // prices an unlock by (skills unlocked now) - (starting skills). A mode with a fixed list and no unlocks (Ancient
+    // Relics) would otherwise lock it forever.
+    /** Set when this load unlocked Voyage in a mode that buys skills; src/unlocks.mjs tells the player. */
+    freedForMode = false;
 
     setUnlock(isUnlocked) {
       // Game.setupCurrentGamemode() runs after onLoad on a new character and calls setUnlock(startingSkills.has(skill)).
-      super.setUnlock(isUnlocked || this.mustStayUnlocked);
+      if (!isUnlocked && !this._unlocked && this.game.currentGamemode?.allowSkillUnlock === true) this.freedForMode = true;
+      super.setUnlock(true);
     }
 
     onLoad() {
-      // A skill added to an existing save starts locked; without skill unlock purchases that is a padlock forever.
-      if (!this._unlocked && !this.game.currentGamemode.allowSkillUnlock) this._unlocked = true;
+      // A skill added to an existing save starts locked.
+      if (!this._unlocked) {
+        if (this.game.currentGamemode?.allowSkillUnlock === true) this.freedForMode = true;
+        this._unlocked = true;
+      }
       super.onLoad();
       this.renderQueue.page = true;
     }
@@ -97,8 +105,13 @@ export function createVoyageClass({ model, log }) {
     // ---- page ----------------------------------------------------------------------------------------
     render() {
       super.render();
+      // While the page is open, redraw when its signature moves (the bank and GP have no event the page listens to).
+      if (!this.renderQueue.page && this.pageSignature !== undefined && this.game.openPage?.id === model.SKILL_ID) {
+        try { const sig = this.pageSignature(); if (sig !== this._pageSig) this.renderQueue.page = true; } catch {}
+      }
       if (this.renderQueue.page) {
         this.renderQueue.page = false;
+        try { this._pageSig = this.pageSignature?.(); } catch {}
         try { this.pageRenderer?.(); } catch (e) { log('Voyage page render failed', e); }
       }
     }

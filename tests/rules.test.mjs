@@ -59,7 +59,7 @@ test('rateAt: combos, flags, pois, areas, land tier', () => {
   assert.equal(rateAt('melvorD:Cooking', { t: 'desert', cloud: true }), 0);
 });
 
-test('rateAt: one-hex grace at full speed for Mining, Smithing, Herblore and Summoning; land only, never under cloud', () => {
+test('rateAt: one-hex grace at full speed for Mining, Smithing, Herblore, Summoning and the town and magic skills; land only, never under cloud', () => {
   const nextToMountain = () => [{ t: 'mountain' }];
   const nextToNothing = () => [{ t: 'grasslands' }, undefined];
   assert.equal(rateAt(MINING, { t: 'grasslands' }, { neighbours: nextToMountain }), 1);
@@ -73,7 +73,14 @@ test('rateAt: one-hex grace at full speed for Mining, Smithing, Herblore and Sum
   assert.equal(rateAt('melvorD:Smithing', { t: 'grasslands' }, { neighbours: () => [{ t: 'grasslands', f: ['port'] }] }), 0); // port is 0.8, no grace from it
   assert.equal(rateAt('melvorD:Herblore', { t: 'snowlands' }, { neighbours: () => [{ t: 'snowlands', poi: 'FrostyHaven' }] }), 1);
   assert.equal(rateAt('melvorD:Summoning', { t: 'desert' }, { neighbours: () => [{ t: 'desert', f: ['monolith'] }] }), 1);
-  assert.equal(rateAt(WC, { t: 'grasslands' }, { neighbours: () => [{ t: 'grasslands', f: ['forest'] }] }), 0); // no grace for Woodcutting
+  assert.equal(rateAt(WC, { t: 'grasslands' }, { neighbours: () => [{ t: 'grasslands', f: ['forest'] }] }), 0);
+  // grace added 15 Oct 2026 (the user): Thieving, Crafting, Runecrafting, Alt. Magic, Township (and Hiring with it)
+  const nextToTown = { neighbours: () => [{ t: 'grasslands', f: ['city'] }] };
+  for (const id of ['melvorD:Thieving', 'melvorD:Crafting', 'melvorD:Township', 'worker_folks:Hiring']) assert.equal(rateAt(id, { t: 'grasslands' }, nextToTown), 1, id);
+  for (const id of ['melvorD:Runecrafting', 'melvorD:Magic']) assert.equal(rateAt(id, { t: 'grasslands' }, { neighbours: () => [{ t: 'grasslands', f: ['temple'] }] }), 1, id);
+  assert.equal(rateAt('melvorD:Thieving', { t: 'grasslands' }, { neighbours: () => [{ t: 'grasslands', f: ['camp'] }] }), 0); // camp is 0.8, no grace from it
+  assert.equal(rateAt('melvorD:Thieving', { t: 'grasslands', f: ['building'] }, nextToTown), 1); // grace beats the 0.8
+  assert.equal(rateAt('melvorD:Fletching', { t: 'grasslands' }, nextToTown), 0); // Fletching has none // no grace for Woodcutting
 });
 
 test('strictness: Relaxed lifts place-tier rules only', () => {

@@ -41,3 +41,17 @@ test('strandedVerdict: the rules the user set', () => {
   assert.equal(strandedVerdict({ tradeLocked: true, route: undefined, gp: 5000 }).stranded, true);
   assert.equal(strandedVerdict({ tradeLocked: true, route, gp: 0, gpSources: ['Thieving'] }).stranded, false);
 });
+
+test('strandedVerdict: Adventure, nothing to sell: the road to a place where combat pays is the way out', () => {
+  const route = { gp: 754, itemsOwned: true };
+  const combatRoute = { gp: 1090, itemsOwned: true };
+  // on a market with GP but nothing to sell: trading does not help, the combat road does
+  assert.equal(strandedVerdict({ tradeLocked: false, route, gp: 0, canSell: false }).stranded, true);
+  assert.equal(strandedVerdict({ tradeLocked: false, route, gp: 0, canSell: false, combatRoute }).stranded, true);
+  assert.equal(strandedVerdict({ tradeLocked: false, route, gp: 1090, canSell: false, combatRoute }).stranded, false, 'arriving with 0 GP is fine');
+  assert.equal(strandedVerdict({ tradeLocked: true, route, gp: 5000, canSell: false }).stranded, true, 'an affordable trade road does not help with nothing to sell');
+  // with goods to sell the old rules still hold; an affordable combat road also counts
+  assert.equal(strandedVerdict({ tradeLocked: true, route, gp: 800, combatRoute: { gp: 900 } }).stranded, false);
+  assert.equal(strandedVerdict({ tradeLocked: true, route, gp: 100, combatRoute }).stranded, true);
+  assert.match(strandedVerdict({ tradeLocked: true, route, gp: 100, canSell: false, combatRoute }).reason, /nothing to sell; the road to combat costs 1090/);
+});

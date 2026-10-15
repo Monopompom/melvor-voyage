@@ -1,10 +1,10 @@
 /* Voyage: Far Shores */
 .voyage-ui { font-size: 0.95rem; }
-#voyage-here { min-width: 260px; max-width: 360px; pointer-events: auto; }
+#voyage-here { min-width: 300px; max-width: 480px; pointer-events: auto; } /* 480: a full Locked row (12 icons, Astrology included) fits on one line */
 #voyage-here.voyage-here-top { position: absolute; top: 100%; left: 0; margin-top: 6px; text-align: left; }
 .voyage-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.4); vertical-align: -1px; margin-right: 5px; }
-.voyage-legend { margin-top: 4px; line-height: 1.7; }
-.voyage-legend .voyage-swatch { margin-left: 2px; }
+.voyage-legend { margin-top: 6px; display: grid; grid-template-columns: repeat(3, max-content); gap: 1px 14px; font-size: .8rem; line-height: 1.6; }
+.voyage-legend-item { white-space: nowrap; }
 .voyage-skills { margin-top: 4px; }
 .voyage-locked { display: flex; align-items: flex-start; gap: 10px; font-size: 1.15rem; line-height: 1.5; }
 .voyage-locked .skill-icon-sm { width: 40px; height: 40px; }
@@ -25,6 +25,9 @@
 .voyage-compass-line { opacity: .9; }
 .voyage-title-icon { width: 1.4em; height: 1.4em; vertical-align: -0.3em; margin-right: 0.35em; }
 .voyage-here-place { margin-top: 1px; }
+/* row labels in the panel (Trade, Combat, Works, Locked): muted but full size (user feedback, build .44) */
+#voyage-here { font-size: 1rem; line-height: 1.45; }
+.voyage-here-label { color: #a0a8b4; font-weight: 600; margin-right: 2px; }
 
 /* settings: the Strictness dropdown sits under its two-line hint, lined up with the label */
 .form-inline:has(.voyage-setting-hint) > .dropdown { margin: 0.5rem 0 0.25rem 0.5rem; }
@@ -34,3 +37,22 @@
 .border-voyage { border-color: #c9a227 !important; }
 .voyage-compass-stages div + div { margin-top: 4px; }
 .voyage-manage-link { font-size: .9rem; padding: .2rem .6rem; white-space: nowrap; }
+
+/* phase 3b: the ship block and the hex overview note */
+.voyage-hull-icon { width: 48px; height: 48px; flex: 0 0 auto; }
+.voyage-cost { display: inline-flex; align-items: center; margin-right: 12px; white-space: nowrap; }
+.voyage-cost img { width: 20px; height: 20px; }
+.voyage-path-note { line-height: 1.35; padding: .4rem .75rem 0; text-align: center; }
+
+/* phase 3b: the boat line in the "You are here" panel, right under the location line */
+.voyage-here-ship { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0; }
+.voyage-here-ship .btn { font-size: .85rem; padding: .1rem .55rem; white-space: nowrap; }
+.voyage-here-stranded { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; font-weight: 600; }
+.voyage-here-stranded .btn { font-size: .85rem; padding: .1rem .55rem; white-space: nowrap; }
+.voyage-legend-wrap { margin-top: 4px; }
+.voyage-legend-toggle { background: none; border: 0; padding: 0; color: inherit; opacity: .75; font-size: .85rem; cursor: pointer; }
+.voyage-legend-toggle:hover { opacity: 1; }
+.voyage-legend-toggle i { width: .7em; }
+/* build .53: the folded Locked row; the icons wrap under the toggle when opened */
+.voyage-locked-toggle { font-size: 1rem; font-weight: 600; color: #a0a8b4; opacity: 1; }
+.voyage-locked-row { margin-left: 14px; }
