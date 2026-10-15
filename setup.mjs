@@ -7,7 +7,7 @@
 // grace, the trade gate, Township in towns, sidebar dimming and the Wayfinder's Compass. Travel is vanilla.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-15.21';
+export const BUILD = '2026-10-15.24';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -69,7 +69,7 @@ export async function setup(ctx) {
     { type: 'dropdown', name: 'strictness', label: 'Strictness', hint: strictnessHint,
       options: [{ value: 'strict', display: 'Strict' }, { value: 'relaxed', display: 'Relaxed' }], default: 'strict', onChange: onChange('strictness') },
     { type: 'switch', name: 'combat', label: 'Combat needs its area', hint: 'Fight only on the area\'s hex or next to it. Dungeons and strongholds too.', default: true, onChange: onChange('combat') },
-    { type: 'switch', name: 'trade', label: 'Trade only near markets', hint: 'Sell, buy and use the Township trader only in or next to a town, port or market.', default: true, onChange: onChange('trade') },
+    { type: 'switch', name: 'trade', label: 'Trade only near markets', hint: 'Sell and buy only in or next to a town, port or market.', default: true, onChange: onChange('trade') },
   ]);
 
   /** Shared runtime state. mode: 'dormant' until the save is checked, then 'strict' or 'relaxed' (table mismatch). */
@@ -117,10 +117,13 @@ export async function setup(ctx) {
   const herePanel = await ctx.loadModule('src/here-panel.mjs');
   const knowledgeMod = await ctx.loadModule('src/knowledge.mjs');
   const compassMod = await ctx.loadModule('src/compass.mjs');
+  const traderMod = await ctx.loadModule('src/trader.mjs');
+  const stranded = await ctx.loadModule('src/stranded.mjs');
   knowledgeMod.install(ctx, { state, terrainMod, log });
   overlay.install(ctx, { state, terrainMod, log });
   gate.install(ctx, { state, rules, terrainMod, log });
   compassMod.install(ctx, { state, rules, terrainMod, log });
+  traderMod.install(ctx, { state, rules, terrainMod, stranded, log });
   herePanel.install(ctx, { state, rules, terrainMod, log });
   if (DEV) (await ctx.loadModule('src/dev.mjs')).install(ctx, { state, terrainMod, rules, log });
 

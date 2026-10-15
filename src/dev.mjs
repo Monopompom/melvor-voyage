@@ -90,6 +90,56 @@ export function install(ctx, { state, terrainMod, rules, log }) {
         ? 'Voyage is NOT in the save: its settings and characterStorage are dropped on reload.'
         : `Voyage is in the save as mod id ${voyage.modId}: ${voyage.sections.join(' | ')}; storage keys: ${voyage.storageKeys}`;
     },
+    /** The wandering trader's verdict for the player's hex: stranded or not, and why. */
+    stranded() {
+      const v = state.trader?.verdict();
+      if (v === undefined) return 'trader not loaded';
+      return { stranded: v.stranded, reason: v.reason, road: v.road ? { gp: v.road.gp, itemsOwned: v.road.itemsOwned, hexes: v.road.path.length - 1 } : undefined, traderHere: state.trader.present() };
+    },
+    /** Spends all GP (to test the trader). */
+    broke() { const gp = game.gp.amount; if (gp > 0) game.gp.remove(gp); return `removed ${gp} GP`; },
+    /**
+     * Prepares the Township trader check: Township level 15 (tier 2), and the GP and
+     * Township resources for one Trading Post in the current town biome, plus 1,000 of each resource for conversions.
+     * Does NOT build anything: build the Trading Post yourself on a town or port hex, which tests the Township gate too.
+     * Needs the town created first (Township page, pick a worship).
+     */
+    townshipTrader() {
+      const t = game.township;
+      if (t === undefined) return 'Township not loaded';
+      if (!t.townData.townCreated) return 'Create the town first: open Township and confirm a worship, then run this again.';
+      const notes = [];
+      if (t.level < 15) { t.setXP(exp.levelToXP(15) + 1); notes.push('Township level 15'); }
+      const post = t.buildings.getObjectByID('melvorF:Trading_Post');
+      const biome = t.currentTownBiome;
+      const costs = post === undefined ? [] : t.getBuildingCostsForBiome(post, biome);
+      if (costs.length === 0) notes.push(`no Trading Post cost in ${biome?.name ?? 'the current biome'}: switch to Grasslands in Township`);
+      const want = new Map();
+      t.resources.forEach((res) => { if (res.id !== 'melvorF:GP' && res.storageType === 'Normal') want.set(res, 1000); });
+      for (const { resource, quantity } of costs) {
+        if (resource.id === 'melvorF:GP') {
+          const gp = quantity + 100000;
+          if (game.gp.amount < gp) { game.gp.add(gp - game.gp.amount); notes.push(`GP topped up to ${numberWithCommas(gp)}`); }
+          continue;
+        }
+        want.set(resource, (want.get(resource) ?? 0) + quantity);
+      }
+      const capped = [];
+      want.forEach((amount, res) => {
+        const max = t.getMaxResourceAmount(res);
+        const target = Math.min(Math.max(res.amount, amount), max);
+        if (target < amount) capped.push(`${res.name} capped at ${numberWithCommas(Math.floor(max))}`);
+        res.amount = target;
+      });
+      t.renderQueue.resourceAmounts = true;
+      notes.push(`resources set: ${[...want.keys()].map((r) => r.name).join(', ')}`);
+      if (capped.length > 0) notes.push(`storage too small (build storage or raise caps): ${capped.join('; ')}`);
+      const pos = state.position();
+      const rec = pos ? state.recordAt(pos) : undefined;
+      const inTown = rec ? rules.allowedAt('melvorD:Township', rec, state.ruleOpts()) : false;
+      notes.push(inTown ? 'you are on a town/port hex: build the Trading Post now' : 'not on a town/port hex: voyageDev.teleport(13, 17) (Old Village) before building');
+      return notes.join('\n');
+    },
     /** Terrain record under the player. */
     here() {
       const pos = state.position();
@@ -109,5 +159,5 @@ export function install(ctx, { state, terrainMod, rules, log }) {
     state,
   };
   window.voyageDev = api;
-  log('voyageDev ready: reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck()');
+  log('voyageDev ready: reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader()');
 }

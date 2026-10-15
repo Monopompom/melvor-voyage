@@ -10,7 +10,8 @@
 //     backstop for any path that does not go through a known entry point. Worker Folks patches it too; the loader
 //     chains the patches, so a Folk delegated by Worker Folks may bypass this gate until phase 6.
 // Combat: CombatManager.checkAreaEntryRequirements, called by every area/dungeon/stronghold/depth selection.
-// Trade: the bank's sell entries, Shop.buyItemOnClick and the Township trader.
+// Trade: the bank's sell entries and Shop.buyItemOnClick. The Township trader is not trade: it follows
+// the Township rule (a town or port), decided 15 Oct 2026.
 // Hiring (Worker Folks, optional): follows the Township rule for staff changes: the hire purchases, promote and fire.
 // Assigning Folks to skills stays free; delegation is a phase 6 topic.
 
@@ -34,7 +35,12 @@ const ENTRY_POINTS = [
   { skillId: 'melvorD:Farming', className: 'Farming', cls: () => Farming, when: 'always',
     methods: ['plantPlotOnClick', 'plantAllOnClick', 'plantAllSelectedOnClick', 'harvestPlotOnClick', 'harvestAllOnClick', 'plantRecipe', 'plantAllRecipe'] },
   { skillId: 'melvorD:Township', className: 'Township', cls: () => Township, when: 'always',
-    methods: ['buildBuilding', 'repairAllBuildings', 'repairAllBuildingsInCurrentBiome', 'repairAllBuildingsFromStorageType'], quiet: ['repairBuilding'] },
+    methods: ['buildBuilding', 'repairAllBuildings', 'repairAllBuildingsInCurrentBiome', 'repairAllBuildingsFromStorageType'],
+    quiet: ['repairBuilding', 'processConversionToTownship', 'processConversionFromTownship'] },
+  // The Township trader moves goods between the bank and the town: refused when its confirm dialog would open, so the
+  // player never confirms a conversion that is then refused. The conversions above are the quiet backstop.
+  { skillId: 'melvorD:Township', className: 'TownshipConversionElement', cls: () => TownshipConversionElement, when: 'always',
+    methods: ['createConvertToSwal', 'createConvertFromSwal'] },
   { skillId: 'melvorItA:Harvesting', className: 'Harvesting', cls: () => Harvesting, methods: ['onVeinClick'], when: 'inactive' },
 ];
 
@@ -177,7 +183,7 @@ export function install(ctx, { state, rules, terrainMod, log }) {
           if (rules.isGated(id) && (ep.when === 'always' || !this.isActive)) {
             const locked = lockedHere(id);
             if (locked !== undefined) {
-              if (!quiet) showLocked(this, id, locked);
+              if (!quiet) showLocked(ep.skillId !== undefined ? game.skills.getObjectByID(id) ?? this : this, id, locked);
               return undefined;
             }
           }
@@ -312,7 +318,13 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     ctx.patch(cls, method).replace(function (original, ...args) {
       try {
         const locked = tradeLocked();
-        if (locked !== undefined) { if (!quiet) showNoTrade(what, locked); return undefined; }
+        if (locked !== undefined) {
+          // Selling while stranded: the wandering trader (src/trader.mjs) buys at half price.
+          if (what === 'sell' && state.trader?.present()) return original(...args);
+          if (what === 'sell' && !quiet && state.trader?.offer(() => original(...args))) return undefined;
+          if (!quiet) showNoTrade(what, locked);
+          return undefined;
+        }
       } catch (e) { console.error('[Voyage] trade gate failed open', e); }
       return original(...args);
     });
@@ -332,8 +344,9 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     } catch (e) { console.error('[Voyage] hiring gate failed open', e); }
     return original(purchase, ...rest);
   });
-  try { tradeGate(Township, 'processConversionToTownship', 'trade with the Township trader'); tradeGate(Township, 'processConversionFromTownship', 'trade with the Township trader'); } catch (e) { log('township trade gate skipped', e); }
   state.tradeLocked = () => tradeLocked() !== undefined;
+  /** True when the area cannot be fought from the player's hex (the trader's GP-source check reads it). */
+  state.combatLocked = (area) => combatLocked(area) !== undefined;
 
   // ---------------------------------------------------------------------------------------------------- hiring
   // Worker Folks may load after Voyage, so its class is looked up once the character (and every mod) is in.

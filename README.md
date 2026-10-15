@@ -23,11 +23,14 @@ Provisions, the ship and the timed voyage come later.
   Cartography, Agility, Prayer and Archaeology work anywhere. Penalised hexes run slower, never faster.
 - **Combat on the map.** Fighting an area, dungeon or stronghold needs you on its hex or next to it. Walking away ends
   the fight.
-- **Trade near people.** Selling, buying and the Township trader work in a town, port or market, or next to one.
+- **Trade near people.** Selling and buying work in a town, port or market, or next to one. Township, its trader
+  included, works in a town or port.
   The bank is your cargo hold until you get there.
 - **The Wayfinder's Compass.** A free item in your bank, with 2,500 GP to reach your first trading place. When a skill
   is locked and you know of nowhere it works, the message tells you how far the nearest place is (Hot, Warm, Cold,
   Freezing) and which way. It never names the place: survey in Cartography for that. Sellable; the shop sells another.
+- **Stranded?** Broke, far from any market, and nothing here earns GP: try to sell and a wandering trader turns up. He
+  pays half, and only until you can afford the road.
 - **Worker Folks.** With Worker Folks loaded, hiring, promoting and firing need a town or port, like Township.
 
 ## Settings (Mod Settings, section Voyage)

@@ -70,9 +70,14 @@ export function install(ctx, { state, rules, terrainMod, log }) {
   /** Trade status on its own line under the terrain line; empty while trade is not gated. */
   const tradeLine = () => {
     if (!state.active() || !state.settings.trade()) return '';
-    return state.tradeLocked?.()
-      ? '<div class="voyage-here-place"><small class="text-danger" title="Sell, buy and trade only in a town, port or market, or next to one.">No trade here</small></div>'
-      : '<div class="voyage-here-place"><small class="text-success">Trade OK</small></div>';
+    if (!state.tradeLocked?.()) return '<div class="voyage-here-place"><small class="text-success">Trade OK</small></div>';
+    let trader = '';
+    try {
+      const status = state.trader?.status();
+      if (status === 'here') trader = ' <small class="text-warning" title="Selling works here at half price until you can afford the road to a trading place.">· A wandering trader is here (half price)</small>';
+      else if (status === 'stranded') trader = ' <small>· <a href="#" class="voyage-trader-link" title="You cannot afford the road to a trading place and nothing here earns GP.">Stranded? Look for a trader</a></small>';
+    } catch (e) { log('trader status failed', e); }
+    return `<div class="voyage-here-place"><small class="text-danger" title="Sell, buy and trade only in a town, port or market, or next to one.">No trade here</small>${trader}</div>`;
   };
 
   const legend = () => [...Object.entries(terrainMod.CLASS_INFO).filter(([cls]) => cls !== 'water').map(([, info]) => info), terrainMod.CLOUD_INFO]
@@ -86,6 +91,9 @@ export function install(ctx, { state, rules, terrainMod, log }) {
     panel = document.createElement('div');
     panel.id = PANEL_ID;
     panel.className = 'voyage-ui block block-rounded bg-combat-inner-dark p-2 mb-2';
+    panel.addEventListener('click', (e) => {
+      if (e.target instanceof Element && e.target.closest('.voyage-trader-link')) { e.preventDefault(); state.trader?.offer(); }
+    });
     // Under the location search bar (top-left of the map), after its results drop-down so results still open
     // right below the input. Falls back to the bottom-left overlay if the search bar is not where we expect.
     const results = cartographyMap.searchResultsCont;
