@@ -1,7 +1,30 @@
 /* Voyage: Far Shores */
 .voyage-ui { font-size: 0.95rem; }
 #voyage-here { min-width: 260px; max-width: 360px; pointer-events: auto; }
+#voyage-here.voyage-here-top { position: absolute; top: 100%; left: 0; margin-top: 6px; text-align: left; }
 .voyage-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.4); vertical-align: -1px; margin-right: 5px; }
 .voyage-legend { margin-top: 4px; line-height: 1.7; }
 .voyage-legend .voyage-swatch { margin-left: 2px; }
 .voyage-skills { margin-top: 4px; }
+.voyage-locked { display: flex; align-items: flex-start; gap: 10px; font-size: 1.15rem; line-height: 1.5; }
+.voyage-locked .skill-icon-sm { width: 40px; height: 40px; }
+.voyage-locked-lines div + div { margin-top: 8px; }
+.voyage-locked b { text-shadow: 0 0 2px rgba(0, 0, 0, 0.7), 0 0 1px rgba(0, 0, 0, 0.9); }
+
+/* phase 2: sidebar dimming, panel skill rows, compass */
+.nav-main-item.voyage-dim { opacity: .45; filter: grayscale(.6); }
+.voyage-skillrow { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-top: 2px; }
+.voyage-skillrow img.skill-icon-xs { width: 20px; height: 20px; }
+.voyage-skill-locked { opacity: .4; filter: grayscale(1); outline: 1px solid rgba(220, 53, 69, .6); border-radius: 50%; }
+.voyage-skill-rate { position: relative; display: inline-flex; align-items: flex-end; }
+.voyage-skill-rate small { font-size: .6rem; margin-left: 1px; color: #ffc107; }
+.voyage-compass-hot { color: #ff5a3c; }
+.voyage-compass-warm { color: #ffb347; }
+.voyage-compass-cold { color: #7fc8ff; }
+.voyage-compass-freezing { color: #cfe8ff; }
+.voyage-compass-line { opacity: .9; }
+.voyage-title-icon { width: 1.4em; height: 1.4em; vertical-align: -0.3em; margin-right: 0.35em; }
+.voyage-here-place { margin-top: 1px; }
+
+/* settings: the Strictness dropdown sits under its two-line hint, lined up with the label */
+.form-inline:has(.voyage-setting-hint) > .dropdown { margin: 0.5rem 0 0.25rem 0.5rem; }

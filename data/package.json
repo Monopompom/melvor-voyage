@@ -1,0 +1,41 @@
+{
+  "$schema": "https://melvoridle.com/assets/schema/gameData.json",
+  "namespace": "voyage",
+  "data": {
+    "items": [
+      {
+        "itemType": "Item",
+        "id": "Wayfinder_Compass",
+        "name": "Wayfinder's Compass",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/compass.png",
+        "customDescription": "Warms when you walk toward the nearest place where a locked skill works, and points the way. It never names the place.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 1
+      }
+    ],
+    "shopCategories": [
+      { "id": "Voyage", "name": "Voyage", "media": "assets/compass.png" }
+    ],
+    "shopCategoryOrder": [{ "insertAt": "End", "ids": ["voyage:Voyage"] }],
+    "shopPurchases": [
+      {
+        "id": "Wayfinder_Compass",
+        "media": "assets/compass.png",
+        "category": "voyage:Voyage",
+        "contains": { "items": [{ "id": "voyage:Wayfinder_Compass", "quantity": 1 }] },
+        "cost": { "items": [], "currencies": [{ "currency": "melvorD:GP", "type": "Fixed", "cost": 500 }] },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [],
+        "defaultBuyLimit": 0,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      }
+    ],
+    "shopDisplayOrder": [{ "insertAt": "End", "ids": ["voyage:Wayfinder_Compass"] }]
+  }
+}

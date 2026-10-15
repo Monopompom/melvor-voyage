@@ -10,6 +10,7 @@ export function install(ctx, { state, terrainMod, log }) {
     if (!hex.isFullySurveyed) return undefined;
     const rec = state.terrain.get(hex.q, hex.r);
     if (rec === undefined) return undefined;
+    if (rec.cloud === true) return terrainMod.CLOUD_INFO.colour;
     return terrainMod.CLASS_INFO[rec.t]?.colour;
   };
 

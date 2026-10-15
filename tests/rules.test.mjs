@@ -1,23 +1,113 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SKILL_RULES, gatedSkillIds, isGated, allowedAt, ruleNoun } from '../src/rules.mjs';
+import { SKILL_RULES, gatedSkillIds, isGated, allowedAt, rateAt, appliesUnder, ruleNoun, ruleLabel, ruleTerms, combatAllowedAt, tradeAllowedAt, TRADE_FEATURES } from '../src/rules.mjs';
 
-test('phase 1 gates Woodcutting only', () => {
-  assert.deepEqual(gatedSkillIds(), ['melvorD:Woodcutting']);
-  assert.ok(isGated('melvorD:Woodcutting'));
-  assert.ok(!isGated('melvorD:Mining'));
-  assert.equal(ruleNoun('melvorD:Woodcutting'), 'forest');
-  assert.ok(Object.values(SKILL_RULES).every((r) => Array.isArray(r.classes) && Array.isArray(r.features)));
+const WC = 'melvorD:Woodcutting';
+const MINING = 'melvorD:Mining';
+
+test('the phase 2 table gates its skills and nothing else', () => {
+  const ids = gatedSkillIds();
+  for (const id of ['melvorD:Woodcutting', 'melvorD:Mining', 'melvorD:Fishing', 'melvorD:Farming', 'melvorD:Thieving', 'melvorD:Firemaking', 'melvorD:Cooking',
+    'melvorD:Smithing', 'melvorD:Crafting', 'melvorD:Fletching', 'melvorD:Herblore', 'melvorD:Runecrafting', 'melvorD:Magic', 'melvorD:Summoning', 'melvorD:Township', 'melvorItA:Harvesting', 'worker_folks:Hiring']) {
+    assert.ok(ids.includes(id), id);
+  }
+  for (const id of ['melvorD:Astrology', 'melvorAoD:Cartography', 'melvorD:Agility', 'melvorD:Hitpoints', 'melvorD:Prayer', 'melvorAoD:Archaeology', 'melvorD:Attack']) {
+    assert.ok(!isGated(id), id);
+  }
+  assert.ok(Object.values(SKILL_RULES).every((r) => ['terrain', 'land', 'place'].includes(r.tier) && typeof r.noun === 'string'));
+  assert.equal(ruleNoun(WC), 'forest or trees');
+  assert.equal(ruleLabel('melvorD:Magic', 'Magic'), 'Alt. Magic');
+  assert.equal(ruleLabel(WC, 'Woodcutting'), 'Woodcutting');
+  assert.deepEqual(ruleTerms(WC), { classes: [], features: ['forest', 'tree'], pois: [], areas: [], land: false });
+  assert.deepEqual(ruleTerms('melvorD:Astrology'), { classes: [], features: [], pois: [], areas: [], land: false });
+  assert.ok(ruleTerms(MINING).classes.includes('snowlands')); // from the combo
+  assert.ok(ruleTerms('melvorD:Firemaking').land);
+  assert.deepEqual(SKILL_RULES['worker_folks:Hiring'], SKILL_RULES['melvorD:Township']); // Hiring follows Township
 });
 
-test('allowedAt fails open and honours classes and features', () => {
-  assert.ok(allowedAt('melvorD:Woodcutting', undefined));
-  assert.ok(allowedAt('melvorD:Mining', { t: 'grassland' }));
-  assert.ok(allowedAt('melvorD:Woodcutting', { t: 'forest' }));
-  assert.ok(!allowedAt('melvorD:Woodcutting', { t: 'grassland' }));
-  assert.ok(!allowedAt('melvorD:Woodcutting', { t: 'grassland', f: ['river'] }));
-  SKILL_RULES['test:Fishing'] = { classes: ['water'], features: ['river'], noun: 'water' };
-  assert.ok(allowedAt('test:Fishing', { t: 'grassland', f: ['river'] }));
-  assert.ok(!allowedAt('test:Fishing', { t: 'grassland' }));
-  delete SKILL_RULES['test:Fishing'];
+test('rateAt: classes, features, cloud, unknown hexes', () => {
+  assert.equal(rateAt(WC, undefined), 1);
+  assert.equal(rateAt('melvorD:Astrology', { t: 'grasslands' }), 1);
+  assert.equal(rateAt(WC, { t: 'grasslands', f: ['forest'] }), 1);
+  assert.equal(rateAt(WC, { t: 'grasslands', f: ['tree'] }), 0.8);
+  assert.equal(rateAt(WC, { t: 'grasslands', f: ['tree', 'forest'] }), 1);
+  assert.equal(rateAt(WC, { t: 'grasslands' }), 0);
+  assert.equal(rateAt(WC, { t: 'grasslands', f: ['forest'], cloud: true }), 0);
+  assert.equal(rateAt(MINING, { t: 'mountain' }), 1);
+  assert.equal(rateAt(MINING, { t: 'badlands' }), 0.8);
+  assert.equal(rateAt(MINING, { t: 'grasslands', f: ['rock'] }), 0.5);
+  assert.equal(rateAt(MINING, { t: 'badlands', f: ['mine'] }), 1);
+  assert.ok(allowedAt(WC, { t: 'snowlands', f: ['tree'] }));
+  assert.ok(!allowedAt(WC, { t: 'water' }));
+});
+
+test('rateAt: combos, flags, pois, areas, land tier', () => {
+  assert.equal(rateAt(MINING, { t: 'snowlands', f: ['snow', 'mountain'] }), 1);
+  assert.equal(rateAt(MINING, { t: 'snowlands', f: ['snow'] }), 0);
+  assert.equal(rateAt('melvorD:Farming', { t: 'desert', f: ['river'] }), 0.8);
+  assert.equal(rateAt('melvorD:Farming', { t: 'desert' }), 0);
+  assert.equal(rateAt('melvorD:Fishing', { t: 'grasslands', coast: true }), 0.8);
+  assert.equal(rateAt('melvorD:Fishing', { t: 'grasslands', coast: true, f: ['river'] }), 1);
+  assert.equal(rateAt('melvorD:Fishing', { t: 'water' }), 1); // until phase 3 asks for the ship
+  assert.equal(rateAt('melvorD:Herblore', { t: 'snowlands', poi: 'FrostyHaven' }), 1);
+  assert.equal(rateAt('melvorD:Herblore', { t: 'snowlands', poi: 'PenguinBay' }), 0);
+  assert.equal(rateAt('melvorItA:Harvesting', { t: 'water', area: 'IntoTheAbyss' }), 1);
+  assert.equal(rateAt('melvorItA:Harvesting', { t: 'grasslands', area: 'Farmlands' }), 0);
+  assert.equal(rateAt('melvorD:Firemaking', { t: 'desert' }), 1);
+  assert.equal(rateAt('melvorD:Firemaking', { t: 'water' }), 0);
+  assert.equal(rateAt('melvorD:Firemaking', { t: 'shoal' }), 0);
+  assert.equal(rateAt('melvorD:Cooking', { t: 'desert', cloud: true }), 0);
+});
+
+test('rateAt: one-hex grace at full speed for Mining, Smithing, Herblore and Summoning; land only, never under cloud', () => {
+  const nextToMountain = () => [{ t: 'mountain' }];
+  const nextToNothing = () => [{ t: 'grasslands' }, undefined];
+  assert.equal(rateAt(MINING, { t: 'grasslands' }, { neighbours: nextToMountain }), 1);
+  assert.equal(rateAt(MINING, { t: 'badlands' }, { neighbours: nextToMountain }), 1); // grace beats the 0.8
+  assert.equal(rateAt(MINING, { t: 'grasslands' }, { neighbours: nextToNothing }), 0);
+  assert.equal(rateAt(MINING, { t: 'grasslands' }), 0); // no neighbour lookup, no grace
+  assert.equal(rateAt(MINING, { t: 'water' }, { neighbours: nextToMountain }), 0);
+  assert.equal(rateAt(MINING, { t: 'grasslands', cloud: true }, { neighbours: nextToMountain }), 0);
+  assert.equal(rateAt(MINING, { t: 'grasslands' }, { neighbours: () => [{ t: 'mountain', cloud: true }] }), 0); // a clouded neighbour gives nothing
+  assert.equal(rateAt('melvorD:Smithing', { t: 'grasslands' }, { neighbours: () => [{ t: 'grasslands', f: ['city'] }] }), 1);
+  assert.equal(rateAt('melvorD:Smithing', { t: 'grasslands' }, { neighbours: () => [{ t: 'grasslands', f: ['port'] }] }), 0); // port is 0.8, no grace from it
+  assert.equal(rateAt('melvorD:Herblore', { t: 'snowlands' }, { neighbours: () => [{ t: 'snowlands', poi: 'FrostyHaven' }] }), 1);
+  assert.equal(rateAt('melvorD:Summoning', { t: 'desert' }, { neighbours: () => [{ t: 'desert', f: ['monolith'] }] }), 1);
+  assert.equal(rateAt(WC, { t: 'grasslands' }, { neighbours: () => [{ t: 'grasslands', f: ['forest'] }] }), 0); // no grace for Woodcutting
+});
+
+test('strictness: Relaxed lifts place-tier rules only', () => {
+  const town = { t: 'grasslands' };
+  assert.equal(rateAt('melvorD:Smithing', town, { strictness: 'relaxed' }), 1);
+  assert.equal(rateAt('melvorD:Township', town, { strictness: 'relaxed' }), 1);
+  assert.equal(rateAt('melvorD:Smithing', town, { strictness: 'strict' }), 0);
+  assert.equal(rateAt(WC, town, { strictness: 'relaxed' }), 0);
+  assert.equal(rateAt('melvorD:Thieving', town, { strictness: 'relaxed' }), 0);
+  assert.equal(rateAt('melvorD:Firemaking', { t: 'water' }, { strictness: 'relaxed' }), 0);
+  assert.ok(appliesUnder(WC, 'relaxed'));
+  assert.ok(!appliesUnder('melvorD:Smithing', 'relaxed'));
+  assert.ok(appliesUnder('melvorD:Smithing', 'strict'));
+  assert.ok(!appliesUnder('melvorD:Astrology', 'strict'));
+});
+
+test('combat placement: on the tagged hex or one away; unplaced areas fail open', () => {
+  const places = [{ q: 10, r: 10 }, { q: 20, r: 0 }];
+  assert.deepEqual(combatAllowedAt([], { q: 0, r: 0 }), { allowed: true, unplaced: true });
+  assert.equal(combatAllowedAt(places, undefined).allowed, true);
+  assert.equal(combatAllowedAt(places, { q: 10, r: 10 }).allowed, true);
+  assert.equal(combatAllowedAt(places, { q: 11, r: 9 }).allowed, true);
+  const far = combatAllowedAt(places, { q: 12, r: 10 });
+  assert.equal(far.allowed, false);
+  assert.deepEqual(far.nearest, { hex: places[0], distance: 2 });
+  assert.equal(combatAllowedAt(places, { q: 19, r: 1 }).allowed, true);
+});
+
+test('trade gate: on a town, port or market hex or next to one', () => {
+  assert.deepEqual(TRADE_FEATURES, ['city', 'capital', 'port', 'market']);
+  assert.ok(tradeAllowedAt(undefined));
+  assert.ok(tradeAllowedAt({ t: 'grasslands', f: ['city'] }));
+  assert.ok(tradeAllowedAt({ t: 'beach', f: ['port'] }));
+  assert.ok(!tradeAllowedAt({ t: 'grasslands', f: ['building'] }));
+  assert.ok(tradeAllowedAt({ t: 'grasslands' }, [{ t: 'grasslands', f: ['market'] }]));
+  assert.ok(!tradeAllowedAt({ t: 'grasslands' }, [{ t: 'grasslands', f: ['forest'] }]));
 });
