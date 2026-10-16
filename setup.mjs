@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.159';
+export const BUILD = '2026-10-17.173';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -173,6 +173,7 @@ export async function setup(ctx) {
     { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
     { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
     { type: 'text', name: 'journalKey', label: getLangString('MOD_VOY_SETTING_JOURNAL_KEY'), hint: getLangString('MOD_VOY_SETTING_JOURNAL_KEY_HINT'), default: 'J', maxLength: 1, onChange: onChange('journalKey') },
+    { type: 'text', name: 'mapKey', label: getLangString('MOD_VOY_SETTING_MAP_KEY'), hint: getLangString('MOD_VOY_SETTING_MAP_KEY_HINT'), default: 'M', maxLength: 1, onChange: onChange('mapKey') },
   ]);
 
   /** The game's offline loop (tab in the background, or back after a while): see state.onSettingsChange. */
@@ -210,6 +211,7 @@ export async function setup(ctx) {
       night: () => flag('night'),
       centreKey: () => String(value('centreKey') ?? '').trim().toUpperCase(),
       journalKey: () => String(value('journalKey') ?? '').trim().toUpperCase(),
+      mapKey: () => String(value('mapKey') ?? '').trim().toUpperCase(),
       nightShift: () => { const v = Number(value('nightShift')); return Number.isFinite(v) ? Math.max(-12, Math.min(12, Math.round(v))) : 0; },
     },
     onSettingsChange() {
@@ -289,7 +291,9 @@ export async function setup(ctx) {
   const knowledgeMod = await ctx.loadModule('src/knowledge.mjs');
   // Not a rule: restarts the game loop when the game's own focus event is missed (src/focus-fix.mjs).
   try { (await ctx.loadModule('src/focus-fix.mjs')).install(ctx, { log }); } catch (e) { console.error('[Voyage] focus fix failed', e); }
-  try { (await ctx.loadModule('src/map-keys.mjs')).install(ctx, { key: () => value('centreKey'), journalKey: () => value('journalKey'), journal: () => state.journal, log }); } catch (e) { console.error('[Voyage] map keys failed', e); }
+  // Melvor's tooltips for the page and the Here panel (build .160, the user).
+  try { state.tips = (await ctx.loadModule('src/tips.mjs')).install(ctx, { log }); } catch (e) { console.error('[Voyage] tooltips failed', e); }
+  try { (await ctx.loadModule('src/map-keys.mjs')).install(ctx, { key: () => value('centreKey'), journalKey: () => value('journalKey'), mapKey: () => value('mapKey'), openPage: (p) => state.openPage(p), journal: () => state.journal, log }); } catch (e) { console.error('[Voyage] map keys failed', e); }
   const helpLayout = await ctx.loadModule('src/help-layout.mjs');
   // Every popup we open runs this on render: skill names get their icon and bold.
   const skillNamesMod = await ctx.loadModule('src/skill-names.mjs');
@@ -321,6 +325,12 @@ export async function setup(ctx) {
   // The ship keeps its state in the skill's save, so without the skill it stays inert and travel is vanilla.
   const ship = shipMod.install(ctx, { state, model, shipModel, terrainMod, helpLayout, log });
   state.markers = markers.install(ctx, { state, log });
+  // Land upgrades and the Crossroads Sign (build .162). A failure leaves the game's prices and buffs.
+  try {
+    const landModel = await ctx.loadModule('src/land-model.mjs');
+    (await ctx.loadModule('src/land.mjs')).install(ctx, { state, landModel, shipModel, log });
+    state.landModel = landModel;
+  } catch (e) { console.error('[Voyage] land upgrades failed to load; the rest runs', e); state.land = undefined; }
   // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
   const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, log });
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.

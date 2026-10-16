@@ -273,8 +273,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   // ---- the block ---------------------------------------------------------------------------------------------------
   const refresh = () => { const s = skill(); if (s !== undefined) s.renderQueue.page = true; };
   const section = (html) => `<div class="voyage-section">${html}</div>`;
-  const costIcon = (media, need, have, title) =>
-    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"><img class="mr-1" src="${media}" alt="${esc(title)}">${num(need)}` +
+  const costIcon = (media, need, have, title, itemId) =>
+    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ''}><img class="mr-1" src="${media}" alt="${esc(title)}">${num(need)}` +
     ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: num(have) })})</span></span>`;
   const amounts = (food, fuel) => state.stores?.amounts?.(food, fuel) ?? '';
   const stopName = (hex, place) => {
@@ -294,7 +294,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     if (owned()) return '';
     const why = navBlocker();
     const costs = [costIcon(game.gp.media, P.NAVIGATOR.gp, game.gp.amount, game.gp.name)];
-    for (const { id, quantity } of P.NAVIGATOR.items) { const it = game.items.getObjectByID(id); if (it !== undefined) costs.push(costIcon(it.media, quantity, game.bank.getQty(it), it.name)); }
+    for (const { id, quantity } of P.NAVIGATOR.items) { const it = game.items.getObjectByID(id); if (it !== undefined) costs.push(costIcon(it.media, quantity, game.bank.getQty(it), it.name, it.id)); }
     const reason = why === 'level' ? t('MOD_VOY_PLAN_NAV_WHY_LEVEL', { level: `${P.NAVIGATOR.level}` })
       : why === 'port' ? t('MOD_VOY_PLAN_NAV_WHY_PORT') : why === 'cost' ? t('MOD_VOY_PLAN_NAV_WHY_COST') : '';
     return section(`<div class="font-w600">${esc(t('MOD_VOY_PLAN_NAV_TITLE'))}</div>` +
@@ -339,7 +339,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     const costParts = [];
     try {
       for (const { currency, quantity } of plan.costs?.getCurrencyQuantityArray() ?? []) if (quantity > 0) costParts.push(costIcon(currency.media, quantity, currency.amount, currency.name));
-      for (const { item, quantity } of plan.costs?.getItemQuantityArray() ?? []) if (quantity > 0) costParts.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name));
+      for (const { item, quantity } of plan.costs?.getItemQuantityArray() ?? []) if (quantity > 0) costParts.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name, item.id));
     } catch {}
     if (costParts.length > 0) rows += row(t('MOD_VOY_PLAN_ROW_COST'), costParts.join(''));
     // The stores and the hull, now and on arrival.

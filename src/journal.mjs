@@ -168,13 +168,18 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       if (near !== undefined) place('combat', area.id, near.hex);
     } catch (e) { log('journal combat place failed', e); }
   });
-  /** The trading place a sale or purchase went through: this hex, or the neighbour that is one. */
+  /**
+   * The trading place a sale or purchase went through: this hex, or the neighbour that is one (the grace hex, rules
+   * tradeAllowedAt). Only a place the player knows is noted (build .173, the user): a trade on the Monolith went through
+   * Whispering Port next door, undiscovered, and was listed as "Water". A market with no POI is always known.
+   */
+  const tradeKnown = (h) => { const poi = liveHex(h.q, h.r)?.pointOfInterest; return poi === undefined || poi.isDiscovered === true; };
   const tradePlace = () => {
     if (!state.active() || state.tradeLocked?.() || state.trader?.present?.()) return undefined;
     const rec = state.recordAt(state.position());
     if (rec === undefined) return undefined;
-    if (rules.isTradePlace(rec)) return rec;
-    return state.terrain.neighbours(rec.q, rec.r).find((n) => rules.isTradePlace(n));
+    const h = rules.isTradePlace(rec) ? rec : state.terrain.neighbours(rec.q, rec.r).filter((n) => rules.isTradePlace(n)).find(tradeKnown);
+    return h !== undefined && tradeKnown(h) ? h : undefined;
   };
   const onTrade = () => { try { const h = tradePlace(); if (h !== undefined) place('trade', jm.hexStr(h.q, h.r), h); } catch (e) { log('journal trade place failed', e); } };
   ctx.patch(Bank, 'processItemSale').after(onTrade);
@@ -357,7 +362,8 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
     const key = id.toUpperCase();
     const nav = state.planner?.NAV;
     const vars = { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
-      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, gp: nav === undefined ? '' : numberWithCommas(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}` };
+      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, gp: nav === undefined ? '' : numberWithCommas(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
+      signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '' };
     const line = (k) => t(k, vars).split('\n').filter((x) => x.trim() !== '');
     let html = id === 'lighthouse' ? lighthouse() : '';
     for (const sec of spec.sections) {
@@ -366,18 +372,87 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       const bodyKey = id === 'map' && sec === 'KEYS' && vars.key === '' ? `MOD_VOY_JOURNAL_CH_MAP_KEYS_BODY_OFF`
         : id === 'foreword' && sec === 'BOOK' && vars.journal === '' ? `MOD_VOY_JOURNAL_CH_FOREWORD_BOOK_BODY_OFF` : `MOD_VOY_JOURNAL_CH_${key}_${sec}_BODY`;
       const lines = line(bodyKey);
+      // The map key (build .171) opens the map from any page: one more line while it is set.
+      if (id === 'map' && sec === 'KEYS' && vars.map !== '') lines.unshift(t('MOD_VOY_JOURNAL_CH_MAP_KEYS_OPEN', vars));
       const body = spec.points ? `<ul class="vj-points">${lines.map((l) => `<li>${rich(l)}</li>`).join('')}</ul>` : lines.map((l) => `<p class="vj-p">${rich(l)}</p>`).join('');
       html += `<div class="vj-section${spec.warn?.includes(sec) ? ' vj-warn' : ''}"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_${sec}_HEAD`))}</h3>${body}</div>`;
       if (id === 'foreword' && sec === 'WHO') html += galleon();
       if (id === 'settings' && sec === 'EASIER') html += settingsTable();
+      if (id === 'settings' && sec === 'KEYS') html += keysTable();
       if (id === 'lands' && sec === 'KINDS') html += landsTable();
       if (id === 'lands' && sec === 'FEATURES') html += featuresTable();
+      if (id === 'road' && sec === 'MOUNTS') html += mountsTable();
+      if (id === 'road' && sec === 'SIGN') html += signLedger();
       if (id === 'crew_hire' && sec === 'START') html += crewAboard();
       if (id === 'crew_ranks' && sec === 'TIERS') html += crewTiers();
       if (id === 'crew_ranks' && sec === 'LICENCES') html += crewLicences();
       if (id === 'adventure' && sec === 'FIRST') { try { const band = state.compass?.firstSteps?.(0); if (band !== undefined) html += bookSections([{ ...band, head: undefined }]); } catch (e) { log('journal first steps failed', e); } }
     }
     if (id === 'crew_tips') html += crewTheirTips();
+    return html;
+  };
+
+  // The road chapter (build .170): live from the shop and the sign's record.
+  const shopPurchase = (id) => { try { return game.shop.purchases.getObjectByID(`voyage:${id}`); } catch { return undefined; } };
+  const owns = (p) => { try { return p !== undefined && game.shop.getPurchaseCount(p) > 0; } catch { return false; } };
+  /** A purchase's price as the shop has it: each currency and item as its icon, the count, then its name. */
+  const priceHtml = (p) => {
+    const bits = [];
+    try {
+      for (const c of p.costs.currencies ?? []) {
+        const n = typeof c.cost === 'number' ? c.cost : 0;
+        bits.push(`<span class="vj-cost"><img src="${c.currency.media}" alt="">${esc(numberWithCommas(n))} ${esc(c.currency.name)}</span>`);
+      }
+      for (const { item, quantity } of p.costs.items ?? []) bits.push(`<span class="vj-cost"><img src="${item.media}" alt="">${esc(numberWithCommas(quantity))} ${esc(item.name)}</span>`);
+    } catch (e) { log('journal price failed', e); }
+    return bits.join('');
+  };
+  const mountsTable = () => {
+    const M = state.landModel;
+    if (M === undefined) return '';
+    const rows = M.MOUNTS.map((m) => {
+      const p = shopPurchase(m.id);
+      const mine = owns(p);
+      // "Yours" under the name, not a column of its own: the page is narrow (build .172).
+      return [{ html: `<span class="vj-mount">${p?.media ? `<img src="${p.media}" alt="">` : ''}<span><b>${esc(p?.name ?? m.id)}</b>${mine ? `<span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_ROAD_YOURS'))}</span>` : ''}</span></span>` },
+        { text: `${m.level}`, cls: 'vj-num' }, { text: `${Math.round(m.cut * 100)}%`, cls: 'vj-num' },
+        { html: p === undefined ? '' : `<span class="vj-costs">${priceHtml(p)}</span>` }];
+    });
+    rows.numeric = [false, true, true, false];
+    return ledger([t('MOD_VOY_JOURNAL_ROAD_COL_MOUNT'), t('MOD_VOY_JOURNAL_ROAD_COL_LEVEL'), t('MOD_VOY_JOURNAL_ROAD_COL_CUT'), t('MOD_VOY_JOURNAL_ROAD_COL_PRICE')], rows);
+  };
+  const atHex = (hex) => { try { const o = hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${hex.q}, ${hex.r})`; } };
+  /** Where the sign is now, and the places with buffs found so far (their buffs as the game writes them). */
+  const signLedger = () => {
+    const L = state.land;
+    if (L === undefined) return '';
+    const signP = shopPurchase(state.landModel?.SIGN.id ?? 'Crossroads_Sign');
+    const level = `${state.landModel?.SIGN.level ?? 35}`;
+    const here = L.signPoi();
+    const now = !L.signOwned() ? t('MOD_VOY_JOURNAL_ROAD_SIGN_SHOP', { level })
+      : here === undefined ? t('MOD_VOY_JOURNAL_ROAD_SIGN_CARRIED') : t('MOD_VOY_JOURNAL_ROAD_SIGN_AT', { place: `${here.name} ${atHex(here.hex)}` });
+    let html = `<p class="vj-p"><b>${esc(now)}</b></p>`;
+    if (!L.signOwned() && signP !== undefined) html += `<p class="vj-p vj-costs"><span>${esc(t('MOD_VOY_JOURNAL_ROAD_COL_PRICE'))}:</span>${priceHtml(signP)}</p>`;
+    const found = [];
+    let hidden = 0;
+    try {
+      for (const map of game.cartography.worldMaps.allObjects) {
+        for (const poi of map.pointsOfInterest.allObjects) {
+          if (poi.activeStats?.hasStats !== true) continue;
+          if (poi.isDiscovered !== true) { hidden++; continue; }
+          let buffs = [];
+          try { buffs = poi.activeStats.describeAsSpans(1, game.cartography.hasCarthuluPet ? 2 : 1); } catch {}
+          found.push({ poi, buffs });
+        }
+      }
+    } catch (e) { log('journal sign places failed', e); }
+    if (found.length > 0) {
+      const rows = found.map(({ poi, buffs }) => [
+        { html: `<b>${esc(poi.name)}</b> ${esc(atHex(poi.hex))}${here === poi ? ` <span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_ROAD_SIGN_HERE'))}</span>` : ''}` },
+        { html: `<span class="vj-buffs">${buffs.map((b) => `<span class="${esc(b.className || 'text-success')}">${esc(b.textContent)}</span>`).join('')}</span>` }]);
+      html += `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_ROAD_PLACES'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_ROAD_COL_PLACE'), t('MOD_VOY_JOURNAL_ROAD_COL_BUFFS')], rows);
+    }
+    if (hidden > 0) html += `<p class="vj-p">${esc(t(found.length > 0 ? 'MOD_VOY_JOURNAL_ROAD_MORE' : 'MOD_VOY_JOURNAL_ROAD_NONE', { n: `${hidden}` }))}</p>`;
     return html;
   };
 
@@ -429,6 +504,16 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       + tips.map((x) => `<li>${x.head ? `<b>${esc(x.head)}.</b> ` : ''}${esc(x.body)}</li>`).join('') + '</ul></div>';
   };
   /** The settings as they are now (Mod Settings, section Voyage). */
+  /** The keyboard shortcuts as set now (build .171, the user's ask): key, what it does; a cleared one says off. */
+  const keysTable = () => {
+    const s = state.settings;
+    const row = (k, what) => [{ text: k || t('MOD_VOY_JOURNAL_OFF'), cls: k ? 'vj-key' : 'text-muted' }, { text: t(what), plain: true }];
+    return ledger([t('MOD_VOY_JOURNAL_KEYS_COL_KEY'), t('MOD_VOY_JOURNAL_KEYS_COL_DOES')], [
+      row(s.mapKey?.(), 'MOD_VOY_JOURNAL_KEYS_MAP'),
+      row(s.centreKey?.(), 'MOD_VOY_JOURNAL_KEYS_CENTRE'),
+      row(s.journalKey?.(), 'MOD_VOY_JOURNAL_KEYS_JOURNAL'),
+    ]);
+  };
   const settingsTable = () => {
     const s = state.settings;
     const onOff = (on) => ({ text: t(on ? 'MOD_VOY_JOURNAL_ON' : 'MOD_VOY_JOURNAL_OFF'), cls: `vj-num ${on ? 'text-success' : 'text-muted'}` });
@@ -745,7 +830,8 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
     const out = [];
     if (j === undefined) return out;
     for (const p of jm.placesOf(j, 'combat')) { const a = areaById(p.id); out.push({ key: `combat|${p.id}`, group: 'combat', name: a?.name ?? terrainMod.areaLabel(p.id), media: a?.media, q: p.q, r: p.r }); }
-    for (const p of jm.placesOf(j, 'trade')) { const poi = poiAt(p.q, p.r); out.push({ key: `trade|${p.id}`, group: 'trade', name: poi?.name ?? land(p.q, p.r), media: poi?.media, q: p.q, r: p.r }); }
+    // A trade noted before build .173 at a place still undiscovered waits until it is found (and is not left unread).
+    for (const p of jm.placesOf(j, 'trade')) { if (!tradeKnown(p)) { jm.markRead(j, `p:trade|${p.id}`); continue; } const poi = poiAt(p.q, p.r); out.push({ key: `trade|${p.id}`, group: 'trade', name: poi?.name ?? land(p.q, p.r), media: poi?.media, q: p.q, r: p.r }); }
     try {
       live()?.forEach((hex) => {
         const poi = hex.pointOfInterest;
@@ -853,6 +939,21 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
     }
     return list;
   };
+  /**
+   * A POI's standing effects under its place page, as the game writes them, and whether the Crossroads Sign stands there
+   * (build .173, the user).
+   */
+  const placeEffects = (p) => {
+    const poi = poiAt(p.q, p.r);
+    if (poi?.activeStats?.hasStats !== true) return '';
+    let buffs = [];
+    try { buffs = poi.activeStats.describeAsSpans(1, game.cartography.hasCarthuluPet ? 2 : 1); } catch (e) { log('journal place effects failed', e); }
+    if (buffs.length === 0) return '';
+    const signed = state.land?.signPoi?.() === poi;
+    return `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_PLACE_EFFECTS'))}</h3>`
+      + `<p class="vj-p vj-buffs">${buffs.map((b) => `<span class="${esc(b.className || 'text-success')}">${esc(b.textContent)}</span>`).join('')}</p>`
+      + (signed ? `<p class="vj-p vj-sign-here"><img src="${esc(state.land.signMedia())}" alt=""><span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_PLACE_SIGNED'))}</span></p>` : '');
+  };
   const placesSpread = () => {
     const all = placeList();
     if (view.place === undefined || !all.some((p) => p.key === view.place)) view.place = all[0]?.key;
@@ -866,6 +967,7 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       : runningHead(t(`MOD_VOY_JOURNAL_PLACES_${p.group.toUpperCase()}`), '')
         + `<div class="vj-entry-head">${p.media ? `<img src="${p.media}" alt="">` : ''}<h2 class="vj-h1">${esc(p.name)}</h2></div>`
         + ledger([t('MOD_VOY_JOURNAL_COL_HEX'), t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_FROM_HERE')], [[{ text: at(p.q, p.r) }, land(p.q, p.r), fromHere(p)]])
+        + placeEffects(p)
         + `<div class="vj-foot vj-foot-end">${planButton('place', p.key)}${mapButton('place', p.key)}</div>`;
     return { left, right };
   };
@@ -953,6 +1055,8 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       + TABS.map((id) => `<button type="button" class="vj-tab vj-tab-${id}" data-vj-tab="${id}">${esc(t(TAB_KEY[id]))}</button>`).join('')
       + '</nav></div>';
     document.body.append(root);
+    // Melvor's tooltips for every title in the book and the heat map over it (build .161).
+    state.tips?.watch(root);
     root.addEventListener('click', (e) => {
       const el = e.target instanceof Element ? e.target : null;
       if (el === null) return;
@@ -1167,8 +1271,9 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       if (potions) {
         const wrap = document.createElement('div');
         wrap.className = 'd-inline-block mr-1';
-        wrap.innerHTML = `<button type="button" class="btn btn-sm btn-dual text-combat-smoke voyage-header-journal" aria-label="${esc(t('MOD_VOY_JOURNAL_OPEN'))}" title="${esc(t('MOD_VOY_JOURNAL_TITLE'))}"><img class="skill-icon-xxs" src="${iconUrl}" alt=""></button>`;
+        wrap.innerHTML = `<button type="button" class="btn btn-sm btn-dual text-combat-smoke voyage-header-journal" aria-label="${esc(t('MOD_VOY_JOURNAL_OPEN'))}"><img class="skill-icon-xxs" src="${iconUrl}" alt=""></button>`;
         headerEl = wrap.firstElementChild;
+        if (state.tips !== undefined) state.tips.set(headerEl, t('MOD_VOY_JOURNAL_TITLE'), { placement: 'bottom' }); else headerEl.title = t('MOD_VOY_JOURNAL_TITLE');
         headerEl.addEventListener('click', () => { open(); headerEl.blur(); });
         potions.before(wrap);
         badge();

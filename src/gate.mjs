@@ -302,7 +302,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
           if (!rules.isGated(id) || !item.rootEl) continue;
           const locked = lockedHere(id) !== undefined;
           item.rootEl.classList.toggle('voyage-dim', locked);
-          item.rootEl.title = locked ? templateLangString('MOD_VOY_GATE_SIDEBAR_LOCKED', { need: need(id).text }) : '';
+          const tip = locked ? templateLangString('MOD_VOY_GATE_SIDEBAR_LOCKED', { need: need(id).text }) : '';
+          // Melvor's tooltip, to the right of the sidebar (build .161).
+          if (state.tips !== undefined) state.tips.set(item.rootEl, tip, { placement: 'right' }); else item.rootEl.title = tip;
         }
       }
     } catch (e) { log('sidebar dim failed', e); }

@@ -78,6 +78,15 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
         else if (target.dataset.voyageAction === 'buy') { if (state.ship?.buy()) render(); }
         else if (target.dataset.voyageAction === 'find') showMap(true, kind);
       });
+      // The land and sign squares (build .162): the shop and the sign's place on the map (planting and picking it up: the
+      // Here panel, builds .166 and .169).
+      part('land-col')?.addEventListener('click', (e) => {
+        const target = e.target instanceof Element ? e.target.closest('[data-voyage-land]') : null;
+        if (target === null || state.land === undefined) return;
+        const what = target.dataset.voyageLand;
+        if (what === 'shop') state.land.openShop();
+        else if (what === 'locate') { const poi = state.land.signPoi(); if (poi !== undefined) showMap(false, 'boat', poi.hex); }
+      });
       // Plan a voyage (build .119): src/planner.mjs draws and handles its block.
       part('plan')?.addEventListener('click', (e) => state.planner?.onClick(e));
       part('hold')?.addEventListener('click', (e) => {
@@ -148,18 +157,18 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
    * Opens the map. `onShip`: centred on the moored vessel `kind` ('boat' or 'ship', the ship block's buttons);
    * otherwise as it was left.
    */
-  const showMap = (onShip, kind = 'boat') => {
+  const showMap = (onShip, kind = 'boat', at = undefined) => {
     const map = pageOf(CARTOGRAPHY_PAGE_ID);
     if (map === undefined) return;
     state.openPage(map);
-    const hex = !onShip || state.ship?.inVessel?.() === kind ? undefined : state.ship?.hex(kind);
+    const hex = at ?? (!onShip || state.ship?.inVessel?.() === kind ? undefined : state.ship?.hex(kind));
     if (hex !== undefined) setTimeout(() => { try { state.ship.centreOn(hex); } catch (e) { log('map centre failed', e); } }, 100);
   };
 
   const qty = (n) => numberWithCommas(n);
   /** A cost: icon, amount and what you have; red with the words when short (never colour alone). */
-  const costIcon = (media, need, have, title) =>
-    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"><img class="mr-1" src="${media}" alt="${esc(title)}">${qty(need)}` +
+  const costIcon = (media, need, have, title, itemId) =>
+    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ''}><img class="mr-1" src="${media}" alt="${esc(title)}">${qty(need)}` +
     ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: qty(have) })})</span></span>`;
   /** A grey section band inside a block. */
   const section = (html) => `<div class="voyage-section">${html}</div>`;
@@ -175,7 +184,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
   /** Item chips (bank-style), the picked one filled blue; the name is in a line under them for touch. */
   const chips = (items, pickedId, action, title) =>
     `<div class="voyage-store-items">${items.map((x) => `<button type="button" class="btn btn-sm voyage-store-item ${x.item.id === pickedId ? 'btn-info' : 'btn-outline-info'}" ` +
-      `data-voyage-action="${action}" data-item="${esc(x.item.id)}" title="${esc(title(x))}" aria-label="${esc(title(x))}" aria-pressed="${x.item.id === pickedId}">` +
+      `data-voyage-action="${action}" data-item="${esc(x.item.id)}" data-tip-item="${esc(x.item.id)}" title="${esc(title(x))}" aria-label="${esc(title(x))}" aria-pressed="${x.item.id === pickedId}">` +
       `<img src="${x.item.media}" alt=""><small>${numberWithCommas(x.qty)}</small></button>`).join('')}</div>`;
 
   const shipHtml = () => {
@@ -189,7 +198,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       const costs = [costIcon(game.gp.media, b.gp, game.gp.amount, game.gp.name)];
       for (const { id, quantity } of b.items) {
         const item = game.items.getObjectByID(id);
-        if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name));
+        if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name, item.id));
       }
       const why = api.buildBlocker();
       // No dead disabled button: the reason stands where the button would be.
@@ -230,7 +239,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const costs = [costIcon(game.gp.media, spec.gp, game.gp.amount, game.gp.name)];
     for (const { id, quantity } of spec.items) {
       const item = game.items.getObjectByID(id);
-      if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name));
+      if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name, item.id));
     }
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
         `<div><div><b>${esc(t('MOD_VOY_PAGE_BRIG_COST'))}</b></div><small class="text-muted">${esc(t(shipModel.hullBlurbKey(hull.id)))}</small></div></div>` +
@@ -253,7 +262,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const costs = [costIcon(game.gp.media, upgrade.gp, game.gp.amount, game.gp.name)];
     for (const { id, quantity } of upgrade.items) {
       const item = game.items.getObjectByID(id);
-      if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name));
+      if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name, item.id));
     }
     const old = state.ship.hullName(state.ship.vessel(kind));
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
@@ -283,7 +292,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       const x = items[i];
       if (x === undefined) { cells.push(`<div class="voyage-crate" role="img" aria-label="${esc(t('MOD_VOY_HOLD_CRATE_EMPTY'))}">${CRATE_SVG}</div>`); continue; }
       const label = `${x.item.name}: ${numberWithCommas(x.qty)}`;
-      cells.push(`<button type="button" class="voyage-crate voyage-crate-full${x.item.id === pickedId ? ' voyage-crate-picked' : ''}" data-voyage-action="hold-pick" data-item="${esc(x.item.id)}" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${x.item.id === pickedId}">`
+      cells.push(`<button type="button" class="voyage-crate voyage-crate-full${x.item.id === pickedId ? ' voyage-crate-picked' : ''}" data-voyage-action="hold-pick" data-item="${esc(x.item.id)}" data-tip-item="${esc(x.item.id)}" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${x.item.id === pickedId}">`
         + `${CRATE_SVG}<img src="${x.item.media}" alt=""><span class="voyage-crate-qty">${numberWithCommas(x.qty)}</span></button>`);
     }
     return `<div class="voyage-crates">${cells.join('')}</div>`;
@@ -323,8 +332,8 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const pitch = game.items.getObjectByID('voyage:Pitch');
     const logs = game.items.getObjectByID('melvorD:Normal_Logs');
     const costTitle = t('MOD_VOY_PAGE_HULL_COST', { step: `${R.step}`, logs: `${R.logs}`, pitch: `${R.pitch}` });
-    const costs = [costIcon(logs?.media ?? '', info.plan.full.logs, info.logs, costTitle)];
-    if (pitch !== undefined) costs.push(costIcon(pitch.media, info.plan.full.pitch, info.pitch, pitch.name));
+    const costs = [costIcon(logs?.media ?? '', info.plan.full.logs, info.logs, costTitle, logs?.id)];
+    if (pitch !== undefined) costs.push(costIcon(pitch.media, info.plan.full.pitch, info.pitch, pitch.name, pitch.id));
     const action = info.blocker === undefined
       ? `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR', { cond: `${info.plan.to}` })}</button></div>`
       : (c < 100 ? `<div class="text-warning mt-2">${esc(info.blocker)}</div>` : '');
@@ -389,6 +398,34 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       `<div class="voyage-travel-split">` +
       `<span class="voyage-travel-chip voyage-travel-foot"><i class="fa fa-shoe-prints mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_HEXES_ON_FOOT', { n: numberWithCommas(rec.landHexes) }))}</span>` +
       `<span class="voyage-travel-chip voyage-travel-sail"><i class="fa fa-ship mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_HEXES_UNDER_SAIL', { n: numberWithCommas(rec.waterHexes) }))}</span></div>`;
+  };
+  /**
+   * The Crossroads Sign's square (build .162): one of not bought, carried or planted. Build .165 (the user): only the
+   * portrait and the name show. Build .167 (the user): the portrait's tooltip says only "In the shop from level 35",
+   * "Look for a special place..." while carried, or the place and its coords with its buffs under, one per line.
+   */
+  const signTile = (L) => {
+    const face = (lines) => `<div class="voyage-land-face" data-tip-lines="${esc(JSON.stringify(lines))}"><div class="voyage-land-ring voyage-sign-ring"><img src="${L.signMedia()}" alt=""></div>` +
+      `<div class="voyage-land-name">${esc(L.signName())}</div></div>`;
+    const plain = (lines) => lines.map((l) => (typeof l === 'string' ? l : l.text)).join('. ');
+    if (!L.signOwned()) {
+      const lines = [t('MOD_VOY_PAGE_SIGN_IN_SHOP', { level: `${state.landModel?.SIGN.level ?? 35}` })];
+      return `<button type="button" class="voyage-land-body voyage-land-btn voyage-sign-off" data-voyage-land="shop" aria-label="${esc(`${L.signName()}. ${plain(lines)}. ${t('MOD_VOY_PAGE_SIGN_SHOP')}`)}">${face(lines)}</button>`;
+    }
+    const poi = L.signPoi();
+    if (poi === undefined) {
+      const lines = [t('MOD_VOY_PAGE_SIGN_LOOK')];
+      // No Plant here on the page (the user, build .169): the Here panel has it on a place with buffs.
+      return `<div class="voyage-land-body" role="group" aria-label="${esc(`${L.signName()}. ${plain(lines)}`)}">${face(lines)}</div>`;
+    }
+    // The game's display coords, as the hex tooltip and the Here panel show them, centred (the user, build .168); the
+    // buffs under it in the game's colours.
+    const at = (() => { try { const o = poi.hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${poi.hex.q}, ${poi.hex.r})`; } })();
+    const lines = [{ text: `${poi.name} ${at}`, cls: 'text-center' }, ...L.signBuffSpans().map((b) => ({ text: b.textContent, cls: b.className || 'text-success' }))];
+    // No Pick up here (the user, build .166): it is picked up from the Here panel on its hex.
+    return `<div class="voyage-land-body" role="group" aria-label="${esc(`${L.signName()}. ${plain(lines)}`)}">` +
+      `<button type="button" class="btn btn-sm voyage-sign-locate" data-voyage-land="locate" title="${esc(t('MOD_VOY_PAGE_SIGN_LOCATE'))}" aria-label="${esc(t('MOD_VOY_PAGE_SIGN_LOCATE'))}"><i class="fa fa-map-marker-alt"></i></button>` +
+      `${face(lines)}</div>`;
   };
   /** Rounded percentage of a cut: 0.245 -> 24.5. */
   const cutOf = (factor) => Math.round((1 - factor) * 1000) / 10;
@@ -730,6 +767,34 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       const note = owned ? '' : `<div class="voyage-compass-note text-warning">${esc(t('MOD_VOY_PAGE_COMPASS_SHOP'))}</div>`;
       compass.innerHTML = section(`${head}<div class="voyage-stats">${rows.join('')}</div>${note}`);
     }
+
+    // The land tile between Compass and Travels (build .160, the user): a round portrait of how you travel on land,
+    // the mount once bought (build .162). A tap opens the shop while a better mount is for sale.
+    const land = part('land');
+    const L = state.land;
+    if (land !== null) {
+      const m = L?.mount();
+      const name = m === undefined ? t('MOD_VOY_PAGE_LAND_ON_FOOT') : L.nameOf(m);
+      const next = L?.next();
+      // Build .165 (the user): one portrait, the mount bought last. Build .167: its tooltip is only what it gives, in green.
+      const lines = [m === undefined || m.cut === 0 ? t('MOD_VOY_PAGE_LAND_NO_CUT') : { text: t('MOD_VOY_PAGE_LAND_CUT', { pct: `${Math.round(m.cut * 100)}` }), cls: 'text-success' }];
+      const tipText = lines.map((l) => (typeof l === 'string' ? l : l.text)).join('. ');
+      const inner = `<div class="voyage-land-face" data-tip-lines="${esc(JSON.stringify(lines))}"><div class="voyage-land-ring"><img src="${m === undefined ? ctx.getResourceUrl('assets/marker_traveller_figure.png') : L.mediaOf(m)}" alt=""></div>` +
+        `<div class="voyage-land-name">${esc(name)}</div></div>`;
+      const shopHint = next === undefined ? '' : `. ${t('MOD_VOY_PAGE_LAND_NEXT', { name: L.nameOf(next), level: `${next.level}` })}. ${t('MOD_VOY_PAGE_LAND_SHOP')}`;
+      const label = `${t('MOD_VOY_PAGE_LAND_TIP', { mount: name })}. ${tipText}${shopHint}`;
+      land.innerHTML = next === undefined
+        ? `<div class="voyage-land-body" role="group" aria-label="${esc(label)}">${inner}</div>`
+        : `<button type="button" class="voyage-land-body voyage-land-btn" data-voyage-land="shop" aria-label="${esc(label)}">${inner}</button>`;
+    }
+    // The sign tile under it (build .162, the user): to the shop while not bought; carried; planted, a
+    // button that finds it on the map (where and its buffs: the tooltip). Planting and picking up: the Here panel.
+    const sign = part('sign');
+    if (sign !== null) {
+      sign.classList.toggle('d-none', L === undefined);
+      if (L !== undefined) sign.innerHTML = signTile(L);
+    }
+    try { state.tips?.apply(document.getElementById(CONTAINER_ID)); } catch (e) { log('tooltips failed', e); }
   };
 
   /** What the page depends on beyond the skill's own events. Cheap: read every frame while the page is open. */
@@ -745,7 +810,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const pitch = game.items.getObjectByID('voyage:Pitch');
     let allLogs = 0;
     try { game.firemaking.actions.forEach((a) => { if (a.log !== undefined) allLogs += game.bank.getQty(a.log); }); } catch {}
-    return `${held.length}:${held.reduce((n, e) => n + e.qty, 0)}|${sh?.q},${sh?.r},${sh?.cond},${sh?.aboard}|${bg?.q},${bg?.r},${bg?.cond}|${pitch === undefined ? 0 : game.bank.getQty(pitch)}|${allLogs}|${game.gp.amount}|${logs}|${p?.q},${p?.r}|${state.compass?.owned?.()}|${state.active()}|${st?.food},${st?.fuel}|${game.bank.items.size}|${pickedQty}|${skill()?.level}|${state.stores?.night?.()}|${state.planner?.signature?.()}`;
+    return `${held.length}:${held.reduce((n, e) => n + e.qty, 0)}|${sh?.q},${sh?.r},${sh?.cond},${sh?.aboard}|${bg?.q},${bg?.r},${bg?.cond}|${pitch === undefined ? 0 : game.bank.getQty(pitch)}|${allLogs}|${game.gp.amount}|${logs}|${p?.q},${p?.r}|${state.compass?.owned?.()}|${state.active()}|${st?.food},${st?.fuel}|${game.bank.items.size}|${pickedQty}|${skill()?.level}|${state.stores?.night?.()}|${state.planner?.signature?.()}|${state.land?.tier?.()}|${state.land?.signOwned?.()}|${state.land?.signPoi?.()?.id}|${state.land?.signAction?.()}`;
   };
 
   return { render, signature, helpSections };

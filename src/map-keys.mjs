@@ -4,12 +4,14 @@
 // while typing in a field, with a modifier held or with a popup open. Not a Voyage rule: a convenience.
 // Build .118 (user ask): the setting `journalKey` (J by default; empty turns it off) opens the Captain's Journal from
 // any page and closes it again, under the same conditions (typing in the book's search boxes types).
+// Build .171 (user ask): the setting `mapKey` (M by default; empty turns it off) opens the Cartography page from any
+// other page, closing the journal first if it is open.
 
 const CARTOGRAPHY_PAGE = 'melvorAoD:Cartography';
 
 const typing = (el) => el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 
-export function install(ctx, { key, journalKey, journal, log }) {
+export function install(ctx, { key, journalKey, mapKey, openPage, journal, log }) {
   ctx.onInterfaceReady(() => {
     document.addEventListener('keydown', (e) => {
       try {
@@ -22,6 +24,16 @@ export function install(ctx, { key, journalKey, journal, log }) {
           if (typeof Swal !== 'undefined' && Swal.isVisible()) return;
           e.preventDefault();
           book.open();
+          return;
+        }
+        const m = `${mapKey?.() ?? ''}`.trim();
+        if (m !== '' && e.key.toLowerCase() === m.toLowerCase() && typeof game !== 'undefined' && game.openPage?.id !== CARTOGRAPHY_PAGE) {
+          if (typeof Swal !== 'undefined' && Swal.isVisible()) return;
+          const page = game.pages?.getObjectByID(CARTOGRAPHY_PAGE);
+          if (page === undefined) return;
+          e.preventDefault();
+          if (book?.isOpen()) book.close();
+          openPage(page);
           return;
         }
         const k = `${key() ?? ''}`.trim();

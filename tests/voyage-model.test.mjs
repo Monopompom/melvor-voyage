@@ -36,7 +36,7 @@ test('free-unlock notice: kept through a reload, cleaned, and empty after the v5
   assert.deepEqual(save.unlockNotice, ['cartography', 'voyage']);
   const old = loadSave(JSON.stringify({ v: 5, landHexes: 1, waterHexes: 0, backfilled: false, ship: null, shipChecked: true,
     stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [] }));
-  assert.deepEqual(old.report.applied, [5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(old.report.applied, [5, 6, 7, 8, 9, 10, 11]);
   assert.deepEqual(old.save.unlockNotice, []);
 });
 
@@ -72,7 +72,7 @@ test('skill milestones in data/skill.json: the compass stages, then the free cha
 
 test('v2 saves gain empty stores and a starter kit still to come; stores are cleaned', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 2, landHexes: 5, waterHexes: 1, backfilled: true, ship: null, shipChecked: true }));
-  assert.deepEqual(report.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(report.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   assert.deepEqual(save.stores, { food: 0, fuel: 0 });
   assert.equal(save.kitGiven, false);
   assert.equal(save.landHexes, 5);
@@ -89,7 +89,7 @@ test('XP: a sailed hop counts its length in water hexes; hungry and free steps g
 test('v3 saves: the ship gains a sound hull; condition is kept to 0..100', () => {
   const v3 = { ...defaultSave(), v: 3, boat: undefined, ship: { hull: 'dinghy', q: 2, r: 5 } };
   const { save, report } = loadSave(JSON.stringify(v3));
-  assert.deepEqual(report.applied, [3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(report.applied, [3, 4, 5, 6, 7, 8, 9, 10, 11]);
   assert.deepEqual(save.boat, { hull: 'dinghy', q: 2, r: 5, cond: 100, hold: [], aboard: false });
   assert.equal(save.ship, null);
   assert.equal(loadSave(JSON.stringify({ ...v3, v: 3, ship: null })).save.boat, null);
@@ -108,7 +108,7 @@ test('XP: a hex lit at night gives 25% more', () => {
 
 test('v4 saves gain an empty hold; hold entries are cleaned and merged', () => {
   const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 4, boat: undefined, ship: { hull: 'dinghy', q: 1, r: 1, cond: 90 } }));
-  assert.deepEqual(report.applied, [4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(report.applied, [4, 5, 6, 7, 8, 9, 10, 11]);
   assert.deepEqual(save.boat.hold, []);
   const messy = [{ id: 'melvorD:Bones', qty: 5 }, { id: 'melvorD:Bones', qty: 2.7 }, { id: '', qty: 1 }, { id: 'x:Gone', qty: 3 }, { id: 'melvorD:Feathers', qty: 0 }, null];
   assert.deepEqual(loadSave(JSON.stringify({ ...defaultSave(), boat: { hull: 'dinghy', q: 1, r: 1, hold: messy } })).save.boat.hold, [{ id: 'melvorD:Bones', qty: 7 }, { id: 'x:Gone', qty: 3 }]);
@@ -118,7 +118,7 @@ test('v9 saves: the small boat and its hold become `boat`; no big ship; the boat
   const v9 = { v: 9, landHexes: 3, waterHexes: 1, backfilled: true, ship: { hull: 'longboat', q: 4, r: 8, cond: 61 }, shipChecked: true,
     stores: { food: 10, fuel: 2 }, kitGiven: true, hold: [{ id: 'melvorD:Bones', qty: 4 }], unlockNotice: [], journal: {}, navigator: true };
   const { save, report } = loadSave(JSON.stringify(v9));
-  assert.deepEqual(report.applied, [9, 10]);
+  assert.deepEqual(report.applied, [9, 10, 11]);
   assert.deepEqual(save.boat, { hull: 'longboat', q: 4, r: 8, cond: 61, hold: [{ id: 'melvorD:Bones', qty: 4 }], aboard: false });
   assert.equal(save.ship, null);
   assert.equal(save.hold, undefined);
@@ -161,7 +161,7 @@ test('save v10 -> v11: visited filled from the journal\'s finds, misses and plac
   const { isVisited, visitedCount } = await import('../src/voyage-model.mjs');
   const journal = { found: { 'melvorD:Iron': ['3,4', '5,6'] }, missed: { 'melvorD:Gold': ['7,8'] }, places: { 'combat|melvorD:Farmlands': '3,4', 'trade|x': '10,2' } };
   const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 10, journal }));
-  assert.deepEqual(report.applied, [10]);
+  assert.deepEqual(report.applied, [10, 11]);
   assert.equal(visitedCount(save.visited), 4);
   assert.ok(isVisited(save.visited, 3, 4) && isVisited(save.visited, 10, 2) && isVisited(save.visited, 7, 8) && !isVisited(save.visited, 0, 0));
 });
@@ -175,4 +175,16 @@ test('the balance pass: travel discount 0.5% a level, discovery 100 XP', async (
   assert.equal(travelDiscount(120), 49.5, 'capped at 99');
   assert.equal(travelDiscount(NaN), 0);
   assert.equal(DISCOVERY_XP, 100);
+});
+
+test('save v12: the Crossroads Sign field, migrated empty and cleaned', async () => {
+  const { loadSave, serializeSave, defaultSave } = await import('../src/voyage-model.mjs');
+  assert.equal(defaultSave().sign, '');
+  const v11 = { ...JSON.parse(serializeSave(defaultSave())), v: 11 };
+  delete v11.sign;
+  const { save, report } = loadSave(JSON.stringify(v11));
+  assert.deepEqual(report.applied, [11]);
+  assert.equal(save.sign, '');
+  assert.equal(loadSave(serializeSave({ ...defaultSave(), sign: 'melvorAoD:Monolith' })).save.sign, 'melvorAoD:Monolith');
+  assert.equal(loadSave(serializeSave({ ...defaultSave(), sign: '<b>' })).save.sign, '');
 });

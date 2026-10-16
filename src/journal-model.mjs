@@ -7,9 +7,10 @@
  * 'crafts' is the rule table; the ones in JOURNAL_WRITTEN are written for the book alone (the user, 16 Oct 2026:
  * "write it all down": reading the map, tricks, settings, removing the mod, Adventure's first coins). 'lands' (build
  * .113) adds two live ledgers from the rule table: what each kind of land and each feature lets a craft do.
- * 'planning' (build .123) is Plan a voyage, shown while the planner is loaded.
+ * 'planning' (build .123) is Plan a voyage, shown while the planner is loaded. 'road' (build .170, the
+ * user's ask) is the land upgrades and the Crossroads Sign (4.27, 4.28), with live ledgers.
  */
-export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'travels', 'planning', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
+export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'travels', 'road', 'planning', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
 /**
  * The Old Man's Crew pages (build .116, the user's ask): a guide to Worker Folks: Hiring in the captain's voice, shown
  * as their own tab only while that mod is loaded. Written chapters like the ones below (MOD_VOY_JOURNAL_CH_CREW_*).
@@ -32,9 +33,10 @@ export const JOURNAL_WRITTEN = {
   planning: { sections: ['WHERE', 'STOPS', 'CHARTS'] },
   lands: { sections: ['KINDS', 'FEATURES'] },
   tricks: { sections: ['STORES', 'BOAT', 'NIGHT', 'WAY'], points: true },
-  settings: { sections: ['EASIER', 'WHY'] },
+  settings: { sections: ['EASIER', 'KEYS', 'WHY'] },
   leaving: { sections: ['WHAT', 'HOW'], warn: ['WHAT'] },
   adventure: { sections: ['FIRST', 'NEXT'] },
+  road: { sections: ['MOUNTS', 'SIGN'] },
 };
 
 /**

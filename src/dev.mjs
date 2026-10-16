@@ -297,6 +297,43 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
     },
     /** The first-load dinghy notice: 'overseas', 'sea' or 'far'. */
     dinghyNotice(kind = 'overseas') { if (state.ship?.demoNotice === undefined) return 'ship module not loaded'; state.ship.demoNotice(kind); return 'shown'; },
+    /**
+     * Land upgrades bought one by one, on the game's own pricing: lends the mounts in order (0 to 4
+     * owned, the shop's purchase counts set by hand), prices one path through Cartography.getTravelCosts each time and
+     * puts the shop back as it was. The path: `length` hexes east of you, target first. Each row: tier, mount, GP on
+     * land, GP at sea, total, and the phase 5 speed.
+     */
+    landLadder(length = 8) {
+      const L = state.land, M = state.landModel;
+      if (L === undefined || M === undefined) return 'land module not loaded';
+      const cart = cartography(), m = map(), here = m?.playerPosition;
+      if (here === undefined) return 'no player position';
+      const line = [here];
+      for (let k = 1; k <= length; k++) { const h = m.getHex(new HexCoords(here.q + k, here.r)); if (h === undefined) break; line.push(h); }
+      if (line.length < 2) return 'no hexes east of you';
+      const path = [...line].reverse();
+      const shop = game.shop;
+      const ps = M.MOUNTS.map((x) => shop.purchases.getObjectByID(`voyage:${x.id}`));
+      const saved = ps.map((p) => (shop.upgradesPurchased.has(p) ? shop.upgradesPurchased.get(p) : undefined));
+      const rows = [];
+      try {
+        for (let tier = 0; tier <= ps.length; tier++) {
+          ps.forEach((p, i) => { if (i < tier) shop.upgradesPurchased.set(p, 1); else shop.upgradesPurchased.delete(p); });
+          let landGp = 0, seaGp = 0;
+          for (let i = 0; i < path.length - 1; i++) {
+            if (path[i + 1].canFastTravelTo(path[i])) continue;
+            const gp = cart.getTravelCosts([path[i], path[i + 1]])._currencies.get(game.gp) ?? 0;
+            if (L.isLand(path[i])) landGp += gp; else seaGp += gp;
+          }
+          const total = cart.getTravelCosts(path)._currencies.get(game.gp) ?? 0;
+          rows.push({ tier, mount: L.nameOf(M.mountAt(tier)), landGp, seaGp, total, speed: M.mountAt(tier).speed });
+        }
+      } finally {
+        ps.forEach((p, i) => { if (saved[i] === undefined) shop.upgradesPurchased.delete(p); else shop.upgradesPurchased.set(p, saved[i]); });
+      }
+      const ok = rows.every((r, i) => i === 0 || (r.seaGp === rows[0].seaGp && (rows[0].landGp === 0 || r.landGp < rows[i - 1].landGp) && r.speed > rows[i - 1].speed));
+      return { path: line.map(display).join(' '), rows, ok };
+    },
     /** The moored-dinghy marker: textures, ship record, sprite state. `voyageDev.marker(true)` redraws it first. */
     marker(redraw = false) {
       if (redraw) { try { state.markers?.refresh(); } catch (e) { return `refresh failed: ${e}`; } }
@@ -443,7 +480,7 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       paceWrite(all);
     } catch (e) { log('pace counter failed', e); }
   };
-  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), voyage(level), level(skill, level), ship(), giveShip(false?), giveBrig(false?), brigMaterials(), galleonMaterials(), galleon(hull?), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond, kind), pitch(n, logs), pace(reset?)');
+  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), landLadder(length), voyage(level), level(skill, level), ship(), giveShip(false?), giveBrig(false?), brigMaterials(), galleonMaterials(), galleon(hull?), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond, kind), pitch(n, logs), pace(reset?)');
 }
 
 /**

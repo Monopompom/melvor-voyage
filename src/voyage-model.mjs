@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -103,9 +103,10 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * the order they were written.
  * `navigator` (build .119) turns true once Navigator's Charts are bought: Plan a voyage may Set off.
  * `visited` (save v11, the balance pass) is the hexes ever entered, as base64 bits (visitedBit): each pays DISCOVERY_XP once.
+ * `sign` (save v12) is the full id of the POI the Crossroads Sign stands on, '' while carried or not bought.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '' };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '' };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -166,6 +167,8 @@ export const MIGRATIONS = {
   },
   // the balance pass: visited hexes, filled from the journal's finds, misses and places (no XP for them)
   10: (rec) => ({ ...rec, v: 11, visited: markVisited('', journalHexes(rec.journal)).visited }),
+  // the Crossroads Sign: not standing anywhere
+  11: (rec) => ({ ...rec, v: 12, sign: '' }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -278,6 +281,7 @@ function clean(rec) {
     journal: cleanJournal(rec.journal),
     navigator: rec.navigator === true,
     visited: cleanVisited(rec.visited),
+    sign: typeof rec.sign === 'string' && /^[\w]+:[\w]+$/.test(rec.sign) ? rec.sign : '',
   };
 }
 /** Base64 of at most VISITED_BYTES bytes, or '' (nothing visited). */

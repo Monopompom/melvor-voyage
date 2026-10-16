@@ -242,6 +242,22 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     }).join('');
   };
 
+  /**
+   * The Crossroads Sign on this hex (build .162): "Plant here" on a place with buffs while it is
+   * carried, "Pick up" where it stands. Nothing anywhere else.
+   */
+  const signLine = () => {
+    const L = state.land;
+    if (L === undefined) return '';
+    const act = L.signAction();
+    if (act !== 'place' && act !== 'pickup') return '';
+    const text = getLangString(act === 'place' ? 'MOD_VOY_PANEL_SIGN_CAN_PLACE' : 'MOD_VOY_PANEL_SIGN_HERE');
+    const btn = act === 'place'
+      ? `<button type="button" class="btn btn-sm btn-success voyage-row-btn voyage-sign-place">${esc(getLangString('MOD_VOY_PAGE_SIGN_PLACE'))}</button>`
+      : `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-sign-pickup">${esc(getLangString('MOD_VOY_PAGE_SIGN_PICKUP'))}</button>`;
+    return `<div class="voyage-here-ship"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_SIGN_LABEL'))}</span> ${esc(text)}</span>${btn}</div>`;
+  };
+
   /** What the stores hold (phase 3c), and the loading rates when this is a place to load; the button opens the page. */
   const storesLine = () => {
     const api = state.stores;
@@ -459,6 +475,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     panel.addEventListener('click', (e) => {
       if (e.target instanceof Element && e.target.closest('.voyage-trader-link')) { e.preventDefault(); state.trader?.offer(); }
       if (e.target instanceof Element && e.target.closest('.voyage-rescue-link')) { e.preventDefault(); state.stores?.offer(); }
+      if (e.target instanceof Element && e.target.closest('.voyage-sign-place')) { e.preventDefault(); state.land?.place(); render(); return; }
+      if (e.target instanceof Element && e.target.closest('.voyage-sign-pickup')) { e.preventDefault(); state.land?.pickup(); render(); return; }
       if (e.target instanceof Element && e.target.closest('.voyage-locked-toggle')) {
         lockedOpen = !lockedOpen;
         try { localStorage.setItem(LOCKED_KEY, lockedOpen ? '1' : '0'); } catch {}
@@ -537,7 +555,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return panel;
   };
 
-  const render = () => {
+  const draw = () => {
     try {
       const panel = ensurePanel();
       if (panel === undefined) return;
@@ -569,12 +587,18 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         shipBox() +
         tradeLine(status) +
         fightLine() +
+        signLine() +
         mode +
         `<div class="voyage-skills">${skillRows(pos, rec)}</div>` +
         (state.settings.overlay() ? legendBlock() : '');
       placeUnderBar();
       alignRowButtons(true);
     } catch (e) { log('here panel failed', e); }
+  };
+  /** Draws the panel, then gives its titles Melvor's tooltips (build .160). */
+  const render = () => {
+    draw();
+    try { state.tips?.apply(document.getElementById(PANEL_ID)); } catch (e) { log('tooltips failed', e); }
   };
 
   // Terrain line in the hex overview (selected hex).

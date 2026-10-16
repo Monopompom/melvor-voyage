@@ -195,7 +195,7 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
         if (!gathering.some((id) => rules.allowedAt(id, nrec, opts))) continue;
         if (!(state.ship?.allows?.(pos, n) ?? true)) continue;
         if ((n.travelCost.items ?? []).length > 0) continue;
-        const gp = (n.travelCost.currencies ?? []).reduce((s, { currency, quantity }) => s + (currency === game.gp ? Math.floor(quantity * cart.travelCostMultiplier) : 0), 0);
+        const gp = (n.travelCost.currencies ?? []).reduce((s, { currency, quantity }) => s + (currency === game.gp ? Math.floor(quantity * cart.travelCostMultiplier * (state.land?.gpFactor(n) ?? 1)) : 0), 0);
         if (best === undefined || gp < best.gp) best = { hex: n, gp };
       }
       if (best === undefined) return undefined;

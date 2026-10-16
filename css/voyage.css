@@ -178,7 +178,33 @@
 .voyage-status-row { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px 24px; padding: 4px 0; font-size: 1.05rem; }
 .voyage-status-toggle { grid-column: 3; justify-self: end; min-height: 40px; font-size: .95rem; text-align: right; }
 /* Build .156 (UI audit): the two bands sit 16px in from the block's edges like every block's content, 16px apart. */
-.voyage-status-more { border-top: 1px solid var(--voyage-rule); padding-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0; }
+.voyage-status-more { border-top: 1px solid var(--voyage-rule); padding-top: 8px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; margin: 0; }
+/* The land tile (build .160, the user): a grey square between Compass and Travels, centred on their bands (the spacer
+   stands in for their 32px title row), a gold ring holding the portrait of how you travel on land, its name under. */
+.voyage-land-col { display: flex; flex-direction: column; }
+.voyage-land-spacer { height: 32px; margin-bottom: 8px; flex: none; }
+.voyage-land-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+/* Two squares stacked (build .162): how you travel on land, and the Crossroads Sign. A square grows taller when its
+   content needs it (the sign's buffs). */
+.voyage-land-tile { width: 184px; min-height: 184px; display: flex; background: var(--voyage-band); border-radius: 6px; position: relative; }
+.voyage-land-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px;
+  background: none; border: 0; border-radius: 6px; color: inherit; font: inherit; text-align: center; }
+.voyage-land-btn { cursor: pointer; }
+@media (hover: hover) { .voyage-land-btn:hover { background: rgba(255, 255, 255, .05); } }
+.voyage-land-btn:focus-visible { outline: 2px solid #5fb3d9; outline-offset: -2px; }
+.voyage-land-ring { width: 96px; height: 96px; border-radius: 50%; border: 2px solid rgba(232, 199, 102, .7); background: rgba(0, 0, 0, .28);
+  display: flex; align-items: flex-end; justify-content: center; overflow: hidden; box-shadow: inset 0 2px 6px rgba(0, 0, 0, .5); flex: none; }
+.voyage-land-ring img { height: 88%; width: auto; object-fit: contain; }
+.voyage-sign-ring { align-items: center; }
+.voyage-sign-ring img { height: 80%; }
+.voyage-sign-off .voyage-land-ring { opacity: .55; }
+.voyage-land-name { font-weight: 600; color: #e8c766; text-align: center; line-height: 1.2; }
+.voyage-land-face { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+/* The sign's "find it on the map" button, in the square's top right corner. */
+.voyage-sign-locate { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; padding: 0; color: #e8c766; background: rgba(0, 0, 0, .28);
+  border: 1px solid rgba(232, 199, 102, .7); border-radius: 50%; font-size: 1rem; }
+@media (hover: hover) { .voyage-sign-locate:hover { color: #fff; border-color: #fff; } }
+.voyage-sign-locate:focus-visible { color: #fff; }
 .voyage-status-more > [class*="col-"] { padding: 0; max-width: none; width: auto; }
 .voyage-status-more h6 { color: inherit; font-size: 1rem; }
 @media (max-width: 767px) {
@@ -186,6 +212,7 @@
   .voyage-status-top > .voyage-status-row { grid-column: 1; justify-content: flex-start; }
   .voyage-status-toggle { grid-column: 2; }
   .voyage-status-more { grid-template-columns: 1fr; }
+  .voyage-land-spacer { display: none; }
 }
 
 /* Buttons at the right end of a panel row (Show, Load) share one width. */
@@ -294,6 +321,19 @@ body.vj-locked { overflow: hidden; }
 .vj-ledger th:first-child, .vj-ledger td:first-child { padding-left: 0; }
 .vj-ledger .vj-first { font-weight: 600; }
 .vj-ledger .vj-num { text-align: right; white-space: nowrap; }
+/* The road chapter (build .170): a mount's icon and name, its price as icon, count, name; the buffs one per line. */
+.vj-mount { display: inline-flex; align-items: center; gap: 8px; }
+.vj-mount img { width: 32px; height: 32px; object-fit: contain; }
+.vj-costs { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.vj-cost { display: inline-flex; align-items: center; gap: 4px; }
+.vj-cost img { width: 20px; height: 20px; object-fit: contain; }
+.vj-key { font-weight: 700; font-family: ui-monospace, Menlo, monospace; }
+.vj-yes { display: block; color: #2f6b34; font-weight: 600; font-size: 14px; }
+.vj-ledger td .vj-yes { white-space: nowrap; }
+.vj-buffs { display: flex; flex-direction: column; gap: 2px; }
+.vj-sign-here { display: flex; align-items: center; gap: 8px; }
+.vj-sign-here img { width: 28px; height: 28px; }
+.vj-sign-here .vj-yes { display: inline; }
 /* Build .138: slipped between paragraphs, no longer pushed to the foot. */
 .vj-note { margin: 4px 0; display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid rgba(122, 42, 28, .45); border-radius: 4px; font-size: 16px; line-height: 1.4; font-style: italic; }
 .vj-note svg { flex: none; margin-top: 2px; color: var(--vj-red); }

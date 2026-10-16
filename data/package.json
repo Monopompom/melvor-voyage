@@ -169,13 +169,243 @@
         "defaultBuyLimit": 0,
         "buyLimitOverrides": [],
         "showBuyLimit": false
+      },
+      {
+        "id": "Sturdy_Boots",
+        "customName": "Sturdy Boots",
+        "customDescription": "Good soles for long roads. Land hexes cost 10% less GP to cross.",
+        "media": "assets/land_boots.png",
+        "category": "voyage:Voyage",
+        "contains": {
+          "items": [],
+          "modifiers": {}
+        },
+        "cost": {
+          "items": [
+            {
+              "id": "melvorD:Leather",
+              "quantity": 25
+            }
+          ],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 5000
+            }
+          ]
+        },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          {
+            "type": "SkillLevel",
+            "skillID": "voyage:Voyage",
+            "level": 5
+          }
+        ],
+        "defaultBuyLimit": 1,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      },
+      {
+        "id": "Pack_Yak",
+        "customName": "Pack Yak",
+        "customDescription": "A shaggy yak carries your load. Land hexes cost 20% less GP to cross (replaces the boots).",
+        "media": "assets/land_yak.png",
+        "category": "voyage:Voyage",
+        "contains": {
+          "items": [],
+          "modifiers": {}
+        },
+        "cost": {
+          "items": [
+            {
+              "id": "melvorD:Leather",
+              "quantity": 200
+            },
+            {
+              "id": "melvorD:Carrot",
+              "quantity": 500
+            }
+          ],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 100000
+            }
+          ]
+        },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          {
+            "type": "SkillLevel",
+            "skillID": "voyage:Voyage",
+            "level": 25
+          },
+          {
+            "type": "ShopPurchase",
+            "purchaseID": "voyage:Sturdy_Boots",
+            "count": 1
+          }
+        ],
+        "defaultBuyLimit": 1,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      },
+      {
+        "id": "Riding_Horse",
+        "customName": "Riding Horse",
+        "customDescription": "Saddled and shod. Land hexes cost 30% less GP to cross (replaces the yak).",
+        "media": "assets/land_horse.png",
+        "category": "voyage:Voyage",
+        "contains": {
+          "items": [],
+          "modifiers": {}
+        },
+        "cost": {
+          "items": [
+            {
+              "id": "melvorD:Green_Dragonhide",
+              "quantity": 50
+            },
+            {
+              "id": "melvorD:Steel_Bar",
+              "quantity": 100
+            },
+            {
+              "id": "melvorD:Carrot",
+              "quantity": 1000
+            }
+          ],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 750000
+            }
+          ]
+        },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          {
+            "type": "SkillLevel",
+            "skillID": "voyage:Voyage",
+            "level": 45
+          },
+          {
+            "type": "ShopPurchase",
+            "purchaseID": "voyage:Pack_Yak",
+            "count": 1
+          }
+        ],
+        "defaultBuyLimit": 1,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      },
+      {
+        "id": "Unicorn",
+        "customName": "Unicorn",
+        "customDescription": "It goes where it pleases, and takes you along. Land hexes cost 40% less GP to cross (replaces the horse).",
+        "media": "assets/land_unicorn.png",
+        "category": "voyage:Voyage",
+        "contains": {
+          "items": [],
+          "modifiers": {}
+        },
+        "cost": {
+          "items": [
+            {
+              "id": "melvorF:Summoning_Familiar_Unicorn",
+              "quantity": 100
+            },
+            {
+              "id": "melvorD:Red_Dragonhide",
+              "quantity": 50
+            }
+          ],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 3000000
+            }
+          ]
+        },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          {
+            "type": "SkillLevel",
+            "skillID": "voyage:Voyage",
+            "level": 60
+          },
+          {
+            "type": "ShopPurchase",
+            "purchaseID": "voyage:Riding_Horse",
+            "count": 1
+          }
+        ],
+        "defaultBuyLimit": 1,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      },
+      {
+        "id": "Crossroads_Sign",
+        "customName": "Crossroads Sign",
+        "customDescription": "Plant it on a place that gives buffs while you stand there: its buffs follow you wherever you go. One sign; pick it up on its hex to move it.",
+        "media": "assets/crossroads_sign.png",
+        "category": "voyage:Voyage",
+        "contains": {
+          "items": [],
+          "modifiers": {}
+        },
+        "cost": {
+          "items": [
+            {
+              "id": "melvorD:Maple_Logs",
+              "quantity": 100
+            },
+            {
+              "id": "melvorD:Steel_Bar",
+              "quantity": 25
+            }
+          ],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 500000
+            }
+          ]
+        },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          {
+            "type": "SkillLevel",
+            "skillID": "voyage:Voyage",
+            "level": 35
+          }
+        ],
+        "defaultBuyLimit": 1,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
       }
     ],
     "shopDisplayOrder": [
       {
         "insertAt": "End",
         "ids": [
-          "voyage:Wayfinder_Compass"
+          "voyage:Wayfinder_Compass",
+          "voyage:Sturdy_Boots",
+          "voyage:Pack_Yak",
+          "voyage:Riding_Horse",
+          "voyage:Unicorn",
+          "voyage:Crossroads_Sign"
         ]
       }
     ]
