@@ -51,8 +51,22 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     } catch (e) { log('skill popup failed', e); }
   };
 
+  /** A chip's tooltip in a popup, for touch (no hover). */
+  const showTip = (text) => {
+    try {
+      SwalLocale.fire({
+        didRender: state.popupDidRender,
+        html: helpLayout.msgHtml([esc(text)]),
+        confirmButtonText: getLangString('MOD_VOY_BUTTON_OK'),
+        customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
+      });
+    } catch (e) { log('tip popup failed', e); }
+  };
+
   /** One icon per gated skill: full, penalised (with a % badge) or locked (dimmed); a tap or the tooltip says why. */
-  const skillRows = (pos, rec) => {
+  const skillRows = (pos, rec) => skillRowsHtml(skillLists(pos));
+  /** The working and locked skill icons for this hex: { works, locked, off }. */
+  const skillLists = (pos) => {
     const works = [];
     const locked = [];
     const off = !state.active();
@@ -107,6 +121,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         locked.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKY_NONE', { skill: skill.name }), `<img class="skill-icon-xs voyage-skill-locked" src="${skill.media}" alt="">`));
       }
     }
+    return { works, locked, off };
+  };
+  const skillRowsHtml = ({ works, locked, off }) => {
     const note = off ? 'MOD_VOY_PANEL_RULES_OFF' : state.settings.strictness() === 'relaxed' ? 'MOD_VOY_PANEL_RELAXED' : undefined;
     const rulesNote = note !== undefined ? ` <small class="text-warning">${esc(getLangString(note))}</small>` : '';
     // Working skills fold behind "Works here: N" like the locked ones (user feedback, build .83: the rows ran long on a
@@ -245,6 +262,75 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   const shipBox = () => {
     const inner = nightLine() + shipLine() + storesLine();
     return inner === '' ? '' : `<div class="voyage-here-shipbox">${inner}</div>`;
+  };
+
+  /**
+   * The mini panel: the folded panel as one short strip, as wide as its content. The terrain, then
+   * chips chosen by the situation, in priority order, at most MINI_CHIPS of them besides a stranded warning.
+   */
+  const MINI_CHIPS = 5;
+  const chip = (inner, tip, cls = '', btn = '') => btn === ''
+    ? `<span class="voyage-chip ${cls}" title="${esc(tip)}" aria-label="${esc(tip)}">${inner}</span>`
+    : `<button type="button" class="voyage-chip voyage-chip-btn ${cls} ${btn}" title="${esc(tip)}" aria-label="${esc(tip)}">${inner}</button>`;
+  const miniChips = (pos, status) => {
+    const out = [];
+    const st = state.stores;
+    const on = st?.enabled?.() === true;
+    // 2. Stores, coloured like the panel's line.
+    const have = on ? st.stores() : undefined;
+    if (have !== undefined) {
+      const low = have.food <= 0 || have.fuel <= 0 ? 'text-danger' : have.food < storesModel.LOW.food || have.fuel < storesModel.LOW.fuel ? 'text-warning' : '';
+      out.push(chip(st.icons(have.food, have.fuel), st.amounts(have.food, have.fuel), low));
+    }
+    // 3. Hull, once worn.
+    const sh = state.ship;
+    if (sh?.ship?.() != null && sh.enabled()) {
+      const c = sh.cond?.() ?? 100;
+      if (c < 100) {
+        const tip = `${sh.hullName?.(sh.ship()) ?? getLangString('MOD_VOY_SHIP_BOAT')}: ${templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` })}`;
+        out.push(chip(`<i class="fa fa-ship mr-1"></i>${c}%`, tip, c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : ''));
+      }
+    }
+    // 4. Night only: fuel buys light then.
+    const tod = on ? st.timeOfDay?.() : undefined;
+    if (tod?.night) {
+      const hint = templateLangString('MOD_VOY_PANEL_NIGHT_HINT', { land: `${storesModel.LIGHT.land}`, sea: `${storesModel.LIGHT.sea}`, bonus: `${Math.round(model.STAR_XP * 100)}` });
+      out.push(chip(`<i class="fa fa-moon mr-1"></i>${esc(tod.until)}`, `${templateLangString('MOD_VOY_PANEL_NIGHT', { time: tod.until })}. ${hint}`, 'text-info'));
+    }
+    // 5. Load, on a place to load with room in the stores.
+    if (have !== undefined && st.loadingHere() !== undefined) {
+      const cap = st.capacity();
+      if (have.food < cap.food || have.fuel < cap.fuel) out.push(chip(esc(getLangString('MOD_VOY_PANEL_STORES_LOAD')), getLangString('MOD_VOY_MINI_LOAD_HINT'), 'btn btn-sm btn-outline-info', 'voyage-manage-link'));
+    }
+    // 6. The planned voyage.
+    const plan = state.planner?.summary?.();
+    if (plan !== undefined) {
+      const dist = plan.distance === undefined ? '' : `<span class="ml-1">· ${plan.distance}</span>`;
+      const tip = templateLangString('MOD_VOY_MINI_PLAN_HINT', { name: plan.name, hexes: plan.distance === undefined ? '?' : templateLangString(plan.distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${plan.distance}` }) });
+      const icon = plan.media ? `<img class="voyage-chip-img" src="${esc(plan.media)}" alt="">` : '';
+      out.push(chip(`<i class="fa fa-route mr-1"></i>${icon}<span class="voyage-chip-name">${esc(plan.name)}</span>${dist}`, tip, 'btn btn-sm btn-outline-info', 'voyage-mini-plan'));
+    }
+    // 7. What works here: four icons, then +N.
+    const { works, off } = skillLists(pos);
+    if (!off) {
+      out.push(works.length === 0
+        ? chip(`<span class="text-danger">${esc(getLangString('MOD_VOY_MINI_WORKS_NONE'))}</span>`, getLangString('MOD_VOY_PANEL_WORKS_NONE'))
+        : `<span class="voyage-chip voyage-chip-skills">${works.slice(0, 4).join('')}${works.length > 4 ? `<small class="text-muted">+${works.length - 4}</small>` : ''}</span>`);
+    }
+    // 8. The wandering trader on your hex.
+    if (status === 'here' && state.settings.trade()) out.push(chip('<i class="fa fa-store"></i>', getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'), 'voyage-chip-plain text-warning', 'voyage-chip-tip'));
+    return out.slice(0, MINI_CHIPS);
+  };
+  const miniHtml = (pos, d, tip, status) => {
+    const swatch = d.css ? `<span class="voyage-swatch" style="background:${d.css}"></span>` : '';
+    const warn = [];
+    if (status === 'stranded') warn.push(chip(`<i class="fa fa-exclamation-triangle mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'))}`, getLangString('MOD_VOY_PANEL_STRANDED_HINT'), 'btn btn-sm btn-warning', 'voyage-trader-link'));
+    else {
+      try { if (state.stores?.enabled() && state.stores.rescue() !== undefined) warn.push(chip(`<i class="fa fa-exclamation-triangle mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'))}`, getLangString('MOD_VOY_PANEL_HUNGRY_HINT'), 'btn btn-sm btn-warning', 'voyage-rescue-link')); } catch {}
+    }
+    const unfold = getLangString('MOD_VOY_PANEL_UNFOLD');
+    return `<div class="voyage-mini-row"><button type="button" class="voyage-panel-toggle voyage-mini-toggle" aria-expanded="false" title="${esc(`${tip}. ${unfold}`)}" aria-label="${esc(`${tip}. ${unfold}`)}">` +
+      `<i class="fa fa-caret-right mr-1"></i>${swatch}${esc(d.label)}</button>${warn.join('')}${miniChips(pos, status).join('')}</div>`;
   };
 
   // The legend folds away behind a "Legend" toggle; closed by default. The choice is a browser convenience kept in
@@ -396,6 +482,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         e.preventDefault();
         try { openArea(fight.dataset.area); } catch (err) { log('Combat link failed', err); }
       }
+      if (e.target instanceof Element && e.target.closest('.voyage-mini-plan')) { e.preventDefault(); state.planner?.reopen?.(); return; }
+      const tipChip = e.target instanceof Element ? e.target.closest('.voyage-chip-tip') : null;
+      if (tipChip !== null) { showTip(tipChip.getAttribute('title') ?? ''); return; }
       if (e.target instanceof Element && e.target.closest('.voyage-journal-link')) {
         e.preventDefault();
         state.journal?.open();
@@ -452,17 +541,24 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const features = d.features.length > 0 ? ` · ${esc(d.features.join(', '))}` : '';
       const mode = state.mode === 'relaxed' ? `<div><small class="text-warning">${esc(getLangString('MOD_VOY_PANEL_TABLE_MISMATCH'))}</small></div>` : '';
       const status = traderStatus();
+      panel.classList.toggle('voyage-mini', !panelOpen);
+      if (!panelOpen) {
+        const tip = `${d.label}${d.features.length > 0 ? ` · ${d.features.join(', ')}` : ''}${place ? ` · ${[poi, d.area].filter(Boolean).join(', ')}` : ''} ${coordsOf(pos)}`;
+        panel.innerHTML = miniHtml(pos, d, tip, status) + mode;
+        placeUnderBar();
+        return;
+      }
       panel.innerHTML =
         `<div class="voyage-here-head"><button type="button" class="voyage-panel-toggle" aria-expanded="${panelOpen}" title="${esc(getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD'))}">` +
         `<i class="fa fa-caret-${panelOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_YOU_ARE_HERE'))}</button>${manageLink()}</div>` +
         strandedLines(status) +
         `<div>${swatch}${esc(d.label)}<small class="text-muted">${features}${where}</small></div>` +
-        (!panelOpen ? '' : shipBox() +
+        shipBox() +
         tradeLine(status) +
         fightLine() +
         mode +
         `<div class="voyage-skills">${skillRows(pos, rec)}</div>` +
-        (state.settings.overlay() ? legendBlock() : ''));
+        (state.settings.overlay() ? legendBlock() : '');
       placeUnderBar();
       alignRowButtons(true);
     } catch (e) { log('here panel failed', e); }

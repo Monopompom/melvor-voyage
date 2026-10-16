@@ -41,6 +41,8 @@ export const FAMILIES = {
   ],
   MOD_VOY_JOURNAL_GUIDE_: JOURNAL_GUIDES.flatMap((g) => ['TITLE', 'BODY', 'POINTS'].map((x) => `${g.toUpperCase()}_${x}`)),
   MOD_VOY_JOURNAL_PLACES_: ['COMBAT', 'TRADE', 'POI'],
+  // Plan a voyage (src/planner.mjs VERDICT): the verdicts named by a plan's reason
+  MOD_VOY_PLAN_VERDICT_: ['SHORT', 'ASHORE', 'HULL', 'NOWAY', 'UNCHARTED', 'HERE'],
   MOD_VOY_RULE_LABEL_: localIds.filter((id, i) => rules.ruleLabelKey(Object.keys(rules.SKILL_RULES)[i]) !== undefined),
 };
 

@@ -121,12 +121,20 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   /**
    * `icon`: a picture that isn't a skill's (an action, a combat area). A skill's own icon comes with its name. Message popup layout (build .94): one picture on top, the action or area's when there is one, else the
    * warning sign; never both. `guide`: the Captain's Journal page this rule is taught on (phase 4), linked in the
-   * footer and written the first time.
+   * footer and written the first time. `plan`: a function giving Plan a voyage's target (build .119):
+   * a third, blue outline button that opens the planner on it. Shown only when the planner is there and the target
+   * has somewhere known to go.
    */
-  const modal = (title, icon, lines, { withMap = true, guide } = {}) => {
+  const modal = (title, icon, lines, { withMap = true, guide, plan } = {}) => {
     try {
       const page = game.pages.getObjectByID('melvorAoD:Cartography');
-      const fire = (params) => SwalLocale.fire(params).then((result) => { if (withMap && result.isConfirmed) state.openPage(page); });
+      let target;
+      try { target = plan?.(); } catch (e) { log('plan target failed', e); }
+      const planned = withMap && state.planner !== undefined && target !== undefined && target.hexes.length > 0;
+      const fire = (params) => SwalLocale.fire(params).then((result) => {
+        if (withMap && result.isConfirmed) state.openPage(page);
+        else if (planned && result.isDenied) state.planner.planTo(target);
+      });
       const params = {
         didRender: state.popupDidRender,
         title,
@@ -135,9 +143,10 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
         showCancelButton: withMap,
         confirmButtonText: getLangString(withMap ? 'MOD_VOY_GATE_BUTTON_MAP' : 'MOD_VOY_BUTTON_OK'),
         cancelButtonText: getLangString('MOD_VOY_GATE_BUTTON_STAY'),
+        ...(planned ? { showDenyButton: true, denyButtonText: getLangString('MOD_VOY_PLAN_BUTTON') } : {}),
         // "Go to map" is filled blue, Stay blue outline (the user, 16 Oct 2026: "Only Go to map"; it was outline since .86);
         // a plain OK stays green.
-        customClass: (() => { const c = withMap ? { ...SWAL_CLASS, confirmButton: 'btn btn-info m-1' } : SWAL_CLASS; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
+        customClass: (() => { const c = withMap ? { ...SWAL_CLASS, confirmButton: 'btn btn-info m-1', denyButton: 'btn btn-outline-info m-1' } : SWAL_CLASS; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
       };
       // The footer is asked for on every showing: "A new page" the first time, "Read more" after "Back to the lock".
       const show = () => {
@@ -196,10 +205,25 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     return { name, lines };
   };
 
-  const showLocked = (skill, skillId, locked) => {
+  /** The action a skill's entry point was about to start, for Plan a voyage's "on arrival" (build .119). */
+  const actionOfCall = (skillId, self, args) => {
+    try {
+      switch (skillId) {
+        case 'melvorD:Woodcutting': case 'melvorD:Mining': return args[0];
+        case 'melvorD:Fishing': return self.selectedAreaFish?.get(args[0]);
+        case 'melvorD:Thieving': return args[1];
+        default: return undefined;
+      }
+    } catch { return undefined; }
+  };
+  const showLocked = (skill, skillId, locked, args = []) => {
     const d = describe(skill, skillId, locked);
     log(`refused ${skillId} at (${locked.pos.q},${locked.pos.r}) ${locked.rec.t}`);
-    modal(templateLangString('MOD_VOY_GATE_LOCKED_TITLE', { name: d.name }), undefined, d.lines, { guide: 'terrain' });
+    const plan = () => {
+      const near = state.nearestFor(skillId, locked.pos);
+      return state.planner?.forAction(skillId, actionOfCall(skillId, skill, args), near === undefined ? [] : [near.hex]);
+    };
+    modal(templateLangString('MOD_VOY_GATE_LOCKED_TITLE', { name: d.name }), undefined, d.lines, { guide: 'terrain', plan });
   };
 
   // Layer 1: entry points, checked before the selection changes.
@@ -220,7 +244,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
           if (rules.isGated(id) && (ep.when === 'always' || !this.isActive)) {
             const locked = lockedHere(id);
             if (locked !== undefined) {
-              if (!quiet) showLocked(ep.skillId !== undefined ? game.skills.getObjectByID(id) ?? this : this, id, locked);
+              if (!quiet) showLocked(ep.skillId !== undefined ? game.skills.getObjectByID(id) ?? this : this, id, locked, args);
               return undefined;
             }
           }
@@ -380,7 +404,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     }
     log(`refused ${action.id} at (${pos?.q},${pos?.r}): outside its zone`);
     state.journal?.miss(action, pos);
-    modal(templateLangString(skillId === ASTROLOGY ? 'MOD_VOY_ZONE_SKY_TITLE' : 'MOD_VOY_ZONE_TITLE', { name }), action.media, lines, { guide: 'zone' });
+    const plan = () => state.planner?.forAction(skillId, action, best === undefined ? [] : [best.hex]);
+    modal(templateLangString(skillId === ASTROLOGY ? 'MOD_VOY_ZONE_SKY_TITLE' : 'MOD_VOY_ZONE_TITLE', { name }), action.media, lines, { guide: 'zone', plan });
   };
   /**
    * Zone entry points, after the skill's own (Layer 1 above): `action(...args)` returns the action being started, or
@@ -506,7 +531,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       if (compass !== undefined) lines.push(compass);
     }
     log(`refused combat in ${area.id} at (${pos?.q},${pos?.r})`);
-    modal(templateLangString('MOD_VOY_GATE_AREA_TITLE', { name }), area.media, lines, { guide: 'combat' });
+    modal(templateLangString('MOD_VOY_GATE_AREA_TITLE', { name }), area.media, lines, { guide: 'combat', plan: () => state.planner?.forArea(area) });
   };
   ctx.patch(CombatManager, 'checkAreaEntryRequirements').replace(function (original, area) {
     try {

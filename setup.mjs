@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.118';
+export const BUILD = '2026-10-16.122';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -100,6 +100,11 @@ export async function setup(ctx) {
           m._name = getLangString('MOD_VOY_MILESTONE_CHART');
           // The game resolves a custom milestone's media against its own CDN (assets.getURI): the journal icon is ours.
           const url = ctx.getResourceUrl('assets/journal.png');
+          Object.defineProperty(m, 'media', { get: () => url, configurable: true });
+        } else if (m.level === model.NAVIGATOR_LEVEL && '_name' in m) {
+          // Build .119: Navigator's Charts, Plan a voyage's Sail!.
+          m._name = getLangString('MOD_VOY_MILESTONE_NAVIGATOR');
+          const url = ctx.getResourceUrl('assets/icon.png');
           Object.defineProperty(m, 'media', { get: () => url, configurable: true });
         }
       });
@@ -312,6 +317,13 @@ export async function setup(ctx) {
   } catch (e) { console.error('[Voyage] the journal failed to load; the rest runs', e); state.journal = undefined; }
   // The journal's heat maps (build .114); without them the entries simply have no heat map button.
   try { (await ctx.loadModule('src/heatmap.mjs')).install(ctx, { state, terrainMod, log }); } catch (e) { log('heat maps failed to load', e); state.heatmap = undefined; }
+  // Plan a voyage (build .119): the planner block on the Voyage page, Sail! and the action on arrival.
+  if (voyageSkillOk) {
+    try {
+      const planModel = await ctx.loadModule('src/plan-model.mjs');
+      (await ctx.loadModule('src/planner.mjs')).install(ctx, { state, model, planModel, storesModel, terrainMod, log });
+    } catch (e) { console.error('[Voyage] the planner failed to load; the rest runs', e); state.planner = undefined; }
+  }
   const markPage = () => { const s = voyageSkill(); if (s !== undefined) s.renderQueue.page = true; };
   state.listeners.push(markPage);
 

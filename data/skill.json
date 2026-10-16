@@ -10,7 +10,9 @@
         "headerBgClass": "bg-voyage",
         "hasGameGuide": false,
         "canBeDefault": true,
-        "skills": ["voyage:Voyage"],
+        "skills": [
+          "voyage:Voyage"
+        ],
         "skillSidebarCategoryID": "Passive"
       }
     ],
@@ -19,13 +21,54 @@
         "skillID": "voyage:Voyage",
         "data": {
           "customMilestones": [
-            { "type": "Custom", "level": 1, "name": "Compass: how close and which way", "media": "assets/media/skills/cartography/cartography.png" },
-            { "type": "Custom", "level": 10, "name": "Compass: how many hexes away", "media": "assets/media/skills/cartography/cartography.png" },
-            { "type": "Custom", "level": 25, "name": "Compass: the name of the place", "media": "assets/media/skills/cartography/cartography.png" },
-            { "type": "Custom", "level": 30, "name": "Journal: chart one country", "media": "assets/journal.png" },
-            { "type": "Custom", "level": 50, "name": "Journal: chart one country", "media": "assets/journal.png" },
-            { "type": "Custom", "level": 70, "name": "Journal: chart one country", "media": "assets/journal.png" },
-            { "type": "Custom", "level": 90, "name": "Journal: chart one country", "media": "assets/journal.png" }
+            {
+              "type": "Custom",
+              "level": 1,
+              "name": "Compass: how close and which way",
+              "media": "assets/media/skills/cartography/cartography.png"
+            },
+            {
+              "type": "Custom",
+              "level": 10,
+              "name": "Compass: how many hexes away",
+              "media": "assets/media/skills/cartography/cartography.png"
+            },
+            {
+              "type": "Custom",
+              "level": 25,
+              "name": "Compass: the name of the place",
+              "media": "assets/media/skills/cartography/cartography.png"
+            },
+            {
+              "type": "Custom",
+              "level": 30,
+              "name": "Journal: chart one country",
+              "media": "assets/journal.png"
+            },
+            {
+              "type": "Custom",
+              "level": 50,
+              "name": "Journal: chart one country",
+              "media": "assets/journal.png"
+            },
+            {
+              "type": "Custom",
+              "level": 60,
+              "name": "Navigator's Charts: sold at ports",
+              "media": "assets/icon.png"
+            },
+            {
+              "type": "Custom",
+              "level": 70,
+              "name": "Journal: chart one country",
+              "media": "assets/journal.png"
+            },
+            {
+              "type": "Custom",
+              "level": 90,
+              "name": "Journal: chart one country",
+              "media": "assets/journal.png"
+            }
           ]
         }
       }

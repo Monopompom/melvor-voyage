@@ -180,6 +180,12 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       notes.push(inTown ? 'you are on a town/port hex: build the Trading Post now' : 'not on a town/port hex: voyageDev.teleport(13, 17) (Old Village) before building');
       return notes.join('\n');
     },
+    /** Plan a voyage (4.21) to the game's display coords: voyageDev.plan(col, row). Opens the planner block. */
+    plan(col, row) {
+      if (state.planner === undefined) return 'planner not loaded';
+      const { q, r } = fromDisplay(col, row);
+      return state.planner.planTo({ name: 'Dev target', hexes: [{ q, r }] }) ? 'planned' : 'not planned';
+    },
     /** Terrain record under the player. */
     here() {
       const pos = state.position();

@@ -57,6 +57,9 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
         else if (target.dataset.voyageAction === 'repair') { if (state.ship?.repair()) render(); }
         else if (target.dataset.voyageAction === 'find') showMap(true);
       });
+      // Plan a voyage (build .119): src/planner.mjs draws and handles its block.
+      part('plan')?.addEventListener('click', (e) => state.planner?.onClick(e));
+      part('plan')?.addEventListener('change', (e) => state.planner?.onChange(e));
       part('hold')?.addEventListener('click', (e) => {
         const target = e.target instanceof Element ? e.target.closest('[data-voyage-action], [data-voyage-preset]') : null;
         if (target === null) return;
@@ -476,6 +479,12 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       status.innerHTML = items.join('');
       status.classList.toggle('d-none', items.length === 0);
     }
+    const planBlock = part('plan-block');
+    planBlock?.classList.toggle('d-none', state.planner === undefined);
+    const plan = part('plan');
+    if (plan !== null && state.planner !== undefined) {
+      try { plan.innerHTML = state.planner.html(); } catch (e) { log('planner render failed', e); }
+    }
     const ship = part('ship');
     if (ship !== null && !typing(ship)) ship.innerHTML = shipHtml();
     const holdBlock = part('hold-block');
@@ -534,7 +543,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const pitch = game.items.getObjectByID('voyage:Pitch');
     let allLogs = 0;
     try { game.firemaking.actions.forEach((a) => { if (a.log !== undefined) allLogs += game.bank.getQty(a.log); }); } catch {}
-    return `${held.length}:${held.reduce((n, e) => n + e.qty, 0)}|${sh?.q},${sh?.r},${sh?.cond}|${pitch === undefined ? 0 : game.bank.getQty(pitch)}|${allLogs}|${game.gp.amount}|${logs}|${p?.q},${p?.r}|${state.compass?.owned?.()}|${state.active()}|${st?.food},${st?.fuel}|${game.bank.items.size}|${pickedQty}|${skill()?.level}|${state.stores?.night?.()}`;
+    return `${held.length}:${held.reduce((n, e) => n + e.qty, 0)}|${sh?.q},${sh?.r},${sh?.cond}|${pitch === undefined ? 0 : game.bank.getQty(pitch)}|${allLogs}|${game.gp.amount}|${logs}|${p?.q},${p?.r}|${state.compass?.owned?.()}|${state.active()}|${st?.food},${st?.fuel}|${game.bank.items.size}|${pickedQty}|${skill()?.level}|${state.stores?.night?.()}|${state.planner?.signature?.()}`;
   };
 
   return { render, signature, helpSections };

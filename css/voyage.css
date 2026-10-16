@@ -339,3 +339,27 @@ body.vj-locked { overflow: hidden; }
 .vj-tab-crew { background: #6b5a2a; }
 .vj-tab[hidden] { display: none; }
 .vj-golbin img { max-width: 340px; }
+/* Plan a voyage (build .119): the planner block on the Voyage page. Sail! green, the rest blue outline. */
+.voyage-plan-icon { width: 32px; height: 32px; object-fit: contain; }
+.voyage-plan-legs { padding-left: 1.4rem; }
+.voyage-plan-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 12px; padding-top: 12px; }
+.voyage-plan-buttons .btn { min-height: 44px; min-width: 140px; }
+.vj-foot-end { gap: 12px; flex-wrap: wrap; }
+
+/* The mini panel: the folded Here panel as one strip, only as wide as its content, wrapping to a
+   second line when the search box is narrow. Chips: an icon and a short value; buttons where they do something. */
+#voyage-here.voyage-mini { width: max-content; max-width: 100%; padding: 4px 8px !important; }
+.voyage-mini-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.voyage-mini-toggle { display: inline-flex; align-items: center; white-space: nowrap; margin-right: 2px; }
+.voyage-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 0 8px; border-radius: 16px; background: var(--voyage-band); white-space: nowrap; font-size: .95rem; line-height: 1.2; }
+.voyage-chip.btn { border-radius: 16px; padding: 0 10px; font-size: .95rem; }
+.voyage-chip-plain { border: 0; color: inherit; cursor: pointer; }
+.voyage-chip-skills { padding: 0 4px; gap: 0; }
+.voyage-chip-skills small { margin-left: 2px; }
+.voyage-chip-name { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
+.voyage-chip-img { width: 20px; height: 20px; margin-right: 4px; }
+.voyage-chip .voyage-stores-icons img { width: 18px; height: 18px; }
+@media (pointer: coarse) { .voyage-chip, .voyage-chip .voyage-skill-btn { min-height: 40px; } }
+/* Phone width: the strip takes the open panel's edges (the user, build .121): full width under the bar, stopping
+   short of the zoom buttons like the open panel (clearOfControls sets `right`). */
+@media (max-width: 767.98px) { #voyage-here.voyage-here-top.voyage-mini { width: auto; max-width: none; } }

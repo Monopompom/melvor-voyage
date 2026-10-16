@@ -247,6 +247,10 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
   const mapButton = (kind, id) => `<button type="button" class="vj-btn" data-vj-map="${esc(kind)}" data-vj-id="${esc(id)}">`
     + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>'
     + `${esc(t('MOD_VOY_JOURNAL_SHOW_ON_MAP'))}</button>`;
+  // Plan a voyage (build .119): the planner on the Voyage page, heading for this entry or place.
+  const planButton = (kind, id) => state.planner === undefined ? '' : `<button type="button" class="vj-btn" data-vj-plan="${esc(kind)}" data-vj-id="${esc(id)}">`
+    + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17h18l-2 4H5z"></path><path d="M12 3v12"></path><path d="M12 4l6 9h-6"></path></svg>'
+    + `${esc(t('MOD_VOY_PLAN_BUTTON'))}</button>`;
   const empty = (key) => `<p class="vj-p vj-faint">${esc(t(key))}</p>`;
 
   /** The Voyage page's help sections, in book form (help-layout.mjs shape: { head?, warn?, body: [...] }). */
@@ -519,7 +523,7 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
         ? `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_WHERE_FOUND'))}</h3>${ledger([t('MOD_VOY_JOURNAL_COL_HEX'), t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_FROM_HERE')], rows)}`
         : empty('MOD_VOY_JOURNAL_NOT_FOUND_YET'))
       + (misses.length > 0 ? `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_WHERE_NOT'))}</h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_MISSES_LINE', { name: e.names[0], hexes: misses.join(', ') }))}</p>` : '')
-      + (rows.length > 0 ? `<div class="vj-foot vj-foot-end">${mapButton('entry', e.id)}</div>` : '');
+      + (rows.length > 0 ? `<div class="vj-foot vj-foot-end">${planButton('entry', e.id)}${mapButton('entry', e.id)}</div>` : '');
   };
   /** The heat map button next to an entry's name (src/heatmap.mjs): a hexagon with a glow in it. */
   const heatButton = (e) => {
@@ -727,7 +731,7 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       : runningHead(t(`MOD_VOY_JOURNAL_PLACES_${p.group.toUpperCase()}`), '')
         + `<div class="vj-entry-head">${p.media ? `<img src="${p.media}" alt="">` : ''}<h2 class="vj-h1">${esc(p.name)}</h2></div>`
         + ledger([t('MOD_VOY_JOURNAL_COL_HEX'), t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_FROM_HERE')], [[{ text: at(p.q, p.r) }, land(p.q, p.r), fromHere(p)]])
-        + `<div class="vj-foot vj-foot-end">${mapButton('place', p.key)}</div>`;
+        + `<div class="vj-foot vj-foot-end">${planButton('place', p.key)}${mapButton('place', p.key)}</div>`;
     return { left, right };
   };
 
@@ -845,6 +849,8 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       if (go !== null) { const [kind, id] = go.dataset.vjGo.split(':'); goTo(kind, id); return; }
       const map = el.closest('[data-vj-map]');
       if (map !== null) { showOnMap(map.dataset.vjMap, map.dataset.vjId); return; }
+      const plan = el.closest('[data-vj-plan]');
+      if (plan !== null) { planFrom(plan.dataset.vjPlan, plan.dataset.vjId); return; }
       if (el.closest('[data-vj-back]')) { const back = view.back; close(); back?.(); }
     });
     root.addEventListener('input', (e) => {
@@ -911,6 +917,24 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
     state.mapMarks.clear();
     state.overlay?.refresh();
   }
+  /** Hands an entry or a place to the planner (build .119) and closes the book. */
+  const planFrom = (kind, id) => {
+    const pl = state.planner;
+    if (pl === undefined) return;
+    let target;
+    if (kind === 'entry') {
+      const e = entries().find((x) => x.id === id);
+      if (e === undefined) return;
+      target = pl.forAction(e.skillId, e.action, [], e.names[0]);
+    } else {
+      const p = placeList().find((x) => x.key === id);
+      if (p === undefined) return;
+      const area = p.group === 'combat' ? areaById(p.key.slice(p.key.indexOf('|') + 1)) : undefined;
+      target = area !== undefined ? { ...pl.forArea(area), hexes: [{ q: p.q, r: p.r }] } : { name: p.name, media: p.media, hexes: [{ q: p.q, r: p.r }] };
+    }
+    close();
+    pl.planTo(target);
+  };
   const showOnMap = (kind, id) => {
     let hexes = [];
     let name = '';
@@ -1034,7 +1058,9 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
     } catch {}
   }
 
-  const api = { open, close, learn, miss, footer, iconUrl, isOpen: () => view.open, refresh, badge };
+  /** The hexes where an action was found, as { q, r } (the planner heads for the nearest, build .119). */
+  const foundHexes = (actionId) => (journal()?.found[actionId] ?? []).map(jm.parseHex).filter((h) => h !== undefined);
+  const api = { open, close, learn, miss, footer, iconUrl, isOpen: () => view.open, refresh, badge, foundHexes };
   state.journal = api;
   return api;
 }

@@ -80,13 +80,21 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     const reserve = shipModel.isSea(rec) ? S.hullReserve(sh.homeOf(rec), shipModel.reachOf(s)) : 0;
     return { cond: shipModel.condOf(s), reserve };
   };
+  /**
+   * Prices `steps` (walking order) that end on the game hex `dest`, starting from `have` ({ food, fuel, cond? }): the
+   * move's plan as movePlayer would make it, night light included. `cond` stands in for the hull's condition (Plan a
+   * voyage prices later legs with what the earlier ones leave, build .119).
+   */
+  const priceSteps = (have, steps, dest) => {
+    const hull = hullFor(dest);
+    const plan = S.planMove(have, steps, { fmLevel: fmLevel(), reserve: reserveAt(dest), hull: hull === undefined || have.cond === undefined ? hull : { ...hull, cond: have.cond } });
+    return night() ? S.planLight(plan, steps, { fmLevel: fmLevel(), astroLevel: astroLevel() }) : plan;
+  };
   /** { steps, plan } for a game path (destination first), or undefined when provisions are off. */
   const planFor = (path) => {
     if (!enabled() || !Array.isArray(path) || path.length < 2 || state.ship?.stepsOf === undefined) return undefined;
     const steps = state.ship.stepsOf(path);
-    let plan = S.planMove(stores(), steps, { fmLevel: fmLevel(), reserve: reserveAt(path[0]), hull: hullFor(path[0]) });
-    if (night()) plan = S.planLight(plan, steps, { fmLevel: fmLevel(), astroLevel: astroLevel() });
-    return { steps, plan };
+    return { steps, plan: priceSteps(stores(), steps, path[0]) };
   };
   /** After a move landed: the stores keep what the plan left; hungry steps are marked for the XP; the hull wears. */
   const afterMove = (planned) => {
@@ -265,13 +273,14 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   });
 
   // ---- loading -------------------------------------------------------------------------------------------------
-  /** Loading rates where the player stands: { place, food, fuel } or undefined (wild, sea, or provisions off). */
-  const loadingHere = () => {
-    const pos = state.position();
-    const rec = pos === undefined ? undefined : recOf(pos);
+  /** Loading rates on a game hex: { place, food, fuel } or undefined (wild, sea). */
+  const loadingAtHex = (hex) => {
+    const rec = hex === undefined ? undefined : recOf(hex);
     if (rec === undefined || state.terrain === undefined) return undefined;
     return S.loadingAt(rec, state.terrain.neighbours(rec.q, rec.r));
   };
+  /** Loading rates where the player stands: { place, food, fuel } or undefined (wild, sea, or provisions off). */
+  const loadingHere = () => loadingAtHex(state.position());
   let logIds;
   const logs = () => {
     if (logIds === undefined) {
@@ -337,7 +346,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   };
 
   const api = {
-    enabled, stores, planFor, afterMove, refuse, rescue,
+    enabled, stores, planFor, priceSteps, loadingAtHex, afterMove, refuse, rescue,
     /** Offers the trader's share when the stores can't reach safe ground (the panel's Stranded? button). */
     offer() {
       const help = rescue();
