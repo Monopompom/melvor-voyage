@@ -18,7 +18,7 @@
 // Build .72: the ship's hold: bank items stowed aboard and taken back at the ship.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.86';
+export const BUILD = '2026-10-16.89';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 

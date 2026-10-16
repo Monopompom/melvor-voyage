@@ -23,7 +23,7 @@
 .voyage-skillrow img.skill-icon-xs { width: 20px; height: 20px; }
 .voyage-skill-locked { opacity: .4; filter: grayscale(1); outline: 1px solid rgba(220, 53, 69, .6); border-radius: 50%; }
 .voyage-skill-rate { position: relative; display: inline-flex; align-items: flex-end; }
-.voyage-skill-rate small { font-size: .8rem; margin-left: 1px; } /* icon counts 0.8rem minimum; colour from text-warning */
+#voyage-here .voyage-skill-rate small, .voyage-skill-rate small { font-size: .8rem; margin-left: 1px; } /* icon counts 0.8rem minimum; colour from text-warning */
 .voyage-compass-hot { color: #ff5a3c; }
 .voyage-compass-warm { color: #ffb347; }
 .voyage-compass-cold { color: #7fc8ff; }
@@ -78,16 +78,24 @@
 .voyage-stores-icons img { width: 20px; height: 20px; vertical-align: -4px; margin: 0 2px 0 4px; }
 .voyage-stores-icons img:first-child { margin-left: 0; }
 /* The Voyage page's notes (<small>, 80% by default) read too small (user feedback, build .67): close to body size. */
-#voyage-container small { font-size: .9rem; }
+#voyage-container small, #voyage-here small, .voyage-ui small { font-size: .9rem; }
 #voyage-container .voyage-store-item small { font-size: .8rem; }
 /* The "?" next to each Voyage page block title: the block's rules in a popup (the Captain's Journal later). */
 .voyage-help { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; padding: 0 .35rem; margin-left: .2rem;
   color: var(--voyage-help); background: none; border: 0; font-size: 1.1rem; line-height: 1; vertical-align: middle; } /* 32px target */
 .voyage-help:focus { color: #fff; box-shadow: none; }
 @media (hover: hover) { .voyage-help:hover { color: #fff; } }
-.voyage-help-lines > div + div { margin-top: .5rem; }
+/* Help popups (build .87): one grey band per idea, a heading, short paragraphs, tables for numbers. */
+.voyage-help-body .voyage-help-head { color: var(--voyage-label); font-weight: 600; margin-bottom: 4px; }
+.voyage-help-body .voyage-help-p { margin: 0; }
+.voyage-help-body .voyage-help-p + .voyage-help-p, .voyage-help-body .voyage-help-table + .voyage-help-p, .voyage-help-body .voyage-help-p + .voyage-help-table { margin-top: 6px; }
+.voyage-help-body .voyage-help-warn { border-left: 3px solid; } /* an amber edge: read this before you lose something */
+.voyage-help-table { display: grid; grid-template-columns: minmax(0, 1fr) repeat(var(--voyage-help-cols, 1), auto); column-gap: 12px; }
+.voyage-help-th { color: var(--voyage-label); font-size: .9rem; padding-bottom: 2px; border-bottom: 1px solid var(--voyage-rule); }
+.voyage-help-td { padding: 3px 0; border-bottom: 1px solid var(--voyage-rule); overflow-wrap: anywhere; }
+.voyage-help-td img { vertical-align: -3px; }
 /* The hold's stow block in the bank's selected-item panel, laid out like the game's Sell block. */
-.voyage-hold-stow { text-align: left; }
+.voyage-hold-stow { text-align: left; flex: 0 0 100%; max-width: 100%; } /* a full line in a wrapping row */
 .voyage-hold-stow .block-title { display: flex; align-items: center; }
 .voyage-hold-stow-body { padding-bottom: 16px; }
 .voyage-hold-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, .6); }
@@ -149,3 +157,11 @@
   .voyage-legend-toggle, .voyage-panel-toggle, #voyage-here .voyage-row-btn, .voyage-fight-link, .voyage-help, .voyage-row > .btn { min-height: 40px; }
   .voyage-hold-presets .btn { min-height: 40px; }
 }
+
+/* Mod Settings window (user feedback, 16 Oct 2026: "looks small"). The game opens every mod's settings with
+   font-size-sm and puts each hint in <small>, so hints came out near 11px. Scoped to the window that holds this mod's
+   settings (inputs are id'd "voyage:name"): labels at body size, hints 0.9rem, dropdowns 1rem. */
+.mm__container:has([id^="voyage:"]) { font-size: 1rem !important; }
+.mm__container:has([id^="voyage:"]) label > small, .mm__container:has([id^="voyage:"]) small.d-block { font-size: .9rem !important; line-height: 1.45; }
+.mm__container:has([id^="voyage:"]) .dropdown-toggle, .mm__container:has([id^="voyage:"]) .dropdown-menu, .mm__container:has([id^="voyage:"]) .btn { font-size: 1rem !important; }
+.mm__container:has([id^="voyage:"]) .content-heading { font-size: 1.25rem; }

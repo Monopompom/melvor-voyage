@@ -250,47 +250,177 @@ export function install(ctx, { state, model, shipModel, storesModel, log }) {
   /**
    * The rules behind each block (user feedback, build .68: the page had too much text). Shown in a popup from the
    * block title's "?"; they become the Captain's Journal's guide pages in phase 4.
+   *
+   * Help layout (build .87 user feedback): one grey band per idea, each with a short heading;
+   * one sentence per paragraph; numbers in tables, not in sentences; the player's own skill bonuses together in a
+   * "Your skills" band with the skill icon and the bonus in green. A section is { head?, warn?, body: [...] }; a body
+   * item is a paragraph string, { text, cls } for a coloured one, or { table: { cols, rows } }, where a row is
+   * { cells: [label, ...values], cls?: [per-value class], icon? }.
    */
-  const helpLines = (topic) => {
+  const skillMedia = (id) => { try { return game.skills.getObjectByID(id)?.media; } catch { return undefined; } };
+  const skillName = (id, fallback) => { try { return game.skills.getObjectByID(id)?.name ?? fallback; } catch { return fallback; } };
+  const terrainList = (classes) => classes.map((c) => t(`MOD_VOY_TERRAIN_${c}`)).join(', ');
+
+  /** Terrains grouped by what a hex costs, land first (cheapest first), then the sea. */
+  const costRows = () => {
+    const groups = new Map();
+    for (const [cls, c] of Object.entries(storesModel.HEX_COST)) {
+      const key = `${c.rations}|${c.fuel}`;
+      if (!groups.has(key)) groups.set(key, { ...c, classes: [] });
+      groups.get(key).classes.push(cls);
+    }
+    const sea = (g) => g.classes.every((c) => c === 'water' || c === 'shoal');
+    return [...groups.values()]
+      .sort((a, b) => (sea(a) - sea(b)) || (a.fuel - b.fuel) || (a.rations - b.rations))
+      .map((g) => {
+        const heavy = g.rations > 1 || g.fuel > 1;
+        return {
+          cells: [sea(g) ? t('MOD_VOY_HELP_AT_SEA') : terrainList(g.classes), `${qty(g.rations * storesModel.RATION_HP)} HP`, g.fuel > 0 ? `${g.fuel}` : t('MOD_VOY_HELP_NONE')],
+          cls: heavy ? ['text-warning', 'text-warning'] : ['', ''],
+        };
+      });
+  };
+  const HELP_PLACE_KEY = { port: 'MOD_VOY_HELP_PLACE_PORT', town: 'MOD_VOY_HELP_PLACE_TOWN', market: 'MOD_VOY_HELP_PLACE_MARKET', farm: 'MOD_VOY_HELP_PLACE_FARM' };
+  const loadRows = () => [
+    ...storesModel.LOAD_PLACES.map((p) => ({
+      cells: [t(HELP_PLACE_KEY[p.id] ?? 'MOD_VOY_HELP_PLACE_FARM'), pct(p.food), pct(p.fuel)],
+      cls: [p.food >= 1 ? 'text-success' : '', p.fuel >= 1 ? 'text-success' : ''],
+    })),
+    { cells: [t('MOD_VOY_HELP_PLACE_WILD'), t('MOD_VOY_HELP_NONE'), t('MOD_VOY_HELP_NONE')], cls: ['text-danger', 'text-danger'] },
+  ];
+  const skillRow = (id, fallback, level, text) => ({
+    icon: skillMedia(id),
+    cells: [t('MOD_VOY_HELP_SKILL_LEVEL', { skill: skillName(id, fallback), level: `${level}` }), text],
+    cls: ['text-success'],
+  });
+
+  const helpSections = (topic) => {
     const R = shipModel.REPAIR;
     const st = state.stores;
+    const xpCols = [t('MOD_VOY_HELP_COL_HEX'), t('MOD_VOY_HELP_COL_XP')];
     if (topic === 'ship') {
       const s = state.ship?.ship();
       const hull = shipModel.HULLS[s?.hull ?? 'dinghy'];
       return [
-        t(shipModel.hullBlurbKey(hull.id)),
-        t('MOD_VOY_PAGE_HULL_NOTE', { worn: `${storesModel.WORN}` }),
-        t('MOD_VOY_PAGE_HULL_COST', { step: `${R.step}`, logs: `${R.logs}`, pitch: `${R.pitch}` }),
-        t('MOD_VOY_PAGE_HULL_PITCH', { chance: `${shipModel.pitchChance(1)}` }),
+        { body: [t(shipModel.hullBlurbKey(hull.id))] },
+        { head: t('MOD_VOY_HELP_HEAD_WEAR'), body: [
+          { table: { cols: [t('MOD_VOY_HELP_COL_HEX'), t('MOD_VOY_HELP_COL_WEAR')], rows: [
+            { cells: [t('MOD_VOY_HELP_SEA_HEX'), `${storesModel.WEAR.near}%`] },
+            { cells: [t('MOD_VOY_HELP_DEEP_HEX'), `${storesModel.WEAR.deep}%`], cls: ['text-warning'] },
+          ] } },
+          { text: t('MOD_VOY_HELP_WORN', { worn: `${storesModel.WORN}` }), cls: 'text-warning' },
+          { text: t('MOD_VOY_HELP_WORN_THROUGH'), cls: 'text-danger' },
+        ] },
+        { head: t('MOD_VOY_HELP_HEAD_REPAIR'), body: [
+          t('MOD_VOY_HELP_REPAIR', { step: `${R.step}`, logs: `${R.logs}`, pitch: `${R.pitch}` }),
+          t('MOD_VOY_HELP_REPAIR_LOGS'),
+          t('MOD_VOY_HELP_PITCH', { chance: `${shipModel.pitchChance(1)}` }),
+        ] },
       ];
     }
-    if (topic === 'hold') return [t('MOD_VOY_HELP_HOLD', { slots: `${shipModel.HOLD_SLOTS.dinghy}` })];
+    if (topic === 'hold') {
+      return [
+        { head: t('MOD_VOY_HELP_HEAD_SLOTS'), body: [
+          t('MOD_VOY_HELP_HOLD_SLOTS'),
+          { table: { cols: [t('MOD_VOY_HELP_COL_SHIP'), t('MOD_VOY_HELP_COL_SLOTS')], rows: [
+            { cells: [t('MOD_VOY_HULL_NAME_DINGHY'), `${shipModel.HOLD_SLOTS.dinghy}`] },
+            { cells: [t('MOD_VOY_HELP_HOLD_PER_LEVEL'), '+1'], cls: ['text-success'] },
+          ] } },
+        ] },
+        { head: t('MOD_VOY_HELP_HEAD_STOW'), body: [t('MOD_VOY_HELP_HOLD_WHERE'), t('MOD_VOY_HELP_HOLD_SELL')] },
+        { head: t('MOD_VOY_HELP_HEAD_REMOVING'), warn: true, body: [{ text: t('MOD_VOY_HELP_HOLD_SAVE'), cls: 'text-warning' }] },
+      ];
+    }
     if (topic === 'stores') {
-      const lines = [t('MOD_VOY_PAGE_STORES_COSTS', { hp: `${storesModel.RATION_HP}` })];
+      const out = [{ head: t('MOD_VOY_HELP_HEAD_COSTS'), body: [
+        { table: { cols: [t('MOD_VOY_HELP_COL_TERRAIN'), t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_HELP_COL_FUEL')], rows: costRows() } },
+        t('MOD_VOY_HELP_FUEL_WHY'),
+      ] }];
       if (st !== undefined) {
         const cap = st.capacity();
-        lines.push(t('MOD_VOY_PAGE_STORES_LIMIT', { food: st.hp(cap.food), fuel: st.fuelText(cap.fuel), level: `${skill()?.level ?? 1}` }));
-        lines.push(t('MOD_VOY_PAGE_STORES_FIREMAKING', { level: `${st.fmLevel()}`, cut: `${cutOf(storesModel.fuelFactor(st.fmLevel()))}` }));
+        out.push({ head: t('MOD_VOY_HELP_HEAD_ROOM'), body: [
+          { table: { cols: [t('MOD_VOY_HELP_COL_STORE'), t('MOD_VOY_HELP_COL_ROOM')], rows: [
+            { cells: [t('MOD_VOY_HELP_COL_FOOD'), `${st.hp(cap.food)} HP`] },
+            { cells: [t('MOD_VOY_HELP_COL_FUEL'), st.fuelText(cap.fuel)] },
+          ] } },
+          t('MOD_VOY_HELP_ROOM_LEVEL', { level: `${skill()?.level ?? 1}`, food: `${storesModel.CAPACITY.foodPerLevel}`, fuel: `${storesModel.CAPACITY.fuelPerLevel}` }),
+        ] });
       }
-      lines.push(t('MOD_VOY_HELP_LOADING'));
-      if (st?.timeOfDay?.() === undefined) lines.push(t('MOD_VOY_PAGE_NIGHT_OFF'));
+      out.push({ head: t('MOD_VOY_HELP_HEAD_LOADING'), body: [
+        t('MOD_VOY_HELP_LOAD_WHERE'),
+        { table: { cols: [t('MOD_VOY_HELP_COL_PLACE'), t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_HELP_COL_FUEL')], rows: loadRows() } },
+      ] });
+      const night = st?.timeOfDay?.() !== undefined;
+      if (!night) out.push({ head: t('MOD_VOY_HELP_HEAD_NIGHT'), body: [t('MOD_VOY_PAGE_NIGHT_OFF')] });
       else {
         const hours = storesModel.nightHours(st.shift());
-        lines.push(t('MOD_VOY_PAGE_NIGHT', { start: clock(hours.start), end: clock(hours.end), land: `${storesModel.LIGHT.land}`, sea: `${storesModel.LIGHT.sea}`, bonus: `${Math.round(model.STAR_XP * 100)}` }));
-        lines.push(t('MOD_VOY_PAGE_NIGHT_ASTROLOGY', { level: `${st.astroLevel()}`, cut: `${cutOf(storesModel.lightFactor(st.astroLevel()))}` }));
+        out.push({ head: t('MOD_VOY_HELP_HEAD_NIGHT'), body: [
+          t('MOD_VOY_HELP_NIGHT_HOURS', { start: clock(hours.start), end: clock(hours.end) }),
+          t('MOD_VOY_HELP_NIGHT_LIGHT'),
+          { table: { cols: [t('MOD_VOY_HELP_COL_HEX'), t('MOD_VOY_HELP_COL_LIGHT')], rows: [
+            { cells: [t('MOD_VOY_HELP_LAND_HEX'), `${storesModel.LIGHT.land}`] },
+            { cells: [t('MOD_VOY_HELP_SEA_HEX'), `${storesModel.LIGHT.sea}`] },
+          ] } },
+          { text: t('MOD_VOY_HELP_NIGHT_XP', { bonus: `${Math.round(model.STAR_XP * 100)}` }), cls: 'text-success' },
+        ] });
       }
-      return lines;
+      if (st !== undefined) {
+        const rows = [skillRow('melvorD:Firemaking', 'Firemaking', st.fmLevel(), t('MOD_VOY_HELP_BUFF_FUEL', { cut: `${cutOf(storesModel.fuelFactor(st.fmLevel()))}` }))];
+        if (night) rows.push(skillRow('melvorD:Astrology', 'Astrology', st.astroLevel(), t('MOD_VOY_HELP_BUFF_LIGHT', { cut: `${cutOf(storesModel.lightFactor(st.astroLevel()))}` })));
+        out.push({ head: t('MOD_VOY_HELP_HEAD_SKILLS'), body: [
+          { table: { cols: [t('MOD_VOY_HELP_COL_SKILL'), t('MOD_VOY_HELP_COL_BONUS')], rows } },
+          t('MOD_VOY_HELP_SKILLS_PER_LEVEL', { cut: `${Math.round(storesModel.FIREMAKING_CUT * 1000) / 10}` }),
+        ] });
+      }
+      return out;
     }
-    if (topic === 'travels') return [t('MOD_VOY_PAGE_XP_NOTE', { land: `${model.XP_PER_HEX.land}`, water: `${model.XP_PER_HEX.water}`, bonus: `${Math.round(model.STAR_XP * 100)}` })];
-    if (topic === 'compass') return [t('MOD_VOY_HELP_COMPASS')];
+    if (topic === 'travels') {
+      return [
+        { head: t('MOD_VOY_HELP_HEAD_XP'), body: [
+          { table: { cols: xpCols, rows: [
+            { cells: [t('MOD_VOY_HELP_LAND_HEX'), `${model.XP_PER_HEX.land}`] },
+            { cells: [t('MOD_VOY_HELP_WATER_HEX'), `${model.XP_PER_HEX.water}`] },
+            { cells: [t('MOD_VOY_HELP_LIT_HEX'), `+${Math.round(model.STAR_XP * 100)}%`], cls: ['text-success'] },
+          ] } },
+          t('MOD_VOY_HELP_XP_FAST_TRAVEL'),
+        ] },
+        { head: t('MOD_VOY_HELP_HEAD_NO_XP'), body: [
+          { text: t('MOD_VOY_HELP_NO_XP_HUNGRY'), cls: 'text-warning' },
+          { text: t('MOD_VOY_HELP_NO_XP_REACH'), cls: 'text-warning' },
+        ] },
+      ];
+    }
+    if (topic === 'compass') {
+      return [
+        { body: [t('MOD_VOY_HELP_COMPASS_BANK'), t('MOD_VOY_HELP_COMPASS_POINTS')] },
+        { head: t('MOD_VOY_HELP_HEAD_COMPASS_SEE'), body: [t('MOD_VOY_HELP_COMPASS_REFUSED'), t('MOD_VOY_HELP_COMPASS_PANEL')] },
+      ];
+    }
     return [];
   };
+
+  const helpTable = ({ cols, rows }) => {
+    const head = cols.map((c, i) => `<div class="voyage-help-th${i > 0 ? ' text-right' : ''}">${esc(c)}</div>`).join('');
+    const body = rows.map((r) => r.cells.map((c, i) => {
+      if (i === 0) return `<div class="voyage-help-td">${r.icon ? `<img class="skill-icon-xs mr-1" src="${r.icon}" alt="">` : ''}${esc(c)}</div>`;
+      return `<div class="voyage-help-td text-right font-w600 ${r.cls?.[i - 1] ?? ''}">${esc(c)}</div>`;
+    }).join('')).join('');
+    return `<div class="voyage-help-table" style="--voyage-help-cols:${cols.length - 1}">${head}${body}</div>`;
+  };
+  const helpItem = (item) => {
+    if (typeof item === 'string') return `<p class="voyage-help-p">${esc(item)}</p>`;
+    if (item.table !== undefined) return helpTable(item.table);
+    return `<p class="voyage-help-p ${item.cls ?? ''}">${esc(item.text)}</p>`;
+  };
+  const helpHtml = (sections) => sections.map((s) => `<div class="voyage-section voyage-help-section${s.warn ? ' voyage-help-warn border-warning' : ''}">`
+    + `${s.head ? `<div class="voyage-help-head">${esc(s.head)}</div>` : ''}${s.body.map(helpItem).join('')}</div>`).join('');
+
   const TITLE_KEY = { ship: 'MOD_VOY_PAGE_SHIP_TITLE', hold: 'MOD_VOY_HOLD_LABEL', stores: 'MOD_VOY_PAGE_STORES_TITLE', travels: 'MOD_VOY_PAGE_TRAVELS_TITLE', compass: 'MOD_VOY_PAGE_COMPASS_TITLE' };
   const showHelp = (topic) => {
     try {
       SwalLocale.fire({
         title: t(TITLE_KEY[topic]),
-        html: `<div class="text-left voyage-help-lines">${helpLines(topic).map((l) => `<div>${l}</div>`).join('')}</div>`,
+        html: `<div class="text-left voyage-help-body">${helpHtml(helpSections(topic))}</div>`,
         confirmButtonText: t('MOD_VOY_BUTTON_GOT_IT'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       });

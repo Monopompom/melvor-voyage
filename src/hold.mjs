@@ -66,6 +66,21 @@ export function install(ctx, { state, shipModel, log }) {
   // Built like the game's Sell block right above it (user feedback build .72): the same block, header band
   // and control classes, copied from the live Sell elements so it matches whatever the game's theme draws; an amount
   // box with blue presets in one row, then the green main action, centred.
+  /**
+   * Where the stow block goes so it lands under Sell, not beside it (user report, build .86: it sat to the right of
+   * Sell and ran off the panel on every screen). Sell shares a flex row that doesn't wrap, so climb out of such rows
+   * and go after the outermost one.
+   */
+  const belowOf = (sell) => {
+    let el = sell;
+    for (let i = 0; i < 4 && el.parentElement !== null; i++) {
+      const css = getComputedStyle(el.parentElement);
+      const row = css.display.includes('flex') && !css.flexDirection.startsWith('column') && css.flexWrap === 'nowrap';
+      if (!row) break;
+      el = el.parentElement;
+    }
+    return el;
+  };
   ctx.patch(BankSelectedItemMenuElement, 'setItem').after(function (_r, bankItem) {
     try {
       let box = this.querySelector('.voyage-hold-stow');
@@ -74,9 +89,11 @@ export function install(ctx, { state, shipModel, log }) {
       const sell = this.sellItemButton?.closest('.block');
       if (box === null) {
         box = document.createElement('div');
-        if (sell) sell.after(box); else this.selectedItemContainer?.append(box);
+        if (sell) belowOf(sell).after(box); else this.selectedItemContainer?.append(box);
       }
-      box.className = `${sell?.className ?? 'block block-rounded bg-combat-inner-dark'} voyage-hold-stow voyage-ui`;
+      // Sell's look without its grid column: the stow block is always a full line of its own.
+      const look = (sell?.className ?? 'block block-rounded bg-combat-inner-dark').split(/\s+/).filter((c) => !/^col(-|$)/.test(c)).join(' ');
+      box.className = `${look} voyage-hold-stow voyage-ui`;
       box.classList.remove('d-none');
       const headClass = sell?.querySelector('.block-header')?.className ?? 'block-header block-header-default';
       const inputClass = this.customSellQuantity?.className ?? 'form-control';
