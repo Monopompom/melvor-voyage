@@ -49,12 +49,31 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
         b.setAttribute('aria-label', t('MOD_VOY_HELP_BUTTON'));
         b.onclick = () => { if (state.journal !== undefined) state.journal.open({ chapter: b.dataset.voyageHelp }); else showHelp(b.dataset.voyageHelp); };
       });
+      // The status row's second line (compass and travels, build .146) folds; the time stays. Open or closed is a
+      // per-browser choice.
+      const toggle = part('status-toggle');
+      const more = part('status-more');
+      if (toggle !== null && more !== null) {
+        const STATUS_KEY = 'voyage-status-open';
+        const show = (open) => {
+          toggle.setAttribute('aria-expanded', `${open}`);
+          toggle.querySelector('i')?.classList.replace(open ? 'fa-caret-right' : 'fa-caret-down', open ? 'fa-caret-down' : 'fa-caret-right');
+          more.classList.toggle('d-none', !open);
+        };
+        show((() => { try { return localStorage.getItem(STATUS_KEY) !== '0'; } catch { return true; } })());
+        toggle.onclick = () => {
+          const open = toggle.getAttribute('aria-expanded') !== 'true';
+          show(open);
+          try { localStorage.setItem(STATUS_KEY, open ? '1' : '0'); } catch {}
+        };
+      }
       // Delegated listeners: the blocks are re-rendered as innerHTML.
       part('ship')?.addEventListener('click', (e) => {
         const target = e.target instanceof Element ? e.target.closest('[data-voyage-action]') : null;
         if (target === null) return;
         if (target.dataset.voyageAction === 'build') { if (state.ship?.build()) render(); }
         else if (target.dataset.voyageAction === 'repair') { if (state.ship?.repair()) render(); }
+        else if (target.dataset.voyageAction === 'upgrade') { if (state.ship?.upgrade()) render(); }
         else if (target.dataset.voyageAction === 'find') showMap(true);
       });
       // Plan a voyage (build .119): src/planner.mjs draws and handles its block.
@@ -182,7 +201,31 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const off = !api.enabled() ? `<div class="text-warning">${t('MOD_VOY_PAGE_RULES_OFF')}</div>` : '';
     const find = api.aboard() ? '' : `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="find">${t('MOD_VOY_PAGE_FIND_SHIP')}</button>`;
     return section(`<div class="voyage-row"><div class="d-flex align-items-center">${icon(hull)}<div><div><b>${esc(t(shipModel.hullNameKey(hull.id)))}</b>: ${where}</div>${off}</div></div>${find}</div>`) +
-      hullHtml();
+      hullHtml() + upgradeHtml();
+  };
+
+  /**
+   * The next hull (phase 4, build .142): shown from the start with the reason it can't be built yet, so the longboat
+   * is a goal before it is a button.
+   */
+  const upgradeHtml = () => {
+    const info = state.ship?.upgradeInfo?.();
+    if (info === undefined) return '';
+    const { hull, upgrade, blocker } = info;
+    const word = t(shipModel.tierNameKey(hull.tier));
+    const costs = [costIcon(game.gp.media, upgrade.gp, game.gp.amount, game.gp.name)];
+    for (const { id, quantity } of upgrade.items) {
+      const item = game.items.getObjectByID(id);
+      if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name));
+    }
+    const old = state.ship.hullName(state.ship.ship());
+    return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
+        `<div><div><b>${esc(t('MOD_VOY_PAGE_UPGRADE_COST', { hull: word }))}</b></div><small class="text-muted">${esc(t(shipModel.hullBlurbKey(hull.id)))}</small></div></div>` +
+      `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` +
+      (blocker !== undefined
+        ? `<div class="text-warning mt-2">${esc(blocker)}</div>`
+        : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="upgrade">${esc(t('MOD_VOY_PAGE_UPGRADE_BUTTON', { hull: word }))}</button></div>` +
+          `<small class="d-block text-center text-muted mt-1">${esc(t('MOD_VOY_PAGE_UPGRADE_HINT', { old }))}</small>`));
   };
 
   /**
@@ -269,6 +312,31 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     }
     return items;
   };
+  /**
+   * The Travels stats (build .146): read from what the save and the map already keep, so
+   * nothing new is saved. A row whose source is missing is left out.
+   */
+  /** Hexes travelled below which each log line shows; the last line is for beyond the last tier. */
+  const TRAVEL_TIERS = [50, 500, 2000, 10000];
+  const TRAVEL_LINES = ['MOD_VOY_PAGE_TRAVEL_LINE_1', 'MOD_VOY_PAGE_TRAVEL_LINE_2', 'MOD_VOY_PAGE_TRAVEL_LINE_3', 'MOD_VOY_PAGE_TRAVEL_LINE_4', 'MOD_VOY_PAGE_TRAVEL_LINE_5'];
+  const travelStats = (rec) => {
+    const j = rec.journal ?? {};
+    const rows = [];
+    const row = (key, value) => rows.push(`<div class="voyage-stat"><span>${esc(t(key))}</span><span class="font-w600">${value}</span></div>`);
+    row('MOD_VOY_PAGE_STAT_PLACES', numberWithCommas(Object.keys(j.places ?? {}).length));
+    row('MOD_VOY_PAGE_STAT_SKILL_HEXES', numberWithCommas(new Set(Object.values(j.found ?? {}).flat()).size));
+    row('MOD_VOY_PAGE_STAT_CHARTS', numberWithCommas((j.charted ?? []).length));
+    try {
+      const map = game.cartography.activeMap;
+      const all = map?.pointsOfInterest?.size;
+      if (map !== undefined && all !== undefined) row('MOD_VOY_PAGE_STAT_DISCOVERIES', t('MOD_VOY_PAGE_STAT_OF', { n: numberWithCommas([...map.discoveredPOIs].length), all: numberWithCommas(all) }));
+    } catch {}
+    // A line from the log that grows with the distance (the user, build .148: "add some love").
+    const total = rec.landHexes + rec.waterHexes;
+    const tier = TRAVEL_TIERS.findIndex((n) => total < n);
+    return `<div class="voyage-stats">${rows.join('')}</div>` +
+      `<div class="voyage-travel-line">${esc(t(TRAVEL_LINES[tier === -1 ? TRAVEL_TIERS.length : tier]))}</div>`;
+  };
   /** Rounded percentage of a cut: 0.245 -> 24.5. */
   const cutOf = (factor) => Math.round((1 - factor) * 1000) / 10;
   const clock = (h) => `${String(h).padStart(2, '0')}:00`;
@@ -349,7 +417,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
         { head: t('MOD_VOY_HELP_HEAD_SLOTS'), body: [
           t('MOD_VOY_HELP_HOLD_SLOTS'),
           { table: { cols: [t('MOD_VOY_HELP_COL_SHIP'), t('MOD_VOY_HELP_COL_SLOTS')], rows: [
-            { cells: [t('MOD_VOY_HULL_NAME_DINGHY'), `${shipModel.HOLD_SLOTS.dinghy}`] },
+            ...Object.entries(shipModel.HOLD_SLOTS).map(([id, n]) => ({ cells: [t(shipModel.hullNameKey(id)), `${n}`] })),
             // Build .134: a row of six crates at each of HOLD_ROW_LEVELS.
             ...shipModel.HOLD_ROW_LEVELS.map((level) => ({ cells: [t('MOD_VOY_HELP_HOLD_AT_LEVEL', { level: `${level}` }), `+${shipModel.HOLD_ROW}`], cls: ['text-success'] })),
           ] } },
@@ -535,7 +603,9 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     if (travels !== null) {
       const total = rec.landHexes + rec.waterHexes;
       travels.innerHTML =
-        `<div>${t('MOD_VOY_PAGE_HEXES_TRAVELLED', { total: numberWithCommas(total) })} <small class="text-muted">${t('MOD_VOY_PAGE_HEXES_SPLIT', { land: numberWithCommas(rec.landHexes), water: numberWithCommas(rec.waterHexes) })}</small></div>` +
+        // One grey band, like the compass stages beside it (the user, build .146: "and grayish box").
+        section(`<div>${t('MOD_VOY_PAGE_HEXES_TRAVELLED', { total: numberWithCommas(total) })} <small class="text-muted">${t('MOD_VOY_PAGE_HEXES_SPLIT', { land: numberWithCommas(rec.landHexes), water: numberWithCommas(rec.waterHexes) })}</small></div>` +
+          travelStats(rec)) +
         (s.futureRaw !== undefined ? `<div class="text-warning">${t('MOD_VOY_PAGE_FUTURE_SAVE')}</div>` : '');
     }
 
@@ -551,9 +621,10 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       });
       const owned = state.compass?.owned?.() === true;
       const note = owned
-        ? `<small class="text-muted">${t('MOD_VOY_PAGE_COMPASS_OWNED')}</small>`
-        : `<div class="text-warning">${t('MOD_VOY_PAGE_COMPASS_MISSING')}</div>`;
-      compass.innerHTML = section(`<div class="voyage-compass-stages">${rows.join('')}</div>`) + `<div class="mt-2">${note}</div>`;
+        ? `<span class="text-muted">${t('MOD_VOY_PAGE_COMPASS_OWNED')}</span>`
+        : `<span class="text-warning">${t('MOD_VOY_PAGE_COMPASS_MISSING')}</span>`;
+      // The note in the same grey band, a line below the stages (the user, build .148).
+      compass.innerHTML = section(`<div class="voyage-compass-stages">${rows.join('')}</div><div class="voyage-compass-note">${note}</div>`);
     }
   };
 

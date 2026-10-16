@@ -28,6 +28,11 @@ test('compass stages and milestones match en.json', () => {
     assert.equal(en[`MOD_VOY_PAGE_COMPASS_STAGE_${i + 1}`], stage.text, `stage ${i + 1}`);
     assert.equal(en[`MOD_VOY_MILESTONE_${i + 1}`], milestones.find((m) => m.level === stage.level)?.name, `milestone ${i + 1}`);
   });
+  // Upgrades: setup.mjs finds their milestone by the English name, at the upgrade's level.
+  for (const [id, u] of Object.entries(ship.UPGRADES)) {
+    assert.ok(milestones.some((m) => m.level === u.level && m.name === u.milestone), id);
+    assert.equal(en[`MOD_VOY_MILESTONE_${id.toUpperCase()}`], u.milestone, id);
+  }
 });
 
 test('compass item and shop category names match en.json', () => {

@@ -56,8 +56,15 @@ export const JOURNAL_UNREAD_MAX = 300;
 /** What an unread mark says: a new entry or page, or one that changed since it was last read. */
 export const UNREAD_KINDS = ['new', 'more'];
 
+/**
+ * The Old Man's present for finding his golbin (build .143, the user's ask): searching Places for "goblin" the first
+ * time opens his letter, with confetti, and pays this once per character (journal.golbin). A longboat's worth of coin
+ * and tar, with change.
+ */
+export const GOLBIN_GIFT = { gp: 50000, items: [{ id: 'voyage:Pitch', quantity: 25 }] };
+
 export function emptyJournal() {
-  return { found: {}, missed: {}, places: {}, guides: [], charted: [], freeUsed: 0, unread: {} };
+  return { found: {}, missed: {}, places: {}, guides: [], charted: [], freeUsed: 0, unread: {}, golbin: false };
 }
 
 /**
@@ -157,6 +164,8 @@ export function cleanJournal(j) {
     charted: (Array.isArray(src.charted) ? src.charted : []).filter((id, i, all) => isId(id) && all.indexOf(id) === i),
     freeUsed: Math.min(FREE_CHART_LEVELS.length, count(src.freeUsed)),
     unread: cleanUnread(src.unread),
+    // The golbin's purse was given (GOLBIN_GIFT); a save without it never had it.
+    golbin: src.golbin === true,
   };
 }
 
@@ -164,7 +173,7 @@ export function cleanJournal(j) {
 export const FREE_UNLOCKS = ['cartography', 'voyage'];
 
 /** Hull ids a save may name. Kept here so the model stays free of imports; ship-model.mjs HULLS must match. */
-export const HULL_IDS = ['dinghy'];
+export const HULL_IDS = ['dinghy', 'longboat'];
 
 function clean(rec) {
   return {

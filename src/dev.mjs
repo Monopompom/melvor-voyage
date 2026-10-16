@@ -282,6 +282,17 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       }
       return JSON.parse(JSON.stringify(s.record.journal));
     },
+    /**
+     * The Old Man's letter (build .143) over the open journal, without paying anything. `voyageDev.golbin('reset')`
+     * makes the next "goblin" search pay the purse again.
+     */
+    golbin(what) {
+      const j = state.voyageSkill?.()?.record?.journal;
+      if (what === 'reset') { if (j !== undefined) j.golbin = false; return 'the next "goblin" search pays again'; }
+      if (!state.journal?.isOpen()) state.journal?.open({ tab: 'places' });
+      state.journal?.golbinLetter();
+      return { given: j?.golbin === true };
+    },
     /** The first-load dinghy notice: 'overseas', 'sea' or 'far'. */
     dinghyNotice(kind = 'overseas') { if (state.ship?.demoNotice === undefined) return 'ship module not loaded'; state.ship.demoNotice(kind); return 'shown'; },
     /** The moored-dinghy marker: textures, ship record, sprite state. `voyageDev.marker(true)` redraws it first. */

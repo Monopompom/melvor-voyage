@@ -487,7 +487,11 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
     let body = '';
     try { body = id === 'crafts' ? craftsTable() : jm.JOURNAL_WRITTEN[id] !== undefined ? writtenBody(id) : bookSections(state.helpSections(id)); } catch (e) { log(`journal chapter ${id} failed`, e); }
     const noteHtml = jm.JOURNAL_NOTES.includes(id) ? note(t(`MOD_VOY_JOURNAL_CH_${key}_NOTE`)) : '';
-    return '<div class="vj-page-body">' + runningHead(t('MOD_VOY_JOURNAL_TITLE'), t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))
+    // Pencilled behind the print of the Lands chapter, slanted and faint (build .145, the user's ask): the warning
+    // that sends people looking for goblins, and so to the golbin's purse.
+    const scrawl = id !== 'lands' ? '' : '<div class="vj-scrawl" aria-hidden="true">'
+      + `<span class="vj-scrawl-line">${esc(t('MOD_VOY_JOURNAL_GOBLIN_SCRAWL'))}</span><span class="vj-scrawl-line vj-scrawl-big">${esc(t('MOD_VOY_JOURNAL_GOBLIN_SCRAWL_WHAT'))}</span></div>`;
+    return `<div class="vj-page-body${scrawl ? ' vj-has-scrawl' : ''}">` + scrawl + runningHead(t('MOD_VOY_JOURNAL_TITLE'), t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))
       + `<h2 class="vj-h1">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))}</h2>`
       + dropCap(t(`MOD_VOY_JOURNAL_CH_${key}_INTRO`)) + withNote(id, body + (id === 'travels' ? levelsLedger() : '') + aside(id), noteHtml) + '</div>'
       + `<div class="vj-foot${turn ? ' vj-foot-split' : ''}">${left ? turn : ''}<span class="vj-folio">${folio}</span>${left ? '' : turn}</div>`;
@@ -761,9 +765,74 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
   const golbinUrl = ctx.getResourceUrl('assets/golbin.png');
   const golbin = () => `<figure class="vj-figure vj-golbin"><img src="${golbinUrl}" alt="${esc(t('MOD_VOY_JOURNAL_GOLBIN_ALT'))}"></figure>`
     + `<p class="vj-p vj-italic">${esc(t('MOD_VOY_JOURNAL_GOLBIN_NOTE'))}</p>`;
+  const isGoblinQuery = (q) => /^goblins?$/.test(jm.fold(q ?? ''));
+
+  // The golbin's purse (build .143, the user's ask): the first "goblin" search opens a letter from the Old Man over
+  // the book, with the game's own fireworks (showFireworks, as for a level 99; the user: "there should be in game
+  // confetti trigger"), and pays model.GOLBIN_GIFT once per character (journal.golbin). Forced, so they stay up while
+  // the letter is open (unforced ones go when no Swal is open), and removed with it.
+  let giftEl;
+  const fireworks = (on) => {
+    try {
+      if (!on) { if (typeof removePyro === 'function') removePyro(); return; }
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+      if (typeof showFireworks === 'function') showFireworks(true);
+    } catch (e) { log('fireworks failed', e); }
+  };
+  const closeLetter = () => {
+    if (giftEl === undefined) return;
+    giftEl.remove();
+    giftEl = undefined;
+    fireworks(false);
+    root?.querySelector('#vj-place-search')?.focus();
+  };
+  /** The Old Man's letter over the book (voyageDev.golbin shows it again without paying anything). */
+  const showLetter = () => {
+    if (root === undefined || !view.open) return;
+    closeLetter();
+    const g = model.GOLBIN_GIFT;
+    const present = [`<span class="vj-present-item"><img src="${game.gp.media}" alt="">${esc(numberWithCommas(g.gp))} ${esc(game.gp.name)}</span>`];
+    for (const { id, quantity } of g.items) {
+      const item = game.items.getObjectByID(id);
+      if (item !== undefined) present.push(`<span class="vj-present-item"><img src="${item.media}" alt="">${esc(numberWithCommas(quantity))} ${esc(item.name)}</span>`);
+    }
+    giftEl = document.createElement('div');
+    giftEl.className = 'vj-gift';
+    giftEl.setAttribute('role', 'dialog');
+    giftEl.setAttribute('aria-modal', 'true');
+    giftEl.setAttribute('aria-labelledby', 'vj-gift-title');
+    giftEl.innerHTML = '<div class="vj-letter">'
+      + `<div class="vj-aside-label">${esc(t('MOD_VOY_GOLBIN_GIFT_LABEL'))}</div>`
+      + `<h2 class="vj-h1" id="vj-gift-title">${esc(t('MOD_VOY_GOLBIN_GIFT_TITLE'))}</h2>`
+      + t('MOD_VOY_GOLBIN_GIFT_BODY').split('\n').map((line) => `<p class="vj-p">${esc(line)}</p>`).join('')
+      + `<p class="vj-sign">${esc(t('MOD_VOY_GOLBIN_GIFT_SIGN'))}</p>`
+      + `<div class="vj-present"><div class="vj-group">${esc(t('MOD_VOY_GOLBIN_GIFT_PRESENT'))}</div><div class="vj-present-items">${present.join('')}</div></div>`
+      + `<div class="vj-gift-foot"><button type="button" class="btn btn-success vj-gift-ok">${esc(t('MOD_VOY_GOLBIN_GIFT_THANKS'))}</button></div>`
+      + '</div>';
+    root.append(giftEl);
+    giftEl.addEventListener('click', (e) => {
+      e.stopPropagation(); // not the backdrop's "click outside closes the book"
+      if (e.target === giftEl || (e.target instanceof Element && e.target.closest('.vj-gift-ok'))) closeLetter();
+    });
+    giftEl.querySelector('.vj-gift-ok')?.focus();
+    fireworks(true);
+  };
+  /** Pays the golbin's purse the first time, then shows the letter. */
+  const golbinGift = () => {
+    const j = journal();
+    if (j === undefined || j.golbin === true) return;
+    j.golbin = true;
+    const g = model.GOLBIN_GIFT;
+    try { game.gp.add(g.gp); } catch (e) { log('golbin gift GP failed', e); }
+    for (const { id, quantity } of g.items) {
+      try { const item = game.items.getObjectByID(id); if (item !== undefined) game.bank.addItem(item, quantity, false, true, true, false, 'Voyage'); } catch (e) { log('golbin gift item failed', e); }
+    }
+    log('golbin gift given', g);
+    showLetter();
+  };
   const placeResultsHtml = (all = placeList()) => {
     if (all.length === 0) return empty('MOD_VOY_JOURNAL_PLACES_EMPTY');
-    const isGoblin = /^goblins?$/.test(jm.fold(view.placeQuery));
+    const isGoblin = isGoblinQuery(view.placeQuery);
     const query = isGoblin ? 'golbin' : view.placeQuery;
     const hits = new Set(jm.search(all.map(placeSearchEntry), query));
     const shown = all.filter((p) => hits.has(p.key));
@@ -921,14 +990,15 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       if (e.target.id === 'vj-search') { view.query = e.target.value; list = root.querySelector('.vj-results'); if (list !== null) list.innerHTML = resultsHtml(); }
       else if (e.target.id === 'vj-place-search') { view.placeQuery = e.target.value; list = root.querySelector('.vj-place-results'); if (list !== null) list.innerHTML = placeResultsHtml(); }
       if (list !== null) { try { state.skillNames?.(list); } catch {} }
+      if (e.target.id === 'vj-place-search' && isGoblinQuery(view.placeQuery)) golbinGift();
     });
     root.addEventListener('keydown', (e) => {
       const heatEl = state.heatmap?.isOpen() ? state.heatmap.element() : undefined;
-      // Esc closes the heat map first, then the book.
-      if (e.key === 'Escape') { e.stopPropagation(); if (heatEl !== undefined) state.heatmap.close(); else close(); return; }
+      // Esc closes the Old Man's letter or the heat map first, then the book.
+      if (e.key === 'Escape') { e.stopPropagation(); if (giftEl !== undefined) closeLetter(); else if (heatEl !== undefined) state.heatmap.close(); else close(); return; }
       if (e.key !== 'Tab') return;
-      // Keep focus in the book while it is open (a modal dialog), or in the heat map over it.
-      const all = [...(heatEl ?? root).querySelectorAll('button, input, a[href], canvas[tabindex]')].filter((x) => x.offsetParent !== null);
+      // Keep focus in the book while it is open (a modal dialog), or in the letter or heat map over it.
+      const all = [...(giftEl ?? heatEl ?? root).querySelectorAll('button, input, a[href], canvas[tabindex]')].filter((x) => x.offsetParent !== null);
       if (all.length === 0) return;
       const first = all[0];
       const last = all[all.length - 1];
@@ -963,6 +1033,7 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
   function close() {
     if (root === undefined || !view.open) return;
     try { state.heatmap?.close(); } catch {}
+    closeLetter();
     view.open = false;
     root.classList.add('d-none');
     document.body.classList.remove('vj-locked');
@@ -1122,7 +1193,7 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
 
   /** The hexes where an action was found, as { q, r } (the planner heads for the nearest, build .119). */
   const foundHexes = (actionId) => (journal()?.found[actionId] ?? []).map(jm.parseHex).filter((h) => h !== undefined);
-  const api = { open, close, learn, miss, footer, iconUrl, isOpen: () => view.open, refresh, badge, foundHexes };
+  const api = { open, close, learn, miss, footer, iconUrl, isOpen: () => view.open, refresh, badge, foundHexes, golbinLetter: showLetter };
   state.journal = api;
   return api;
 }

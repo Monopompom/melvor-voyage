@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   HULLS, PLANNED_HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, dockSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach, isPlace,
   canHop, shipAfterHops, hexDist, condOf, repairPlan, canRepair, pitchChance, REPAIR,
-  holdSlots, atShip, stow, takeOut,
+  holdSlots, atShip, stow, takeOut, UPGRADES, upgradeFor, upgradeBlocker, HOLD_SLOTS,
 } from '../src/ship-model.mjs';
 import { HULL_IDS, loadSave, serializeSave, defaultSave, xpForSteps } from '../src/voyage-model.mjs';
 import { createTerrain, hexDistance, NEIGHBOURS } from '../src/terrain.mjs';
@@ -17,6 +17,33 @@ test('hull ids in the save model match the hull table', () => {
   assert.deepEqual(HULL_IDS, Object.keys(HULLS));
   assert.equal(HULLS.dinghy.reach, 2);
   assert.ok(DINGHY_BUILD.gp > 0 && DINGHY_BUILD.items.length > 0);
+});
+
+test('the longboat (build .142): the dinghy\'s upgrade, at Voyage 30, at a port with the dinghy at the quay', () => {
+  assert.equal(HULLS.longboat.reach, 4);
+  assert.equal(HULLS.longboat.tier, 2);
+  assert.equal(PLANNED_HULLS.longboat, undefined, 'built now, not planned');
+  assert.equal(HOLD_SLOTS.longboat, 12);
+  assert.equal(upgradeFor(dinghy(0, 0))?.[0], 'longboat');
+  assert.equal(upgradeFor({ hull: 'longboat', q: 0, r: 0 }), undefined, 'the brig is a second vessel, not an upgrade');
+  assert.equal(upgradeFor(null), undefined);
+  for (const [id, u] of Object.entries(UPGRADES)) assert.ok(HULLS[u.from] && HULLS[id] && HULLS[id].tier === HULLS[u.from].tier + 1, id);
+  const u = UPGRADES.longboat;
+  assert.equal(u.level, 30);
+  const ok = { level: 30, atPort: true, playerRec: land(0, 0), owned: true };
+  assert.equal(upgradeBlocker(dinghy(1, 0), u, ok), undefined);
+  assert.equal(upgradeBlocker(dinghy(0, 0), u, ok), undefined, 'aboard at the quay');
+  assert.equal(upgradeBlocker(dinghy(1, 0), u, { ...ok, level: 29 }), 'level');
+  assert.equal(upgradeBlocker(dinghy(1, 0), u, { ...ok, atPort: false }), 'port');
+  assert.equal(upgradeBlocker(dinghy(2, 0), u, ok), 'quay');
+  assert.equal(upgradeBlocker(dinghy(1, 0), u, { ...ok, playerRec: undefined }), 'quay');
+  assert.equal(upgradeBlocker(dinghy(1, 0), u, { ...ok, owned: false }), 'cost');
+});
+
+test('a saved longboat loads as one', () => {
+  const { save } = loadSave(JSON.stringify({ ...defaultSave(), ship: { hull: 'longboat', q: 3, r: -2, cond: 80 } }));
+  assert.deepEqual(save.ship, { hull: 'longboat', q: 3, r: -2, cond: 80 });
+  assert.equal(holdSlots(save.ship, 1), 12);
 });
 
 test('off the ship, land only: the one sea hex you may enter from land is the ship\'s', () => {

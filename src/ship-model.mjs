@@ -4,8 +4,8 @@
 // No game objects here; covered by tests/ship-model.test.mjs.
 
 /**
- * Hull tiers. Only the dinghy exists in phase 3b; the longboat, brig and galleon come with phase 4. Reach and the
- * island tiers below follow the game's default dungeon order (decided 15 Oct 2026).
+ * Hull tiers. The dinghy (phase 3b) and the longboat (phase 4, build .142); the brig and galleon come later in phase 4.
+ * Reach and the island tiers below follow the game's default dungeon order (decided 15 Oct 2026).
  */
 export const HULLS = {
   dinghy: {
@@ -14,7 +14,37 @@ export const HULLS = {
     reach: 2,
     blurb: 'A small rowing boat. It stays within 2 hexes of land and you can board or leave it on any coast.',
   },
+  longboat: {
+    id: 'longboat', tier: 2, name: 'Longboat', media: 'assets/hull_longboat.png', reach: 4,
+    blurb: 'A bigger rowing boat with a short mast. It stays within 4 hexes of land and you can board or leave it on any coast, the Cursed Isle included.',
+  },
 };
+
+/**
+ * Upgrades of the hull you have: built on the Voyage page at a port with the
+ * old hull at the quay, for a Voyage level, GP and items. Costs are placeholders for the balance pass (4.26).
+ */
+export const UPGRADES = {
+  longboat: {
+    from: 'dinghy', level: 30, gp: 25000,
+    items: [{ id: 'melvorD:Oak_Logs', quantity: 300 }, { id: 'melvorD:Iron_Bar', quantity: 50 }, { id: 'voyage:Pitch', quantity: 25 }],
+    /** data/skill.json's English name for its milestone (setup.mjs finds the milestone by it). */
+    milestone: 'Longboat: built at a port',
+  },
+};
+/** The upgrade open to a ship's hull, as [id, upgrade], or undefined. */
+export const upgradeFor = (ship) => Object.entries(UPGRADES).find(([, u]) => u.from === ship?.hull);
+/**
+ * Why the upgrade can't be built now, as a reason id, or undefined: 'level', 'port' (not at a port), 'quay' (the hull
+ * is not on your hex or next to it), 'cost'. `have` = { level, atPort, playerRec, owned }.
+ */
+export function upgradeBlocker(ship, upgrade, have) {
+  if (have.level < upgrade.level) return 'level';
+  if (!have.atPort) return 'port';
+  if (ship == null || have.playerRec === undefined || hexDist(have.playerRec, ship) > 1) return 'quay';
+  if (!have.owned) return 'cost';
+  return undefined;
+}
 
 /**
  * What the first dinghy costs on the Voyage page (GP and logs). Placeholder numbers for the balance
@@ -92,11 +122,10 @@ export const sameHex = (a, b) => a !== undefined && a !== null && b !== undefine
 
 const shoreOf = (rec) => (Number.isInteger(rec?.shore) ? rec.shore : 1);
 /**
- * The hulls of phase 4, not built yet: their tier and reach, so the step rules are
+ * The big ships of phase 4, not built yet: their tier and reach, so the step rules are
  * written and tested for them now. Kept out of HULLS: no save names them and nothing builds them.
  */
 export const PLANNED_HULLS = {
-  longboat: { id: 'longboat', tier: 2, reach: 4 },
   brig: { id: 'brig', tier: 3, reach: 5 },
   galleon: { id: 'galleon', tier: 4, reach: Infinity },
 };
@@ -361,7 +390,7 @@ export function seaIndex(terrain) {
  * of HOLD_ROW at a time (build .134, the user: the Voyage page draws them as crates, six to a row): one row at each of
  * HOLD_ROW_LEVELS (skill milestones). Bigger hulls add rows later, and cargo runs use the same slots.
  */
-export const HOLD_SLOTS = { dinghy: 6 };
+export const HOLD_SLOTS = { dinghy: 6, longboat: 12 };
 export const HOLD_ROW = 6;
 export const HOLD_ROW_LEVELS = [40, 80];
 export function holdSlots(ship, voyageLevel = 1) {

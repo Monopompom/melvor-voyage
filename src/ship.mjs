@@ -132,15 +132,17 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   };
 
   // ---- building -------------------------------------------------------------------------------------------------
-  const buildCosts = () => {
+  /** Costs of a { gp, items } spec (the dinghy, an upgrade); items the game doesn't know are left out. */
+  const costsOf = (spec) => {
     const costs = new Costs(game);
-    costs.addCurrency(game.gp, DINGHY_BUILD.gp);
-    for (const { id, quantity } of DINGHY_BUILD.items) {
+    costs.addCurrency(game.gp, spec.gp);
+    for (const { id, quantity } of spec.items) {
       const item = game.items.getObjectByID(id);
       if (item !== undefined) costs.addItem(item, quantity);
     }
     return costs;
   };
+  const buildCosts = () => costsOf(DINGHY_BUILD);
   const launchSpot = () => {
     const p = player();
     if (p === undefined || state.terrain === undefined) return undefined;
@@ -166,6 +168,38 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     setShip({ hull: 'dinghy', q: spot.q, r: spot.r, cond: 100 }, 'built');
     state.journal?.learn('dinghy');
     try { game.notifications.createSuccessNotification('voyage:ship', t('MOD_VOY_SHIP_BUILT'), ctx.getResourceUrl(HULLS.dinghy.media)); } catch {}
+    return true;
+  };
+
+  // ---- upgrades (phase 4) ------------------------------------------------
+  /** On or next to a port: the stores' rule, as for Navigator's Charts. */
+  const atPort = () => { try { return state.stores?.loadingHere?.()?.place === 'port'; } catch { return false; } };
+  /** { id, hull, upgrade, blocker } for the upgrade open to your hull, or undefined (no ship, or the last hull). */
+  const upgradeInfo = () => {
+    const s = ship();
+    const up = s == null ? undefined : shipModel.upgradeFor(s);
+    if (up === undefined) return undefined;
+    const [id, u] = up;
+    const p = player();
+    const word = hullWord(HULLS[s.hull]);
+    let blocker;
+    if (!state.active()) blocker = t('MOD_VOY_SHIP_BLOCK_RULES_OFF');
+    else {
+      const why = shipModel.upgradeBlocker(s, u, { level: skill()?.level ?? 1, atPort: atPort(), playerRec: p === undefined ? undefined : recOf(p), owned: costsOf(u).checkIfOwned() });
+      if (why === 'level') blocker = t('MOD_VOY_UPGRADE_BLOCK_LEVEL', { level: `${u.level}` });
+      else if (why === 'port') blocker = t('MOD_VOY_UPGRADE_BLOCK_PORT', { hull: word });
+      else if (why === 'quay') blocker = t('MOD_VOY_UPGRADE_BLOCK_QUAY', { hull: word });
+      else if (why === 'cost') blocker = t('MOD_VOY_UPGRADE_BLOCK_COST');
+    }
+    return { id, hull: HULLS[id], upgrade: u, blocker };
+  };
+  const upgrade = () => {
+    const info = upgradeInfo();
+    if (info === undefined) return false;
+    if (info.blocker !== undefined) { notifyPlayer(skill(), info.blocker, 'danger'); return false; }
+    costsOf(info.upgrade).consumeCosts();
+    setShip({ ...ship(), hull: info.id, cond: 100 }, `upgraded to ${info.id}`);
+    try { game.notifications.createSuccessNotification('voyage:ship', t('MOD_VOY_SHIP_UPGRADED', { hull: hullWord(info.hull) }), ctx.getResourceUrl(info.hull.media)); } catch {}
     return true;
   };
 
@@ -349,7 +383,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   const api = {
     ship, aboard, enabled, setShip, demoNotice,
     hullName: (s) => hullWord(HULLS[s?.hull]), stepsOf, afterMove, homeOf, dockOf, isHop, build, buildBlocker, buildCosts, launchSpot, whereIs, recOf,
-    cond, setCond, repairInfo, repair,
+    cond, setCond, repairInfo, repair, upgradeInfo, upgrade,
     onChange: (fn) => listeners.push(fn),
     /** May a road step from one game hex to the next under the ship rules? True while they are off (trader roads). */
     allows(fromHex, toHex) {

@@ -1,5 +1,5 @@
-// Map markers: the game's red player pin becomes the traveller figure on land and the dinghy with
-// its rower while aboard; a dinghy you stepped off is drawn moored on its hex.
+// Map markers: the game's red player pin becomes the traveller figure on land and your boat (dinghy or
+// longboat) with its rower while aboard; a boat you stepped off is drawn moored on its hex.
 //
 // The pin is `cartographyMap.playerPin`, a PIXI.Sprite anchored at its bottom centre. The game sets its texture once
 // (WorldMapDisplayElement.init) and scales it in configurePlayerPin(map) from the texture's height, so the mod swaps
@@ -9,8 +9,10 @@
 
 const TEXTURES = {
   land: 'assets/marker_traveller_figure.png',
-  aboard: 'assets/marker_dinghy_aboard.png',
-  parked: 'assets/marker_dinghy_parked.png',
+  'dinghy.aboard': 'assets/marker_dinghy_aboard.png',
+  'dinghy.parked': 'assets/marker_dinghy_parked.png',
+  'longboat.aboard': 'assets/marker_longboat_aboard.png',
+  'longboat.parked': 'assets/marker_longboat_parked.png',
 };
 
 export function install(ctx, { state, log }) {
@@ -25,16 +27,20 @@ export function install(ctx, { state, log }) {
       return cartographyMap._lastDrawnMap ?? game.cartography?.activeMap;
     } catch { return undefined; }
   };
-  const pinTexture = () => (state.ship?.aboard() && tex.aboard !== undefined ? tex.aboard : tex.land);
+  /** The ship's own texture for `kind` ('aboard' or 'parked'), the dinghy's when its hull has none. */
+  const hullTex = (kind) => tex[`${state.ship?.ship()?.hull}.${kind}`] ?? tex[`dinghy.${kind}`];
+  const pinTexture = () => (state.ship?.aboard() && hullTex('aboard') !== undefined ? hullTex('aboard') : tex.land);
 
-  /** The moored dinghy: shown on the ship's hex while you are not aboard and the player marker filter is on. */
+  /** The moored boat: shown on the ship's hex while you are not aboard and the player marker filter is on. */
   const placeParked = (display, map) => {
-    if (tex.parked === undefined || display?.markerLayer === undefined) return;
+    const want = hullTex('parked');
+    if (want === undefined || display?.markerLayer === undefined) return;
     if (parked === undefined || parked.destroyed) {
-      parked = new PIXI.Sprite(tex.parked);
+      parked = new PIXI.Sprite(want);
       parked.anchor.set(0.5, 1);
       parked.eventMode = 'none';
     }
+    if (parked.texture !== want) parked.texture = want; // the hull was upgraded
     if (parked.parent !== display.markerLayer) {
       const at = display.markerLayer.getChildIndex(display.playerPin);
       display.markerLayer.addChildAt(parked, Math.max(0, at));
@@ -46,7 +52,7 @@ export function install(ctx, { state, log }) {
     if (!show) return;
     parked.x = hexDisplay.x;
     parked.y = hexDisplay.y;
-    parked.scale.set((HexCoords.SQRT3 * map.hexScale.y) / tex.parked.orig.height / 2);
+    parked.scale.set((HexCoords.SQRT3 * map.hexScale.y) / want.orig.height / 2);
   };
 
   /** Puts the right texture on the pin, lets the game rescale it, and places the moored dinghy. */

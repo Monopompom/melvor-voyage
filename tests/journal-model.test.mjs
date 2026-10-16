@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultSave, loadSave, serializeSave, emptyJournal, cleanJournal, JOURNAL_GUIDES, JOURNAL_LIMITS, FREE_CHART_LEVELS } from '../src/voyage-model.mjs';
+import { defaultSave, loadSave, serializeSave, emptyJournal, cleanJournal, JOURNAL_GUIDES, JOURNAL_LIMITS, FREE_CHART_LEVELS, GOLBIN_GIFT } from '../src/voyage-model.mjs';
 import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, parseHex, splitLinks, linkTargetExists, chart, chartChance, freeChartsLeft, markUnread, markRead, unreadCount, CHART_ITEMS } from '../src/journal-model.mjs';
 
 test('v6 saves get an empty journal', () => {
@@ -24,7 +24,7 @@ test('a journal round-trips and junk is dropped', () => {
     places: { 'combat|a': '1,2', 'boat|b': '1,2', 'trade|': '1,2', 'trade|c': 'far' },
     guides: ['grace', 'nope', 'terrain', 'grace'],
   });
-  assert.deepEqual(dirty, { found: { a: ['1,2'] }, missed: {}, places: { 'combat|a': '1,2' }, guides: ['grace', 'terrain'], charted: [], freeUsed: 0, unread: {} });
+  assert.deepEqual(dirty, { found: { a: ['1,2'] }, missed: {}, places: { 'combat|a': '1,2' }, guides: ['grace', 'terrain'], charted: [], freeUsed: 0, unread: {}, golbin: false });
   assert.deepEqual(cleanJournal(null), emptyJournal());
 });
 
@@ -112,7 +112,16 @@ test('v7 saves get charting and unread marks, the rest kept', () => {
   const v7 = { v: 7, landHexes: 1, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [], unlockNotice: [], journal: { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'] } };
   const { save, report } = loadSave(JSON.stringify(v7));
   assert.deepEqual(report.applied, [7, 8]);
-  assert.deepEqual(save.journal, { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'], charted: [], freeUsed: 0, unread: {} });
+  assert.deepEqual(save.journal, { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'], charted: [], freeUsed: 0, unread: {}, golbin: false });
+});
+
+test('the golbin\'s purse is given once: the flag survives a save, junk reads as not given', () => {
+  const save = defaultSave();
+  assert.equal(save.journal.golbin, false);
+  save.journal.golbin = true;
+  assert.equal(loadSave(serializeSave(save)).save.journal.golbin, true);
+  assert.equal(cleanJournal({ golbin: 'yes' }).golbin, false);
+  assert.ok(GOLBIN_GIFT.gp > 0 && GOLBIN_GIFT.items.every((x) => x.id.includes(':') && x.quantity > 0));
 });
 
 test('charting: once per action, junk cleaned, free charts counted', () => {

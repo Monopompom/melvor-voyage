@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.140';
+export const BUILD = '2026-10-16.148';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -95,7 +95,13 @@ export async function setup(ctx) {
     try {
       game.skills.getObjectByID(model.SKILL_ID)?.milestones.forEach((m) => {
         const i = model.COMPASS_STAGES.findIndex((stage) => stage.level === m.level);
-        if (i >= 0 && m._milestoneID === undefined && '_name' in m) m._name = getLangString(`MOD_VOY_MILESTONE_${i + 1}`);
+        // Build .142: the longboat shares level 30 with a free chart, so it is found by its English name first.
+        const up = Object.entries(shipModel.UPGRADES).find(([, u]) => u.level === m.level && u.milestone === m._name);
+        if (up !== undefined) {
+          m._name = getLangString(`MOD_VOY_MILESTONE_${up[0].toUpperCase()}`);
+          const url = ctx.getResourceUrl(shipModel.HULLS[up[0]].media);
+          Object.defineProperty(m, 'media', { get: () => url, configurable: true });
+        } else if (i >= 0 && m._milestoneID === undefined && '_name' in m) m._name = getLangString(`MOD_VOY_MILESTONE_${i + 1}`);
         else if (model.FREE_CHART_LEVELS.includes(m.level) && '_name' in m) {
           m._name = getLangString('MOD_VOY_MILESTONE_CHART');
           // The game resolves a custom milestone's media against its own CDN (assets.getURI): the journal icon is ours.

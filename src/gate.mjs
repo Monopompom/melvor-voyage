@@ -410,7 +410,11 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   /**
    * Zone entry points, after the skill's own (Layer 1 above): `action(...args)` returns the action being started, or
    * undefined when the call stops or deselects (always allowed). `quiet` refuses without a modal and returns `refused`.
+   * `skipped(...args)`, read before the call goes through, lists the actions it will leave out; one notice names them.
    */
+  /** The distinct seeds picked for the empty plots of a Farming category (what Plant All Selected would plant). */
+  const selectedSeeds = (farming, category) => [...new Set(farming.getPlotsForCategory(category)
+    .filter((p) => p.state === 1 /* FarmingPlotState.Empty */).map((p) => p.selectedRecipe).filter((r) => r !== undefined))];
   const ZONE_ENTRIES = [
     { name: 'Mining.onRockClick', cls: () => Mining, method: 'onRockClick', action(rock) { return this.isActive && this.selectedRock === rock ? undefined : rock; } },
     { name: 'Woodcutting.selectTree', cls: () => Woodcutting, method: 'selectTree', action(tree) { return this.activeTrees?.has(tree) ? undefined : tree; } },
@@ -418,8 +422,14 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     { name: 'Thieving.startThieving', cls: () => Thieving, method: 'startThieving', action(area, npc) { return npc; } },
     { name: 'Farming.plantRecipe', cls: () => Farming, method: 'plantRecipe', action(recipe) { return recipe; } },
     { name: 'Farming.plantAllRecipe', cls: () => Farming, method: 'plantAllRecipe', action(recipe) { return recipe; } },
+    // Plant All Selected (the user, build .141): the seeds whose zone takes the hex are planted, the others' plots stay
+    // empty (plantPlot below) and one notice names them. Only when none of them grows here does the popup show.
     { name: 'Farming.plantAllSelectedOnClick', cls: () => Farming, method: 'plantAllSelectedOnClick',
-      action(category) { return this.getPlotsForCategory(category).map((p) => p.selectedRecipe).find((r) => r !== undefined && zoneLocked(r) !== undefined); } },
+      action(category) {
+        const seeds = selectedSeeds(this, category);
+        return seeds.length > 0 && seeds.every((r) => zoneLocked(r) !== undefined) ? seeds[0] : undefined;
+      },
+      skipped(category) { return selectedSeeds(this, category).filter((r) => zoneLocked(r) !== undefined); } },
     // Planting all plots plants each one here: a plot whose seed is outside its zone stays empty (-1, as vanilla does
     // for a seed it cannot afford), the others are planted.
     { name: 'Farming.plantPlot', cls: () => Farming, method: 'plantPlot', quiet: true, refused: -1, action(plot, recipe) { return recipe; } },
@@ -432,6 +442,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     try { cls = ze.cls(); } catch { cls = undefined; }
     if (typeof cls !== 'function' || typeof cls.prototype?.[ze.method] !== 'function') { console.warn(`[Voyage] zone entry ${ze.name} not found; not zoned`); continue; }
     ctx.patch(cls, ze.method).replace(function (original, ...args) {
+      let left = [];
       try {
         if (zonesOn()) {
           const action = ze.action.apply(this, args);
@@ -441,9 +452,18 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
             if (!ze.quiet) showZoneLocked(action, locked);
             return ze.refused;
           }
+          left = ze.skipped?.apply(this, args) ?? [];
         }
-      } catch (e) { console.error('[Voyage] zone gate failed open', e); }
-      return original(...args);
+      } catch (e) { console.error('[Voyage] zone gate failed open', e); left = []; }
+      const result = original(...args);
+      if (left.length > 0) {
+        try {
+          const pos = state.position();
+          for (const r of left) { log(`skipped ${r.id} at (${pos?.q},${pos?.r}): outside its zone`); state.journal?.miss(r, pos); }
+          game.notifications.createErrorNotification('voyage:skipped', templateLangString('MOD_VOY_ZONE_SKIPPED', { names: left.map((r) => r.name ?? r.id).join(', ') }));
+        } catch (e) { log('skipped notice failed', e); }
+      }
+      return result;
     });
   }
   /** The zoned actions a running skill is doing now (several trees at once for Woodcutting). */
