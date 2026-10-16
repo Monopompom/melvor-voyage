@@ -78,6 +78,12 @@
             {
               "type": "Custom",
               "level": 60,
+              "name": "Galleon: built at a port",
+              "media": "assets/hull_galleon.png"
+            },
+            {
+              "type": "Custom",
+              "level": 60,
               "name": "Navigator's Charts: sold at ports",
               "media": "assets/icon.png"
             },

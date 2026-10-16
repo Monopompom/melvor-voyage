@@ -4,8 +4,8 @@
 // No game objects here; covered by tests/ship-model.test.mjs.
 
 /**
- * Hull tiers. The dinghy (phase 3b) and the longboat (phase 4, build .142) are the small boat; the brig (build .150) is
- * the big ship, a second vessel; the galleon comes later in phase 4.
+ * Hull tiers. The dinghy (phase 3b) and the longboat (phase 4, build .142) are the small boat; the brig (build .150) and
+ * the galleon that replaces it (build .152) are the big ship, a second vessel.
  * Reach and the island tiers below follow the game's default dungeon order (decided 15 Oct 2026).
  */
 export const HULLS = {
@@ -22,6 +22,10 @@ export const HULLS = {
   brig: {
     id: 'brig', tier: 3, name: 'Brig', media: 'assets/hull_brig.png', reach: 5,
     blurb: 'A two-masted sailing ship. It sails up to 5 hexes from land, under cloud too, and ties up only at ports. Your small boat rides aboard and rows you ashore anywhere else.',
+  },
+  galleon: {
+    id: 'galleon', tier: 4, name: 'Galleon', media: 'assets/hull_galleon.png', reach: Infinity,
+    blurb: 'A three-masted ship of the line. She sails any sea, however far from land and under cloud too, and ties up only at ports. Your small boat rides aboard and rows you ashore anywhere else.',
   },
 };
 /** The big ships: a second vessel beside the small boat. */
@@ -62,6 +66,12 @@ export const UPGRADES = {
     items: [{ id: 'melvorD:Oak_Logs', quantity: 300 }, { id: 'melvorD:Iron_Bar', quantity: 50 }, { id: 'voyage:Pitch', quantity: 25 }],
     /** data/skill.json's English name for its milestone (setup.mjs finds the milestone by it). */
     milestone: 'Longboat: built at a port',
+  },
+  /** The big ship's upgrade (build .152): a placeholder price for the balance pass. */
+  galleon: {
+    from: 'brig', level: 60, gp: 600000,
+    items: [{ id: 'melvorD:Yew_Logs', quantity: 500 }, { id: 'melvorD:Mithril_Bar', quantity: 150 }, { id: 'voyage:Pitch', quantity: 150 }],
+    milestone: 'Galleon: built at a port',
   },
 };
 /** The upgrade open to a ship's hull, as [id, upgrade], or undefined. */
@@ -154,12 +164,10 @@ export const sameHex = (a, b) => a !== undefined && a !== null && b !== undefine
 
 const shoreOf = (rec) => (Number.isInteger(rec?.shore) ? rec.shore : 1);
 /**
- * The big ships of phase 4, not built yet: their tier and reach, so the step rules are
- * written and tested for them now. Kept out of HULLS: no save names them and nothing builds them.
+ * Hulls whose step rules were written and tested before they were built. Empty since the
+ * galleon (build .152): every hull of the ladder is in HULLS.
  */
-export const PLANNED_HULLS = {
-  galleon: { id: 'galleon', tier: 4, reach: Infinity },
-};
+export const PLANNED_HULLS = {};
 const hullOf = (ship) => HULLS[ship?.hull] ?? PLANNED_HULLS[ship?.hull];
 export const reachOf = (ship) => hullOf(ship)?.reach ?? 0;
 export const tierOf = (ship) => hullOf(ship)?.tier ?? 0;
@@ -421,7 +429,7 @@ export function seaIndex(terrain) {
  * of HOLD_ROW at a time (build .134, the user: the Voyage page draws them as crates, six to a row): one row at each of
  * HOLD_ROW_LEVELS (skill milestones). Bigger hulls add rows later, and cargo runs use the same slots.
  */
-export const HOLD_SLOTS = { dinghy: 6, longboat: 12, brig: 18 };
+export const HOLD_SLOTS = { dinghy: 6, longboat: 12, brig: 18, galleon: 24 };
 export const HOLD_ROW = 6;
 export const HOLD_ROW_LEVELS = [40, 80];
 export function holdSlots(ship, voyageLevel = 1) {

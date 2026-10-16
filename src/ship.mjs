@@ -246,9 +246,13 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   // ---- upgrades (phase 4) ------------------------------------------------
   /** On or next to a port: the stores' rule, as for Navigator's Charts. */
   const atPort = () => { try { return state.stores?.loadingHere?.()?.place === 'port'; } catch { return false; } };
-  /** { id, hull, upgrade, blocker } for the upgrade open to your hull, or undefined (no ship, or the last hull). */
-  const upgradeInfo = () => {
-    const s = ship();
+  /**
+   * { id, hull, upgrade, blocker } for the upgrade open to a vessel's hull, or undefined (no vessel, or its last hull).
+   * `kind` 'boat' (dinghy to longboat) or 'ship' (brig to galleon, build .152). Either is built at a port with the old
+   * hull at the quay (on your hex or next to it).
+   */
+  const upgradeInfo = (kind = 'boat') => {
+    const s = vessel(kind);
     const up = s == null ? undefined : shipModel.upgradeFor(s);
     if (up === undefined) return undefined;
     const [id, u] = up;
@@ -263,14 +267,15 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       else if (why === 'quay') blocker = t('MOD_VOY_UPGRADE_BLOCK_QUAY', { hull: word });
       else if (why === 'cost') blocker = t('MOD_VOY_UPGRADE_BLOCK_COST');
     }
-    return { id, hull: HULLS[id], upgrade: u, blocker };
+    return { id, hull: HULLS[id], upgrade: u, blocker, kind };
   };
-  const upgrade = () => {
-    const info = upgradeInfo();
+  const upgrade = (kind = 'boat') => {
+    const info = upgradeInfo(kind);
     if (info === undefined) return false;
     if (info.blocker !== undefined) { notifyPlayer(skill(), info.blocker, 'danger'); return false; }
     costsOf(info.upgrade).consumeCosts();
-    setShip({ ...ship(), hull: info.id, cond: 100 }, `upgraded to ${info.id}`);
+    // The new hull takes the old one's place, hold and all; a boat aboard the big ship stays aboard (setVessel).
+    setVessel(kind, { ...vessel(kind), hull: info.id, cond: 100 }, `upgraded to ${info.id}`);
     try { game.notifications.createSuccessNotification('voyage:ship', t('MOD_VOY_SHIP_UPGRADED', { hull: hullWord(info.hull) }), ctx.getResourceUrl(info.hull.media)); } catch {}
     return true;
   };

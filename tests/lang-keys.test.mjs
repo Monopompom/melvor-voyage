@@ -24,11 +24,11 @@ export const FAMILIES = {
   MOD_VOY_FEATURE_: Object.keys(terrain.FEATURE_INFO),
   MOD_VOY_RULE_NOUN_: [...localIds, 'DEFAULT'],
   MOD_VOY_COMPASS_WORD_: ['HOT', 'WARM', 'COLD', 'FREEZING'],
-  MOD_VOY_HULL_NAME_: ['DINGHY', 'LONGBOAT', 'BRIG'],
-  MOD_VOY_HULL_BLURB_: ['DINGHY', 'LONGBOAT', 'BRIG'],
+  MOD_VOY_HULL_NAME_: ['DINGHY', 'LONGBOAT', 'BRIG', 'GALLEON'],
+  MOD_VOY_HULL_BLURB_: ['DINGHY', 'LONGBOAT', 'BRIG', 'GALLEON'],
   MOD_VOY_HULL_TIER_: ['1', '2', '3', '4'],
   MOD_VOY_ISLAND_: ['WESTERN', 'GOLDEN', 'FROST', 'CURSED', 'OMINOUS'],
-  MOD_VOY_MILESTONE_: ['1', '2', '3', 'LONGBOAT', 'BRIG'], // LONGBOAT, BRIG: shipModel.UPGRADES, BIG_SHIPS (setup.mjs)
+  MOD_VOY_MILESTONE_: ['1', '2', '3', 'LONGBOAT', 'BRIG', 'GALLEON'], // LONGBOAT, GALLEON, BRIG: shipModel.UPGRADES, BIG_SHIPS (setup.mjs)
   // the six charts (build .116, setup.mjs): MOD_VOY_ITEM_<ID>_NAME / _DESC
   MOD_VOY_ITEM_: Object.values(CHART_ITEMS).flatMap((id) => [`${id.toUpperCase()}_NAME`, `${id.toUpperCase()}_DESC`]),
   MOD_VOY_PAGE_COMPASS_STAGE_: ['1', '2', '3'],

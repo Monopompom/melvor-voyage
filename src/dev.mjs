@@ -346,6 +346,20 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       for (const [id, q] of [['melvorD:Teak_Logs', 400], ['melvorD:Steel_Bar', 100], ['voyage:Pitch', 75]]) game.bank.addItemByID(id, q, false, true, true);
       return 'added 150,000 GP, 400 Teak Logs, 100 Steel Bars, 75 Pitch';
     },
+    /** The galleon's price on top of what you have (build .152): 600,000 GP, 500 Yew Logs, 150 Mithril Bars, 150 Pitch. */
+    galleonMaterials() {
+      game.gp.add(600000);
+      for (const [id, q] of [['melvorD:Yew_Logs', 500], ['melvorD:Mithril_Bar', 150], ['voyage:Pitch', 150]]) game.bank.addItemByID(id, q, false, true, true);
+      return 'added 600,000 GP, 500 Yew Logs, 150 Mithril Bars, 150 Pitch';
+    },
+    /** Turns the big ship into a galleon where it lies (`'brig'` turns it back), hold and condition kept. */
+    galleon(hull = 'galleon') {
+      const sh = state.ship;
+      const b = sh?.big();
+      if (b == null) return 'no big ship: voyageDev.giveBrig()';
+      sh.setVessel('ship', { ...b, hull }, `${hull} (dev)`);
+      return `big ship is now a ${hull}`;
+    },
     /** Builds-dinghy materials: 500 GP and 50 Normal Logs on top of what you have. */
     shipMaterials() {
       game.gp.add(500);
@@ -397,7 +411,7 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
   };
   const watchdog = installWatchdog(ctx, log);
   window.voyageDev = api;
-  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), voyage(level), level(skill, level), ship(), giveShip(false?), giveBrig(false?), brigMaterials(), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond, kind), pitch(n, logs)');
+  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), voyage(level), level(skill, level), ship(), giveShip(false?), giveBrig(false?), brigMaterials(), galleonMaterials(), galleon(hull?), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond, kind), pitch(n, logs)');
 }
 
 /**

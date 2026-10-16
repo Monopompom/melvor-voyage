@@ -40,6 +40,34 @@ test('the longboat (build .142): the dinghy\'s upgrade, at Voyage 30, at a port 
   assert.equal(upgradeBlocker(dinghy(1, 0), u, { ...ok, owned: false }), 'cost');
 });
 
+test('the galleon (build .152): the brig\'s upgrade, at Voyage 60, at a port with the brig at the quay', () => {
+  const brig = (q, r) => ({ hull: 'brig', q, r });
+  assert.equal(HULLS.galleon.tier, 4);
+  assert.equal(HULLS.galleon.reach, Infinity);
+  assert.equal(PLANNED_HULLS.galleon, undefined, 'built now, not planned');
+  assert.equal(HOLD_SLOTS.galleon, 24);
+  assert.equal(holdSlots(brig(0, 0), 60) + 6, holdSlots({ hull: 'galleon', q: 0, r: 0 }, 60), 'one row of six more than the brig');
+  assert.equal(upgradeFor(brig(0, 0))?.[0], 'galleon');
+  assert.equal(upgradeFor({ hull: 'galleon', q: 0, r: 0 }), undefined, 'the last hull');
+  const u = UPGRADES.galleon;
+  assert.equal(u.level, 60);
+  assert.ok(u.gp > 150000 && u.items.length === 3, 'dearer than the brig');
+  const ok = { level: 60, atPort: true, playerRec: land(0, 0), owned: true };
+  assert.equal(upgradeBlocker(brig(1, 0), u, ok), undefined, 'the brig at the quay beside you');
+  assert.equal(upgradeBlocker(brig(0, 0), u, ok), undefined, 'aboard at the quay');
+  assert.equal(upgradeBlocker(brig(1, 0), u, { ...ok, level: 59 }), 'level');
+  assert.equal(upgradeBlocker(brig(1, 0), u, { ...ok, atPort: false }), 'port');
+  assert.equal(upgradeBlocker(brig(2, 0), u, ok), 'quay');
+  assert.equal(upgradeBlocker(brig(1, 0), u, { ...ok, owned: false }), 'cost');
+});
+
+test('a saved galleon loads as one, the boat aboard kept', () => {
+  const { save } = loadSave(JSON.stringify({ ...defaultSave(), boat: { hull: 'dinghy', q: 3, r: -2, cond: 80, aboard: true }, ship: { hull: 'galleon', q: 3, r: -2, cond: 90, hold: [{ id: 'melvorD:Potatoes', qty: 4 }] } }));
+  assert.equal(save.ship.hull, 'galleon');
+  assert.deepEqual(save.ship.hold, [{ id: 'melvorD:Potatoes', qty: 4 }]);
+  assert.equal(save.boat.aboard, true);
+});
+
 test('a saved longboat loads as one', () => {
   const { save } = loadSave(JSON.stringify({ ...defaultSave(), boat: { hull: 'longboat', q: 3, r: -2, cond: 80 } }));
   assert.deepEqual(save.boat, { hull: 'longboat', q: 3, r: -2, cond: 80, hold: [], aboard: false });

@@ -17,6 +17,8 @@ const TEXTURES = {
   'longboat.parked': 'assets/marker_longboat_parked.png',
   'brig.aboard': 'assets/marker_brig_aboard.png',
   'brig.parked': 'assets/marker_brig_parked.png',
+  'galleon.aboard': 'assets/marker_galleon_aboard.png',
+  'galleon.parked': 'assets/marker_galleon_parked.png',
 };
 
 export function install(ctx, { state, log }) {
@@ -32,8 +34,11 @@ export function install(ctx, { state, log }) {
       return cartographyMap._lastDrawnMap ?? game.cartography?.activeMap;
     } catch { return undefined; }
   };
-  /** A vessel's own texture for `look` ('aboard' or 'parked'), the dinghy's when its hull has none. */
-  const hullTex = (v, look) => tex[`${v?.hull}.${look}`] ?? (v?.hull === 'brig' ? undefined : tex[`dinghy.${look}`]);
+  /**
+   * A vessel's own texture for `look` ('aboard' or 'parked'); when its hull has none (it failed to load), the brig's for
+   * a big ship and the dinghy's for a small boat.
+   */
+  const hullTex = (v, look) => tex[`${v?.hull}.${look}`] ?? tex[`${v?.hull === 'brig' || v?.hull === 'galleon' ? 'brig' : 'dinghy'}.${look}`];
   const pinTexture = () => {
     const kind = state.ship?.inVessel?.();
     const want = kind === undefined ? undefined : hullTex(state.ship.vessel(kind), 'aboard');

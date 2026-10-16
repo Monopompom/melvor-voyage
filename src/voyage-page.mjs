@@ -74,7 +74,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
         const kind = target.dataset.kind ?? 'boat';
         if (target.dataset.voyageAction === 'build') { if (state.ship?.build()) render(); }
         else if (target.dataset.voyageAction === 'repair') { if (state.ship?.repair(kind)) render(); }
-        else if (target.dataset.voyageAction === 'upgrade') { if (state.ship?.upgrade()) render(); }
+        else if (target.dataset.voyageAction === 'upgrade') { if (state.ship?.upgrade(target.dataset.kind === 'ship' ? 'ship' : 'boat')) render(); }
         else if (target.dataset.voyageAction === 'buy') { if (state.ship?.buy()) render(); }
         else if (target.dataset.voyageAction === 'find') showMap(true, kind);
       });
@@ -224,7 +224,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
    */
   const bigHtml = () => {
     const api = state.ship;
-    if (api.big() != null) return `<div class="voyage-big-head">${esc(t('MOD_VOY_PAGE_BIG_HEAD'))}</div>${vesselRow('ship')}${hullHtml('ship')}`;
+    if (api.big() != null) return `<div class="voyage-big-head">${esc(t('MOD_VOY_PAGE_BIG_HEAD'))}</div>${vesselRow('ship')}${hullHtml('ship')}${upgradeHtml('ship')}`;
     const info = api.buyInfo?.();
     if (info === undefined) return '';
     const { hull, spec, blocker } = info;
@@ -244,10 +244,10 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
 
   /**
    * The next hull (phase 4, build .142): shown from the start with the reason it can't be built yet, so the longboat
-   * is a goal before it is a button.
+   * is a goal before it is a button. `kind` 'ship': the brig's galleon (.152).
    */
-  const upgradeHtml = () => {
-    const info = state.ship?.upgradeInfo?.();
+  const upgradeHtml = (kind = 'boat') => {
+    const info = state.ship?.upgradeInfo?.(kind);
     if (info === undefined) return '';
     const { hull, upgrade, blocker } = info;
     const word = t(shipModel.tierNameKey(hull.tier));
@@ -256,13 +256,13 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       const item = game.items.getObjectByID(id);
       if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name));
     }
-    const old = state.ship.hullName(state.ship.boat());
+    const old = state.ship.hullName(state.ship.vessel(kind));
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
         `<div><div><b>${esc(t('MOD_VOY_PAGE_UPGRADE_COST', { hull: word }))}</b></div><small class="text-muted">${esc(t(shipModel.hullBlurbKey(hull.id)))}</small></div></div>` +
       `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` +
       (blocker !== undefined
         ? `<div class="text-warning mt-2">${esc(blocker)}</div>`
-        : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="upgrade">${esc(t('MOD_VOY_PAGE_UPGRADE_BUTTON', { hull: word }))}</button></div>` +
+        : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="upgrade" data-kind="${kind}">${esc(t('MOD_VOY_PAGE_UPGRADE_BUTTON', { hull: word }))}</button></div>` +
           `<small class="d-block text-center text-muted mt-1">${esc(t('MOD_VOY_PAGE_UPGRADE_HINT', { old }))}</small>`));
   };
 

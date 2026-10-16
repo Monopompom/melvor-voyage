@@ -189,7 +189,7 @@ export const FREE_UNLOCKS = ['cartography', 'voyage'];
 
 /** Hull ids a save may name. Kept here so the model stays free of imports; ship-model.mjs HULLS must match. */
 export const BOAT_IDS = ['dinghy', 'longboat'];
-export const SHIP_IDS = ['brig'];
+export const SHIP_IDS = ['brig', 'galleon'];
 export const HULL_IDS = [...BOAT_IDS, ...SHIP_IDS];
 
 function clean(rec) {

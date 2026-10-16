@@ -203,3 +203,10 @@ test('night buys light only from the fuel the day plan leaves: it never refuses 
   assert.deepEqual(planLight(hungry, [land('grasslands'), land('beach')]).lit, []);
   assert.equal(lightable([land('grasslands'), land('beach')], hungry), 0);
 });
+
+test('the galleon\'s unlimited reach (build .152): the reserves count the way home, never Infinity', () => {
+  assert.equal(ashoreReserve(3, Infinity), ashoreReserve(3, 5));
+  assert.equal(hullReserve(3, Infinity), hullReserve(3, 5));
+  assert.equal(ashoreReserve(Infinity, Infinity), 0);
+  assert.equal(hullReserve(Infinity, Infinity), 0);
+});

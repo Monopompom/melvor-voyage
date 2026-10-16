@@ -215,11 +215,20 @@ export const wearOf = (step) => {
   return step.deep ? WEAR.deep : WEAR.near;
 };
 export const pathWear = (steps) => steps.reduce((sum, s) => sum + wearOf(s), 0);
+/**
+ * The paid steps home: the way to a coast, at most the hull's reach (beyond it the way home is free). The galleon's
+ * reach has no limit (build .152): a hex with no way home at all then counts nothing rather than Infinity.
+ */
+const homeStepsPaid = (homeSteps, reach) => {
+  const steps = Number.isFinite(homeSteps) ? Math.min(homeSteps, reach) : reach;
+  return Number.isFinite(steps) ? steps : 0;
+};
+
 /** Condition to keep when a voyage ends at sea: one hex of wear per step home, at most the hull's reach. */
-export const hullReserve = (homeSteps, reach) => (Number.isFinite(homeSteps) ? Math.min(homeSteps, reach) : reach) * WEAR.near;
+export const hullReserve = (homeSteps, reach) => homeStepsPaid(homeSteps, reach) * WEAR.near;
 
 /** HP the stores must keep at sea: one ration per paid step home. Beyond the hull's reach the way home is free. */
-export const ashoreReserve = (homeSteps, reach) => (Number.isFinite(homeSteps) ? Math.min(homeSteps, reach) : reach) * costOf('water').rations * RATION_HP;
+export const ashoreReserve = (homeSteps, reach) => homeStepsPaid(homeSteps, reach) * costOf('water').rations * RATION_HP;
 
 // ---- night (phase 3e) ------------------------------------------------------------------------------
 
