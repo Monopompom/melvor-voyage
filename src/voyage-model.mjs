@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -25,9 +25,12 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * `stores` (phase 3c) is what the player has loaded for the road: `food` in HP of healing, `fuel` in units (fractional:
  * the Firemaking discount). `kitGiven` turns true once the one-time starter kit has gone into them.
  * `hold` (build .72) is what the ship carries for you: [{ id, qty }], item ids and whole quantities, one entry a slot.
+ * `unlockNotice` (build .104) lists what a mode that buys skills got for free ('cartography', 'voyage') and the player
+ * has not been told yet. It is in the save so the notice still comes when the page reloads during the tutorial (16 Oct
+ * 2026: a reload mid-tutorial lost it, the flags were in memory).
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, hold: [] };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, hold: [], unlockNotice: [] };
 }
 
 /**
@@ -43,6 +46,8 @@ export const MIGRATIONS = {
   3: (rec) => ({ ...rec, v: 4, ship: rec.ship !== null && typeof rec.ship === 'object' ? { ...rec.ship, cond: 100 } : rec.ship }),
   // build .72: the ship's hold, empty
   4: (rec) => ({ ...rec, v: 5, hold: [] }),
+  // build .104: nothing waiting to be told
+  5: (rec) => ({ ...rec, v: 6, unlockNotice: [] }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -73,6 +78,9 @@ function cleanShip(ship, hulls) {
   return { hull: ship.hull, q: ship.q, r: ship.r, cond };
 }
 
+/** What `unlockNotice` may hold, in the order the notice names them. */
+export const FREE_UNLOCKS = ['cartography', 'voyage'];
+
 /** Hull ids a save may name. Kept here so the model stays free of imports; ship-model.mjs HULLS must match. */
 export const HULL_IDS = ['dinghy'];
 
@@ -87,6 +95,7 @@ function clean(rec) {
     stores: cleanStores(rec.stores),
     kitGiven: rec.kitGiven === true,
     hold: cleanHold(rec.hold),
+    unlockNotice: FREE_UNLOCKS.filter((x) => Array.isArray(rec.unlockNotice) && rec.unlockNotice.includes(x)),
   };
 }
 

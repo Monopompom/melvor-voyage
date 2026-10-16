@@ -187,7 +187,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     if (area === undefined) return;
     if (area.realm !== undefined && game.currentRealm !== area.realm && area.realm.isUnlocked) game.selectRealm(area.realm);
     const page = game.pages.getObjectByID('melvorD:Combat');
-    if (page !== undefined) changePage(page, -1, undefined, false, false);
+    state.openPage(page);
     let category;
     game.combatAreaCategories.forEach((c) => { if (category === undefined && c.areas.includes(area)) category = c; });
     if (category === undefined || typeof combatAreaMenus === 'undefined') return;
@@ -288,6 +288,45 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const push = Math.round(bottom - b.bottom);
       panel.style.marginTop = push > 0 ? `${push + 6}px` : '';
     } catch (e) { log('panel placement failed', e); }
+    moveMapControls();
+    clearOfControls();
+  };
+
+  /** At phone width the panel spans the map and ran under the zoom buttons, hiding "Manage voyage" (16 Oct 2026, 500px): it stops short of them. */
+  const clearOfControls = () => {
+    try {
+      const panel = document.getElementById(PANEL_ID);
+      if (!panel || !panel.classList.contains('voyage-here-top')) return;
+      panel.style.right = '';
+      const p = panel.getBoundingClientRect();
+      const lefts = [...document.querySelectorAll('.voyage-map-controls > *')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0).map((r) => r.left);
+      const left = Math.min(...lefts);
+      if (Number.isFinite(left) && p.width > 0 && p.right > left - 4) panel.style.right = `${Math.ceil(p.right - left + 4)}px`;
+    } catch (e) { log('panel gutter failed', e); }
+  };
+
+  /**
+   * The map's own zoom and centre buttons (bottom-left overlay) sat on top of a tall panel and hid its lines. They
+   * move to the map's right edge, under the top bar (the user, 16 Oct 2026: "move all the way to the right side"),
+   * clear of the panel at every width and of the game's minibar in the bottom-right corner. The game keeps its
+   * references to the buttons, so moving the nodes keeps their handlers. The hex overview stays bottom-left.
+   */
+  const moveMapControls = () => {
+    try {
+      if (typeof cartographyMap === 'undefined') return;
+      const host = cartographyMap?.bottomLeftOverlay;
+      const top = cartographyMap?.topOverlay;
+      const map = host?.parentElement;
+      if (!host || !map) return;
+      let box = map.querySelector(':scope > .voyage-map-controls');
+      if (box === null) {
+        box = document.createElement('div');
+        box.className = 'voyage-map-controls pointer-events-none';
+        map.append(box);
+      }
+      for (const el of [...host.children].filter((c) => c.matches('.btn-group-vertical, button'))) box.append(el);
+      box.style.top = top && top.parentElement === map ? `${top.offsetTop + top.offsetHeight}px` : '';
+    } catch (e) { log('map controls move failed', e); }
   };
 
   /**
@@ -357,7 +396,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       }
       if (e.target instanceof Element && e.target.closest('.voyage-manage-link')) {
         e.preventDefault();
-        try { const page = game.pages.getObjectByID('voyage:Voyage'); if (page !== undefined) changePage(page, -1, undefined, false, false); } catch (err) { log('Manage voyage link failed', err); }
+        try { state.openPage(game.pages.getObjectByID('voyage:Voyage')); } catch (err) { log('Manage voyage link failed', err); }
       }
     });
     // Under the location search bar (top-left of the map), after its results drop-down so results still open

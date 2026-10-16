@@ -82,7 +82,7 @@ export function canRepair(playerRec, ship, shipRec, portNear = false) {
 }
 /**
  * Pitch from Firemaking (3d): the chance in % per log burned, 10% plus a quarter of a percent per Firemaking level the
- * log needs (Normal 10.25%, Willow 17.5%, Magic 28.75%, Redwood 32.5%). Better logs give more.
+ * log needs (Normal 10.25%, Willow 16.25%, Magic 28.75%, Redwood 32.5%). Better logs give more.
  */
 export const pitchChance = (logLevel) => 10 + 0.25 * Math.max(1, Math.floor(logLevel ?? 1));
 
@@ -91,8 +91,25 @@ export const isSea = (rec) => rec !== undefined && SEA_CLASSES.includes(rec.t);
 export const sameHex = (a, b) => a !== undefined && a !== null && b !== undefined && b !== null && a.q === b.q && a.r === b.r;
 
 const shoreOf = (rec) => (Number.isInteger(rec?.shore) ? rec.shore : 1);
-export const reachOf = (ship) => HULLS[ship?.hull]?.reach ?? 0;
-export const tierOf = (ship) => HULLS[ship?.hull]?.tier ?? 0;
+/**
+ * The hulls of phase 4, not built yet: their tier and reach, so the step rules are
+ * written and tested for them now. Kept out of HULLS: no save names them and nothing builds them.
+ */
+export const PLANNED_HULLS = {
+  longboat: { id: 'longboat', tier: 2, reach: 4 },
+  brig: { id: 'brig', tier: 3, reach: 5 },
+  galleon: { id: 'galleon', tier: 4, reach: Infinity },
+};
+const hullOf = (ship) => HULLS[ship?.hull] ?? PLANNED_HULLS[ship?.hull];
+export const reachOf = (ship) => hullOf(ship)?.reach ?? 0;
+export const tierOf = (ship) => hullOf(ship)?.tier ?? 0;
+/**
+ * The sailing ships (brig and galleon, tier 3 up) sail under cloud, where the far places are: Into the Mist and the
+ * Abyss for the brig, Melantis, Impending Darkness, Stronghold of the Gods and Millennium Gate for the galleon
+ * (user decision, 16 Oct 2026). The small boats never do.
+ */
+export const CLOUD_TIER = 3;
+export const sailsCloud = (ship) => tierOf(ship) >= CLOUD_TIER;
 
 /** True when the player stands on the ship's hex, which is the only way to be on the water. */
 export const isAboard = (playerRec, ship) => sameHex(playerRec, ship);
@@ -116,8 +133,9 @@ const plainGeo = { islandTier: () => 1, home: (rec) => (isSea(rec) ? shoreOf(rec
  *    neighbour one step closer: nobody is ever trapped;
  *    A homeward move never ends on a place (a POI, area or dungeon hex): the places out there wait for a bigger hull
  *    (3b check, 16 Oct 2026: a dinghy beyond reach could drift onto the Deep Sea Ship's hex);
- *  - nothing sails into cloud. A hull that is under cloud anyway (put there with the rules off) may only step closer
- *    to a coast, by the distance seaIndex counts through the cloud, so it always gets out;
+ *  - a small boat never sails into cloud. One that is under cloud anyway (put there with the rules off) may only step
+ *    closer to a coast, by the distance seaIndex counts through the cloud, so it always gets out. The sailing ships
+ *    (sailsCloud) take cloud like open sea, by that same distance;
  *  - on the sea with no ship (rules switched off and on again), only steps closer to land.
  * A path enters the sea only at the ship's hex, and a shortest path never visits a hex twice, so the ship is with you
  * for every sea step of it.
@@ -125,22 +143,23 @@ const plainGeo = { islandTier: () => 1, home: (rec) => (isSea(rec) ? shoreOf(rec
 export function canStep(from, to, ship, geo = plainGeo) {
   if (!isSea(to)) return !isSea(from) || ship == null || tierOf(ship) >= geo.islandTier(to);
   if (!isSea(from)) return ship != null && sameHex(to, ship);
-  if (to.cloud === true && from.cloud !== true) return false;
+  const cloudOk = sailsCloud(ship);
+  if (to.cloud === true && from.cloud !== true && !cloudOk) return false;
   const t = ship == null ? 0 : tierOf(ship);
   const h = geo.home(to, t);
   if (ship == null) return h < geo.home(from, t);
-  const out = to.cloud === true || h > reachOf(ship);
+  const out = (to.cloud === true && !cloudOk) || h > reachOf(ship);
   if (out && isPlace(to)) return false;
-  if (from.cloud === true) return h < geo.home(from, t);
+  if (from.cloud === true && !cloudOk) return h < geo.home(from, t);
   return !out || h <= geo.home(from, t);
 }
 
 /** A hex that holds somewhere to go: a map POI, a hand-placed area or a dungeon. */
 export const isPlace = (rec) => rec?.poi !== undefined || rec?.area !== undefined || rec?.dungeon !== undefined;
 
-/** True when the hull on `rec` is beyond its reach: the homeward rule applies there. Under cloud is always beyond. */
+/** True when the hull on `rec` is beyond its reach: the homeward rule applies there. Under cloud a small boat always is. */
 export function beyondReach(rec, ship, geo = plainGeo) {
-  return isSea(rec) && ship != null && (rec.cloud === true || geo.home(rec, tierOf(ship)) > reachOf(ship));
+  return isSea(rec) && ship != null && ((rec.cloud === true && !sailsCloud(ship)) || geo.home(rec, tierOf(ship)) > reachOf(ship));
 }
 
 /** A sea step that gives nothing: beyond the hull's reach (the homeward rule) or swimming with no ship. */
@@ -206,6 +225,17 @@ export function launchSpot(playerRec, neighbours) {
   if (playerRec === undefined || isSea(playerRec)) return undefined;
   const sea = neighbours.filter((n) => isSea(n) && n.cloud !== true);
   return sea.find((n) => n.t === 'water') ?? sea[0];
+}
+
+/**
+ * Where the ship docks at a port reached by a fast-travel hop. A port drawn on the water (Beginning, Misty, Vibrant,
+ * Whispering Port) is its own quay: the ship ties up on the port hex. A port on land docks on a sea hex next to it
+ * (launchSpot). Undefined under cloud or with no sea next to it. (3c check, 16 Oct 2026: water ports had no dock.)
+ */
+export function dockSpot(portRec, neighbours) {
+  if (portRec === undefined) return undefined;
+  if (isSea(portRec)) return portRec.cloud === true ? undefined : { q: portRec.q, r: portRec.r };
+  return launchSpot(portRec, neighbours);
 }
 
 /**

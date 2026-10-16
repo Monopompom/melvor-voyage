@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
-  HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach, isPlace,
+  HULLS, PLANNED_HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, dockSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach, isPlace,
   canHop, shipAfterHops, hexDist, condOf, repairPlan, canRepair, pitchChance, REPAIR,
   holdSlots, atShip, stow, takeOut,
 } from '../src/ship-model.mjs';
@@ -62,6 +62,21 @@ test('nothing sails into cloud; under cloud only closer to a coast (3b check)', 
   assert.equal(beyondReach(cloud(9, 0, 1), ship), true, 'under cloud the moves are free');
 });
 
+test('the sailing ships sail under cloud within their reach; the small boats never do (user decision, 16 Oct 2026)', () => {
+  const cloud = (q, r, shore) => ({ ...sea(q, r, shore), cloud: true });
+  const brig = { hull: 'brig', q: 9, r: 0 };
+  const galleon = { hull: 'galleon', q: 9, r: 0 };
+  const longboat = { hull: 'longboat', q: 9, r: 0 };
+  assert.equal(PLANNED_HULLS.brig.reach, 5);
+  assert.equal(canStep(sea(1, 0, 3), cloud(2, 0, 4), longboat), false);
+  assert.equal(canStep(sea(1, 0, 3), cloud(2, 0, 4), brig), true);
+  assert.equal(canStep(cloud(1, 0, 4), cloud(2, 0, 5), brig), true, 'deeper, still within reach');
+  assert.equal(canStep(cloud(1, 0, 5), { ...cloud(2, 0, 6), poi: 'SwirlingAbyss' }, brig), false, 'a place beyond reach waits');
+  assert.equal(canStep(cloud(1, 0, 5), { ...cloud(2, 0, 6), poi: 'SwirlingAbyss' }, galleon), true);
+  assert.equal(beyondReach(cloud(1, 0, 4), brig), false, 'under cloud within reach is sailing, with XP');
+  assert.equal(beyondReach(cloud(1, 0, 4), dinghy(1, 0)), true);
+});
+
 test('free steps: beyond the reach and without a ship', () => {
   assert.equal(isFreeStep(sea(0, 0, 2), dinghy(0, 0)), false);
   assert.equal(isFreeStep(sea(0, 0, 3), dinghy(0, 0)), true);
@@ -93,6 +108,21 @@ test('a dinghy is launched next to the coast you stand on', () => {
   assert.equal(launchSpot(sea(0, 0, 1), [land(1, 0)]), undefined);
 });
 
+test('a hop docks on the port hex for a port on the water, next to it for a port on land', () => {
+  const port = { ...sea(0, 0, 1), f: ['port'] };
+  assert.deepEqual(dockSpot(port, [land(1, 0)]), { q: 0, r: 0 });
+  assert.equal(dockSpot({ ...port, cloud: true }, [sea(1, 0, 1)]), undefined);
+  assert.deepEqual(dockSpot({ ...land(0, 0), f: ['port'] }, [land(1, 0), sea(0, 1, 1)]), sea(0, 1, 1));
+  assert.equal(dockSpot({ ...land(0, 0), f: ['port'] }, [land(1, 0)]), undefined);
+});
+
+test('every port on the real map has a dock (piers too, but Moonlit Pier is inland on a river)', async () => {
+  const terrain = await loadTerrain();
+  const ports = [...terrain.all()].filter((r) => r.f?.includes('port') && r.poi !== 'MoonlitPier');
+  assert.ok(ports.length >= 12);
+  for (const p of ports) assert.ok(dockSpot(p, terrain.neighbours(p.q, p.r)) !== undefined, `port at ${p.q},${p.r}`);
+});
+
 test('free dinghy: under a player on the water, next to their island away from the start, none at home', async () => {
   const table = JSON.parse(await readFile(new URL('../data/hex_terrain.json', import.meta.url), 'utf8'));
   const terrain = createTerrain(table);
@@ -121,7 +151,7 @@ test('every water and shoal hex has a shore distance; land has none', async () =
 
 test('save v1 migrates up with no ship; a ship round-trips; a bad ship is dropped', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 1, landHexes: 4, waterHexes: 0, backfilled: true }));
-  assert.deepEqual(report.applied, [1, 2, 3, 4]);
+  assert.deepEqual(report.applied, [1, 2, 3, 4, 5]);
   assert.deepEqual(save, { ...defaultSave(), landHexes: 4, backfilled: true });
   const withShip = { ...defaultSave(), ship: { ...dinghy(3, 7), cond: 64 }, shipChecked: true };
   assert.deepEqual(loadSave(serializeSave(withShip)).save, withShip);
@@ -234,6 +264,37 @@ test('no trap under cloud: from every cloud sea hex a dinghy gets out, and no op
   }
   assert.deepEqual(stuck, []);
   assert.deepEqual(leadsIn, []);
+});
+
+test('the places under cloud: none for the boats; the brig fights at Into the Mist and the Abyss; the galleon reaches all', async () => {
+  const terrain = await loadTerrain();
+  const idx = seaIndex(terrain);
+  const places = [...terrain.all()].filter((r) => r.cloud === true && isPlace(r) && terrain.neighbours(r.q, r.r).every((n) => n === undefined || n.cloud === true));
+  const name = (r) => r.dungeon ?? r.area ?? r.poi;
+  const sail = (hull) => {
+    const ship = { hull, q: 0, r: 0 }; // sea to sea, where the ship is doesn't matter
+    const start = [...terrain.all()].filter((r) => isSea(r) && r.cloud !== true && idx.home(r, PLANNED_HULLS[hull]?.tier ?? HULLS[hull].tier) <= 1);
+    const seen = new Set(start);
+    const queue = [...start];
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      for (const n of terrain.neighbours(cur.q, cur.r)) {
+        if (n === undefined || !isSea(n) || seen.has(n) || !canStep(cur, n, ship, idx)) continue;
+        seen.add(n);
+        queue.push(n);
+      }
+    }
+    const on = places.filter((p) => seen.has(p)).map(name).sort();
+    const fights = places.filter((p) => seen.has(p) || terrain.neighbours(p.q, p.r).some((n) => seen.has(n))).map(name).sort();
+    return { on, fights };
+  };
+  assert.equal(places.length, 6, places.map(name).join(', '));
+  assert.deepEqual(sail('dinghy'), { on: [], fights: [] });
+  assert.deepEqual(sail('longboat'), { on: [], fights: [] });
+  const brig = sail('brig');
+  assert.ok(brig.fights.includes('IntoTheAbyss') && brig.fights.includes('IntoTheMist'), brig.fights.join(', '));
+  assert.ok(!brig.on.includes('IntoTheAbyss'), 'the Abyss hex itself is 6 out');
+  assert.deepEqual(sail('galleon').on, places.map(name).sort());
 });
 
 test('no sea hex lets a dinghy onto the Deep Sea Ship\'s hex (3b check)', async () => {

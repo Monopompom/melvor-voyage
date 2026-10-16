@@ -71,14 +71,15 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     try { return game.cartography.activeMap?.getHex(new HexCoords(rec.q, rec.r))?.isFullySurveyed === true; } catch { return false; }
   };
   /**
-   * Where the ship docks at a port reached by a hop: a sea hex next to it (open water first), a surveyed one when
-   * there is any (otherwise surveying it is the way back aboard), or undefined.
+   * Where the ship docks at a port reached by a hop: the port hex itself for a port on the water, else a sea hex next
+   * to it (open water first), a surveyed one when there is any (otherwise surveying it is the way back aboard), or
+   * undefined.
    */
   const dockOf = (hex) => {
     if (state.terrain === undefined) return undefined;
     const rec = recOf(hex);
     const around = state.terrain.neighbours(rec.q, rec.r);
-    return shipModel.launchSpot(rec, around.filter(charted)) ?? shipModel.launchSpot(rec, around);
+    return shipModel.dockSpot(rec, around.filter(charted)) ?? shipModel.dockSpot(rec, around);
   };
   /** Sea steps from `rec` to a coast the current hull may land on (any coast with no ship); 0 on land. */
   const homeOf = (rec) => {

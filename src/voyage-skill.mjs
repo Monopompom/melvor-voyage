@@ -59,19 +59,25 @@ export function createVoyageClass({ model, log }) {
     // that buy skills (Adventure) it is free, and the next skill's price goes up one step by itself, since the game
     // prices an unlock by (skills unlocked now) - (starting skills). A mode with a fixed list and no unlocks (Ancient
     // Relics) would otherwise lock it forever.
-    /** Set when this load unlocked Voyage in a mode that buys skills; src/unlocks.mjs tells the player. */
-    freedForMode = false;
+    /**
+     * Notes in the save that a mode that buys skills got `what` ('cartography' or 'voyage') for free; src/unlocks.mjs
+     * tells the player after the tutorial and clears it. A save from a newer build is left alone.
+     */
+    markFreed(what) {
+      if (this.futureRaw !== undefined || !Array.isArray(this.record.unlockNotice)) return;
+      if (!this.record.unlockNotice.includes(what)) this.record.unlockNotice.push(what);
+    }
 
     setUnlock(isUnlocked) {
       // Game.setupCurrentGamemode() runs after onLoad on a new character and calls setUnlock(startingSkills.has(skill)).
-      if (!isUnlocked && !this._unlocked && this.game.currentGamemode?.allowSkillUnlock === true) this.freedForMode = true;
+      if (!isUnlocked && !this._unlocked && this.game.currentGamemode?.allowSkillUnlock === true) this.markFreed('voyage');
       super.setUnlock(true);
     }
 
     onLoad() {
       // A skill added to an existing save starts locked.
       if (!this._unlocked) {
-        if (this.game.currentGamemode?.allowSkillUnlock === true) this.freedForMode = true;
+        if (this.game.currentGamemode?.allowSkillUnlock === true) this.markFreed('voyage');
         this._unlocked = true;
       }
       super.onLoad();

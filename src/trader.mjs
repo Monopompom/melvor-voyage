@@ -282,7 +282,7 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
         // From the panel's button: open the bank to sell there (user feedback, build .61). A sale the player clicked
         // in the bank already continues through `then`.
         if (v.canSell !== false) {
-          try { const bank = game.pages.getObjectByID('melvorD:Bank'); if (bank !== undefined) changePage(bank, -1, undefined, false, false); } catch (e) { log('bank page failed', e); }
+          try { state.openPage(game.pages.getObjectByID('melvorD:Bank')); } catch (e) { log('bank page failed', e); }
         }
       });
     } catch (e) {

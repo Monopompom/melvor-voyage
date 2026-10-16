@@ -124,7 +124,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
   const showMap = (onShip) => {
     const map = pageOf(CARTOGRAPHY_PAGE_ID);
     if (map === undefined) return;
-    changePage(map, -1, undefined, false, false);
+    state.openPage(map);
     const hex = !onShip || state.ship?.aboard() ? undefined : state.ship?.hex();
     if (hex !== undefined) setTimeout(() => { try { state.ship.centreOn(hex); } catch (e) { log('map centre failed', e); } }, 100);
   };

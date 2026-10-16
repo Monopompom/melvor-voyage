@@ -55,7 +55,8 @@ export const isCloud = (rec) => rec !== undefined && rec.cloud === true;
 export const hasFeature = (rec, f) => Array.isArray(rec?.f) && rec.f.includes(f);
 
 /** Human name of a hand-placed area id such as StrongholdOfTheGods. */
-export const areaLabel = (area) => String(area).replace(/([a-z])([A-Z])/g, '$1 $2');
+// A one-letter word before the next keeps its space too: ANewStart is "A New Start" (phase 2 re-run, 16 Oct 2026).
+export const areaLabel = (area) => String(area).replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').replace(/([a-z])([A-Z])/g, '$1 $2');
 
 /** FNV-1a 32-bit over ASCII text, lower-case hex, 8 digits. */
 export function fnv1a(text) {

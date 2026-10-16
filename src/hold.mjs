@@ -85,18 +85,35 @@ export function install(ctx, { state, shipModel, log }) {
     try {
       let box = this.querySelector('.voyage-hold-stow');
       const s = usable() ? ship() : undefined;
-      if (s == null || bankItem?.item === undefined) { box?.classList.add('d-none'); return; }
+      if (s == null || bankItem?.item === undefined) { (box?.closest('.voyage-hold-stow-col') ?? box)?.classList.add('d-none'); return; }
       const sell = this.sellItemButton?.closest('.block');
       if (box === null) {
         box = document.createElement('div');
-        if (sell) belowOf(sell).after(box); else this.selectedItemContainer?.append(box);
+        // The game's row-deck makes each child a flex row; Sell's block sits in a col-12 for that. Straight in the row
+        // ours put the header beside the controls, one word a line (user report, 16 Oct 2026).
+        const col = document.createElement('div');
+        col.className = 'col-12 voyage-hold-stow-col';
+        col.append(box);
+        if (sell) belowOf(sell).after(col); else this.selectedItemContainer?.append(col);
       }
+      box.closest('.voyage-hold-stow-col')?.classList.remove('d-none');
       // Sell's look without its grid column: the stow block is always a full line of its own.
       const look = (sell?.className ?? 'block block-rounded bg-combat-inner-dark').split(/\s+/).filter((c) => !/^col(-|$)/.test(c)).join(' ');
       box.className = `${look} voyage-hold-stow voyage-ui`;
       box.classList.remove('d-none');
       const headClass = sell?.querySelector('.block-header')?.className ?? 'block-header block-header-default';
-      const inputClass = this.customSellQuantity?.className ?? 'form-control';
+      // The header's title and count in Sell's own type (16 Oct 2026: a block-title h3 read small and letter-spaced).
+      const titleClass = sell?.querySelector('.block-header > :first-child')?.className || 'font-size-sm font-w600 mb-0';
+      const countClass = sell?.querySelector('.block-options span')?.className || 'font-w600 font-size-sm text-right text-combat-smoke';
+      // The body copies Sell's own grid (user report, 16 Oct 2026: at 500px the stow block didn't look like Sell): its
+      // body column, the row, the amount's column, the right-aligned presets and the centred main button.
+      const grid = this.customSellQuantity?.closest('.row');
+      const bodyClass = grid?.parentElement?.className || 'col-12 pt-2';
+      const gridClass = grid?.className || 'row no-gutters';
+      const qtyColClass = this.customSellQuantity?.parentElement?.className || 'col-12 col-xl-5 col-md-4';
+      const presetColClass = this.sellAllButton?.parentElement?.className || 'col-12 col-xl-7 text-right col-md-3';
+      const mainColClass = this.sellItemButton?.parentElement?.className || 'col-12 text-center';
+      const inputClass = this.customSellQuantity?.className ?? 'form-control m-1';
       const presetClass = (this.sellAllButton?.className ?? 'btn btn-info').replace('btn-success', 'btn-info');
       const mainClass = (this.sellItemButton?.className ?? 'btn btn-danger').replace('btn-danger', 'btn-success');
       const item = bankItem.item;
@@ -104,24 +121,33 @@ export function install(ctx, { state, shipModel, log }) {
       const used = hold().length;
       const full = used >= slots() && !hold().some((e) => e.id === item.id);
       const icon = ctx.getResourceUrl(shipModel.HULLS[s.hull]?.media ?? 'assets/hull_dinghy.png');
-      let html = `<div class="${headClass}"><h3 class="block-title"><img class="skill-icon-xs mr-2" src="${icon}" alt="">${esc(t('MOD_VOY_HOLD_TITLE', { hull: hullName() }))}</h3>` +
-        `<div class="block-options font-w600 ${full ? 'text-warning' : ''}">${esc(t('MOD_VOY_HOLD_SLOTS', { used: `${used}`, slots: `${slots()}` }))}</div></div>` +
-        '<div class="block-content voyage-hold-stow-body">';
+      let html = `<div class="${headClass}"><h5 class="${titleClass} voyage-hold-title"><img class="skill-icon-xxs mr-1" src="${icon}" alt="">${esc(t('MOD_VOY_HOLD_TITLE', { hull: hullName() }))}</h5>` +
+        `<div class="block-options"><span class="${full ? `${countClass.replace('text-combat-smoke', '')} text-warning` : countClass}">${esc(t('MOD_VOY_HOLD_SLOTS', { used: `${used}`, slots: `${slots()}` }))}</span></div></div>` +
+        `<div class="${bodyClass} voyage-hold-stow-body">`;
       if (why !== undefined || full) {
         html += `<div class="text-warning py-2">${esc(why ?? t('MOD_VOY_HOLD_FULL', { hull: hullName() }))}</div>`;
       } else {
         const q = bankItem.quantity;
-        html += '<div class="voyage-hold-row">' +
-          `<input type="number" min="1" max="${q}" inputmode="numeric" class="${inputClass} voyage-hold-qty" value="${q}" aria-label="${esc(t('MOD_VOY_PAGE_AMOUNT'))}">` +
-          '<div class="voyage-hold-presets">' +
-          (q > 1 ? `<button type="button" class="${presetClass}" data-hold-preset="${q - 1}">${esc(t('MOD_VOY_HOLD_ALL_BUT_ONE'))}</button>` : '') +
-          `<button type="button" class="${presetClass}" data-hold-preset="${q}">${esc(t('MOD_VOY_PAGE_STORES_LOAD_ALL'))}</button></div></div>` +
-          `<div class="voyage-hold-main"><button type="button" class="${mainClass} voyage-hold-stow-go">${esc(t('MOD_VOY_HOLD_STOW'))}</button></div>`;
+        html += `<div class="${gridClass}"><div class="${qtyColClass}">` +
+          `<input type="number" min="1" max="${q}" inputmode="numeric" class="${inputClass} voyage-hold-qty" value="${q}" aria-label="${esc(t('MOD_VOY_PAGE_AMOUNT'))}"></div>` +
+          `<div class="${presetColClass} voyage-hold-presets">` +
+          // A space between the buttons, as in Sell's markup: in a narrow panel "All" then wraps the same way.
+          (q > 1 ? `<button type="button" class="${presetClass}" data-hold-preset="${q - 1}">${esc(t('MOD_VOY_HOLD_ALL_BUT_ONE'))}</button> ` : '') +
+          `<button type="button" class="${presetClass}" data-hold-preset="${q}">${esc(t('MOD_VOY_PAGE_STORES_LOAD_ALL'))}</button></div>` +
+          '<div class="col-12"><div class="dropdown-divider"></div></div>' +
+          `<div class="${mainColClass}"><button type="button" class="${mainClass} voyage-hold-stow-go">${esc(t('MOD_VOY_HOLD_STOW'))}</button></div></div>`;
       }
       box.innerHTML = `${html}</div>`;
       const input = box.querySelector('.voyage-hold-qty');
       box.querySelectorAll('[data-hold-preset]').forEach((b) => b.addEventListener('click', () => { if (input) input.value = b.dataset.holdPreset; }));
-      box.querySelector('.voyage-hold-stow-go')?.addEventListener('click', () => stowItem(item, Number(input?.value)));
+      // Redraw after a part stow: the slot count and the amount follow (it kept "0 / 6 slots", 16 Oct 2026). A whole
+      // stack stowed leaves the bank, and the game moves the menu on by itself.
+      const menu = this;
+      box.querySelector('.voyage-hold-stow-go')?.addEventListener('click', () => {
+        if (stowItem(item, Number(input?.value)) <= 0) return;
+        const left = game.bank.items.get(item);
+        if (left !== undefined && left.quantity > 0) { try { menu.setItem(left, game.bank); } catch (e) { log('stow redraw failed', e); } }
+      });
     } catch (e) { log('hold stow block failed', e); }
   });
 

@@ -59,6 +59,7 @@ test('createTerrain indexes rows and returns undefined for unknown hexes', () =>
   assert.equal(t.get(999, 999), undefined);
   assert.ok(!isSea(undefined) && !isCloud(undefined) && !hasFeature(undefined, 'forest'));
   assert.equal(areaLabel('StrongholdOfTheGods'), 'Stronghold Of The Gods');
+  assert.equal(areaLabel('ANewStart'), 'A New Start');
 });
 
 test('indexes: unique numeric keys, class/feature/poi/area/dungeon lookups', () => {

@@ -184,13 +184,14 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
         swal({ title: t('MOD_VOY_STORES_REFUSE_HULL_TITLE'), html: body(lines), icon: 'warning', confirmButtonText: t('MOD_VOY_BUTTON_OK') });
         return;
       }
-      if (p.why === 'ashore') lines.push(t('MOD_VOY_STORES_REFUSE_ASHORE', { need: hp(p.reserve), have: hp(have.food) }));
+      if (p.why === 'ashore') lines.push(t('MOD_VOY_STORES_REFUSE_ASHORE', { trip: hp(total.food), left: hp(Math.max(0, have.food - total.food)), need: hp(p.reserve), have: hp(have.food) }));
       else if (step?.hop > 0) lines.push(t('MOD_VOY_STORES_REFUSE_HOP', { hexes: `${step.hop}`, need: hp(p.need.food), have: hp(have.food) }));
       else if (p.why === 'food') lines.push(t('MOD_VOY_STORES_REFUSE_FOOD', { terrain, need: hp(total.food), have: hp(have.food), hexes: along }));
       else lines.push(t('MOD_VOY_STORES_REFUSE_FUEL', { terrain, need: fuelText(total.fuel), have: fuelText(have.fuel), hexes: along }));
       const help = rescue();
       if (help === undefined) {
-        lines.push(t('MOD_VOY_STORES_REFUSE_HINT'));
+        // At sea, walking on empty stores is no way out (3c check, 16 Oct 2026).
+        lines.push(t(p.why === 'ashore' ? 'MOD_VOY_STORES_REFUSE_HINT_SEA' : 'MOD_VOY_STORES_REFUSE_HINT'));
         swal({ title: t('MOD_VOY_STORES_REFUSE_TITLE'), html: body(lines), icon: 'warning', confirmButtonText: t('MOD_VOY_BUTTON_OK') });
         return;
       }
@@ -325,9 +326,14 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     const s = stores();
     skill().record.kitGiven = true;
     const cap = capacity();
-    set(Math.max(s.food, Math.min(cap.food, s.food + S.STARTER_KIT.food)), Math.max(s.fuel, Math.min(cap.fuel, s.fuel + S.STARTER_KIT.fuel)));
+    const after = { food: Math.max(s.food, Math.min(cap.food, s.food + S.STARTER_KIT.food)), fuel: Math.max(s.fuel, Math.min(cap.fuel, s.fuel + S.STARTER_KIT.fuel)) };
+    set(after.food, after.fuel);
     log('starter kit given');
-    try { game.notifications.createSuccessNotification('voyage:kit', t('MOD_VOY_STORES_KIT', { amounts: amounts(S.STARTER_KIT.food, S.STARTER_KIT.fuel) }), ctx.getResourceUrl('assets/ship_stores.png')); } catch {}
+    // What went in, not the kit's size: the stores limit (3d) can cut it short (3c check, 16 Oct 2026).
+    const added = { food: after.food - s.food, fuel: after.fuel - s.fuel };
+    if (added.food <= 0 && added.fuel <= 0) return;
+    const notify = () => { try { game.notifications.createSuccessNotification('voyage:kit', t('MOD_VOY_STORES_KIT', { amounts: amounts(added.food, added.fuel) }), ctx.getResourceUrl('assets/ship_stores.png')); } catch {} };
+    if (state.whenNoModal) state.whenNoModal(notify); else notify();
   };
 
   const api = {

@@ -31,6 +31,15 @@ test('bad counters are cleaned on load', () => {
   assert.deepEqual(save, { ...defaultSave(), waterHexes: 2 });
 });
 
+test('free-unlock notice: kept through a reload, cleaned, and empty after the v5 migration', () => {
+  const { save } = loadSave(JSON.stringify({ ...defaultSave(), unlockNotice: ['voyage', 'junk', 'cartography', 'voyage'] }));
+  assert.deepEqual(save.unlockNotice, ['cartography', 'voyage']);
+  const old = loadSave(JSON.stringify({ v: 5, landHexes: 1, waterHexes: 0, backfilled: false, ship: null, shipChecked: true,
+    stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [] }));
+  assert.deepEqual(old.report.applied, [5]);
+  assert.deepEqual(old.save.unlockNotice, []);
+});
+
 test('XP per hex: water worth more, fast-travel hops give nothing', () => {
   const r = xpForSteps([{ water: false }, { water: true }, { water: false, fastTravel: true }, { water: true }]);
   assert.deepEqual(r, { land: 1, water: 2, xp: XP_PER_HEX.land + 2 * XP_PER_HEX.water });
@@ -62,7 +71,7 @@ test('skill milestones in data/skill.json match the compass stages', async () =>
 
 test('v2 saves gain empty stores and a starter kit still to come; stores are cleaned', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 2, landHexes: 5, waterHexes: 1, backfilled: true, ship: null, shipChecked: true }));
-  assert.deepEqual(report.applied, [2, 3, 4]);
+  assert.deepEqual(report.applied, [2, 3, 4, 5]);
   assert.deepEqual(save.stores, { food: 0, fuel: 0 });
   assert.equal(save.kitGiven, false);
   assert.equal(save.landHexes, 5);
@@ -79,7 +88,7 @@ test('XP: a sailed hop counts its length in water hexes; hungry and free steps g
 test('v3 saves: the ship gains a sound hull; condition is kept to 0..100', () => {
   const v3 = { ...defaultSave(), v: 3, ship: { hull: 'dinghy', q: 2, r: 5 } };
   const { save, report } = loadSave(JSON.stringify(v3));
-  assert.deepEqual(report.applied, [3, 4]);
+  assert.deepEqual(report.applied, [3, 4, 5]);
   assert.deepEqual(save.ship, { hull: 'dinghy', q: 2, r: 5, cond: 100 });
   assert.equal(loadSave(JSON.stringify({ ...v3, v: 3, ship: null })).save.ship, null);
   const worn = (cond) => loadSave(JSON.stringify({ ...defaultSave(), ship: { hull: 'dinghy', q: 1, r: 1, cond } })).save.ship.cond;
@@ -97,7 +106,7 @@ test('XP: a hex lit at night gives 25% more', () => {
 
 test('v4 saves gain an empty hold; hold entries are cleaned and merged', () => {
   const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 4, hold: undefined }));
-  assert.deepEqual(report.applied, [4]);
+  assert.deepEqual(report.applied, [4, 5]);
   assert.deepEqual(save.hold, []);
   const messy = { ...defaultSave(), hold: [{ id: 'melvorD:Bones', qty: 5 }, { id: 'melvorD:Bones', qty: 2.7 }, { id: '', qty: 1 }, { id: 'x:Gone', qty: 3 }, { id: 'melvorD:Feathers', qty: 0 }, null] };
   assert.deepEqual(loadSave(JSON.stringify(messy)).save.hold, [{ id: 'melvorD:Bones', qty: 7 }, { id: 'x:Gone', qty: 3 }]);

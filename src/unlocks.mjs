@@ -11,13 +11,15 @@
 const CARTOGRAPHY_ID = 'melvorAoD:Cartography';
 
 export function install(ctx, { state, log }) {
+  /** Cartography freed while the Voyage skill was missing (should not happen): told from memory instead of the save. */
   let freed = false;
+  const markCarto = () => { const v = state.voyageSkill?.(); if (v?.markFreed) v.markFreed('cartography'); else freed = true; };
   const buysSkills = (game) => { try { return game.currentGamemode?.allowSkillUnlock === true; } catch { return false; } };
 
   ctx.patch(Cartography, 'setUnlock').before(function (isUnlocked) {
     try {
       if (isUnlocked || !buysSkills(this.game)) return undefined;
-      if (!this._unlocked) freed = true;
+      if (!this._unlocked) markCarto();
       return [true];
     } catch (e) { log('Cartography unlock failed', e); return undefined; }
   });
@@ -43,7 +45,7 @@ export function install(ctx, { state, log }) {
   ctx.onCharacterLoaded(() => {
     try {
       const carto = game.skills.getObjectByID(CARTOGRAPHY_ID);
-      if (carto !== undefined && !carto.isUnlocked && buysSkills(game)) { freed = true; carto.setUnlock(true); }
+      if (carto !== undefined && !carto.isUnlocked && buysSkills(game)) { markCarto(); carto.setUnlock(true); }
     } catch (e) { console.error('[Voyage] Cartography unlock failed', e); }
   });
 
@@ -52,19 +54,21 @@ export function install(ctx, { state, log }) {
   ctx.onInterfaceReady(() => state.afterTutorial(notify));
   function notify() {
     const voyage = state.voyageSkill?.();
+    const pending = voyage?.futureRaw === undefined && Array.isArray(voyage?.record?.unlockNotice) ? voyage.record.unlockNotice : [];
     const names = [];
-    const freedCarto = freed;
-    if (freed) names.push('Cartography');
-    if (voyage?.freedForMode) names.push('the Voyage skill');
+    const freedCarto = freed || pending.includes('cartography');
+    if (freedCarto) names.push('Cartography');
+    if (pending.includes('voyage')) names.push('the Voyage skill');
     freed = false;
-    if (voyage !== undefined) voyage.freedForMode = false;
+    if (pending.length > 0) voyage.record.unlockNotice = [];
     if (names.length === 0) return;
     log(`${names.join(' and ')} unlocked for free; next skill unlock costs ${game.getSkillUnlockCost?.()} GP`);
     try {
       // Whole sentences per case, so a translation never has to join names and counts (languages/en.json).
       const key = names.length === 2 ? 'MOD_VOY_UNLOCK_BOTH' : freedCarto ? 'MOD_VOY_UNLOCK_CARTOGRAPHY' : 'MOD_VOY_UNLOCK_VOYAGE';
       const media = game.skills.getObjectByID(CARTOGRAPHY_ID)?.media;
-      game.notifications.createSuccessNotification('voyage:unlocks', getLangString(key), media);
+      const send = () => { try { game.notifications.createSuccessNotification('voyage:unlocks', getLangString(key), media); } catch {} };
+      if (state.whenNoModal) state.whenNoModal(send); else send();
     } catch {}
   }
 }

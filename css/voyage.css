@@ -6,6 +6,8 @@
 /* Under the search bar: exactly its width (left and right edges of the bar's box), so it follows the bar's own
    responsive sizing (user feedback, build .69). The min/max widths above only apply to the bottom-left fallback. */
 #voyage-here.voyage-here-top { position: absolute; top: 100%; left: 0; right: 0; min-width: 0; max-width: none; margin-top: 6px; text-align: left; }
+/* The map's zoom and centre buttons, moved to the right edge under the top bar (here-panel.mjs moveMapControls). */
+.voyage-map-controls { position: absolute; right: 0; top: 62px; display: flex; flex-direction: column; align-items: flex-end; }
 /* Day or night, centred on top of the ship and stores band. */
 .voyage-here-ship.voyage-here-time { justify-content: center; }
 .voyage-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.4); vertical-align: -1px; margin-right: 5px; }
@@ -96,12 +98,13 @@
 .voyage-help-td { padding: 3px 0; border-bottom: 1px solid var(--voyage-rule); overflow-wrap: anywhere; }
 .voyage-help-td img { vertical-align: -3px; }
 /* The hold's stow block in the bank's selected-item panel, laid out like the game's Sell block. */
-.voyage-hold-stow { text-align: left; flex: 0 0 100%; max-width: 100%; } /* a full line in a wrapping row */
-.voyage-hold-stow .block-title { display: flex; align-items: center; }
-.voyage-hold-stow-body { padding-bottom: 16px; }
+.voyage-hold-stow { text-align: left; width: 100%; } /* in its col-12, a full line under Sell */
+.voyage-hold-stow .voyage-hold-title { display: flex; align-items: center; }
+.voyage-hold-stow-body { padding-bottom: 8px; } /* the bank block is Sell's own grid (hold.mjs) */
+/* The Voyage page's amount forms (Load, Take): amount box, presets, then the main button. */
 .voyage-hold-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, .6); }
-.voyage-hold-qty { flex: 0 1 180px; min-width: 120px; min-height: 40px; }
-.voyage-hold-presets { display: flex; gap: 8px; }
+.voyage-hold-row .voyage-hold-qty { flex: 0 1 180px; min-width: 120px; min-height: 40px; }
+.voyage-hold-row .voyage-hold-presets { display: flex; gap: 8px; }
 .voyage-hold-main { display: flex; justify-content: center; padding-top: 12px; }
 .voyage-hold-main .btn { width: 75%; min-height: 40px; min-width: 120px; }
 /* The status row under the Voyage page's skill header: centred chips (day or night now, more status later). */

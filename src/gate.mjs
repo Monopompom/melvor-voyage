@@ -74,8 +74,11 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const ruleNoun = (skillId) => getLangString(rules.ruleNounKey(skillId));
   /** The skill's name as the rules show it (Magic is "Alt. Magic"), else the game's own name. */
   const skillLabel = (skillId, fallback) => { const k = rules.ruleLabelKey(skillId); return k === undefined ? fallback : getLangString(k); };
-  const join = (parts) => {
+  const join = (list) => {
     const sep = getLangString('MOD_VOY_GATE_LIST_OR');
+    // One name once: Mining's Snowlands-with-mountain combo adds a "mountain" feature labelled like the Mountain
+    // class, so the lock popup read "... or Rock or Mountain" after "Mountain or Highlands" (16 Oct 2026).
+    const parts = list.filter((p, i) => list.findIndex((o) => o.text === p.text) === i);
     return { text: parts.map((p) => p.text).join(sep), html: parts.map((p) => p.html).join(sep) };
   };
   /**
@@ -130,9 +133,10 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
         showCancelButton: withMap,
         confirmButtonText: getLangString(withMap ? 'MOD_VOY_GATE_BUTTON_MAP' : 'MOD_VOY_BUTTON_OK'),
         cancelButtonText: getLangString('MOD_VOY_GATE_BUTTON_STAY'),
-        // "Go to map" is navigation: blue outline like Stay (user decision, build .86); a plain OK stays green.
-        customClass: (() => { const c = withMap ? { ...SWAL_CLASS, confirmButton: 'btn btn-outline-info m-1' } : SWAL_CLASS; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
-      }).then((result) => { if (withMap && result.isConfirmed && page !== undefined) changePage(page, -1, undefined, false, false); });
+        // "Go to map" is filled blue, Stay blue outline (the user, 16 Oct 2026: "Only Go to map"; it was outline since .86);
+        // a plain OK stays green.
+        customClass: (() => { const c = withMap ? { ...SWAL_CLASS, confirmButton: 'btn btn-info m-1' } : SWAL_CLASS; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
+      }).then((result) => { if (withMap && result.isConfirmed) state.openPage(page); });
     } catch (e) {
       log('modal failed, using notification', e);
       try { game.notifications.createErrorNotification('voyage:locked', lines.map((l) => l.text).join(' ')); } catch {}
@@ -160,12 +164,21 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     const near = state.nearestFor(skillId, pos);
     if (near !== undefined) {
       const terms = rules.ruleTerms(skillId);
-      const match = terms.classes.includes(near.hex.t) ? biome(near.hex.t)
-        : terms.features.some((f) => terrainMod.hasFeature(near.hex, f)) ? feature(terms.features.find((f) => terrainMod.hasFeature(near.hex, f)))
-          : near.hex.poi && terms.pois.includes(near.hex.poi) ? placeName(near.hex.poi)
-            : near.hex.area && terms.areas.includes(near.hex.area) ? placeName(near.hex.area) : coloured(ruleNoun(skillId));
+      const matchOf = (hex) => (terms.classes.includes(hex.t) ? biome(hex.t)
+        : terms.features.some((f) => terrainMod.hasFeature(hex, f)) ? feature(terms.features.find((f) => terrainMod.hasFeature(hex, f)))
+          : hex.poi && terms.pois.includes(hex.poi) ? placeName(hex.poi)
+            : hex.area && terms.areas.includes(hex.area) ? placeName(hex.area) : undefined);
+      const match = matchOf(near.hex);
       const where = whereIs(pos, near.hex, near.distance);
-      lines.push(line('MOD_VOY_GATE_NEAREST', { match: match.html, where: esc(where) }));
+      if (match !== undefined) lines.push(line('MOD_VOY_GATE_NEAREST', { match: match.html, where: esc(where) }));
+      else {
+        // The nearest hex works by grace: name what is next door (phase 2 re-run, 16 Oct 2026: the noun made "Nearest
+        // a town or port: 2 hexes SW").
+        const from = rules.graceFrom(skillId, near.hex, state.ruleOpts()).map(matchOf).find((m) => m !== undefined);
+        lines.push(from !== undefined
+          ? line('MOD_VOY_GATE_NEAREST_GRACE', { match: from.html, where: esc(where) })
+          : line('MOD_VOY_GATE_NEAREST_ANY', { where: esc(where) }));
+      }
     } else {
       lines.push(line('MOD_VOY_GATE_NONE_KNOWN', { need: n.html }));
       // The compass only speaks when the map has nothing to say: a known place already gives distance and way.

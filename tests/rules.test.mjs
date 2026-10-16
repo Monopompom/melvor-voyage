@@ -118,3 +118,14 @@ test('trade gate: on a town, port or market hex or next to one', () => {
   assert.ok(tradeAllowedAt({ t: 'grasslands' }, [{ t: 'grasslands', f: ['market'] }]));
   assert.ok(!tradeAllowedAt({ t: 'grasslands' }, [{ t: 'grasslands', f: ['forest'] }]));
 });
+
+test('Harvesting works on the Abyss hex and next to it, at sea under cloud; nowhere else (user decision, 16 Oct 2026)', () => {
+  const H = 'melvorItA:Harvesting';
+  const abyss = { t: 'shoal', cloud: true, area: 'IntoTheAbyss', poi: 'SwirlingAbyss' };
+  const cloudSea = { t: 'shoal', cloud: true };
+  assert.equal(rateAt(H, abyss), 1);
+  assert.equal(rateAt(H, cloudSea, { neighbours: () => [abyss, cloudSea] }), 1);
+  assert.equal(rateAt(H, cloudSea, { neighbours: () => [cloudSea] }), 0);
+  assert.equal(rateAt(H, { t: 'grasslands', f: ['forest'] }, { neighbours: () => [{ t: 'grasslands' }] }), 0);
+  assert.equal(rateAt(MINING, { t: 'mountain', cloud: true }), 0, 'other rules still stop under cloud');
+});

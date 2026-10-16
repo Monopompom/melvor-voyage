@@ -18,7 +18,7 @@
 // Build .72: the ship's hold: bank items stowed aboard and taken back at the ship.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.95';
+export const BUILD = '2026-10-16.104';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -132,6 +132,7 @@ export async function setup(ctx) {
     { type: 'switch', name: 'provisions', label: getLangString('MOD_VOY_SETTING_PROVISIONS'), hint: getLangString('MOD_VOY_SETTING_PROVISIONS_HINT'), default: true, onChange: onChange('provisions') },
     { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
     { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
+    { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
   ]);
 
   /** The game's offline loop (tab in the background, or back after a while): see state.onSettingsChange. */
@@ -209,12 +210,30 @@ export async function setup(ctx) {
     let open = false;
     try { open = typeof Swal !== 'undefined' && Swal.isVisible(); } catch {}
     if (open && tries < 600) { setTimeout(() => runWhenNoModal(fns, tries + 1), 500); return; }
-    for (const fn of fns) { try { fn(); } catch (e) { console.error('[Voyage] after-tutorial step failed', e); } }
+    for (const fn of fns) { try { fn(); } catch (e) { console.error(`[Voyage] after-tutorial step ${fn?.name || typeof fn} failed`, e); } }
   };
   state.afterTutorial = (fn) => {
+    // A new character's tutorial skip logged "fn is not a function" (16 Oct 2026): name the caller if it happens again.
+    if (typeof fn !== 'function') { console.error(`[Voyage] afterTutorial wants a function, got ${typeof fn}`, new Error().stack); return; }
     let done = true;
     try { done = game.tutorial?.complete !== false; } catch {}
-    if (done) fn(); else { tutorialWaiters.push(fn); log('waiting for the tutorial to end'); }
+    if (done) fn(); else { tutorialWaiters.push(fn); log(`waiting for the tutorial to end: ${fn.name || 'step'}`); }
+  };
+  // A notification sent while a popup is open goes unseen (the kit's sat under the welcome, new character, 16 Oct
+  // 2026): wait a moment for a popup about to open, then until none is.
+  state.whenNoModal = (fn) => setTimeout(() => runWhenNoModal([fn]), 800);
+  /**
+   * Opens a game page from one of our buttons. The game's own toggle flips the phone menu, which is right for a menu
+   * link but opens it from a page button, so ours pass false and close an open menu here (16 Oct 2026: "Go to map" from
+   * a skill's lock popup, raised by a tap in the menu, opened the map under the still-open menu).
+   */
+  state.openPage = (page) => {
+    if (page === undefined) return;
+    changePage(page, -1, undefined, false, false);
+    try {
+      const narrow = !window.matchMedia('(min-width: 992px)').matches;
+      if (narrow && document.getElementById('page-container')?.classList.contains('sidebar-o-xs')) One.layout('sidebar_close');
+    } catch (e) { log('menu close failed', e); }
   };
   ctx.patch(Tutorial, 'completeTutorial').after(() => {
     const fns = tutorialWaiters.splice(0);
@@ -228,6 +247,7 @@ export async function setup(ctx) {
   const knowledgeMod = await ctx.loadModule('src/knowledge.mjs');
   // Not a rule: restarts the game loop when the game's own focus event is missed (src/focus-fix.mjs).
   try { (await ctx.loadModule('src/focus-fix.mjs')).install(ctx, { log }); } catch (e) { console.error('[Voyage] focus fix failed', e); }
+  try { (await ctx.loadModule('src/map-keys.mjs')).install(ctx, { key: () => value('centreKey'), log }); } catch (e) { console.error('[Voyage] map keys failed', e); }
   const helpLayout = await ctx.loadModule('src/help-layout.mjs');
   // Every popup we open runs this on render: skill names get their icon and bold.
   state.popupDidRender = (await ctx.loadModule('src/skill-names.mjs')).didRender;

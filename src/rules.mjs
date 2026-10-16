@@ -3,7 +3,8 @@
 //
 // A rule names terms, each with a rate: classes (hex class), features, flags (coast), pois, areas, and combos
 // (class + feature, e.g. a river in the desert). A hex passes at the best rate any term gives it, unless it is
-// under cloud (nothing works under cloud). `grace` lets a land hex next to a full-rate hex work at that rate.
+// under cloud (nothing works under cloud, except a rule marked `underCloud`). `grace` lets a land hex next to a
+// full-rate hex work at that rate (any hex, the sea and cloud included, for an `underCloud` rule).
 // Tiers: 'terrain' rules apply in both strictness modes; 'place' rules only in Strict; 'land' means any land hex.
 // Rate 1 = full speed; a fraction stretches the action interval by 1 / rate (src/gate.mjs); 0 = locked.
 // Unknown hexes and ungated skills return 1 (fail open).
@@ -38,7 +39,9 @@ export const SKILL_RULES = {
   'melvorD:Township': { tier: 'place', features: { city: 1, capital: 1, port: 1 }, grace: 1, noun: 'a town or port' },
   // Worker Folks' Hiring follows Township: staff changes (hire, promote, fire) need a town or port.
   'worker_folks:Hiring': { tier: 'place', features: { city: 1, capital: 1, port: 1 }, grace: 1, noun: 'a town or port' },
-  'melvorItA:Harvesting': { tier: 'terrain', areas: { IntoTheAbyss: 1 }, noun: 'the Abyss' },
+  // The Abyss is one hex at sea under cloud (Swirling Abyss): Harvesting works on it and next to it, as combat does,
+  // so the brig opens it from 5 out (user decision, 16 Oct 2026: it was locked everywhere).
+  'melvorItA:Harvesting': { tier: 'terrain', areas: { IntoTheAbyss: 1 }, grace: 1, underCloud: true, noun: 'the Abyss' },
 };
 
 /** Features that mark a trading place: sell, buy and trade only here or one hex away. */
@@ -58,7 +61,7 @@ const isSea = (rec) => SEA_CLASSES.includes(rec.t);
 
 /** Rate the hex itself gives the rule, before grace. */
 function ownRate(rule, rec) {
-  if (rec.cloud === true) return 0;
+  if (rec.cloud === true && rule.underCloud !== true) return 0;
   let best = rule.classes?.[rec.t] ?? 0;
   if (rule.tier === 'land' && !isSea(rec)) best = 1;
   const features = Array.isArray(rec.f) ? rec.f : [];
@@ -80,7 +83,7 @@ export function rateAt(skillId, record, opts = {}) {
   if (rule === undefined || record === undefined) return 1;
   if (opts.strictness === 'relaxed' && rule.tier === 'place') return 1;
   const own = ownRate(rule, record);
-  if (own >= 1 || rule.grace === undefined || record.cloud === true || isSea(record)) return own;
+  if (own >= 1 || rule.grace === undefined || (rule.underCloud !== true && (record.cloud === true || isSea(record)))) return own;
   const nbs = typeof opts.neighbours === 'function' ? opts.neighbours(record) : [];
   for (const n of nbs) if (n !== undefined && ownRate(rule, n) >= 1) return Math.max(own, rule.grace);
   return own;
@@ -93,7 +96,7 @@ export function rateAt(skillId, record, opts = {}) {
  */
 export function graceFrom(skillId, record, opts = {}) {
   const rule = SKILL_RULES[skillId];
-  if (rule?.grace === undefined || record === undefined || record.cloud === true || isSea(record)) return [];
+  if (rule?.grace === undefined || record === undefined || (rule.underCloud !== true && (record.cloud === true || isSea(record)))) return [];
   if (opts.strictness === 'relaxed' && rule.tier === 'place') return [];
   if (ownRate(rule, record) >= 1 || typeof opts.neighbours !== 'function') return [];
   return opts.neighbours(record).filter((n) => n !== undefined && ownRate(rule, n) >= 1);
