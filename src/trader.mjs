@@ -8,6 +8,9 @@
 // Route and verdict are pure (src/stranded.mjs). This module reads the live map and economy, fails toward
 // "stranded" on any error (a wrong offer is better than a soft lock), and never touches anything while the gates are off.
 
+// Modal buttons: confirm green, cancel blue outline (the game's default cancel is red; grey means disabled).
+const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
+
 const GATHERING = ['melvorD:Woodcutting', 'melvorD:Fishing', 'melvorD:Mining'];
 const HALF = 0.5;
 
@@ -261,7 +264,7 @@ export function install(ctx, { state, rules, terrainMod, stranded, log }) {
         showCancelButton: hasOffer,
         confirmButtonText: getLangString(coins !== undefined ? 'MOD_VOY_TRADER_BUTTON_THANK' : hasOffer ? 'MOD_VOY_TRADER_BUTTON_TRADE' : 'MOD_VOY_BUTTON_OK'),
         cancelButtonText: getLangString('MOD_VOY_TRADER_BUTTON_NOT_NOW'),
-        customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ popup: 'voyage-ui' }) : { popup: 'voyage-ui' },
+        customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       }).then((result) => {
         if (!result.isConfirmed || !hasOffer) return;
         met = { key: keyOf(v.pos), coinsGiven: false };
@@ -272,7 +275,12 @@ export function install(ctx, { state, rules, terrainMod, stranded, log }) {
         }
         log(`wandering trader met at (${v.pos.q},${v.pos.r}): ${v.reason}`);
         state.onSettingsChange();
-        then?.();
+        if (then !== undefined) { then(); return; }
+        // From the panel's button: open the bank to sell there (user feedback, build .61). A sale the player clicked
+        // in the bank already continues through `then`.
+        if (v.canSell !== false) {
+          try { const bank = game.pages.getObjectByID('melvorD:Bank'); if (bank !== undefined) changePage(bank, -1, undefined, false, false); } catch (e) { log('bank page failed', e); }
+        }
       });
     } catch (e) {
       console.error('[Voyage] trader modal failed; letting the sale through', e);

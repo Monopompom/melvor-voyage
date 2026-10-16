@@ -1,9 +1,15 @@
 /* Voyage: Far Shores */
-.voyage-ui { font-size: 0.95rem; }
-#voyage-here { min-width: 300px; max-width: 480px; pointer-events: auto; } /* 480: a full Locked row (12 icons, Astrology included) fits on one line */
-#voyage-here.voyage-here-top { position: absolute; top: 100%; left: 0; margin-top: 6px; text-align: left; }
+/* Colour tokens for the few colours the game has no class for. */
+:root { --voyage-label: #a0a8b4; --voyage-label-hover: #d0d6de; --voyage-help: #8fa3b8; --voyage-band: rgba(255, 255, 255, .045); --voyage-rule: rgba(255, 255, 255, .12); }
+.voyage-ui { font-size: 1rem; }
+#voyage-here { min-width: min(300px, 100%); max-width: 480px; pointer-events: auto; } /* 480: a full Locked row (12 icons, Astrology included) fits on one line */
+/* Under the search bar: exactly its width (left and right edges of the bar's box), so it follows the bar's own
+   responsive sizing (user feedback, build .69). The min/max widths above only apply to the bottom-left fallback. */
+#voyage-here.voyage-here-top { position: absolute; top: 100%; left: 0; right: 0; min-width: 0; max-width: none; margin-top: 6px; text-align: left; }
+/* Day or night, centred on top of the ship and stores band. */
+.voyage-here-ship.voyage-here-time { justify-content: center; }
 .voyage-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.4); vertical-align: -1px; margin-right: 5px; }
-.voyage-legend { margin-top: 6px; display: grid; grid-template-columns: repeat(3, max-content); gap: 1px 14px; font-size: .8rem; line-height: 1.6; }
+.voyage-legend { margin-top: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 1px 14px; font-size: .9rem; line-height: 1.6; }
 .voyage-legend-item { white-space: nowrap; }
 .voyage-skills { margin-top: 4px; }
 .voyage-locked { display: flex; align-items: flex-start; gap: 10px; font-size: 1.15rem; line-height: 1.5; }
@@ -17,7 +23,7 @@
 .voyage-skillrow img.skill-icon-xs { width: 20px; height: 20px; }
 .voyage-skill-locked { opacity: .4; filter: grayscale(1); outline: 1px solid rgba(220, 53, 69, .6); border-radius: 50%; }
 .voyage-skill-rate { position: relative; display: inline-flex; align-items: flex-end; }
-.voyage-skill-rate small { font-size: .6rem; margin-left: 1px; color: #ffc107; }
+.voyage-skill-rate small { font-size: .8rem; margin-left: 1px; } /* icon counts 0.8rem minimum; colour from text-warning */
 .voyage-compass-hot { color: #ff5a3c; }
 .voyage-compass-warm { color: #ffb347; }
 .voyage-compass-cold { color: #7fc8ff; }
@@ -27,7 +33,7 @@
 .voyage-here-place { margin-top: 1px; }
 /* row labels in the panel (Trade, Combat, Works, Locked): muted but full size (user feedback, build .44) */
 #voyage-here { font-size: 1rem; line-height: 1.45; }
-.voyage-here-label { color: #a0a8b4; font-weight: 600; margin-right: 2px; }
+.voyage-here-label { color: var(--voyage-label); font-weight: 600; margin-right: 2px; }
 
 /* settings: the Strictness dropdown sits under its two-line hint, lined up with the label */
 .form-inline:has(.voyage-setting-hint) > .dropdown { margin: 0.5rem 0 0.25rem 0.5rem; }
@@ -42,17 +48,104 @@
 .voyage-hull-icon { width: 48px; height: 48px; flex: 0 0 auto; }
 .voyage-cost { display: inline-flex; align-items: center; margin-right: 12px; white-space: nowrap; }
 .voyage-cost img { width: 20px; height: 20px; }
-.voyage-path-note { line-height: 1.35; padding: .4rem .75rem 0; text-align: center; }
+.voyage-hull { padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.voyage-hull-bar { height: 8px; margin-top: 4px; max-width: 240px; }
+.voyage-path-note { font-size: .9rem; line-height: 1.35; padding: .4rem .75rem 0; text-align: center; }
+.voyage-overview { font-size: .9rem; }
 
 /* phase 3b: the boat line in the "You are here" panel, right under the location line */
 .voyage-here-ship { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0; }
-.voyage-here-ship .btn { font-size: .85rem; padding: .1rem .55rem; white-space: nowrap; }
-.voyage-here-stranded { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; font-weight: 600; }
-.voyage-here-stranded .btn { font-size: .85rem; padding: .1rem .55rem; white-space: nowrap; }
+.voyage-here-ship .btn { font-size: .9rem; padding: .2rem .6rem; white-space: nowrap; }
+.voyage-here-stranded { margin: 4px 0; font-weight: 600; } /* a panel row like the others (build .86) */
 .voyage-legend-wrap { margin-top: 4px; }
-.voyage-legend-toggle { background: none; border: 0; padding: 0; color: inherit; opacity: .75; font-size: .85rem; cursor: pointer; }
-.voyage-legend-toggle:hover { opacity: 1; }
+/* Both panel toggles (Locked here, Legend) share one style. */
+.voyage-legend-toggle { background: none; border: 0; padding: 0; min-height: 32px; color: var(--voyage-label); font-size: 1rem; font-weight: 600; cursor: pointer; }
+@media (hover: hover) { .voyage-legend-toggle:hover { color: var(--voyage-label-hover); } }
 .voyage-legend-toggle i { width: .7em; }
 /* build .53: the folded Locked row; the icons wrap under the toggle when opened */
-.voyage-locked-toggle { font-size: 1rem; font-weight: 600; color: #a0a8b4; opacity: 1; }
 .voyage-locked-row { margin-left: 14px; }
+
+/* phase 3c: stores on the Voyage page, the panel's Load button, the hex overview cost line */
+.voyage-store-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.voyage-store-item { display: inline-flex; align-items: center; gap: 4px; padding: .2rem .45rem; min-height: 40px; }
+.voyage-store-item img { width: 32px; height: 32px; } /* 32px icons on item chips */
+.voyage-store-item small { font-size: .8rem; }
+/* the ship and stores lines share a band: a slightly lighter background between thin rules (user feedback, build .58) */
+.voyage-here-shipbox { background: var(--voyage-band); border-top: 1px solid var(--voyage-rule);
+  border-bottom: 1px solid var(--voyage-rule); margin: 4px -8px; padding: 2px 8px; }
+.voyage-stores-note { font-size: .9rem; line-height: 1.35; padding: .2rem .75rem 0; text-align: center; }
+.voyage-stores-icons { white-space: nowrap; }
+.voyage-stores-icons img { width: 20px; height: 20px; vertical-align: -4px; margin: 0 2px 0 4px; }
+.voyage-stores-icons img:first-child { margin-left: 0; }
+/* The Voyage page's notes (<small>, 80% by default) read too small (user feedback, build .67): close to body size. */
+#voyage-container small { font-size: .9rem; }
+#voyage-container .voyage-store-item small { font-size: .8rem; }
+/* The "?" next to each Voyage page block title: the block's rules in a popup (the Captain's Journal later). */
+.voyage-help { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; padding: 0 .35rem; margin-left: .2rem;
+  color: var(--voyage-help); background: none; border: 0; font-size: 1.1rem; line-height: 1; vertical-align: middle; } /* 32px target */
+.voyage-help:focus { color: #fff; box-shadow: none; }
+@media (hover: hover) { .voyage-help:hover { color: #fff; } }
+.voyage-help-lines > div + div { margin-top: .5rem; }
+/* The hold's stow block in the bank's selected-item panel, laid out like the game's Sell block. */
+.voyage-hold-stow { text-align: left; }
+.voyage-hold-stow .block-title { display: flex; align-items: center; }
+.voyage-hold-stow-body { padding-bottom: 16px; }
+.voyage-hold-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, .6); }
+.voyage-hold-qty { flex: 0 1 180px; min-width: 120px; min-height: 40px; }
+.voyage-hold-presets { display: flex; gap: 8px; }
+.voyage-hold-main { display: flex; justify-content: center; padding-top: 12px; }
+.voyage-hold-main .btn { width: 75%; min-height: 40px; min-width: 120px; }
+/* The status row under the Voyage page's skill header: centred chips (day or night now, more status later). */
+.voyage-status-row { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px 24px; padding: 8px 12px; margin-bottom: 12px; font-size: 1.05rem; }
+
+/* Buttons at the right end of a panel row (Show, Load) share one width. */
+#voyage-here .voyage-row-btn { min-width: 5.5rem; min-height: 32px; text-align: center; font-size: .9rem; padding: .2rem .6rem; }
+
+/* Grey means disabled and nothing else (the Worker Folks rule): no grey buttons unless they can't be used. */
+#voyage-container .btn:disabled, #voyage-container .btn.disabled, #voyage-here .btn:disabled, #voyage-here .btn.disabled,
+.voyage-ui .btn:disabled, .voyage-ui .btn.disabled, .voyage-hold-stow .btn:disabled {
+  color: #8a949e; border-color: #5c6873; background-color: transparent; opacity: 1;
+}
+
+/* Narrow panel (the search bar is ~200px at 620px window width): a row's text keeps its natural width and the
+   row's button drops under it, right-aligned, instead of squeezing the text into a column. */
+.voyage-here-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; margin-bottom: 4px; }
+.voyage-here-head > .voyage-panel-toggle { white-space: nowrap; }
+.voyage-here-ship { flex-wrap: wrap; row-gap: 4px; }
+/* Text and button share the extra space 1000 : 1, so a button next to its text stays its own size, but a button
+   that wrapped onto its own line takes the whole line (full width, centred label) instead of hanging on the right
+   (user feedback, build .84, ~840px window). */
+.voyage-here-head > .voyage-panel-toggle, .voyage-here-ship > span:first-child { flex: 1000 1 auto; text-align: left; }
+.voyage-here-head > .btn, .voyage-here-ship > .btn { flex: 1 0 auto; text-align: center; }
+/* One layout for every row button (alignRowButtons): stacked means all of them take their own full line. */
+.voyage-stacked .voyage-here-head > .btn, .voyage-stacked .voyage-here-ship > .btn { flex-basis: 100%; }
+/* The fold toggle is the panel title: white and bold like before, with a caret like Locked here and Legend. */
+.voyage-panel-toggle { background: none; border: 0; padding: 0; min-height: 32px; color: inherit; font-size: 1rem; font-weight: 600; cursor: pointer; }
+@media (hover: hover) { .voyage-panel-toggle:hover { color: #fff; } }
+.voyage-panel-toggle i { width: .7em; }
+.voyage-here-ship.voyage-here-time > span { flex: 0 1 auto; } /* the day/night line stays centred */
+
+/* build .86 UI pass ------------------------------------------------------------------------------- */
+/* Sections: related facts in one grey band inside a block (the user's rule). */
+.voyage-section { background: var(--voyage-band); border-radius: 6px; padding: 8px; }
+.voyage-section + .voyage-section { margin-top: 8px; }
+/* A line with its button on the right; the button drops under the text and fills the line when narrow. */
+.voyage-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; }
+.voyage-row > :first-child { flex: 1000 1 auto; }
+.voyage-row > .btn { flex: 1 0 auto; min-height: 32px; }
+/* Action blocks on the page (Load, Take): the stow block's layout; a softer rule inside a grey section. */
+.voyage-action { margin-top: 10px; }
+.voyage-section .voyage-hold-row { border-bottom-color: var(--voyage-rule); }
+/* Panel skill icons are buttons (a tap shows why a skill is locked; no hover on touch). */
+.voyage-skill-btn { display: inline-flex; align-items: flex-end; justify-content: center; min-width: 32px; min-height: 32px; padding: 2px; background: none; border: 0; border-radius: 6px; color: inherit; }
+.voyage-skill-btn:focus-visible { outline: 2px solid var(--voyage-help); }
+@media (hover: hover) { .voyage-skill-btn:hover { background: var(--voyage-band); } }
+.voyage-skillrow { gap: 2px; }
+/* Combat areas in the panel: small chips that open the area (were inline text links). */
+.voyage-fight-links { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
+.voyage-fight-link { min-height: 32px; }
+/* Touch screens: main buttons and toggles at least 40px high. */
+@media (pointer: coarse) {
+  .voyage-legend-toggle, .voyage-panel-toggle, #voyage-here .voyage-row-btn, .voyage-fight-link, .voyage-help, .voyage-row > .btn { min-height: 40px; }
+  .voyage-hold-presets .btn { min-height: 40px; }
+}

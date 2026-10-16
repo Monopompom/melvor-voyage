@@ -59,3 +59,46 @@ test('skill milestones in data/skill.json match the compass stages', async () =>
   const levels = pkg.data.skillData[0].data.customMilestones.map((m) => m.level);
   assert.deepEqual(levels, COMPASS_STAGES.map((s) => s.level));
 });
+
+test('v2 saves gain empty stores and a starter kit still to come; stores are cleaned', () => {
+  const { save, report } = loadSave(JSON.stringify({ v: 2, landHexes: 5, waterHexes: 1, backfilled: true, ship: null, shipChecked: true }));
+  assert.deepEqual(report.applied, [2, 3, 4]);
+  assert.deepEqual(save.stores, { food: 0, fuel: 0 });
+  assert.equal(save.kitGiven, false);
+  assert.equal(save.landHexes, 5);
+  const bad = loadSave(JSON.stringify({ ...defaultSave(), stores: { food: 12.7, fuel: 3.4561 }, kitGiven: true })).save;
+  assert.deepEqual(bad.stores, { food: 12, fuel: 3.456 });
+  assert.deepEqual(loadSave(JSON.stringify({ ...defaultSave(), stores: { food: -1, fuel: 'x' } })).save.stores, { food: 0, fuel: 0 });
+});
+
+test('XP: a sailed hop counts its length in water hexes; hungry and free steps give nothing', () => {
+  assert.deepEqual(xpForSteps([{ water: false, fastTravel: true, hop: 6 }]), { land: 0, water: 6, xp: 6 * XP_PER_HEX.water });
+  assert.deepEqual(xpForSteps([{ water: false, hungry: true }, { water: true, free: true }, { water: false }]), { land: 1, water: 0, xp: XP_PER_HEX.land });
+});
+
+test('v3 saves: the ship gains a sound hull; condition is kept to 0..100', () => {
+  const v3 = { ...defaultSave(), v: 3, ship: { hull: 'dinghy', q: 2, r: 5 } };
+  const { save, report } = loadSave(JSON.stringify(v3));
+  assert.deepEqual(report.applied, [3, 4]);
+  assert.deepEqual(save.ship, { hull: 'dinghy', q: 2, r: 5, cond: 100 });
+  assert.equal(loadSave(JSON.stringify({ ...v3, v: 3, ship: null })).save.ship, null);
+  const worn = (cond) => loadSave(JSON.stringify({ ...defaultSave(), ship: { hull: 'dinghy', q: 1, r: 1, cond } })).save.ship.cond;
+  assert.equal(worn(37), 37);
+  assert.equal(worn(-5), 0);
+  assert.equal(worn(140), 100);
+  assert.equal(worn('x'), 100);
+});
+
+test('XP: a hex lit at night gives 25% more', () => {
+  assert.deepEqual(xpForSteps([{ water: false, lit: true }, { water: true, lit: true }, { water: false }]), { land: 2, water: 1, xp: 25 + 50 + 20 });
+  assert.equal(xpForSteps([{ water: false, fastTravel: true, hop: 4, lit: true }]).xp, 4 * 50);
+  assert.equal(xpForSteps([{ water: false, hungry: true, lit: true }]).xp, 0);
+});
+
+test('v4 saves gain an empty hold; hold entries are cleaned and merged', () => {
+  const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 4, hold: undefined }));
+  assert.deepEqual(report.applied, [4]);
+  assert.deepEqual(save.hold, []);
+  const messy = { ...defaultSave(), hold: [{ id: 'melvorD:Bones', qty: 5 }, { id: 'melvorD:Bones', qty: 2.7 }, { id: '', qty: 1 }, { id: 'x:Gone', qty: 3 }, { id: 'melvorD:Feathers', qty: 0 }, null] };
+  assert.deepEqual(loadSave(JSON.stringify(messy)).save.hold, [{ id: 'melvorD:Bones', qty: 7 }, { id: 'x:Gone', qty: 3 }]);
+});

@@ -40,6 +40,21 @@ Provisions and the timed voyage come later.
   and step ashore on any coast: the boat waits where you left it, shown on the map with its anchor. Some islands
   need a bigger ship, in step with the dungeons on them: a dinghy can't land on the Cursed or the Ominous Isle. If you were already
   out on the water or on another island when you installed this version, you get a dinghy for free.
+- **Provisions.** Every hex costs food from your stores, and fuel for the campfire on land: a little on easy ground,
+  more on hills, mountains and wastes, most in snow and lava (Firemaking levels make the fuel go further). Load food
+  and fuel from the bank on the Voyage page at a port (everything at full measure), a town or market, or a farm or camp
+  (less), standing on it or next to it. The stores hold only so much, and every Voyage level adds room. You start with
+  a kit. With empty stores you can still walk easy ground, for no Voyage XP. At sea you always keep the food to get
+  back ashore, and fast travel between ports sails your ship, so it has to be waiting at the port.
+- **Hull wear.** Every sea hex wears your ship's hull a little. Beach it on a coast and repair it on the Voyage page
+  with logs and Pitch, which Firemaking now makes from time to time. A worn-out hull can always limp back to the
+  coast.
+- **The hold.** Your boat has a hold for bank items: one kind of item a slot, in any amount (6 slots on a dinghy, one
+  more every 10 Voyage levels). Stow items from the bank's item panel and take them back on the Voyage page, standing
+  on the boat or next to it. The hold is kept in the mod's save data: take everything out before you remove the mod.
+- **Night.** From 21:00 to 05:00 on your own clock, the fuel a trip leaves over lights the way, and every lit hex gives
+  25% more Voyage XP. Light never takes the fuel a trip needs, so playing at night is never worse than by day.
+  Astrology levels make the light go further. You can move the night in the settings, or switch it off.
 - **Worker Folks.** With Worker Folks loaded, hiring, promoting and firing need a town or port, like Township.
 
 ## Settings (Mod Settings, section Voyage)
@@ -50,6 +65,8 @@ Provisions and the timed voyage come later.
 - **Resource zones**: each ore, tree, fish, crop, thieving target and constellation is found only in its own places (iron and copper
   are in different regions; the panel's skill icons list what is found on your hex). Off: the skill's terrain decides alone.
 - **Combat needs its area** and **Trade only near markets**: each can be switched off on its own.
+- **Provisions**: off, moves take nothing from your stores and sailing wears nothing.
+- **Night** and **Move the night (hours)**: night on or off, and when it falls (−12 to 12 hours from 21:00 to 05:00).
 
 ## Languages
 

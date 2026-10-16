@@ -50,6 +50,42 @@ export const UNKNOWN_TIER_NAME = 'bigger ship';
 
 export const DINGHY_BUILD = { gp: 500, items: [{ id: 'melvorD:Normal_Logs', quantity: 50 }] };
 
+/**
+ * Hull condition (phase 3d): `ship.cond`, 0 to 100 (%). Sailing wears it (stores-model.mjs wearOf);
+ * repairs cost logs and Pitch. A save without it is a sound hull.
+ */
+export const condOf = (ship) => (Number.isFinite(ship?.cond) ? Math.min(100, Math.max(0, ship.cond)) : 100);
+/** Deep water: 3 or more hexes from land (the table's `shore`). Below 50% a hull keeps out of it. */
+export const DEEP_SHORE = 3;
+/** Every 10% of condition takes 5 logs (timber, any kind, the cheapest first) and 1 Pitch. */
+export const REPAIR = { step: 10, logs: 5, pitch: 1 };
+/**
+ * What repairing a hull at `cond` takes with `logs` and `pitch` in the bank: as many 10% steps as it needs and they
+ * pay for. { steps, to, logs, pitch } for what can be done now, `want` the steps to 100%, `full` their cost.
+ */
+export function repairPlan(cond, logs, pitch) {
+  const want = Math.max(0, Math.ceil((100 - cond) / REPAIR.step));
+  const steps = Math.max(0, Math.min(want, Math.floor(logs / REPAIR.logs), Math.floor(pitch / REPAIR.pitch)));
+  return {
+    steps, want, to: Math.min(100, cond + steps * REPAIR.step), logs: steps * REPAIR.logs, pitch: steps * REPAIR.pitch,
+    full: { logs: want * REPAIR.logs, pitch: want * REPAIR.pitch },
+  };
+}
+/**
+ * Where a hull is repaired: a small boat (tiers 1 and 2) is beached on a coast, as careening was done, so the ship
+ * sits next to land and you stand on it or next to it. A sailing ship (tiers 3 and 4) needs a port (`portNear`).
+ */
+export function canRepair(playerRec, ship, shipRec, portNear = false) {
+  if (ship == null || playerRec === undefined) return false;
+  if (tierOf(ship) >= 3) return portNear === true;
+  return hexDist(playerRec, ship) <= 1 && shoreOf(shipRec) === 1;
+}
+/**
+ * Pitch from Firemaking (3d): the chance in % per log burned, 10% plus a quarter of a percent per Firemaking level the
+ * log needs (Normal 10.25%, Willow 17.5%, Magic 28.75%, Redwood 32.5%). Better logs give more.
+ */
+export const pitchChance = (logLevel) => 10 + 0.25 * Math.max(1, Math.floor(logLevel ?? 1));
+
 export const SEA_CLASSES = ['water', 'shoal'];
 export const isSea = (rec) => rec !== undefined && SEA_CLASSES.includes(rec.t);
 export const sameHex = (a, b) => a !== undefined && a !== null && b !== undefined && b !== null && a.q === b.q && a.r === b.r;
@@ -117,6 +153,38 @@ export function shipAfterPath(path, ship) {
     if (aboard) at = { q: h.q, r: h.r };
   }
   return at.q === ship.q && at.r === ship.r ? ship : { ...ship, q: at.q, r: at.r };
+}
+
+/** Steps between two axial hexes. */
+export const hexDist = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
+
+/**
+ * Fast travel between ports is sailing (built in 3c): a hop from `fromRec` (a port) to `toRec` (a
+ * port of the same group) needs the ship at the departure port's quay (on a sea hex next to it), a hull allowed to
+ * land on the destination's island, and somewhere at the destination for the ship to dock (`dock`, a sea hex next
+ * to it). No reach limit: ports are linked by known sea lanes.
+ */
+export function canHop(fromRec, toRec, ship, dock, geo = plainGeo) {
+  return ship != null && hexDist(fromRec, ship) <= 1 && tierOf(ship) >= geo.islandTier(toRec) && dock !== undefined;
+}
+
+/**
+ * Where the ship is after a move whose path (records, start to destination) may contain fast-travel hops: a record
+ * with `hop: true` was reached by one. The ship sails a hop with you when it waits at the port you hop from, and docks
+ * at `dockOf(rec)` at the other end; between hops it follows shipAfterPath.
+ */
+export function shipAfterHops(path, ship, dockOf) {
+  if (ship == null || path.length === 0) return ship;
+  let s = ship;
+  let seg = [path[0]];
+  for (let i = 1; i < path.length; i++) {
+    if (path[i].hop !== true) { seg.push(path[i]); continue; }
+    s = shipAfterPath(seg, s);
+    const dock = hexDist(path[i - 1], s) <= 1 ? dockOf(path[i]) : undefined;
+    if (dock !== undefined) s = { ...s, q: dock.q, r: dock.r };
+    seg = [path[i]];
+  }
+  return shipAfterPath(seg, s);
 }
 
 /**
@@ -199,4 +267,38 @@ export function seaIndex(terrain) {
     return homeMap(tier).get(table) ?? Infinity;
   };
   return { islandOf, islandTier, home };
+}
+
+/**
+ * The hold (build .72; the user: early bank space is hard to manage and loot can only be sold at a market). Ordinary
+ * bank items, bank-style: a slot holds one kind of item in any amount. The dinghy has 6 slots and every 10 Voyage
+ * levels add one; bigger hulls add more later, and cargo runs use the same slots.
+ */
+export const HOLD_SLOTS = { dinghy: 6 };
+export function holdSlots(ship, voyageLevel = 1) {
+  if (ship == null) return 0;
+  return (HOLD_SLOTS[ship.hull] ?? 0) + Math.floor(Math.min(99, Math.max(1, voyageLevel)) / 10);
+}
+/** The hold is reached at the ship: standing on it or on a hex next to it. */
+export const atShip = (playerRec, ship) => ship != null && playerRec !== undefined && hexDist(playerRec, ship) <= 1;
+/**
+ * Puts `qty` of item `id` in the hold. Returns the new hold, or undefined when it needs a new slot and none is free.
+ * Pure: the hold given is not changed.
+ */
+export function stow(hold, id, qty, slots) {
+  const n = Math.max(0, Math.floor(qty));
+  if (n <= 0) return hold;
+  const i = hold.findIndex((e) => e.id === id);
+  if (i >= 0) return hold.map((e, j) => (j === i ? { id, qty: e.qty + n } : e));
+  if (hold.length >= slots) return undefined;
+  return [...hold, { id, qty: n }];
+}
+/** Takes up to `qty` of item `id` out: { hold, taken }. An emptied slot is freed. */
+export function takeOut(hold, id, qty) {
+  const i = hold.findIndex((e) => e.id === id);
+  if (i < 0) return { hold, taken: 0 };
+  const taken = Math.min(hold[i].qty, Math.max(0, Math.floor(qty)));
+  const left = hold[i].qty - taken;
+  const next = left > 0 ? hold.map((e, j) => (j === i ? { id, qty: left } : e)) : hold.filter((_, j) => j !== i);
+  return { hold: next, taken };
 }

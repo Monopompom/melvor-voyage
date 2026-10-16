@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach,
+  canHop, shipAfterHops, hexDist, condOf, repairPlan, canRepair, pitchChance, REPAIR,
+  holdSlots, atShip, stow, takeOut,
 } from '../src/ship-model.mjs';
 import { HULL_IDS, loadSave, serializeSave, defaultSave, xpForSteps } from '../src/voyage-model.mjs';
 import { createTerrain, hexDistance, NEIGHBOURS } from '../src/terrain.mjs';
@@ -95,11 +97,11 @@ test('every water and shoal hex has a shore distance; land has none', async () =
   assert.equal(table.hexes.filter((h) => h.shore !== undefined && h.shore <= 2).length, 352);
 });
 
-test('save v1 migrates to v2 with no ship; a ship round-trips; a bad ship is dropped', () => {
+test('save v1 migrates up with no ship; a ship round-trips; a bad ship is dropped', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 1, landHexes: 4, waterHexes: 0, backfilled: true }));
-  assert.deepEqual(report.applied, [1]);
+  assert.deepEqual(report.applied, [1, 2, 3, 4]);
   assert.deepEqual(save, { ...defaultSave(), landHexes: 4, backfilled: true });
-  const withShip = { ...defaultSave(), ship: dinghy(3, 7), shipChecked: true };
+  const withShip = { ...defaultSave(), ship: { ...dinghy(3, 7), cond: 64 }, shipChecked: true };
   assert.deepEqual(loadSave(serializeSave(withShip)).save, withShip);
   assert.equal(loadSave(JSON.stringify({ ...withShip, ship: { hull: 'raft', q: 1, r: 1 } })).save.ship, null);
   assert.equal(loadSave(JSON.stringify({ ...withShip, ship: { hull: 'dinghy', q: 1.5, r: 1 } })).save.ship, null);
@@ -206,4 +208,74 @@ test('next to a higher-tier island counts as beyond a dinghy\'s reach unless a l
   for (const h of off) assert.ok(idx.home(h, 3) === 1 && idx.home(h, 1) >= 1);
   // the brig may land at Ominous Port: its distance is 1 there
   assert.ok(off.some((h) => idx.home(h, 1) > idx.home(h, 3)));
+});
+
+test('fast travel is sailing: the ship must wait at the departure quay, may land there, and docks at the other end', () => {
+  const portA = { ...land(0, 0), f: ['port'] };
+  const portB = { ...land(10, 0), f: ['port'] };
+  const dock = sea(11, 0, 1);
+  assert.equal(hexDist(portA, portB), 10);
+  assert.equal(canHop(portA, portB, dinghy(1, 0), dock), true);
+  assert.equal(canHop(portA, portB, dinghy(3, 0), dock), false); // the ship is elsewhere
+  assert.equal(canHop(portA, portB, null, dock), false);
+  assert.equal(canHop(portA, portB, dinghy(1, 0), undefined), false); // nowhere to dock
+  assert.equal(canHop(portA, portB, dinghy(1, 0), dock, { islandTier: () => 3, home: () => 0 }), false); // a brig's island
+  // walk to the port, hop, walk on: the ship docks next to B and stays there
+  const path = [land(-1, 0), portA, { ...portB, hop: true }, land(10, 1)];
+  assert.deepEqual(shipAfterHops(path, dinghy(1, 0), () => dock), dinghy(11, 0));
+  // the ship was not at A: it stays where it was
+  const left = dinghy(5, 5);
+  assert.equal(shipAfterHops(path, left, () => dock), left);
+  assert.equal(shipAfterHops([land(0, 1), land(0, 2)], left, () => dock), left);
+});
+
+test('hull condition: a ship without one is sound; repairs go in 10% steps of 5 logs and 1 Pitch', () => {
+  assert.equal(condOf(dinghy(1, 1)), 100);
+  assert.equal(condOf({ ...dinghy(1, 1), cond: 42 }), 42);
+  assert.equal(condOf(null), 100);
+  assert.deepEqual(repairPlan(100, 999, 999), { steps: 0, want: 0, to: 100, logs: 0, pitch: 0, full: { logs: 0, pitch: 0 } });
+  assert.deepEqual(repairPlan(0, 999, 999), { steps: 10, want: 10, to: 100, logs: 50, pitch: 10, full: { logs: 50, pitch: 10 } });
+  assert.equal(repairPlan(95, 999, 999).to, 100); // the last step tops it up
+  assert.equal(repairPlan(95, 999, 999).logs, REPAIR.logs);
+  const short = repairPlan(40, 12, 9);
+  assert.equal(short.steps, 2); // 12 logs pay for two steps
+  assert.equal(short.to, 60);
+  assert.equal(repairPlan(40, 999, 0).steps, 0);
+});
+
+test('a small boat is repaired beached on a coast, with you on it or next to it', () => {
+  const boat = dinghy(5, 5);
+  assert.equal(canRepair(land(5, 4), boat, sea(5, 5, 1)), true); // on the shore next to it
+  assert.equal(canRepair(sea(5, 5, 1), boat, sea(5, 5, 1)), true); // aboard at the coast
+  assert.equal(canRepair(sea(5, 5, 2), boat, sea(5, 5, 2)), false); // afloat away from land
+  assert.equal(canRepair(land(5, 2), boat, sea(5, 5, 1)), false); // too far from it
+  assert.equal(canRepair(land(5, 4), null, undefined), false);
+});
+
+test('Pitch: better logs give more', () => {
+  assert.equal(pitchChance(1), 10.25);
+  assert.equal(pitchChance(99), 34.75);
+  assert.ok(pitchChance(60) > pitchChance(30));
+});
+
+test('the hold: 6 slots on a dinghy, one more every 10 Voyage levels; reached at the ship', () => {
+  assert.equal(holdSlots(dinghy(1, 1), 1), 6);
+  assert.equal(holdSlots(dinghy(1, 1), 10), 7);
+  assert.equal(holdSlots(dinghy(1, 1), 99), 15);
+  assert.equal(holdSlots(null, 50), 0);
+  assert.equal(atShip(land(5, 4), dinghy(5, 5)), true);
+  assert.equal(atShip(sea(5, 5, 1), dinghy(5, 5)), true);
+  assert.equal(atShip(land(5, 3), dinghy(5, 5)), false);
+  assert.equal(atShip(land(5, 4), null), false);
+});
+
+test('stowing stacks like the bank; a new kind needs a free slot; taking out frees an emptied slot', () => {
+  let hold = stow([], 'a', 5, 2);
+  hold = stow(hold, 'b', 1, 2);
+  assert.deepEqual(hold, [{ id: 'a', qty: 5 }, { id: 'b', qty: 1 }]);
+  assert.equal(stow(hold, 'c', 1, 2), undefined); // full
+  assert.deepEqual(stow(hold, 'a', 3, 2), [{ id: 'a', qty: 8 }, { id: 'b', qty: 1 }]); // stacks even when full
+  assert.deepEqual(takeOut(hold, 'a', 2), { hold: [{ id: 'a', qty: 3 }, { id: 'b', qty: 1 }], taken: 2 });
+  assert.deepEqual(takeOut(hold, 'b', 99), { hold: [{ id: 'a', qty: 5 }], taken: 1 });
+  assert.deepEqual(takeOut(hold, 'z', 1), { hold, taken: 0 });
 });

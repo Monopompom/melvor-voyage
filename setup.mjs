@@ -10,9 +10,15 @@
 // travelled and the compass levels (4.17).
 // Phase 3b: the ship (4.3): off the ship, land only; a dinghy built on the Voyage page; the ship waits where you step
 // ashore; player and ship markers; a free dinghy for characters phase 2 left on the water or overseas.
+// Phase 3c: provisions (4.4): stores of food and fuel loaded at ports, towns, markets and farms, paid per hex on top
+// of the GP; the hunger floor on easy ground; always get ashore; fast travel between ports sails the ship.
+// Build .66: a carry limit that grows with Voyage level, and a cooking fire (fuel) on every land hex.
+// Phase 3d: hull wear (4.4): sailing wears the ship; repairs with logs and Pitch, a new Firemaking by-product.
+// Phase 3e: night on the player's clock (4.23): spare fuel lights the way, lit hexes pay more Voyage XP.
+// Build .72: the ship's hold: bank items stowed aboard and taken back at the ship.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.54';
+export const BUILD = '2026-10-16.86';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -53,6 +59,12 @@ export async function setup(ctx) {
       compass._name = getLangString('MOD_VOY_ITEM_COMPASS_NAME');
       compass._customDescription = getLangString('MOD_VOY_ITEM_COMPASS_DESC');
       compass._modifiedDescription = undefined;
+    }
+    const pitch = game.items.getObjectByID('voyage:Pitch');
+    if (pitch !== undefined) {
+      pitch._name = getLangString('MOD_VOY_ITEM_PITCH_NAME');
+      pitch._customDescription = getLangString('MOD_VOY_ITEM_PITCH_DESC');
+      pitch._modifiedDescription = undefined;
     }
     const category = game.shop.categories.getObjectByID('voyage:Voyage');
     if (category !== undefined) category._name = getLangString('MOD_VOY_SHOP_CATEGORY');
@@ -117,6 +129,9 @@ export async function setup(ctx) {
     { type: 'switch', name: 'zones', label: getLangString('MOD_VOY_SETTING_ZONES'), hint: getLangString('MOD_VOY_SETTING_ZONES_HINT'), default: true, onChange: onChange('zones') },
     { type: 'switch', name: 'combat', label: getLangString('MOD_VOY_SETTING_COMBAT'), hint: getLangString('MOD_VOY_SETTING_COMBAT_HINT'), default: true, onChange: onChange('combat') },
     { type: 'switch', name: 'trade', label: getLangString('MOD_VOY_SETTING_TRADE'), hint: getLangString('MOD_VOY_SETTING_TRADE_HINT'), default: true, onChange: onChange('trade') },
+    { type: 'switch', name: 'provisions', label: getLangString('MOD_VOY_SETTING_PROVISIONS'), hint: getLangString('MOD_VOY_SETTING_PROVISIONS_HINT'), default: true, onChange: onChange('provisions') },
+    { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
+    { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
   ]);
 
   /** The game's offline loop (tab in the background, or back after a while): see state.onSettingsChange. */
@@ -150,6 +165,9 @@ export async function setup(ctx) {
       combat: () => flag('combat'),
       zones: () => flag('zones'),
       trade: () => flag('trade'),
+      provisions: () => flag('provisions'),
+      night: () => flag('night'),
+      nightShift: () => { const v = Number(value('nightShift')); return Number.isFinite(v) ? Math.max(-12, Math.min(12, Math.round(v))) : 0; },
     },
     onSettingsChange() {
       // Offline catch-up: the game replays the missed ticks behind its "offline progress" box, and a survey or a
@@ -217,42 +235,58 @@ export async function setup(ctx) {
   const markers = await ctx.loadModule('src/markers.mjs');
   const shipMod = await ctx.loadModule('src/ship.mjs');
   const unlocks = await ctx.loadModule('src/unlocks.mjs');
+  const storesModel = await ctx.loadModule('src/stores-model.mjs');
+  const storesMod = await ctx.loadModule('src/stores.mjs');
+  const holdMod = await ctx.loadModule('src/hold.mjs');
+  // Pitch from Firemaking (3d). A failure leaves repairs short of Pitch, nothing else.
+  try { (await ctx.loadModule('src/pitch.mjs')).install(ctx, { shipModel, log }); } catch (e) { console.error('[Voyage] Pitch failed', e); }
   knowledgeMod.install(ctx, { state, terrainMod, log });
   overlay.install(ctx, { state, terrainMod, log });
   state.zoneTable = zoneTable;
   gate.install(ctx, { state, rules, terrainMod, zones: zonesMod, log });
   compassMod.install(ctx, { state, rules, terrainMod, model, log });
   traderMod.install(ctx, { state, rules, terrainMod, stranded, log });
-  herePanel.install(ctx, { state, rules, terrainMod, log });
+  herePanel.install(ctx, { state, rules, terrainMod, storesModel, model, log });
   /** The Voyage skill object, or undefined when it did not register. */
   const voyageSkill = () => { try { return voyageSkillOk ? game.skills.getObjectByID(model.SKILL_ID) : undefined; } catch { return undefined; } };
   state.voyageSkill = voyageSkill;
   unlocks.install(ctx, { state, log });
   // The ship keeps its state in the skill's save, so without the skill it stays inert and travel is vanilla.
   const ship = shipMod.install(ctx, { state, model, shipModel, terrainMod, log });
-  markers.install(ctx, { state, log });
-  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, log }) : undefined;
+  state.markers = markers.install(ctx, { state, log });
+  // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
+  const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, log });
+  // The ship's hold (build .72): bank items kept aboard, reached at the ship.
+  holdMod.install(ctx, { state, shipModel, log });
+  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, log }) : undefined;
   const markPage = () => { const s = voyageSkill(); if (s !== undefined) s.renderQueue.page = true; };
   state.listeners.push(markPage);
 
-  // XP per hex travelled (decided 15 Oct 2026) and the ship following the move. movePlayer is the one vanilla travel
-  // path; it returns early when the costs are not owned, so both apply only to a move that really landed. Free moves
-  // (ignoreCosts: game events, dev teleports) give no XP but still carry the ship. The path runs from the
-  // destination (index 0) back to the start. The steps are read before the move: the homeward rule depends on the
-  // ship's reach where the move began.
+  // XP per hex travelled (decided 15 Oct 2026), provisions (3c) and the ship following the move. movePlayer is the one
+  // vanilla travel path; it returns early when the costs are not owned, so all three apply only to a move that really
+  // landed. The stores are checked first: a move they can't pay is refused before the game takes any GP. Free moves
+  // (ignoreCosts: game events, dev teleports) cost no provisions and give no XP but still carry the ship. The path
+  // runs from the destination (index 0) back to the start. The steps are read before the move: the homeward rule
+  // depends on the ship's reach where the move began.
   if (voyageSkillOk) {
     ctx.patch(Cartography, 'movePlayer').replace(function (original, path, ignoreCosts, ...rest) {
       const from = this.activeMap?.playerPosition;
+      let planned;
       let steps;
-      try { steps = Array.isArray(path) ? ship.stepsOf(path) : undefined; } catch (e) { log('travel steps failed', e); }
+      try {
+        if (!ignoreCosts) planned = stores.planFor(path);
+        steps = planned?.steps ?? (Array.isArray(path) ? ship.stepsOf(path) : undefined);
+      } catch (e) { log('travel steps failed', e); }
+      if (planned !== undefined && !planned.plan.ok) { stores.refuse(planned, path); return; }
       const result = original(path, ignoreCosts, ...rest);
       try {
         const dest = path?.[0];
         if (dest !== undefined && from !== dest && this.activeMap?.playerPosition === dest) {
+          stores.afterMove(planned);
           if (!ignoreCosts && steps !== undefined) voyageSkill()?.onTravelled(steps);
           ship.afterMove(path);
         }
-      } catch (e) { log('travel XP or ship move failed', e); }
+      } catch (e) { log('travel XP, stores or ship move failed', e); }
       return result;
     });
   }
@@ -301,5 +335,7 @@ export async function setup(ctx) {
     }
     // The ship: the one-time free dinghy for characters out on the water or overseas, then the markers.
     ship.loaded();
+    // The one-time starter kit, after the tutorial.
+    stores.loaded();
   });
 }

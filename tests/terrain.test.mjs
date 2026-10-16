@@ -130,7 +130,10 @@ test('phase 2 indexes: neighbours, places (areas, dungeons, POI-backed areas, In
   assert.ok(nbs.every((n) => Math.abs(n.q - 15) <= 1 && Math.abs(n.r - 9) <= 1));
   assert.equal(terrain.neighbours(-50, 0).length, 0);
   // places
-  assert.equal(Object.keys(table.meta.poiAreas).length, 15);
+  assert.equal(Object.keys(table.meta.poiAreas).length, 20);
+  for (const id of ['EyeConicCave', 'MuckyCave', 'RitualSite', 'LostTemple', 'ShipwreckCove']) {
+    assert.equal(terrain.placesFor(`melvorAoD:${id}`).length, 1, `AoD area ${id} on its POI`);
+  }
   assert.ok(terrain.placesFor('melvorD:Farmlands').length >= 1, 'hand-placed area');
   assert.ok(terrain.placesFor('melvorD:Chicken_Coop').length === 1, 'dungeon');
   assert.ok(terrain.placesFor('melvorD:Goblin_Village').length === 1, 'POI-backed area');

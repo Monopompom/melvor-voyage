@@ -16,14 +16,14 @@ export const SKILL_RULES = {
   'melvorD:Mining': {
     tier: 'terrain', classes: { mountain: 1, highlands: 1, lavalands: 1, badlands: 0.8 },
     features: { mine: 1, cave: 1, rocky: 1, rock: 0.5 }, combos: [['snowlands', 'mountain', 1]], grace: 1,
-    noun: 'mountains or a mine',
+    noun: 'Mountain or Highlands, or a mine',
   },
   // Water and shoal count as allowed until phase 3 puts the ship in; then they need the ship under your feet.
   'melvorD:Fishing': {
     tier: 'terrain', classes: { beach: 1, water: 1, shoal: 1 }, features: { river: 1, lake: 1, fisherman: 1, port: 1, iceberg: 0.8 },
     flags: { coast: 0.8 }, ship: ['water', 'shoal'], noun: 'water',
   },
-  'melvorD:Farming': { tier: 'terrain', classes: { grasslands: 1, kingslands: 1 }, features: { farm: 1 }, combos: [['desert', 'river', 0.8]], noun: 'grasslands or a farm' },
+  'melvorD:Farming': { tier: 'terrain', classes: { grasslands: 1, kingslands: 1 }, features: { farm: 1 }, combos: [['desert', 'river', 0.8]], noun: 'Grasslands or a farm' },
   'melvorD:Thieving': { tier: 'terrain', features: { city: 1, capital: 1, market: 1, port: 1, building: 0.8, camp: 0.8 }, grace: 1, noun: 'a town, market or port' },
   'melvorD:Firemaking': { tier: 'land', noun: 'dry land' },
   'melvorD:Cooking': { tier: 'land', noun: 'dry land' },

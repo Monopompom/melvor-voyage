@@ -11,6 +11,9 @@
 // second record: the loader saves it for mods installed through the Mod Manager, and a Creator Toolkit zip lost it
 // on every reload (build .16 granted a compass and the popup on each load).
 
+// Modal buttons: confirm green, cancel blue outline (the game's default cancel is red; grey means disabled).
+const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
+
 const ITEM_ID = 'voyage:Wayfinder_Compass';
 const SAVE_KEY = 'save';
 const SAVE_VERSION = 1;
@@ -146,7 +149,7 @@ export function install(ctx, { state, rules, terrainMod, model, log }) {
           '</div></div>',
         icon: 'info',
         confirmButtonText: getLangString('MOD_VOY_BUTTON_GOT_IT'),
-        customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ popup: 'voyage-ui' }) : { popup: 'voyage-ui' },
+        customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       });
     } catch (e) { log('welcome popup failed', e); }
   };

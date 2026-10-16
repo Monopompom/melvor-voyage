@@ -4,24 +4,30 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 5;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
  * pass: level 10 is about 58 land hexes, level 25 about 440. Global XP modifiers apply through Skill.addXP.
  */
 export const XP_PER_HEX = { land: 20, water: 40 };
+/** A hex lit at night (phase 3e) gives 25% more: the stars pay for the light. */
+export const STAR_XP = 0.25;
 
 /** Compass detail by Voyage level. Level 1 is today's reading: temperature and direction (decided 15 Oct 2026). */
 export const COMPASS_LEVELS = { steps: 10, name: 25 };
 
 /**
- * `ship` is `{ hull, q, r }` or null (phase 3b): the hull id of ship-model.mjs HULLS and the hex it floats on.
+ * `ship` is `{ hull, q, r, cond }` or null (phase 3b): the hull id of ship-model.mjs HULLS, the hex it floats on and
+ * (3d) its condition, 0 to 100 %.
  * `shipChecked` turns true after the first load with ships, which places a free dinghy for a character that phase 2
  * left on the water or on another landmass (existing characters). It runs once per character.
+ * `stores` (phase 3c) is what the player has loaded for the road: `food` in HP of healing, `fuel` in units (fractional:
+ * the Firemaking discount). `kitGiven` turns true once the one-time starter kit has gone into them.
+ * `hold` (build .72) is what the ship carries for you: [{ id, qty }], item ids and whole quantities, one entry a slot.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, ship: null, shipChecked: false };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, hold: [] };
 }
 
 /**
@@ -31,15 +37,40 @@ export function defaultSave() {
 export const MIGRATIONS = {
   // 3b: no ship yet; the first load with ships decides whether the character gets a free dinghy
   1: (rec) => ({ ...rec, v: 2, ship: null, shipChecked: false }),
+  // 3c: empty stores; the starter kit is still to come
+  2: (rec) => ({ ...rec, v: 3, stores: { food: 0, fuel: 0 }, kitGiven: false }),
+  // 3d: hull condition; a ship from before it is sound
+  3: (rec) => ({ ...rec, v: 4, ship: rec.ship !== null && typeof rec.ship === 'object' ? { ...rec.ship, cond: 100 } : rec.ship }),
+  // build .72: the ship's hold, empty
+  4: (rec) => ({ ...rec, v: 5, hold: [] }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
+const amount = (n) => (Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) / 1000 : 0);
+const cleanStores = (st) => ({ food: count(st?.food), fuel: amount(st?.fuel) });
+/**
+ * The hold: entries with an item id and a positive whole quantity, one per id. Ids the game no longer knows are kept
+ * as they are (an expansion switched off): the items come back when it is on again.
+ */
+function cleanHold(hold) {
+  if (!Array.isArray(hold)) return [];
+  const out = [];
+  for (const e of hold) {
+    if (e === null || typeof e !== 'object' || typeof e.id !== 'string' || e.id === '') continue;
+    const qty = count(e.qty);
+    if (qty <= 0) continue;
+    const same = out.find((x) => x.id === e.id);
+    if (same !== undefined) same.qty += qty; else out.push({ id: e.id, qty });
+  }
+  return out;
+}
 
 /** A saved ship, or null when it is missing or malformed. `hulls` is the set of known hull ids. */
 function cleanShip(ship, hulls) {
   if (ship === null || typeof ship !== 'object') return null;
   if (!hulls.includes(ship.hull) || !Number.isInteger(ship.q) || !Number.isInteger(ship.r)) return null;
-  return { hull: ship.hull, q: ship.q, r: ship.r };
+  const cond = Number.isFinite(ship.cond) ? Math.min(100, Math.max(0, Math.round(ship.cond))) : 100;
+  return { hull: ship.hull, q: ship.q, r: ship.r, cond };
 }
 
 /** Hull ids a save may name. Kept here so the model stays free of imports; ship-model.mjs HULLS must match. */
@@ -53,6 +84,9 @@ function clean(rec) {
     backfilled: rec.backfilled === true,
     ship: cleanShip(rec.ship, HULL_IDS),
     shipChecked: rec.shipChecked === true,
+    stores: cleanStores(rec.stores),
+    kitGiven: rec.kitGiven === true,
+    hold: cleanHold(rec.hold),
   };
 }
 
@@ -83,18 +117,26 @@ export function serializeSave(save) {
 }
 
 /**
- * XP for one move. `steps` are the hexes entered, each `{ water, fastTravel, free }`. Fast-travel hops give nothing
- * here (phase 3c makes them sailing and pays them by distance), nor do `free` steps: the homeward rule's moves back
- * within the hull's reach. Neither counts as a hex travelled.
+ * XP for one move. `steps` are the hexes entered, each `{ water, fastTravel, free, hop, hungry, lit }`. A fast-travel
+ * hop sailed between ports (`hop`, phase 3c) counts as that many water hexes; a vanilla hop (ship rules off) gives
+ * nothing. Nor do `free` steps (the homeward rule's moves back within the hull's reach) or `hungry`
+ * ones (walked on empty stores, 4.4). None of those counts as a hex travelled. A `lit` step (night, 3e) adds STAR_XP.
  */
 export function xpForSteps(steps) {
   let land = 0;
   let water = 0;
+  let stars = 0;
   for (const s of steps) {
-    if (s.fastTravel || s.free) continue;
+    if (s.hop > 0 && !s.free && !s.hungry) {
+      water += s.hop;
+      if (s.lit) stars += s.hop * XP_PER_HEX.water;
+      continue;
+    }
+    if (s.fastTravel || s.free || s.hungry) continue;
     if (s.water) water += 1; else land += 1;
+    if (s.lit) stars += s.water ? XP_PER_HEX.water : XP_PER_HEX.land;
   }
-  return { land, water, xp: land * XP_PER_HEX.land + water * XP_PER_HEX.water };
+  return { land, water, xp: land * XP_PER_HEX.land + water * XP_PER_HEX.water + Math.round(stars * STAR_XP) };
 }
 
 /**

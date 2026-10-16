@@ -15,6 +15,28 @@
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
         "sellsFor": 1
+      },
+      {
+        "itemType": "Item",
+        "id": "Pitch",
+        "name": "Pitch",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/pitch.png",
+        "customDescription": "Pine tar boiled down by the fire. With logs, it repairs a ship's hull on the Voyage page. Firemaking makes it now and then.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 5
+      }
+    ],
+    "skillData": [
+      {
+        "skillID": "melvorD:Firemaking",
+        "data": {
+          "primaryProducts": [{ "itemID": "voyage:Pitch", "chance": 10, "quantity": 1 }],
+          "defaultPrimaryProducts": ["voyage:Pitch"]
+        }
       }
     ],
     "shopCategories": [

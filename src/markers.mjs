@@ -17,8 +17,13 @@ export function install(ctx, { state, log }) {
   const tex = {};
   let parked;
 
+  // The map being drawn. loadWorldMap moves the pin before it sets `_lastDrawnMap`, so on the first draw the active
+  // map stands in; without it the moored dinghy stayed hidden until the first move (build .82, user report).
   const drawn = () => {
-    try { return typeof cartographyMap !== 'undefined' && cartographyMap !== null ? cartographyMap._lastDrawnMap : undefined; } catch { return undefined; }
+    try {
+      if (typeof cartographyMap === 'undefined' || cartographyMap === null) return undefined;
+      return cartographyMap._lastDrawnMap ?? game.cartography?.activeMap;
+    } catch { return undefined; }
   };
   const pinTexture = () => (state.ship?.aboard() && tex.aboard !== undefined ? tex.aboard : tex.land);
 
@@ -86,5 +91,25 @@ export function install(ctx, { state, log }) {
   });
 
   state.ship?.onChange(() => { try { refresh(); } catch (e) { log('marker refresh failed', e); } });
-  return { refresh };
+  /** For voyageDev.marker(): what the moored-dinghy sprite is doing right now. */
+  const debug = () => {
+    const map = drawn();
+    const ship = state.ship?.ship();
+    const hexDisplay = ship && typeof cartographyMap !== 'undefined' ? cartographyMap?.getHexDisplay?.(ship) : undefined;
+    return {
+      textures: Object.fromEntries(Object.keys(TEXTURES).map((k) => [k, tex[k] !== undefined])),
+      mapDrawn: map !== undefined,
+      ship: ship ?? null,
+      aboard: state.ship?.aboard(),
+      rules: state.ship?.enabled(),
+      playerPinVisible: cartographyMap?.playerPin?.visible,
+      hexDisplay: hexDisplay ? { x: hexDisplay.x, y: hexDisplay.y } : undefined,
+      sprite: parked === undefined ? 'never made' : {
+        destroyed: parked.destroyed,
+        inMarkerLayer: !parked.destroyed && parked.parent === cartographyMap?.markerLayer,
+        visible: parked.visible, x: parked.x, y: parked.y, scale: parked.scale?.x, alpha: parked.alpha,
+      },
+    };
+  };
+  return { refresh, debug };
 }

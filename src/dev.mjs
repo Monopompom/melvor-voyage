@@ -195,6 +195,11 @@ export function install(ctx, { state, terrainMod, rules, model, log }) {
       const s = sh.ship();
       return { ship: s === undefined ? 'skill missing' : s, aboard: sh.aboard(), rules: sh.enabled(), where: s ? sh.whereIs(s) : undefined, launchSpot: sh.launchSpot(), buildBlocker: sh.buildBlocker() };
     },
+    /** The moored-dinghy marker: textures, ship record, sprite state. `voyageDev.marker(true)` redraws it first. */
+    marker(redraw = false) {
+      if (redraw) { try { state.markers?.refresh(); } catch (e) { return `refresh failed: ${e}`; } }
+      return state.markers?.debug() ?? 'markers module not loaded';
+    },
     /** A free dinghy: under you on the sea, else next to your coast hex. `false` removes the ship. */
     giveShip(give = true) {
       const sh = state.ship;
@@ -222,13 +227,43 @@ export function install(ctx, { state, terrainMod, rules, model, log }) {
       s.record.shipChecked = false;
       return 'ship cleared; save and reload to rerun the first-load placement';
     },
+    /** Sets the stores (phase 3c), or reads them with no arguments. */
+    stores(food, fuel) {
+      const api = state.stores;
+      if (api?.stores() === undefined) return 'Voyage skill missing';
+      if (food !== undefined) api.set(food, fuel ?? api.stores().fuel);
+      return { ...api.stores(), loading: api.loadingHere() ?? 'none here' };
+    },
+    /** Sets the hull condition (3d), 0 to 100, or reads it with no argument. */
+    hull(cond) {
+      const sh = state.ship;
+      if (sh?.ship() == null) return 'no ship';
+      if (cond !== undefined) sh.setCond(cond);
+      return { cond: sh.cond(), repair: sh.repairInfo() };
+    },
+    /** Puts Pitch (and logs for the repairs) in the bank: pitch(n, logs?). */
+    pitch(n = 10, logs = 0) {
+      try {
+        const add = (id, q) => { const it = game.items.getObjectByID(id); if (it !== undefined && q > 0) game.bank.addItem(it, q, false, true, true, true, 'voyageDev'); };
+        add('voyage:Pitch', n);
+        add('melvorD:Normal_Logs', logs);
+        return `added ${n} Pitch, ${logs} Normal Logs`;
+      } catch (e) { return `failed: ${e}`; }
+    },
+    /** Forgets the starter kit, so the next load gives it again. */
+    resetKit() {
+      const s = state.voyageSkill?.();
+      if (s === undefined) return 'Voyage skill missing';
+      s.record.kitGiven = false;
+      return 'kit cleared; save and reload to get it again';
+    },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },
     state,
   };
   const watchdog = installWatchdog(ctx, log);
   window.voyageDev = api;
-  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), voyage(level), level(skill, level), ship(), giveShip(false?), shipMaterials(), resetShipCheck()');
+  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), voyage(level), level(skill, level), ship(), giveShip(false?), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond), pitch(n, logs)');
 }
 
 /**

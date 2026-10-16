@@ -22,6 +22,9 @@
  * always work); 'always' refuses every call (skills without an active state: Farming, Township). `quiet` methods
  * are refused without a modal (they are called in loops by the listed ones).
  */
+// Modal buttons: confirm green, cancel blue outline (the game's default cancel is red; grey means disabled).
+const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
+
 const ENTRY_POINTS = [
   { skillId: 'melvorD:Woodcutting', className: 'Woodcutting', cls: () => Woodcutting, methods: ['selectTree'], when: 'inactive' },
   { skillId: 'melvorD:Mining', className: 'Mining', cls: () => Mining, methods: ['onRockClick'], when: 'inactive' },
@@ -123,8 +126,9 @@ export function install(ctx, { state, rules, terrainMod, zones, log }) {
         showCancelButton: withMap,
         confirmButtonText: getLangString(withMap ? 'MOD_VOY_GATE_BUTTON_MAP' : 'MOD_VOY_BUTTON_OK'),
         cancelButtonText: getLangString('MOD_VOY_GATE_BUTTON_STAY'),
-        customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ popup: 'voyage-ui' }) : { popup: 'voyage-ui' },
-      }).then((result) => { if (withMap && result.isConfirmed && page !== undefined) changePage(page); });
+        // "Go to map" is navigation: blue outline like Stay (user decision, build .86); a plain OK stays green.
+        customClass: (() => { const c = withMap ? { ...SWAL_CLASS, confirmButton: 'btn btn-outline-info m-1' } : SWAL_CLASS; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
+      }).then((result) => { if (withMap && result.isConfirmed && page !== undefined) changePage(page, -1, undefined, false, false); });
     } catch (e) {
       log('modal failed, using notification', e);
       try { game.notifications.createErrorNotification('voyage:locked', lines.map((l) => l.text).join(' ')); } catch {}
