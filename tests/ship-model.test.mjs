@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
-  HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach,
+  HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach, isPlace,
   canHop, shipAfterHops, hexDist, condOf, repairPlan, canRepair, pitchChance, REPAIR,
   holdSlots, atShip, stow, takeOut,
 } from '../src/ship-model.mjs';
@@ -38,6 +38,28 @@ test('aboard: sail within reach, land on any coast, the homeward rule beyond rea
   // on the sea with no ship: only closer to land
   assert.equal(canStep(sea(9, 0, 5), sea(9, 1, 5), null), false);
   assert.equal(canStep(sea(9, 0, 5), sea(8, 0, 4), null), true);
+});
+
+test('homeward moves never end on a place; within reach they may (3b check)', () => {
+  const ship = dinghy(9, 0);
+  const wreck = { ...sea(9, 1, 5), poi: 'IllFatedVessel', dungeon: 'DeepSeaShip' };
+  assert.equal(isPlace(wreck), true);
+  assert.equal(isPlace(sea(9, 1, 5)), false);
+  assert.equal(canStep(sea(9, 0, 5), wreck, ship), false, 'sideways onto a place beyond reach');
+  assert.equal(canStep(sea(9, 0, 6), { ...wreck, shore: 5 }, ship), false, 'closer, but still a place beyond reach');
+  assert.equal(canStep(sea(1, 0, 1), { ...sea(2, 0, 2), poi: 'NewHorizon' }, ship), true, 'a place within reach');
+});
+
+test('nothing sails into cloud; under cloud only closer to a coast (3b check)', () => {
+  const ship = dinghy(9, 0);
+  const cloud = (q, r, shore) => ({ ...sea(q, r, shore), cloud: true });
+  assert.equal(canStep(sea(1, 0, 1), cloud(2, 0, 2), ship), false);
+  assert.equal(canStep(sea(9, 0, 5), cloud(9, 1, 5), ship), false, 'not even sideways beyond reach');
+  assert.equal(canStep(cloud(9, 0, 5), cloud(9, 1, 5), ship), false, 'sideways inside the cloud');
+  assert.equal(canStep(cloud(9, 0, 5), cloud(8, 0, 4), ship), true);
+  assert.equal(canStep(cloud(9, 0, 3), sea(8, 0, 2), ship), true, 'out of the cloud');
+  assert.equal(canStep(cloud(9, 0, 1), sea(8, 0, 1), ship), false, 'out, but not closer');
+  assert.equal(beyondReach(cloud(9, 0, 1), ship), true, 'under cloud the moves are free');
 });
 
 test('free steps: beyond the reach and without a ship', () => {
@@ -185,6 +207,54 @@ test('no trap: from every sea hex a dinghy can reach a shore it may land on', as
     if (![...reached].some((r) => !isSea(r))) stuck.push(`${h.q},${h.r} shore ${h.shore}`);
   }
   assert.deepEqual(stuck, []);
+});
+
+test('no trap under cloud: from every cloud sea hex a dinghy gets out, and no open sea hex leads in', async () => {
+  const terrain = await loadTerrain();
+  const idx = seaIndex(terrain);
+  const stuck = [];
+  const leadsIn = [];
+  for (const h of terrain.all()) {
+    if (!isSea(h)) continue;
+    const ship = dinghy(h.q, h.r);
+    const steps = terrain.neighbours(h.q, h.r).filter((n) => canStep(h, n, ship, idx));
+    if (h.cloud !== true) {
+      if (steps.some((n) => n.cloud === true)) leadsIn.push(`${h.q},${h.r}`);
+      continue;
+    }
+    assert.ok(Number.isFinite(idx.home(h, 1)), `${h.q},${h.r} has a way home`);
+    // follow any allowed step: each is strictly closer, so this ends out of the cloud
+    let cur = h;
+    for (let i = 0; i < 50 && cur.cloud === true && isSea(cur); i++) {
+      const next = terrain.neighbours(cur.q, cur.r).find((n) => canStep(cur, n, dinghy(cur.q, cur.r), idx));
+      if (next === undefined) break;
+      cur = next;
+    }
+    if (cur.cloud === true) stuck.push(`${h.q},${h.r}`);
+  }
+  assert.deepEqual(stuck, []);
+  assert.deepEqual(leadsIn, []);
+});
+
+test('no sea hex lets a dinghy onto the Deep Sea Ship\'s hex (3b check)', async () => {
+  const terrain = await loadTerrain();
+  const idx = seaIndex(terrain);
+  const dss = [...terrain.all()].find((h) => h.dungeon === 'DeepSeaShip');
+  for (const n of terrain.neighbours(dss.q, dss.r)) {
+    if (isSea(n)) assert.equal(canStep(n, dss, dinghy(n.q, n.r), idx), false, `from ${n.q},${n.r}`);
+  }
+});
+
+test('water bodies: the lake at display (16, 29) is not the sea the start launches into (3b check)', async () => {
+  const terrain = await loadTerrain();
+  const idx = seaIndex(terrain);
+  const start = terrain.get(15, 9);
+  const launch = launchSpot(start, terrain.neighbours(start.q, start.r));
+  const lake = terrain.get(16, 21); // display (16, 29)
+  assert.ok(isSea(lake) && lake.cloud !== true);
+  assert.notEqual(idx.waterBody(lake), idx.waterBody(launch));
+  assert.equal(idx.waterBody(terrain.poi('IllFatedVessel')), idx.waterBody(launch));
+  assert.equal(idx.waterBody(start), undefined);
 });
 
 test('the corner pocket (0,9): 2 hexes from land behind cloud, so a dinghy there is beyond reach and heads out', async () => {

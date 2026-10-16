@@ -114,6 +114,10 @@ const plainGeo = { islandTier: () => 1, home: (rec) => (isSea(rec) ? shoreOf(rec
  *    farther from such a coast than where you are. Reach is measured by sailing, not as the crow flies, so a hull
  *    near land it can't use (a higher-tier island, land behind cloud) is out of its place too, and every hex has a
  *    neighbour one step closer: nobody is ever trapped;
+ *    A homeward move never ends on a place (a POI, area or dungeon hex): the places out there wait for a bigger hull
+ *    (3b check, 16 Oct 2026: a dinghy beyond reach could drift onto the Deep Sea Ship's hex);
+ *  - nothing sails into cloud. A hull that is under cloud anyway (put there with the rules off) may only step closer
+ *    to a coast, by the distance seaIndex counts through the cloud, so it always gets out;
  *  - on the sea with no ship (rules switched off and on again), only steps closer to land.
  * A path enters the sea only at the ship's hex, and a shortest path never visits a hex twice, so the ship is with you
  * for every sea step of it.
@@ -121,15 +125,22 @@ const plainGeo = { islandTier: () => 1, home: (rec) => (isSea(rec) ? shoreOf(rec
 export function canStep(from, to, ship, geo = plainGeo) {
   if (!isSea(to)) return !isSea(from) || ship == null || tierOf(ship) >= geo.islandTier(to);
   if (!isSea(from)) return ship != null && sameHex(to, ship);
-  if (ship == null) return geo.home(to, 0) < geo.home(from, 0);
-  const t = tierOf(ship);
+  if (to.cloud === true && from.cloud !== true) return false;
+  const t = ship == null ? 0 : tierOf(ship);
   const h = geo.home(to, t);
-  return h <= reachOf(ship) || h <= geo.home(from, t);
+  if (ship == null) return h < geo.home(from, t);
+  const out = to.cloud === true || h > reachOf(ship);
+  if (out && isPlace(to)) return false;
+  if (from.cloud === true) return h < geo.home(from, t);
+  return !out || h <= geo.home(from, t);
 }
 
-/** True when the hull on `rec` is beyond its reach: the homeward rule applies there. */
+/** A hex that holds somewhere to go: a map POI, a hand-placed area or a dungeon. */
+export const isPlace = (rec) => rec?.poi !== undefined || rec?.area !== undefined || rec?.dungeon !== undefined;
+
+/** True when the hull on `rec` is beyond its reach: the homeward rule applies there. Under cloud is always beyond. */
 export function beyondReach(rec, ship, geo = plainGeo) {
-  return isSea(rec) && ship != null && geo.home(rec, tierOf(ship)) > reachOf(ship);
+  return isSea(rec) && ship != null && (rec.cloud === true || geo.home(rec, tierOf(ship)) > reachOf(ship));
 }
 
 /** A sea step that gives nothing: beyond the hull's reach (the homeward rule) or swimming with no ship. */
@@ -222,8 +233,11 @@ export function freeBoatSpot(playerRec, start, terrain, distance) {
  * The `geo` for canStep from the terrain table: ISLANDS resolved by their anchor POIs (`islandOf(rec)`, the island
  * entry a land hex is on; `islandTier(rec)`, its hull tier, 1 when unlisted) and `home(rec, tier)`, a breadth-first
  * distance from the coasts that tier may land on, computed once per tier on first use. Cloud hexes are left out: the
- * game may not let you survey them, so no way home runs through one. `terrain` is { all(), get(q, r), poi(name),
- * landmass(q, r), neighbours(q, r) }.
+ * game may not let you survey them, so no way home runs through one. They get a distance of their own afterwards,
+ * counted through the cloud from the sea around it, so a hull put under cloud has a way out (3b check, 16 Oct 2026:
+ * before, every cloud hex was Infinity and the homeward rule let a hull wander the cloud freely).
+ * `waterBody(rec)` numbers the stretches of open sea (cloud left out) that connect hex to hex, so a lake can be told
+ * from the sea a ship is on. `terrain` is { all(), get(q, r), poi(name), landmass(q, r), neighbours(q, r) }.
  */
 export function seaIndex(terrain) {
   const byLandmass = new Map();
@@ -258,6 +272,29 @@ export function seaIndex(terrain) {
       }
       frontier = next;
     }
+    // Under cloud: relax from the open sea (and any coast) inward until nothing shortens. The ways out run around
+    // places at sea (Melantis, Swirling Abyss, the Deep Sea Ship...), which no move out of the cloud may end on; a place
+    // under cloud gets one more than its best neighbour, so a hull standing on one can always step off.
+    const clouds = [...terrain.all()].filter((rec) => isSea(rec) && rec.cloud === true);
+    const best = (rec) => {
+      let b = Infinity;
+      for (const n of terrain.neighbours(rec.q, rec.r)) {
+        if (isSea(n) && isPlace(n)) continue;
+        const d = isSea(n) ? dist.get(n) : (tier > 0 && islandTier(n) > tier ? undefined : 0);
+        if (d !== undefined && d + 1 < b) b = d + 1;
+      }
+      return b;
+    };
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const rec of clouds) {
+        if (isPlace(rec)) continue;
+        const b = best(rec);
+        if (b < (dist.get(rec) ?? Infinity)) { dist.set(rec, b); changed = true; }
+      }
+    }
+    for (const rec of clouds) if (isPlace(rec) && Number.isFinite(best(rec))) dist.set(rec, best(rec));
     homes.set(tier, dist);
     return dist;
   };
@@ -266,7 +303,26 @@ export function seaIndex(terrain) {
     const table = terrain.get(rec.q, rec.r) ?? rec; // the same object the distance map holds
     return homeMap(tier).get(table) ?? Infinity;
   };
-  return { islandOf, islandTier, home };
+
+  const bodies = new Map();
+  let body = 0;
+  for (const rec of terrain.all()) {
+    if (!isSea(rec) || rec.cloud === true || bodies.has(rec)) continue;
+    bodies.set(rec, body);
+    const queue = [rec];
+    while (queue.length > 0) {
+      const cur = queue.pop();
+      for (const n of terrain.neighbours(cur.q, cur.r)) {
+        if (!isSea(n) || n.cloud === true || bodies.has(n)) continue;
+        bodies.set(n, body);
+        queue.push(n);
+      }
+    }
+    body += 1;
+  }
+  /** The stretch of open sea a hex is in, or undefined for land and cloud. */
+  const waterBody = (rec) => (rec === undefined ? undefined : bodies.get(terrain.get(rec.q, rec.r) ?? rec));
+  return { islandOf, islandTier, home, waterBody };
 }
 
 /**

@@ -306,6 +306,11 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     if (island !== undefined && island.tier > hull.tier) {
       return t('MOD_VOY_SHIP_PATH_ISLAND_LOCKED', { hull: name, island: t(shipModel.islandNameKey(island.id)), needed: t(shipModel.tierNameKey(island.tier)) });
     }
+    // A lake or a cut-off channel: walking to the ship would not help (3b check, 16 Oct 2026).
+    const body = g?.waterBody(s);
+    if (shipModel.isSea(to) && to.cloud !== true && body !== undefined && g.waterBody(to) !== body) {
+      return t('MOD_VOY_SHIP_PATH_OTHER_WATER', { hull: name });
+    }
     if (shipModel.beyondReach(to, s, g)) return t('MOD_VOY_SHIP_PATH_TOO_FAR', { hull: name, reach: `${hull.reach}` });
     if (!aboard()) return t('MOD_VOY_SHIP_PATH_MOORED', { hull: name, where: whereIs(s) });
     return t('MOD_VOY_SHIP_PATH_OUT_OF_REACH', { hull: name, reach: `${hull.reach}` });
@@ -362,6 +367,14 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     hex: () => { const s = ship(); try { return s ? game.cartography.activeMap?.getHex(new HexCoords(s.q, s.r)) : undefined; } catch { return undefined; } },
     loaded() {
       try { firstLoad(); snapToPlayer(); } catch (e) { console.error('[Voyage] ship load failed', e); }
+      listeners.forEach((fn) => { try { fn(); } catch (e) { log('ship listener failed', e); } });
+    },
+    /**
+     * The player was moved outside travel (dev teleport): on the sea the ship comes along. Not the first-load check,
+     * which would spend the one-time free dinghy and lose its popup, shown only when the interface gets ready.
+     */
+    moved() {
+      try { snapToPlayer(); } catch (e) { log('ship snap failed', e); }
       listeners.forEach((fn) => { try { fn(); } catch (e) { log('ship listener failed', e); } });
     },
   };

@@ -57,7 +57,7 @@ export function install(ctx, { state, terrainMod, rules, model, log }) {
       const hex = m?.getHex(new HexCoords(q, r));
       if (hex === undefined) return `no hex at (${col}, ${row})`;
       m.setPlayerPosition(hex);
-      state.ship?.loaded(); // on the sea you are aboard: the ship comes along
+      state.ship?.moved(); // on the sea you are aboard: the ship comes along (not loaded(): see ship.mjs)
       cartography().render();
       state.onSettingsChange();
       return `now at ${display(hex)} ${state.recordAt(hex)?.t ?? '?'}`;

@@ -163,6 +163,7 @@
   "MOD_VOY_SHIP_PATH_ISLAND_LOCKED": "Your ${hull} can't land on ${island}: it needs a ${needed}.",
   "MOD_VOY_SHIP_PATH_TOO_FAR": "Too far out for your ${hull}: it keeps within ${reach} hexes of a coast it can land on.",
   "MOD_VOY_SHIP_PATH_MOORED": "No way there on foot. Your ${hull} is moored ${where}; walk to it to sail.",
+  "MOD_VOY_SHIP_PATH_OTHER_WATER": "Your ${hull} can't get there: this water doesn't connect to the sea it is on.",
   "MOD_VOY_SHIP_PATH_OUT_OF_REACH": "Your ${hull} can't get there: it keeps within ${reach} hexes of land.",
   "MOD_VOY_SHIP_WHERE_UNKNOWN": "somewhere",
   "MOD_VOY_SHIP_WHERE_HERE": "here",
