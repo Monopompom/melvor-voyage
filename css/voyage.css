@@ -217,8 +217,15 @@ body.vj-locked { overflow: hidden; }
 .vj-ledger th:first-child, .vj-ledger td:first-child { padding-left: 0; }
 .vj-ledger .vj-first { font-weight: 600; }
 .vj-ledger .vj-num { text-align: right; white-space: nowrap; }
-.vj-note { margin-top: auto; display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid rgba(122, 42, 28, .45); border-radius: 4px; font-size: 16px; line-height: 1.4; font-style: italic; }
+/* Build .138: slipped between paragraphs, no longer pushed to the foot. */
+.vj-note { margin: 4px 0; display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid rgba(122, 42, 28, .45); border-radius: 4px; font-size: 16px; line-height: 1.4; font-style: italic; }
 .vj-note svg { flex: none; margin-top: 2px; color: var(--vj-red); }
+/* "Did you know?" (build .127): a slip pasted into the page, blue ink, a little askew. */
+.vj-aside { margin: 6px 4px 4px; padding: 12px 16px 10px; background: #f7eed6; border: 1px dashed rgba(44, 62, 92, .45); border-radius: 2px; transform: rotate(-0.6deg); box-shadow: 0 2px 6px rgba(43, 33, 24, .18); color: var(--vj-blue); }
+.vj-aside-label { font-family: 'Voyage Fell', Georgia, serif; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--vj-red); }
+.vj-aside-head { font-family: 'Voyage Fell', Georgia, serif; font-size: 20px; line-height: 1.2; margin: 2px 0 6px; }
+.vj-aside-p { margin: 0 0 6px; font-size: 17px; line-height: 1.45; font-style: italic; }
+.vj-aside-p:last-child { margin-bottom: 0; }
 .vj-foot { margin-top: auto; display: flex; justify-content: center; align-items: center; gap: 12px; }
 .vj-foot-end { justify-content: flex-end; }
 .vj-note + .vj-foot { margin-top: 0; }
@@ -336,12 +343,36 @@ body.vj-locked { overflow: hidden; }
 /* The last page's lighthouse (build .116) and the Old Man's Crew tab. */
 .vj-figure { margin: 0; display: flex; justify-content: center; }
 .vj-figure img { width: 100%; max-width: 460px; height: auto; }
+.vj-galleon { flex-direction: column; align-items: center; margin: 4px 0 10px; }
+.vj-galleon figcaption { font-style: italic; font-size: .95rem; text-align: center; opacity: .85; margin-top: 2px; }
 .vj-tab-crew { background: #6b5a2a; }
 .vj-tab[hidden] { display: none; }
 .vj-golbin img { max-width: 340px; }
 /* Plan a voyage (build .119): the planner block on the Voyage page. Sail! green, the rest blue outline. */
 .voyage-plan-icon { width: 32px; height: 32px; object-fit: contain; }
-.voyage-plan-legs { padding-left: 1.4rem; }
+.voyage-plan-legs { padding-left: 1.2rem; margin: 0; }
+/* The plan as a ledger (build .124): labels in a narrow column, values beside them. */
+.voyage-plan-ledger { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; align-items: center; }
+.voyage-plan-label { color: var(--voyage-label); font-weight: 600; }
+.voyage-plan-value { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0; }
+.voyage-plan-value > ol { width: 100%; }
+.voyage-plan-bit { display: inline-flex; align-items: center; margin-right: 16px; white-space: nowrap; }
+.voyage-plan-bit i { width: 1.2em; margin-right: 6px; color: var(--voyage-label); text-align: center; }
+.voyage-plan-ico { width: 20px; height: 20px; margin-right: 6px; }
+.voyage-plan-arrow { color: var(--voyage-label); margin: 0 8px; }
+.voyage-plan-when { color: var(--voyage-label); font-size: .9rem; margin-bottom: -4px; padding-left: 26px; }
+/* On arrival: the game's dropdown (build .127), full width, 1rem (dropdowns 1rem), 44px toggle, 40px rows. */
+.voyage-plan-arrival .dropdown-toggle { width: 100%; min-height: 44px; display: flex; align-items: center; text-align: left; font-size: 1rem; }
+.voyage-plan-arrival .dropdown-toggle::after { margin-left: auto; }
+.voyage-plan-arrival .dropdown-menu { width: 100%; max-height: 60vh; font-size: 1rem; }
+.voyage-plan-arrival .dropdown-item { display: flex; align-items: center; min-height: 40px; white-space: normal; }
+/* A choice the game would refuse (build .130): the name greyed, the reason in amber under it, not pickable. */
+.voyage-plan-arrival .voyage-plan-refused { flex-direction: column; align-items: flex-start; cursor: default; padding-top: 6px; padding-bottom: 6px; }
+.voyage-plan-arrival .voyage-plan-refused:hover, .voyage-plan-arrival .voyage-plan-refused:focus { background: transparent; }
+.voyage-plan-refused-name { display: flex; align-items: center; opacity: .55; }
+.voyage-plan-refused-why { font-size: .9rem; padding-left: 34px; }
+.voyage-plan-refused-why img { width: 18px; height: 18px; }
+.voyage-plan-pick-ico { width: 24px; height: 24px; margin-right: 10px; flex: none; object-fit: contain; text-align: center; line-height: 24px; }
 .voyage-plan-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 12px; padding-top: 12px; }
 .voyage-plan-buttons .btn { min-height: 44px; min-width: 140px; }
 .vj-foot-end { gap: 12px; flex-wrap: wrap; }
@@ -363,3 +394,20 @@ body.vj-locked { overflow: hidden; }
 /* Phone width: the strip takes the open panel's edges (the user, build .121): full width under the bar, stopping
    short of the zoom buttons like the open panel (clearOfControls sets `right`). */
 @media (max-width: 767.98px) { #voyage-here.voyage-here-top.voyage-mini { width: auto; max-width: none; } }
+.voyage-chip-dist { display: inline-flex; align-items: center; margin-left: 8px; }
+.voyage-chip-hex { width: 13px; height: 15px; margin-right: 3px; }
+
+/* Build .133: with neither the plan (below Voyage 15) nor the hold (no ship) to show, the left column takes no room. */
+#voyage-container .voyage-col-left:not(:has(> .block:not(.d-none))) { display: none; }
+
+/* The hold's crates (build .133): six to a row across the whole width (the user, .134), each a cell pressed into the block with a crate drawn side-on;
+   empty ones wait faintly, a stowed item sits inside its crate. Picked: the game's info blue. */
+.voyage-crates { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+.voyage-crate { position: relative; aspect-ratio: 1 / 1; min-width: 40px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid rgba(0, 0, 0, .45); background: rgba(0, 0, 0, .3); box-shadow: inset 0 3px 7px rgba(0, 0, 0, .6), inset 0 -1px 0 rgba(255, 255, 255, .07); color: #a07a4c; }
+.voyage-crate-art { position: absolute; inset: 14%; width: 72%; height: 72%; opacity: .32; }
+.voyage-crate-full { cursor: pointer; }
+.voyage-crate-full .voyage-crate-art { opacity: .5; }
+.voyage-crate-full img { position: relative; width: 58%; height: 58%; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .6)); }
+.voyage-crate-full:hover { border-color: rgba(84, 166, 232, .6); }
+.voyage-crate-picked { border-color: #54a6e8; box-shadow: inset 0 3px 7px rgba(0, 0, 0, .6), 0 0 0 2px #54a6e8; }
+.voyage-crate-qty { position: absolute; right: 6px; bottom: 3px; font-size: .9rem; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000; }

@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.122';
+export const BUILD = '2026-10-16.140';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -100,6 +100,16 @@ export async function setup(ctx) {
           m._name = getLangString('MOD_VOY_MILESTONE_CHART');
           // The game resolves a custom milestone's media against its own CDN (assets.getURI): the journal icon is ours.
           const url = ctx.getResourceUrl('assets/journal.png');
+          Object.defineProperty(m, 'media', { get: () => url, configurable: true });
+        } else if (shipModel.HOLD_ROW_LEVELS.includes(m.level) && '_name' in m) {
+          // Build .134: the hold grows a row of six crates.
+          m._name = getLangString('MOD_VOY_MILESTONE_HOLD');
+          const url = ctx.getResourceUrl('assets/hull_dinghy.png');
+          Object.defineProperty(m, 'media', { get: () => url, configurable: true });
+        } else if (m.level === model.PLAN_LEVEL && '_name' in m) {
+          // Build .133: Plan a voyage opens.
+          m._name = getLangString('MOD_VOY_MILESTONE_PLAN');
+          const url = ctx.getResourceUrl('assets/icon.png');
           Object.defineProperty(m, 'media', { get: () => url, configurable: true });
         } else if (m.level === model.NAVIGATOR_LEVEL && '_name' in m) {
           // Build .119: Navigator's Charts, Plan a voyage's Sail!.

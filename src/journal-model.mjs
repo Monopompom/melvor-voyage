@@ -7,8 +7,9 @@
  * 'crafts' is the rule table; the ones in JOURNAL_WRITTEN are written for the book alone (the user, 16 Oct 2026:
  * "write it all down": reading the map, tricks, settings, removing the mod, Adventure's first coins). 'lands' (build
  * .113) adds two live ledgers from the rule table: what each kind of land and each feature lets a craft do.
+ * 'planning' (build .123) is Plan a voyage, shown while the planner is loaded.
  */
-export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'travels', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
+export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'travels', 'planning', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
 /**
  * The Old Man's Crew pages (build .116, the user's ask): a guide to Worker Folks: Hiring in the captain's voice, shown
  * as their own tab only while that mod is loaded. Written chapters like the ones below (MOD_VOY_JOURNAL_CH_CREW_*).
@@ -28,12 +29,26 @@ export const JOURNAL_WRITTEN = {
   crew_pay: { sections: ['WAGES', 'GRACE', 'STRIKE', 'EASIER'], warn: ['STRIKE'] },
   crew_tips: { sections: ['OWN'], points: true },
   map: { sections: ['TINT', 'PANEL', 'KEYS', 'MARKS'] },
+  planning: { sections: ['WHERE', 'STOPS', 'CHARTS'] },
   lands: { sections: ['KINDS', 'FEATURES'] },
   tricks: { sections: ['STORES', 'BOAT', 'NIGHT', 'WAY'], points: true },
   settings: { sections: ['EASIER', 'WHY'] },
   leaving: { sections: ['WHAT', 'HOW'], warn: ['WHAT'] },
   adventure: { sections: ['FIRST', 'NEXT'] },
 };
+
+/**
+ * The "Did you know?" slips (build .127, the user's ask): a real-world sea fact the captain is reminded of by something
+ * he saw, one per chapter, drawn before the chapter's note (MOD_VOY_JOURNAL_ASIDE_<KEY>_HEAD / _BODY).
+ */
+export const JOURNAL_ASIDES = { stores: 'LIMES', travels: 'KNOTS', tricks: 'MILKY' };
+
+/**
+ * The chapters that end with a note (MOD_VOY_JOURNAL_CH_<CHAPTER>_NOTE). Build .137, the user's pick: the author's notes
+ * ("A note from the one who named the land") only where they say something, plus the captain's own (stores, ship,
+ * hold); the other pages end on their text.
+ */
+export const JOURNAL_NOTES = ['foreword', 'lands', 'stores', 'ship', 'hold', 'travels', 'compass', 'settings', 'lighthouse', 'crew_pay'];
 
 /** The book's bookmark tabs, in order (src/journal.mjs). */
 export const JOURNAL_TABS = ['how', 'resources', 'places', 'guide', 'crew'];

@@ -4,21 +4,13 @@
       <skill-header data-skill-id="voyage:Voyage"></skill-header>
     </div>
     <div class="block block-rounded voyage-status-row d-none" data-voyage="status"></div>
-    <div class="block block-rounded border-top border-voyage border-4x d-none" data-voyage="plan-block">
-      <div class="block-content p-3">
-        <h5 class="font-w600 mb-2"><lang-string lang-id="MOD_VOY_PLAN_TITLE"></lang-string></h5>
-        <div data-voyage="plan"></div>
-      </div>
-    </div>
     <div class="row">
-      <div class="col-12 col-lg-6">
-        <div class="block block-rounded border-top border-voyage border-4x">
+      <!-- Build .133 (the user's sketch): the plan and the hold on the left; stores, ship, compass and travels on the right. -->
+      <div class="col-12 col-lg-6 voyage-col-left">
+        <div class="block block-rounded border-top border-voyage border-4x d-none" data-voyage="plan-block">
           <div class="block-content p-3">
-            <div class="d-flex align-items-center justify-content-between mb-2">
-              <h5 class="font-w600 mb-0"><lang-string lang-id="MOD_VOY_PAGE_SHIP_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="ship"><i class="fa fa-question-circle"></i></button></h5>
-              <button type="button" class="btn btn-sm btn-outline-info" data-voyage="show-map"><lang-string lang-id="MOD_VOY_PAGE_SHOW_MAP"></lang-string></button>
-            </div>
-            <div data-voyage="ship"></div>
+            <h5 class="font-w600 mb-2"><lang-string lang-id="MOD_VOY_PLAN_TITLE"></lang-string></h5>
+            <div data-voyage="plan"></div>
           </div>
         </div>
         <div class="block block-rounded border-top border-voyage border-4x d-none" data-voyage="hold-block">
@@ -30,6 +22,8 @@
             <div data-voyage="hold"></div>
           </div>
         </div>
+      </div>
+      <div class="col-12 col-lg-6">
         <div class="block block-rounded border-top border-voyage border-4x">
           <div class="block-content p-3">
             <h5 class="font-w600 mb-2"><lang-string lang-id="MOD_VOY_PAGE_STORES_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="stores"><i class="fa fa-question-circle"></i></button></h5>
@@ -38,12 +32,13 @@
         </div>
         <div class="block block-rounded border-top border-voyage border-4x">
           <div class="block-content p-3">
-            <h5 class="font-w600 mb-2"><lang-string lang-id="MOD_VOY_PAGE_TRAVELS_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="travels"><i class="fa fa-question-circle"></i></button></h5>
-            <div data-voyage="travels"></div>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h5 class="font-w600 mb-0"><lang-string lang-id="MOD_VOY_PAGE_SHIP_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="ship"><i class="fa fa-question-circle"></i></button></h5>
+              <button type="button" class="btn btn-sm btn-outline-info" data-voyage="show-map"><lang-string lang-id="MOD_VOY_PAGE_SHOW_MAP"></lang-string></button>
+            </div>
+            <div data-voyage="ship"></div>
           </div>
         </div>
-      </div>
-      <div class="col-12 col-lg-6">
         <div class="block block-rounded border-top border-voyage border-4x">
           <div class="block-content p-3">
             <div class="d-flex align-items-center mb-2">
@@ -51,6 +46,12 @@
               <h5 class="font-w600 mb-0"><lang-string lang-id="MOD_VOY_PAGE_COMPASS_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="compass"><i class="fa fa-question-circle"></i></button></h5>
             </div>
             <div data-voyage="compass"></div>
+          </div>
+        </div>
+        <div class="block block-rounded border-top border-voyage border-4x">
+          <div class="block-content p-3">
+            <h5 class="font-w600 mb-2"><lang-string lang-id="MOD_VOY_PAGE_TRAVELS_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="travels"><i class="fa fa-question-circle"></i></button></h5>
+            <div data-voyage="travels"></div>
           </div>
         </div>
       </div>

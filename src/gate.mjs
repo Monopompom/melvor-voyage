@@ -531,8 +531,12 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       if (compass !== undefined) lines.push(compass);
     }
     log(`refused combat in ${area.id} at (${pos?.q},${pos?.r})`);
-    modal(templateLangString('MOD_VOY_GATE_AREA_TITLE', { name }), area.media, lines, { guide: 'combat', plan: () => state.planner?.forArea(area) });
+    const monster = clickedMonster?.area === area ? clickedMonster.monster : undefined;
+    modal(templateLangString('MOD_VOY_GATE_AREA_TITLE', { name }), area.media, lines, { guide: 'combat', plan: () => state.planner?.forArea(area, monster) });
   };
+  // The monster a click picked, so a planned voyage's "On arrival" starts on it (build .123).
+  let clickedMonster;
+  ctx.patch(CombatManager, 'selectMonster').before(function (monster, area) { clickedMonster = { monster, area }; });
   ctx.patch(CombatManager, 'checkAreaEntryRequirements').replace(function (original, area) {
     try {
       const locked = combatLocked(area);

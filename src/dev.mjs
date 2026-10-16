@@ -184,7 +184,21 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
     plan(col, row) {
       if (state.planner === undefined) return 'planner not loaded';
       const { q, r } = fromDisplay(col, row);
-      return state.planner.planTo({ name: 'Dev target', hexes: [{ q, r }] }) ? 'planned' : 'not planned';
+      // Named as a player's plan would be: the place there, else the hex (it said "Dev target", which read as nothing).
+      let name = `Hex (${col}, ${row})`;
+      try { const poi = map()?.getHex(new HexCoords(q, r))?.pointOfInterest; if (poi?.isDiscovered) name = poi.name; } catch {}
+      return state.planner.planTo({ name, hexes: [{ q, r }] }) ? `planned: ${name}` : 'not planned';
+    },
+    /**
+     * Plan a voyage to a combat, slayer or dungeon area by id, as its Plan voyage button does (build .130, to see the
+     * On arrival refusals): voyageDev.planArea('melvorF:Holy_Isles', 0) preselects that area's first monster.
+     */
+    planArea(id, monsterIndex) {
+      if (state.planner === undefined) return 'planner not loaded';
+      const area = game.combatAreas.getObjectByID(id) ?? game.slayerAreas.getObjectByID(id) ?? game.dungeons.getObjectByID(id);
+      if (area === undefined) return `no area ${id}`;
+      const target = state.planner.forArea(area, monsterIndex === undefined ? undefined : area.monsters?.[monsterIndex]);
+      return target !== undefined && state.planner.planTo(target) ? `planned: ${target.name}` : 'not planned (no known place)';
     },
     /** Terrain record under the player. */
     here() {

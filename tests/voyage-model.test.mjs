@@ -63,10 +63,11 @@ test('compass level 1 keeps today\'s reading; steps and name unlock later', () =
 
 test('skill milestones in data/skill.json: the compass stages, then the free charts', async () => {
   const { readFile } = await import('node:fs/promises');
-  const { COMPASS_STAGES, FREE_CHART_LEVELS, NAVIGATOR_LEVEL } = await import('../src/voyage-model.mjs');
+  const { COMPASS_STAGES, FREE_CHART_LEVELS, NAVIGATOR_LEVEL, PLAN_LEVEL } = await import('../src/voyage-model.mjs');
+  const { HOLD_ROW_LEVELS } = await import('../src/ship-model.mjs');
   const pkg = JSON.parse(await readFile(new URL('../data/skill.json', import.meta.url), 'utf8'));
   const levels = pkg.data.skillData[0].data.customMilestones.map((m) => m.level);
-  assert.deepEqual(levels, [...COMPASS_STAGES.map((s) => s.level), ...FREE_CHART_LEVELS, NAVIGATOR_LEVEL].sort((a, b) => a - b));
+  assert.deepEqual(levels, [...COMPASS_STAGES.map((s) => s.level), ...FREE_CHART_LEVELS, NAVIGATOR_LEVEL, PLAN_LEVEL, ...HOLD_ROW_LEVELS].sort((a, b) => a - b));
 });
 
 test('v2 saves gain empty stores and a starter kit still to come; stores are cleaned', () => {

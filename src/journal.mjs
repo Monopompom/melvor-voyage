@@ -248,7 +248,7 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
     + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>'
     + `${esc(t('MOD_VOY_JOURNAL_SHOW_ON_MAP'))}</button>`;
   // Plan a voyage (build .119): the planner on the Voyage page, heading for this entry or place.
-  const planButton = (kind, id) => state.planner === undefined ? '' : `<button type="button" class="vj-btn" data-vj-plan="${esc(kind)}" data-vj-id="${esc(id)}">`
+  const planButton = (kind, id) => state.planner?.open?.() !== true ? '' : `<button type="button" class="vj-btn" data-vj-plan="${esc(kind)}" data-vj-id="${esc(id)}">`
     + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17h18l-2 4H5z"></path><path d="M12 3v12"></path><path d="M12 4l6 9h-6"></path></svg>'
     + `${esc(t('MOD_VOY_PLAN_BUTTON'))}</button>`;
   const empty = (key) => `<p class="vj-p vj-faint">${esc(t(key))}</p>`;
@@ -348,14 +348,16 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
 
   /** Adventure's chapter only where skills are bought; the "?" chapters only with the Voyage page loaded. */
   const adventure = () => { try { return game.currentGamemode?.allowSkillUnlock === true; } catch { return false; } };
-  const chapters = () => jm.JOURNAL_CHAPTERS.filter((c) => (c === 'adventure' ? adventure()
+  const chapters = () => jm.JOURNAL_CHAPTERS.filter((c) => (c === 'adventure' ? adventure() : c === 'planning' ? state.planner !== undefined
     : c === 'crafts' || jm.JOURNAL_WRITTEN[c] !== undefined || typeof state.helpSections === 'function'));
 
   /** A book-only chapter (journal-model.mjs JOURNAL_WRITTEN): its sections from en.json, plus the live parts. */
   const writtenBody = (id) => {
     const spec = jm.JOURNAL_WRITTEN[id];
     const key = id.toUpperCase();
-    const vars = { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '' };
+    const nav = state.planner?.NAV;
+    const vars = { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
+      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, gp: nav === undefined ? '' : numberWithCommas(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}` };
     const line = (k) => t(k, vars).split('\n').filter((x) => x.trim() !== '');
     let html = id === 'lighthouse' ? lighthouse() : '';
     for (const sec of spec.sections) {
@@ -366,6 +368,7 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       const lines = line(bodyKey);
       const body = spec.points ? `<ul class="vj-points">${lines.map((l) => `<li>${rich(l)}</li>`).join('')}</ul>` : lines.map((l) => `<p class="vj-p">${rich(l)}</p>`).join('');
       html += `<div class="vj-section${spec.warn?.includes(sec) ? ' vj-warn' : ''}"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_${sec}_HEAD`))}</h3>${body}</div>`;
+      if (id === 'foreword' && sec === 'WHO') html += galleon();
       if (id === 'settings' && sec === 'EASIER') html += settingsTable();
       if (id === 'lands' && sec === 'KINDS') html += landsTable();
       if (id === 'lands' && sec === 'FEATURES') html += featuresTable();
@@ -381,6 +384,9 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
   // The lore's last page: the lighthouse, drawn in ink.
   const lighthouseUrl = ctx.getResourceUrl('assets/lighthouse.png');
   const lighthouse = () => `<figure class="vj-figure"><img src="${lighthouseUrl}" alt="${esc(t('MOD_VOY_JOURNAL_LIGHTHOUSE_ALT'))}"></figure>`;
+  // The first page: his galleon, Patient Grace, in pencil (the user, build .123).
+  const galleonUrl = ctx.getResourceUrl('assets/galleon.png');
+  const galleon = () => `<figure class="vj-figure vj-galleon"><img src="${galleonUrl}" alt="${esc(t('MOD_VOY_JOURNAL_GALLEON_ALT'))}"><figcaption>${esc(t('MOD_VOY_JOURNAL_GALLEON_CAPTION'))}</figcaption></figure>`;
 
   // The Old Man's Crew (build .116): Worker Folks: Hiring, read live where it can be (never written to).
   const crewSkill = () => skillOf(jm.CREW_SKILL_ID);
@@ -443,14 +449,70 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
    * The text scrolls in its own box and the foot stays put at the bottom of the page (the user, 16 Oct 2026: the turn
    * links moved with the length of the page).
    */
+  /**
+   * Slips the note in between two paragraphs or sections (build .138, the user's ask), not at the foot: the place is
+   * picked from the chapter id, so it stays put between visits but differs from page to page. Between two sections
+   * first; inside a section (between two plain paragraphs) only on a page of one section, since the short lines of a
+   * section often read as one list. Never beside the Did you know? slip or between a section and its table.
+   */
+  const withNote = (id, content, noteHtml) => {
+    if (noteHtml === '') return content;
+    try {
+      const tpl = document.createElement('template');
+      tpl.innerHTML = content;
+      let gaps = [];
+      const top = [...tpl.content.children];
+      top.forEach((el, i) => {
+        const next = top[i + 1];
+        if (next !== undefined && next.classList.contains('vj-section') && !el.classList.contains('vj-aside') && !el.matches('figure')) gaps.push({ after: el });
+      });
+      if (gaps.length === 0) {
+        for (const el of top.filter((x) => x.classList.contains('vj-section') && !x.classList.contains('vj-warn'))) {
+          const kids = [...el.children];
+          kids.forEach((k, j) => { if (k.matches('p.vj-p') && kids[j + 1]?.matches('p.vj-p') && j > 1) gaps.push({ after: k }); });
+        }
+      }
+      if (gaps.length === 0) return content + noteHtml;
+      let h = 7;
+      for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 9973;
+      const gap = gaps[h % gaps.length];
+      gap.after.insertAdjacentHTML('afterend', noteHtml);
+      const out = document.createElement('div');
+      out.append(tpl.content);
+      return out.innerHTML;
+    } catch (e) { log(`journal note placement ${id} failed`, e); return content + noteHtml; }
+  };
   const chapterPage = (id, folio, turn = '', left = true) => {
     const key = id.toUpperCase();
     let body = '';
     try { body = id === 'crafts' ? craftsTable() : jm.JOURNAL_WRITTEN[id] !== undefined ? writtenBody(id) : bookSections(state.helpSections(id)); } catch (e) { log(`journal chapter ${id} failed`, e); }
+    const noteHtml = jm.JOURNAL_NOTES.includes(id) ? note(t(`MOD_VOY_JOURNAL_CH_${key}_NOTE`)) : '';
     return '<div class="vj-page-body">' + runningHead(t('MOD_VOY_JOURNAL_TITLE'), t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))
       + `<h2 class="vj-h1">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))}</h2>`
-      + dropCap(t(`MOD_VOY_JOURNAL_CH_${key}_INTRO`)) + body + note(t(`MOD_VOY_JOURNAL_CH_${key}_NOTE`)) + '</div>'
+      + dropCap(t(`MOD_VOY_JOURNAL_CH_${key}_INTRO`)) + withNote(id, body + (id === 'travels' ? levelsLedger() : '') + aside(id), noteHtml) + '</div>'
       + `<div class="vj-foot${turn ? ' vj-foot-split' : ''}">${left ? turn : ''}<span class="vj-folio">${folio}</span>${left ? '' : turn}</div>`;
+  };
+  /** A "Did you know?" slip pasted into the chapter (journal-model.mjs JOURNAL_ASIDES), or ''. */
+  const aside = (id) => {
+    const k = jm.JOURNAL_ASIDES?.[id];
+    if (k === undefined) return '';
+    return `<aside class="vj-aside"><div class="vj-aside-label">${esc(t('MOD_VOY_JOURNAL_ASIDE_LABEL'))}</div>`
+      + `<div class="vj-aside-head">${esc(t(`MOD_VOY_JOURNAL_ASIDE_${k}_HEAD`))}</div>`
+      + t(`MOD_VOY_JOURNAL_ASIDE_${k}_BODY`).split('\n').map((l) => `<p class="vj-aside-p">${rich(l)}</p>`).join('') + '</aside>';
+  };
+  /**
+   * Every Voyage level that unlocks something (build .136): the skill's own milestones, so the ledger follows
+   * data/skill.json, with the levels reached ticked. The game's Skill Mastery milestone is left out.
+   */
+  const levelsLedger = () => {
+    const sk = state.voyageSkill?.();
+    const ms = (sk?.milestones ?? []).filter((m) => typeof CustomSkillMilestone === 'undefined' || m instanceof CustomSkillMilestone)
+      .slice().sort((a, b) => a.level - b.level);
+    if (sk === undefined || ms.length === 0) return '';
+    const rows = ms.map((m) => [{ text: `${m.level}` }, { text: m.name }, sk.level >= m.level ? { text: '✓', cls: 'vj-num text-success' } : { text: '', cls: 'vj-num' }]);
+    rows.numeric = [false, false, true];
+    return `<div class="vj-section"><h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_LEVELS_HEAD'))}</h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_BODY'))}</p>`
+      + ledger([t('MOD_VOY_JOURNAL_COL_VOYAGE_LEVEL'), t('MOD_VOY_JOURNAL_COL_GIVES'), t('MOD_VOY_JOURNAL_COL_YOURS')], rows) + '</div>';
   };
   const roman = (n) => ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 'xi', 'xii', 'xiii', 'xiv', 'xv', 'xvi'][n - 1] ?? `${n}`;
   /** Chapters two to a spread: How it works (`view.spread`) and the Old Man's Crew (`view.crewSpread`). */

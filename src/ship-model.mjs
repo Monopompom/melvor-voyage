@@ -357,13 +357,16 @@ export function seaIndex(terrain) {
 
 /**
  * The hold (build .72; the user: early bank space is hard to manage and loot can only be sold at a market). Ordinary
- * bank items, bank-style: a slot holds one kind of item in any amount. The dinghy has 6 slots and every 10 Voyage
- * levels add one; bigger hulls add more later, and cargo runs use the same slots.
+ * bank items, bank-style: a slot holds one kind of item in any amount. The dinghy has 6 slots; slots grow a whole row
+ * of HOLD_ROW at a time (build .134, the user: the Voyage page draws them as crates, six to a row): one row at each of
+ * HOLD_ROW_LEVELS (skill milestones). Bigger hulls add rows later, and cargo runs use the same slots.
  */
 export const HOLD_SLOTS = { dinghy: 6 };
+export const HOLD_ROW = 6;
+export const HOLD_ROW_LEVELS = [40, 80];
 export function holdSlots(ship, voyageLevel = 1) {
   if (ship == null) return 0;
-  return (HOLD_SLOTS[ship.hull] ?? 0) + Math.floor(Math.min(99, Math.max(1, voyageLevel)) / 10);
+  return (HOLD_SLOTS[ship.hull] ?? 0) + HOLD_ROW * HOLD_ROW_LEVELS.filter((l) => voyageLevel >= l).length;
 }
 /** The hold is reached at the ship: standing on it or on a hex next to it. */
 export const atShip = (playerRec, ship) => ship != null && playerRec !== undefined && hexDist(playerRec, ship) <= 1;

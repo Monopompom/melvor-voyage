@@ -59,7 +59,6 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       });
       // Plan a voyage (build .119): src/planner.mjs draws and handles its block.
       part('plan')?.addEventListener('click', (e) => state.planner?.onClick(e));
-      part('plan')?.addEventListener('change', (e) => state.planner?.onChange(e));
       part('hold')?.addEventListener('click', (e) => {
         const target = e.target instanceof Element ? e.target.closest('[data-voyage-action], [data-voyage-preset]') : null;
         if (target === null) return;
@@ -186,6 +185,30 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       hullHtml();
   };
 
+  /**
+   * The hold's slots as crates (build .133, the user: "sockets waiting for cargo"): one recessed cell per slot with a
+   * crate drawn side-on, an empty one waiting, a stowed item sitting inside its crate with its count. A filled crate
+   * picks the item, as the chips did.
+   */
+  const CRATE_SVG = '<svg class="voyage-crate-art" viewBox="0 0 48 40" aria-hidden="true" fill="none" stroke="currentColor" stroke-linejoin="round">'
+    + '<rect x="2.5" y="4.5" width="43" height="33" rx="2" stroke-width="2.2"/>'
+    + '<path d="M8.5 5v32M39.5 5v32" stroke-width="2"/>'
+    + '<path d="M8.5 15.5h31M8.5 26.5h31" stroke-width="1.2" opacity=".7"/>'
+    + '<path d="M9.5 36 38.5 6" stroke-width="2"/>'
+    + '<circle cx="5.5" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="42.5" cy="8" r=".9" fill="currentColor" stroke="none"/>'
+    + '<circle cx="5.5" cy="34" r=".9" fill="currentColor" stroke="none"/><circle cx="42.5" cy="34" r=".9" fill="currentColor" stroke="none"/></svg>';
+  const crates = (items, slots, pickedId) => {
+    const cells = [];
+    for (let i = 0; i < Math.max(slots, items.length); i++) {
+      const x = items[i];
+      if (x === undefined) { cells.push(`<div class="voyage-crate" role="img" aria-label="${esc(t('MOD_VOY_HOLD_CRATE_EMPTY'))}">${CRATE_SVG}</div>`); continue; }
+      const label = `${x.item.name}: ${numberWithCommas(x.qty)}`;
+      cells.push(`<button type="button" class="voyage-crate voyage-crate-full${x.item.id === pickedId ? ' voyage-crate-picked' : ''}" data-voyage-action="hold-pick" data-item="${esc(x.item.id)}" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${x.item.id === pickedId}">`
+        + `${CRATE_SVG}<img src="${x.item.media}" alt=""><span class="voyage-crate-qty">${numberWithCommas(x.qty)}</span></button>`);
+    }
+    return `<div class="voyage-crates">${cells.join('')}</div>`;
+  };
+
   /** The hold (build .72; its own block since build .86): what it carries, and taking things back to the bank. */
   let holdPicked;
   const holdHtml = () => {
@@ -193,10 +216,10 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     if (h === undefined) return '';
     const items = h.contents();
     const why = h.blocker();
-    if (items.length === 0) return `<div>${t('MOD_VOY_HOLD_EMPTY')}</div>`;
+    if (items.length === 0) return crates(items, h.slots(), undefined) + `<div class="mt-2">${t('MOD_VOY_HOLD_EMPTY')}</div>`;
     if (!items.some((x) => x.item.id === holdPicked)) holdPicked = items[0].item.id;
     const sel = items.find((x) => x.item.id === holdPicked);
-    let html = chips(items, holdPicked, 'hold-pick', (x) => x.item.name) +
+    let html = crates(items, h.slots(), holdPicked) +
       `<div class="mt-2">${esc(t('MOD_VOY_PAGE_HOLD_SELECTED', { item: sel.item.name, count: numberWithCommas(sel.qty) }))}</div>`;
     if (why !== undefined) return `${html}<div class="text-warning mt-2">${esc(why)}</div>`;
     html += actionBlock({
@@ -327,7 +350,8 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
           t('MOD_VOY_HELP_HOLD_SLOTS'),
           { table: { cols: [t('MOD_VOY_HELP_COL_SHIP'), t('MOD_VOY_HELP_COL_SLOTS')], rows: [
             { cells: [t('MOD_VOY_HULL_NAME_DINGHY'), `${shipModel.HOLD_SLOTS.dinghy}`] },
-            { cells: [t('MOD_VOY_HELP_HOLD_PER_LEVEL'), '+1'], cls: ['text-success'] },
+            // Build .134: a row of six crates at each of HOLD_ROW_LEVELS.
+            ...shipModel.HOLD_ROW_LEVELS.map((level) => ({ cells: [t('MOD_VOY_HELP_HOLD_AT_LEVEL', { level: `${level}` }), `+${shipModel.HOLD_ROW}`], cls: ['text-success'] })),
           ] } },
         ] },
         { head: t('MOD_VOY_HELP_HEAD_STOW'), body: [t('MOD_VOY_HELP_HOLD_WHERE'), t('MOD_VOY_HELP_HOLD_SELL')] },
@@ -480,9 +504,11 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       status.classList.toggle('d-none', items.length === 0);
     }
     const planBlock = part('plan-block');
-    planBlock?.classList.toggle('d-none', state.planner === undefined);
+    // From Voyage level PLAN_LEVEL (build .133): before it the block is not there.
+    const planOpen = state.planner?.open?.() === true;
+    planBlock?.classList.toggle('d-none', !planOpen);
     const plan = part('plan');
-    if (plan !== null && state.planner !== undefined) {
+    if (plan !== null && planOpen) {
       try { plan.innerHTML = state.planner.html(); } catch (e) { log('planner render failed', e); }
     }
     const ship = part('ship');

@@ -391,8 +391,12 @@ test('Pitch: better logs give more', () => {
 
 test('the hold: 6 slots on a dinghy, one more every 10 Voyage levels; reached at the ship', () => {
   assert.equal(holdSlots(dinghy(1, 1), 1), 6);
-  assert.equal(holdSlots(dinghy(1, 1), 10), 7);
-  assert.equal(holdSlots(dinghy(1, 1), 99), 15);
+  assert.equal(holdSlots(dinghy(1, 1), 39), 6);
+  assert.equal(holdSlots(dinghy(1, 1), 40), 12);
+  assert.equal(holdSlots(dinghy(1, 1), 79), 12);
+  assert.equal(holdSlots(dinghy(1, 1), 80), 18);
+  assert.equal(holdSlots(dinghy(1, 1), 99), 18);
+  for (const lv of [1, 40, 60, 80, 99]) assert.equal(holdSlots(dinghy(1, 1), lv) % 6, 0, 'whole rows of crates');
   assert.equal(holdSlots(null, 50), 0);
   assert.equal(atShip(land(5, 4), dinghy(5, 5)), true);
   assert.equal(atShip(sea(5, 5, 1), dinghy(5, 5)), true);

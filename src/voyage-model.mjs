@@ -32,7 +32,7 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * a zoned action id to hexes as "q,r" strings (where it worked, where its zone said no), `places` maps "kind|id" to the
  * hex it was first met on (combat areas fought in, trading places used), `guides` lists the guide pages written, in
  * the order they were written.
- * `navigator` (build .119) turns true once Navigator's Charts are bought: Plan a voyage may Sail!.
+ * `navigator` (build .119) turns true once Navigator's Charts are bought: Plan a voyage may Set off.
  */
 export function defaultSave() {
   return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, hold: [], unlockNotice: [], journal: emptyJournal(), navigator: false };
@@ -49,6 +49,8 @@ export const JOURNAL_LIMITS = { found: 20, missed: 20 };
 export const FREE_CHART_LEVELS = [30, 50, 70, 90];
 /** The Voyage level from which Navigator's Charts are sold (build .119; plan-model.mjs NAVIGATOR.level must match). */
 export const NAVIGATOR_LEVEL = 60;
+/** Plan a voyage opens at this Voyage level, a milestone (build .133): before it you explore by hand. */
+export const PLAN_LEVEL = 15;
 /** Unread marks kept at most (build .116): the oldest go first. */
 export const JOURNAL_UNREAD_MAX = 300;
 /** What an unread mark says: a new entry or page, or one that changed since it was last read. */

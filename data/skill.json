@@ -35,6 +35,12 @@
             },
             {
               "type": "Custom",
+              "level": 15,
+              "name": "Plan a voyage: the route, the stops, the cost",
+              "media": "assets/icon.png"
+            },
+            {
+              "type": "Custom",
               "level": 25,
               "name": "Compass: the name of the place",
               "media": "assets/media/skills/cartography/cartography.png"
@@ -44,6 +50,12 @@
               "level": 30,
               "name": "Journal: chart one country",
               "media": "assets/journal.png"
+            },
+            {
+              "type": "Custom",
+              "level": 40,
+              "name": "Hold: a new row of six crates",
+              "media": "assets/hull_dinghy.png"
             },
             {
               "type": "Custom",
@@ -62,6 +74,12 @@
               "level": 70,
               "name": "Journal: chart one country",
               "media": "assets/journal.png"
+            },
+            {
+              "type": "Custom",
+              "level": 80,
+              "name": "Hold: a new row of six crates",
+              "media": "assets/hull_dinghy.png"
             },
             {
               "type": "Custom",

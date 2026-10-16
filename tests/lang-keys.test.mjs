@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import * as terrain from '../src/terrain.mjs';
 import * as rules from '../src/rules.mjs';
 import { JOURNAL_GUIDES } from '../src/voyage-model.mjs';
-import { JOURNAL_CHAPTERS, JOURNAL_CREW, JOURNAL_WRITTEN, CHART_ITEMS, splitLinks, linkTargetExists } from '../src/journal-model.mjs';
+import { JOURNAL_CHAPTERS, JOURNAL_CREW, JOURNAL_WRITTEN, JOURNAL_ASIDES, JOURNAL_NOTES, CHART_ITEMS, splitLinks, linkTargetExists } from '../src/journal-model.mjs';
 
 const root = new URL('../', import.meta.url);
 const en = JSON.parse(readFileSync(new URL('languages/en.json', root), 'utf8'));
@@ -34,12 +34,15 @@ export const FAMILIES = {
   MOD_VOY_PAGE_COMPASS_STAGE_: ['1', '2', '3'],
   // the Captain's Journal (src/journal.mjs): chapters, guide pages, place groups
   MOD_VOY_JOURNAL_CH_: [
-    ...[...JOURNAL_CHAPTERS, ...JOURNAL_CREW].map((c) => c.toUpperCase()).flatMap((c) => [`${c}_TITLE`, `${c}_INTRO`, `${c}_NOTE`]),
+    ...[...JOURNAL_CHAPTERS, ...JOURNAL_CREW].map((c) => c.toUpperCase()).flatMap((c) => [`${c}_TITLE`, `${c}_INTRO`]),
+    ...JOURNAL_NOTES.map((c) => `${c.toUpperCase()}_NOTE`),
     ...Object.entries(JOURNAL_WRITTEN).flatMap(([c, spec]) => spec.sections.flatMap((x) => [`${c.toUpperCase()}_${x}_HEAD`, `${c.toUpperCase()}_${x}_BODY`])),
     'MAP_KEYS_BODY_OFF',
     'FOREWORD_BOOK_BODY_OFF',
   ],
   MOD_VOY_JOURNAL_GUIDE_: JOURNAL_GUIDES.flatMap((g) => ['TITLE', 'BODY', 'POINTS'].map((x) => `${g.toUpperCase()}_${x}`)),
+  // the Did you know slips (journal-model.mjs JOURNAL_ASIDES)
+  MOD_VOY_JOURNAL_ASIDE_: Object.values(JOURNAL_ASIDES).flatMap((k) => [`${k}_HEAD`, `${k}_BODY`]),
   MOD_VOY_JOURNAL_PLACES_: ['COMBAT', 'TRADE', 'POI'],
   // Plan a voyage (src/planner.mjs VERDICT): the verdicts named by a plan's reason
   MOD_VOY_PLAN_VERDICT_: ['SHORT', 'ASHORE', 'HULL', 'NOWAY', 'UNCHARTED', 'HERE'],

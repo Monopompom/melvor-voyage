@@ -1,8 +1,8 @@
-// Plan a voyage (build .119): the planner block on the Voyage page, Sail! and the action on arrival.
+// Plan a voyage (build .119): the planner block on the Voyage page, Set off and the action on arrival.
 // The rules are in src/plan-model.mjs. The route is the game's own A* (WorldMap.computePath), which Voyage's ship
 // filter already bends to the ship rules (src/ship.mjs), so one path walks to the ship, boards, sails, lands and walks
 // on. Each leg is an ordinary Cartography.movePlayer (setup.mjs's patch: GP, stores, hull, XP), so the autopilot
-// saves clicks, never costs. Sail! needs Navigator's Charts (save v9 `navigator`); the planning itself is free.
+// saves clicks, never costs. Set off needs Navigator's Charts (save v9 `navigator`); the planning itself is free.
 //
 // Ways in: state.planner.planTo(target) from the journal's entries and places and from the lock popups (gate.mjs).
 // A target is { name, media?, hexes: [{ q, r }], arrival? } with `arrival` one of { kind: 'action', skillId, action }
@@ -18,6 +18,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const skill = () => state.voyageSkill?.();
   const usable = () => { const s = skill(); return s !== undefined && s.futureRaw === undefined; };
+  /** Planning is open from Voyage level PLAN_LEVEL (build .133); Set off needs Navigator's Charts on top. */
+  const open = () => usable() && skill().level >= model.PLAN_LEVEL;
   const owned = () => usable() && skill().record.navigator === true;
   const live = () => game.cartography?.activeMap;
   const liveHex = (q, r) => { try { return live()?.getHex(new HexCoords(q, r)); } catch { return undefined; } };
@@ -127,28 +129,64 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   const startable = (skillId) => ['melvorD:Woodcutting', 'melvorD:Mining', 'melvorD:Fishing', 'melvorD:Thieving', 'melvorD:Astrology'].includes(skillId);
   const isDungeon = (area) => { try { return game.dungeons.getObjectByID(area.id) === area; } catch { return false; } };
   const isFightArea = (area) => { try { return game.combatAreas.getObjectByID(area.id) === area || game.slayerAreas.getObjectByID(area.id) === area; } catch { return false; } };
-  /** What can be started on arrival: [{ value, label }], 'none' first. */
+  // What the game would refuse on arrival (build .130), asked quietly with the game's own tests:
+  // the ones selectMonster / selectDungeon run (combatManager.js v1.3.1) and a skill action's level. Voyage's own
+  // location gate is left out (game.checkRequirement, not checkAreaEntryRequirements): you will be there. Each returns
+  // the reason as HTML, or undefined when the game would start it.
+  const reqHtml = (r) => {
+    try { const span = document.createElement('span'); span.append(...r.getNodes('skill-icon-xs mx-1')); return span.innerHTML; } catch { return esc(t('MOD_VOY_PLAN_REFUSE_AREA')); }
+  };
+  const areaRefusal = (area) => {
+    const c = game.combat;
+    const slayerReq = typeof SlayerArea !== 'undefined' && area instanceof SlayerArea ? area.slayerLevelRequired : 0;
+    const failed = (area.entryRequirements ?? []).find((r) => !game.checkRequirement(r, false, slayerReq));
+    if (failed !== undefined) return reqHtml(failed);
+    if (c.isDamageTypeBlockedFromArea(c.player.damageType, area)) return esc(t('MOD_VOY_PLAN_REFUSE_AREA_DAMAGE', { type: c.player.damageType.name }));
+    return undefined;
+  };
+  const monsterRefusal = (m, area) => {
+    const c = game.combat;
+    if (!game.tutorial.complete && !game.tutorial.allowedMonsters.has(m)) return esc(t('MOD_VOY_PLAN_REFUSE_TUTORIAL'));
+    return areaRefusal(area) ?? (c.isDamageTypeBlockedFromMonster(c.player.damageType, m) ? esc(t('MOD_VOY_PLAN_REFUSE_IMMUNE', { type: c.player.damageType.name })) : undefined);
+  };
+  const actionRefusal = (sk, action) => {
+    if (sk === undefined) return undefined;
+    if (!sk.isUnlocked) return esc(t('MOD_VOY_PLAN_REFUSE_LEVEL', { skill: sk.name, level: action.level ?? 1 }));
+    if ((action.level ?? 0) > sk.level) return esc(t('MOD_VOY_PLAN_REFUSE_LEVEL', { skill: sk.name, level: action.level }));
+    if ((action.abyssalLevel ?? 0) > (sk.abyssalLevel ?? 0)) return esc(t('MOD_VOY_PLAN_REFUSE_ABYSSAL', { skill: sk.name, level: action.abyssalLevel }));
+    return undefined;
+  };
+  const refusal = (fn) => { try { return fn(); } catch (e) { log('arrival check failed', e); return undefined; } };
+  /** What can be started on arrival: [{ value, label, media?, why? }], 'none' first; `why`: the game would refuse it. */
   const arrivalOptions = () => {
     const out = [{ value: 'none', label: t('MOD_VOY_PLAN_ARRIVAL_NONE') }];
     const a = target?.arrival;
     if (a?.kind === 'action' && a.action !== undefined && startable(a.skillId)) {
       const sk = game.skills.getObjectByID(a.skillId);
-      out.push({ value: 'go', label: t('MOD_VOY_PLAN_ARRIVAL_ACTION', { skill: sk?.name ?? a.skillId, name: a.action.name ?? a.action.id }) });
+      out.push({ value: 'go', label: t('MOD_VOY_PLAN_ARRIVAL_ACTION', { skill: sk?.name ?? a.skillId, name: a.action.name ?? a.action.id }), media: a.action.media ?? sk?.media, why: refusal(() => actionRefusal(sk, a.action)) });
     } else if (a?.kind === 'area' && isDungeon(a.area)) {
-      out.push({ value: 'go', label: t('MOD_VOY_PLAN_ARRIVAL_DUNGEON', { name: a.area.name }) });
+      out.push({ value: 'go', label: t('MOD_VOY_PLAN_ARRIVAL_DUNGEON', { name: a.area.name }), media: a.area.media, why: refusal(() => areaRefusal(a.area)) });
     } else if (a?.kind === 'area' && isFightArea(a.area)) {
       const seen = new Set();
       for (const m of a.area.monsters ?? []) {
         if (m === undefined || seen.has(m.id)) continue;
         seen.add(m.id);
-        out.push({ value: `m:${m.id}`, label: t('MOD_VOY_PLAN_ARRIVAL_FIGHT', { name: m.name }) });
+        out.push({ value: `m:${m.id}`, label: t('MOD_VOY_PLAN_ARRIVAL_FIGHT', { name: m.name }), media: m.media, why: refusal(() => monsterRefusal(m, a.area)) });
       }
     }
     return out;
   };
-  const arrivalNow = () => {
-    const opts = arrivalOptions();
-    return opts.some((o) => o.value === arrivalPick) ? arrivalPick : (opts[1]?.value ?? 'none');
+  /** The pick in force: the chosen one when the game allows it, else the first it allows, else 'none'. */
+  const arrivalNow = (opts = arrivalOptions()) => {
+    const ok = opts.filter((o) => o.why === undefined);
+    return ok.some((o) => o.value === arrivalPick) ? arrivalPick : (ok[1]?.value ?? 'none');
+  };
+  /** The refusal to flag under the verdict: the chosen pick's, or the first one's when every choice is refused. */
+  const arrivalWarning = (opts) => {
+    const asked = opts.find((o) => o.value === arrivalPick && o.why !== undefined);
+    if (asked !== undefined) return asked;
+    const rest = opts.slice(1);
+    return rest.length > 0 && rest.every((o) => o.why !== undefined) ? rest[0] : undefined;
   };
   const arrive = () => {
     const pick = arrivalNow();
@@ -165,7 +203,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     } catch (e) { log('arrival action failed', e); notify(t('MOD_VOY_PLAN_START_FAILED', { name: a.action?.name ?? a.area?.name ?? '' }), 'danger'); }
   };
 
-  // ---- Sail! -------------------------------------------------------------------------------------------------------
+  // ---- Set off -----------------------------------------------------------------------------------------------------
   const notify = (text, kind = 'success') => {
     try {
       const media = ctx.getResourceUrl('assets/ship_stores.png');
@@ -265,7 +303,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   };
 
   const html = () => {
-    if (!usable()) return '';
+    if (!open()) return '';
     if (target === undefined) return section(`<div>${esc(t('MOD_VOY_PLAN_EMPTY'))}</div>`) + navHtml();
     const plan = compute();
     const media = target.media ? `<img class="voyage-plan-icon mr-2" src="${esc(target.media)}" alt="">` : '';
@@ -276,41 +314,70 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       out += section(`<div class="font-w600 ${plan.why === 'here' ? 'text-success' : 'text-danger'}">${esc(t(`MOD_VOY_PLAN_VERDICT_${VERDICT[plan.why] ?? 'NOWAY'}`))}</div>`);
       return out + navHtml();
     }
+    // The plan as a small ledger (the user, build .124: "give some love to that text"): a label, then the value;
+    // food, fuel and hull read "now → on arrival", amber or red when they arrive low.
     const c = plan.counts;
-    let route = t('MOD_VOY_PLAN_ROUTE', { land: hexesText(c.land), sea: hexesText(c.sea) });
-    if (c.hops > 0) route += ` ${t('MOD_VOY_PLAN_ROUTE_HOPS', { count: `${c.hops}` })}`;
-    const legs = [];
     const sp = plan.split;
-    if (sp.depart !== undefined) legs.push(`<li>${esc(t('MOD_VOY_PLAN_DEPART', { amounts: loadText(sp.depart) }))}</li>`);
+    const row = (label, value) => `<div class="voyage-plan-label">${esc(label)}</div><div class="voyage-plan-value">${value}</div>`;
+    const icon = (path, alt) => `<img class="voyage-plan-ico" src="${ctx.getResourceUrl(path)}" alt="${esc(alt)}">`;
+    const arrow = `<span class="voyage-plan-arrow" aria-hidden="true">→</span>`;
+    const tone = (v, low) => (v <= 0 ? 'text-danger' : v < low ? 'text-warning' : '');
+    const parts = [`<span class="voyage-plan-bit"><i class="fa fa-shoe-prints"></i>${esc(t('MOD_VOY_PLAN_LAND', { count: `${c.land}` }))}</span>`,
+      `<span class="voyage-plan-bit"><i class="fa fa-water"></i>${esc(t('MOD_VOY_PLAN_SEA', { count: `${c.sea}` }))}</span>`];
+    if (c.hops > 0) parts.push(`<span class="voyage-plan-bit"><i class="fa fa-ship"></i>${esc(t('MOD_VOY_PLAN_HOPS', { count: `${c.hops}` }))}</span>`);
+    let rows = row(t('MOD_VOY_PLAN_ROW_ROUTE'), parts.join(''));
+    const legs = [];
+    if (sp.depart !== undefined) legs.push(`<li>${esc(t('MOD_VOY_PLAN_DEPART'))} <span class="text-success">${esc(loadText(sp.depart))}</span></li>`);
     sp.legs.forEach((leg) => {
-      if (leg.load !== undefined) legs.push(`<li>${esc(t('MOD_VOY_PLAN_STOP', { place: stopName(plan.walk[leg.to], leg.load.place), amounts: loadText(leg.load) }))}</li>`);
+      if (leg.load !== undefined) legs.push(`<li>${esc(t('MOD_VOY_PLAN_STOP', { place: stopName(plan.walk[leg.to], leg.load.place) }))} <span class="text-success">${esc(loadText(leg.load))}</span></li>`);
     });
-    const legLine = legs.length === 0 ? `<div>${esc(t('MOD_VOY_PLAN_ONE_GO'))}</div>` : `<ol class="voyage-plan-legs mb-0">${legs.join('')}</ol>`;
-    // Costs: the game's travel costs, then what the stores spend and hold.
+    rows += row(t('MOD_VOY_PLAN_ROW_STOPS'), legs.length === 0 ? `<span class="text-muted">${esc(t('MOD_VOY_PLAN_ONE_GO'))}</span>` : `<ol class="voyage-plan-legs mb-0">${legs.join('')}</ol>`);
+    // Costs: the game's travel costs.
     const costParts = [];
     try {
       for (const { currency, quantity } of plan.costs?.getCurrencyQuantityArray() ?? []) if (quantity > 0) costParts.push(costIcon(currency.media, quantity, currency.amount, currency.name));
       for (const { item, quantity } of plan.costs?.getItemQuantityArray() ?? []) if (quantity > 0) costParts.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name));
     } catch {}
+    if (costParts.length > 0) rows += row(t('MOD_VOY_PLAN_ROW_COST'), costParts.join(''));
+    // The stores and the hull, now and on arrival.
     const st = state.stores;
-    let storesLine = '';
     if (st?.enabled?.() === true) {
       const have = st.stores();
-      storesLine = `<div>${esc(t('MOD_VOY_PLAN_STORES', { have: amounts(have.food, have.fuel) }))}${sp.ok ? ` ${esc(t('MOD_VOY_PLAN_LEFT', { left: amounts(sp.have.food, sp.have.fuel) }))}` : ''}</div>`;
-      if (c.wear > 0 && state.ship?.enabled?.()) storesLine += `<div>${esc(t('MOD_VOY_PLAN_WEAR', { wear: `${c.wear}`, cond: `${state.ship.ship()?.cond ?? 100}` }))}</div>`;
+      const end = sp.ok ? sp.have : undefined;
+      const hp = (n) => esc(t('MOD_VOY_PLAN_HP', { count: st.hp(n) }));
+      const fuel = (n) => (Math.round(n * 10) / 10).toFixed(1);
+      rows += `<div></div><div class="voyage-plan-when">${esc(t(end === undefined ? 'MOD_VOY_PLAN_WHEN_NOW' : 'MOD_VOY_PLAN_WHEN'))}</div>`;
+      rows += row(t('MOD_VOY_PLAN_ROW_FOOD'), `${icon('assets/ration.png', t('MOD_VOY_PLAN_ROW_FOOD'))}${hp(have.food)}${end === undefined ? '' : `${arrow}<span class="${tone(end.food, S.LOW.food)}">${hp(end.food)}</span>`}`);
+      rows += row(t('MOD_VOY_PLAN_ROW_FUEL'), `${icon('assets/fuel.png', t('MOD_VOY_PLAN_ROW_FUEL'))}${fuel(have.fuel)}${end === undefined ? '' : `${arrow}<span class="${tone(end.fuel, S.LOW.fuel)}">${fuel(end.fuel)}</span>`}`);
+      if (c.wear > 0 && state.ship?.enabled?.()) {
+        const cond = state.ship.ship()?.cond ?? 100;
+        const after = Math.max(0, cond - c.wear);
+        rows += row(t('MOD_VOY_PLAN_ROW_HULL'), `${icon('assets/hull_condition.png', t('MOD_VOY_PLAN_ROW_HULL'))}${cond}%${arrow}<span class="${after <= 0 ? 'text-danger' : after < 50 ? 'text-warning' : ''}">${after}%</span> <span class="text-muted ml-1">${esc(t('MOD_VOY_PLAN_WEAR', { wear: `${c.wear}` }))}</span>`);
+      }
     }
     const gpOk = plan.costs?.checkIfOwned() ?? true;
     const verdictKey = !sp.ok ? `MOD_VOY_PLAN_VERDICT_${VERDICT[sp.why] ?? 'SHORT'}` : !gpOk ? 'MOD_VOY_PLAN_VERDICT_COSTS' : owned() ? 'MOD_VOY_PLAN_VERDICT_OK' : 'MOD_VOY_PLAN_VERDICT_CLEAR';
     const good = sp.ok && gpOk;
-    out += section(`<div class="font-w600 ${good ? 'text-success' : 'text-danger'}">${esc(t(verdictKey))}</div>` +
-      `<div>${esc(route)}</div>${legLine}` +
-      (costParts.length > 0 ? `<div class="d-flex flex-wrap align-items-center"><span class="mr-2">${esc(t('MOD_VOY_PLAN_COSTS'))}</span>${costParts.join('')}</div>` : '') + storesLine);
-    // On arrival, then the buttons: Sail! green, the rest blue outline (confirm green, navigation blue).
+    // On arrival: what the game would refuse is flagged in amber under the verdict (a hint; Set off still goes).
     const opts = arrivalOptions();
-    const pick = arrivalNow();
+    const pick = arrivalNow(opts);
+    const warn = arrivalWarning(opts);
+    const warnHtml = warn === undefined ? '' : `<div class="text-warning mb-2">${esc(t('MOD_VOY_PLAN_REFUSE_WARN', { name: warn.label }))} ${warn.why}</div>`;
+    out += section(`<div class="font-w600 mb-2 ${good ? 'text-success' : 'text-danger'}">${esc(t(verdictKey))}</div>${warnHtml}` +
+      `<div class="voyage-plan-ledger">${rows}</div>`);
+    // Then the buttons: Set off green, the rest blue outline (confirm green, navigation blue).
     if (opts.length > 1) {
-      out += section(`<label class="d-block mb-1" for="voyage-plan-arrival">${esc(t('MOD_VOY_PLAN_ARRIVAL'))}</label>` +
-        `<select id="voyage-plan-arrival" class="form-control" data-voyage-plan="arrival">${opts.map((o) => `<option value="${esc(o.value)}"${o.value === pick ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`);
+      // The game's own dropdown (Bootstrap's data-toggle, as the game's menus), not the browser's select: each choice
+      // with its icon, the picked one shown on the toggle. A choice the game would refuse is greyed out, can't be
+      // picked and says why.
+      const face = (o) => `${o.media === undefined ? '<i class="fa fa-flag voyage-plan-pick-ico"></i>' : `<img class="voyage-plan-pick-ico" src="${esc(o.media)}" alt="">`}<span>${esc(o.label)}</span>`;
+      const item = (o) => o.why === undefined
+        ? `<a class="dropdown-item pointer-enabled${o.value === pick ? ' active' : ''}" role="button" data-voyage-plan="pick" data-pick="${esc(o.value)}">${face(o)}</a>`
+        : `<div class="dropdown-item voyage-plan-refused" aria-disabled="true"><div class="voyage-plan-refused-name">${face(o)}</div><div class="voyage-plan-refused-why text-warning">${o.why}</div></div>`;
+      const cur = opts.find((o) => o.value === pick) ?? opts[0];
+      out += section(`<div class="font-w600 mb-1" id="voyage-plan-arrival-label">${esc(t('MOD_VOY_PLAN_ARRIVAL'))}</div>` +
+        `<div class="dropdown voyage-plan-arrival"><button type="button" id="voyage-plan-arrival" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-describedby="voyage-plan-arrival-label">${face(cur)}</button>` +
+        `<div class="dropdown-menu overflow-y-auto" aria-labelledby="voyage-plan-arrival">${opts.map(item).join('')}</div></div>`);
     }
     const sailBtn = owned() && good ? `<button type="button" class="btn btn-success" data-voyage-plan="sail">${esc(t('MOD_VOY_PLAN_SAIL'))}</button>` : '';
     out += `<div class="voyage-plan-buttons">${sailBtn}<button type="button" class="btn btn-outline-info" data-voyage-plan="map">${esc(t('MOD_VOY_PLAN_SHOW_MAP'))}</button></div>`;
@@ -333,23 +400,20 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
 
   const onClick = (e) => {
     const b = e.target instanceof Element ? e.target.closest('[data-voyage-plan]') : null;
-    if (b === null || b.tagName === 'SELECT') return;
+    if (b === null) return;
     const what = b.dataset.voyagePlan;
     if (what === 'clear') { target = undefined; refresh(); }
+    else if (what === 'pick') { arrivalPick = b.dataset.pick; refresh(); }
     else if (what === 'sail') sail();
     else if (what === 'map') showMap();
     else if (what === 'buy') buy();
   };
-  const onChange = (e) => {
-    const s = e.target instanceof Element ? e.target.closest('[data-voyage-plan="arrival"]') : null;
-    if (s !== null) { arrivalPick = s.value; refresh(); }
-  };
 
   /** Plans a voyage to `target` and opens the Voyage page on the planner. */
   const planTo = (next) => {
-    if (!usable() || next === undefined || !Array.isArray(next.hexes) || next.hexes.length === 0) return false;
+    if (!open() || next === undefined || !Array.isArray(next.hexes) || next.hexes.length === 0) return false;
     target = next;
-    arrivalPick = undefined;
+    arrivalPick = next.pick;
     refresh();
     showBlock();
     return true;
@@ -361,6 +425,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   };
   /** A target for a zoned action: the hexes where the journal found it, else the known hexes of its zone, else `hexes`. */
   const forAction = (skillId, action, hexes = [], name) => {
+    if (!open()) return undefined;
     const known = (h) => state.knowledge?.isKnown(h) !== false;
     let to = [];
     if (action !== undefined) {
@@ -371,22 +436,25 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     return { name: name ?? action?.name ?? game.skills.getObjectByID(skillId)?.name ?? skillId, media: action?.media, hexes: to.map((h) => ({ q: h.q, r: h.r })), arrival: action === undefined ? undefined : { kind: 'action', skillId, action } };
   };
   /** A target for a combat area, slayer area or dungeon: its known places on the map. */
-  const forArea = (area) => {
+  const forArea = (area, monster) => {
+    if (!open()) return undefined;
     const places = (state.terrain?.placesFor(area.id) ?? []).filter((h) => state.knowledge?.isKnown(h) !== false);
-    return { name: area.name ?? area.id, media: area.media, hexes: places.map((h) => ({ q: h.q, r: h.r })), arrival: { kind: 'area', area } };
+    return { name: area.name ?? area.id, media: area.media, hexes: places.map((h) => ({ q: h.q, r: h.r })), arrival: { kind: 'area', area },
+      pick: monster === undefined ? undefined : `m:${monster.id}` };
   };
 
-  const signature = () => `${target?.name}|${target?.hexes?.length}|${arrivalPick}|${owned()}`;
+  // The refusals are in it, so gear or a damage type change redraws the block.
+  const signature = () => `${target?.name}|${target?.hexes?.length}|${arrivalPick}|${owned()}|${target === undefined ? '' : arrivalOptions().map((o) => o.why === undefined ? 1 : 0).join('')}`;
   /** For the mini panel: the target and its straight distance from you, or undefined. */
   const summary = () => {
-    if (!usable() || target === undefined) return undefined;
+    if (!open() || target === undefined) return undefined;
     const from = live()?.playerPosition;
     if (from === undefined) return undefined;
     const d = Math.min(...target.hexes.map((h) => terrainMod.hexDistance(from, h)));
     return { name: target.name, media: target.media, distance: Number.isFinite(d) ? d : undefined };
   };
   const reopen = () => { if (target === undefined) return false; showBlock(); return true; };
-  const api = { planTo, forAction, forArea, html, onClick, onChange, signature, owned, summary, reopen };
+  const api = { planTo, forAction, forArea, html, onClick, signature, open, owned, summary, reopen, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
   state.planner = api;
   return api;
 }

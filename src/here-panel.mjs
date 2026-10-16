@@ -305,7 +305,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     // 6. The planned voyage.
     const plan = state.planner?.summary?.();
     if (plan !== undefined) {
-      const dist = plan.distance === undefined ? '' : `<span class="ml-1">· ${plan.distance}</span>`;
+      // A small hexagon before the count reads as "hexes away" (the user, build .126); the tooltip says it in words.
+      const hexIcon = '<svg class="voyage-chip-hex" viewBox="0 0 16 18" aria-hidden="true"><path d="M8 1.5 L14.5 5.25 V12.75 L8 16.5 L1.5 12.75 V5.25 Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+      const dist = plan.distance === undefined ? '' : `<span class="voyage-chip-dist">${hexIcon}${plan.distance}</span>`;
       const tip = templateLangString('MOD_VOY_MINI_PLAN_HINT', { name: plan.name, hexes: plan.distance === undefined ? '?' : templateLangString(plan.distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${plan.distance}` }) });
       const icon = plan.media ? `<img class="voyage-chip-img" src="${esc(plan.media)}" alt="">` : '';
       out.push(chip(`<i class="fa fa-route mr-1"></i>${icon}<span class="voyage-chip-name">${esc(plan.name)}</span>${dist}`, tip, 'btn btn-sm btn-outline-info', 'voyage-mini-plan'));
@@ -317,8 +319,6 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         ? chip(`<span class="text-danger">${esc(getLangString('MOD_VOY_MINI_WORKS_NONE'))}</span>`, getLangString('MOD_VOY_PANEL_WORKS_NONE'))
         : `<span class="voyage-chip voyage-chip-skills">${works.slice(0, 4).join('')}${works.length > 4 ? `<small class="text-muted">+${works.length - 4}</small>` : ''}</span>`);
     }
-    // 8. The wandering trader on your hex.
-    if (status === 'here' && state.settings.trade()) out.push(chip('<i class="fa fa-store"></i>', getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'), 'voyage-chip-plain text-warning', 'voyage-chip-tip'));
     return out.slice(0, MINI_CHIPS);
   };
   const miniHtml = (pos, d, tip, status) => {
@@ -328,6 +328,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     else {
       try { if (state.stores?.enabled() && state.stores.rescue() !== undefined) warn.push(chip(`<i class="fa fa-exclamation-triangle mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'))}`, getLangString('MOD_VOY_PANEL_HUNGRY_HINT'), 'btn btn-sm btn-warning', 'voyage-rescue-link')); } catch {}
     }
+    // The wandering trader on your hex: he comes with being stranded, so he stands with its warning (seen on .123:
+    // as the last chip he fell off a full strip).
+    if (status === 'here' && state.settings.trade()) warn.push(chip('<i class="fa fa-store"></i>', getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'), 'voyage-chip-plain text-warning', 'voyage-chip-tip'));
     const unfold = getLangString('MOD_VOY_PANEL_UNFOLD');
     return `<div class="voyage-mini-row"><button type="button" class="voyage-panel-toggle voyage-mini-toggle" aria-expanded="false" title="${esc(`${tip}. ${unfold}`)}" aria-label="${esc(`${tip}. ${unfold}`)}">` +
       `<i class="fa fa-caret-right mr-1"></i>${swatch}${esc(d.label)}</button>${warn.join('')}${miniChips(pos, status).join('')}</div>`;
