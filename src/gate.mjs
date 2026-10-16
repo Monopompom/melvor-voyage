@@ -53,7 +53,7 @@ const HIRE_PURCHASE_PREFIX = 'worker_folks:Hire_';
 /** The trade refusal sentence per trade kind (languages/en.json). */
 const TRADE_ONLY_KEYS = { sell: 'MOD_VOY_GATE_TRADE_ONLY_SELL', buy: 'MOD_VOY_GATE_TRADE_ONLY_BUY' };
 
-export function install(ctx, { state, rules, terrainMod, zones, log }) {
+export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   /** Map colours are picked for tinting hexes; for text on the dark modal, lift dark ones towards white. */
@@ -115,14 +115,18 @@ export function install(ctx, { state, rules, terrainMod, zones, log }) {
     return templateLangString('MOD_VOY_GATE_WHERE', { hexes, dir, place });
   };
   const compassLine = (reading) => state.compass?.describe(reading);
+  /**
+   * `icon`: a picture that isn't a skill's (an action, a combat area). A skill's own icon comes with its name. Message popup layout (build .94): one picture on top, the action or area's when there is one, else the
+   * warning sign; never both.
+   */
   const modal = (title, icon, lines, { withMap = true } = {}) => {
     try {
       const page = game.pages.getObjectByID('melvorAoD:Cartography');
-      const img = icon ? `<img class="skill-icon-sm mr-2" src="${icon}">` : '';
       SwalLocale.fire({
+        didRender: state.popupDidRender,
         title,
-        html: `<div class="text-left voyage-locked">${img}<div class="voyage-locked-lines">${lines.map((l) => `<div>${l.html}</div>`).join('')}</div></div>`,
-        icon: 'warning',
+        html: helpLayout.msgHtml(lines.map((l) => l.html)),
+        ...(icon ? { imageUrl: icon, ...helpLayout.MSG_IMAGE } : { icon: 'warning' }),
         showCancelButton: withMap,
         confirmButtonText: getLangString(withMap ? 'MOD_VOY_GATE_BUTTON_MAP' : 'MOD_VOY_BUTTON_OK'),
         cancelButtonText: getLangString('MOD_VOY_GATE_BUTTON_STAY'),
@@ -174,7 +178,7 @@ export function install(ctx, { state, rules, terrainMod, zones, log }) {
   const showLocked = (skill, skillId, locked) => {
     const d = describe(skill, skillId, locked);
     log(`refused ${skillId} at (${locked.pos.q},${locked.pos.r}) ${locked.rec.t}`);
-    modal(templateLangString('MOD_VOY_GATE_LOCKED_TITLE', { name: d.name }), skill?.media, d.lines);
+    modal(templateLangString('MOD_VOY_GATE_LOCKED_TITLE', { name: d.name }), undefined, d.lines);
   };
 
   // Layer 1: entry points, checked before the selection changes.

@@ -195,6 +195,10 @@ export function install(ctx, { state, terrainMod, rules, model, log }) {
       const s = sh.ship();
       return { ship: s === undefined ? 'skill missing' : s, aboard: sh.aboard(), rules: sh.enabled(), where: s ? sh.whereIs(s) : undefined, launchSpot: sh.launchSpot(), buildBlocker: sh.buildBlocker() };
     },
+    /** The welcome popup (compass, purse line with `voyageDev.welcome(500)`), in its current layout. */
+    welcome(purse = 0) { if (state.compass?.welcome === undefined) return 'compass module not loaded'; state.compass.welcome(purse); return 'shown'; },
+    /** The first-load dinghy notice: 'overseas', 'sea' or 'far'. */
+    dinghyNotice(kind = 'overseas') { if (state.ship?.demoNotice === undefined) return 'ship module not loaded'; state.ship.demoNotice(kind); return 'shown'; },
     /** The moored-dinghy marker: textures, ship record, sprite state. `voyageDev.marker(true)` redraws it first. */
     marker(redraw = false) {
       if (redraw) { try { state.markers?.refresh(); } catch (e) { return `refresh failed: ${e}`; } }

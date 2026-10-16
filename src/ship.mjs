@@ -9,7 +9,7 @@
 // Modal buttons: confirm green, cancel blue outline (the game's default cancel is red; grey means disabled).
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
-export function install(ctx, { state, model, shipModel, terrainMod, log }) {
+export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, log }) {
   const { HULLS, DINGHY_BUILD } = shipModel;
   const skill = () => state.voyageSkill?.();
   /** The ship, null when there is none, undefined when the skill is missing or its save is from a newer build. */
@@ -222,12 +222,14 @@ export function install(ctx, { state, model, shipModel, terrainMod, log }) {
   };
 
   // ---- existing characters ----------------------------------------------------------------------
-  const notice = (html) => {
+  /** The notice, in the help-popup layout: what happened, then how ships work, then any warning. */
+  const notice = (sections) => {
     try {
       SwalLocale.fire({
-        title: `<img class="voyage-title-icon" src="${ctx.getResourceUrl(HULLS.dinghy.media)}">${t('MOD_VOY_SHIP_NOTICE_TITLE')}`,
-        html: `<div class="text-left voyage-locked"><div class="voyage-locked-lines">${html}</div></div>`,
-        icon: 'info',
+        didRender: state.popupDidRender,
+        title: `<img class="voyage-title-icon" src="${ctx.getResourceUrl(HULLS.dinghy.media)}" alt="">${t('MOD_VOY_SHIP_NOTICE_TITLE')}`,
+        width: helpLayout.HELP_WIDTH,
+        html: helpLayout.helpHtml(sections),
         confirmButtonText: t('MOD_VOY_BUTTON_GOT_IT'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       });
@@ -235,16 +237,24 @@ export function install(ctx, { state, model, shipModel, terrainMod, log }) {
   };
   /** Shown once the interface is up, after any other popup (the compass welcome) has been closed. */
   let pendingNotice;
-  const showWhenFree = (html, tries = 0) => {
+  const showWhenFree = (sections, tries = 0) => {
     let busy = false;
     try { busy = typeof Swal !== 'undefined' && Swal.isVisible(); } catch {}
-    if (busy && tries < 240) { setTimeout(() => showWhenFree(html, tries + 1), 500); return; }
-    notice(html);
+    if (busy && tries < 240) { setTimeout(() => showWhenFree(sections, tries + 1), 500); return; }
+    notice(sections);
   };
   ctx.onInterfaceReady(() => {
-    if (pendingNotice !== undefined) { const html = pendingNotice; pendingNotice = undefined; setTimeout(() => showWhenFree(html), 1200); }
+    if (pendingNotice !== undefined) { const sections = pendingNotice; pendingNotice = undefined; setTimeout(() => showWhenFree(sections), 1200); }
   });
-  const ruleLine = () => `<div>${t('MOD_VOY_SHIP_NOTICE_RULE')}</div>`;
+  const ruleBand = () => ({ head: t('MOD_VOY_SHIP_NOTICE_HEAD_RULE'), body: [t('MOD_VOY_SHIP_NOTICE_RULE_WATER'), t('MOD_VOY_SHIP_NOTICE_RULE_BOARD'), t('MOD_VOY_SHIP_NOTICE_RULE_ASHORE')] });
+  /** The notice's bands: 'overseas' (moored on this land's coast), 'sea' (the boat under you), 'far' (and beyond reach). */
+  const noticeSections = (kind) => (kind === 'overseas'
+    ? [{ body: [{ html: t('MOD_VOY_SHIP_NOTICE_OVERSEAS') }] }, ruleBand()]
+    : [{ body: [{ html: t('MOD_VOY_SHIP_NOTICE_AT_SEA') }] }, ruleBand(), ...(kind === 'far' ? [{ head: t('MOD_VOY_SHIP_NOTICE_HEAD_FAR'), warn: true, body: [
+      { text: t('MOD_VOY_SHIP_NOTICE_FAR_REACH', { reach: `${HULLS.dinghy.reach}` }), cls: 'text-warning' },
+      { text: t('MOD_VOY_SHIP_NOTICE_FAR_BACK'), cls: 'text-warning' },
+      t('MOD_VOY_SHIP_NOTICE_FAR_FREE'),
+    ] }] : [])]);
 
   /** Once per character, on the first load with ships: the free dinghy for anyone phase 2 left on the water or overseas. */
   const firstLoad = () => {
@@ -260,10 +270,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, log }) {
     if (spot === undefined) return;
     setShip({ hull: 'dinghy', q: spot.q, r: spot.r, cond: 100 }, 'given');
     const far = shipModel.beyondReach(rec, { hull: 'dinghy', q: rec.q, r: rec.r }, geoNow());
-    const lines = shipModel.isSea(rec)
-      ? `<div>${t('MOD_VOY_SHIP_NOTICE_AT_SEA')}</div>${ruleLine()}` +
-        (far ? `<div>${t('MOD_VOY_SHIP_NOTICE_FAR', { reach: `${HULLS.dinghy.reach}` })}</div>` : '')
-      : `<div>${t('MOD_VOY_SHIP_NOTICE_OVERSEAS')}</div>${ruleLine()}`;
+    const lines = noticeSections(shipModel.isSea(rec) ? (far ? 'far' : 'sea') : 'overseas');
     pendingNotice = lines;
   };
 
@@ -328,8 +335,10 @@ export function install(ctx, { state, model, shipModel, terrainMod, log }) {
   });
 
   // ---- dev and page helpers ------------------------------------------------------------------------------------
+  /** voyageDev.dinghyNotice(kind): the first-load notice again. */
+  const demoNotice = (kind = 'overseas') => notice(noticeSections(kind));
   const api = {
-    ship, aboard, enabled, setShip,
+    ship, aboard, enabled, setShip, demoNotice,
     hullName: (s) => hullWord(HULLS[s?.hull]), stepsOf, afterMove, homeOf, dockOf, isHop, build, buildBlocker, buildCosts, launchSpot, whereIs, recOf,
     cond, setCond, repairInfo, repair,
     onChange: (fn) => listeners.push(fn),

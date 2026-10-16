@@ -14,7 +14,7 @@ const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', c
 const GATHERING = ['melvorD:Woodcutting', 'melvorD:Fishing', 'melvorD:Mining'];
 const HALF = 0.5;
 
-export function install(ctx, { state, rules, terrainMod, stranded, log }) {
+export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const keyOf = (hex) => terrainMod.hexKey(hex.q, hex.r);
   // Player-facing text comes from languages/<code>.json (Translatable text).
@@ -257,10 +257,13 @@ export function install(ctx, { state, rules, terrainMod, stranded, log }) {
     const hasOffer = coins !== undefined || v.canSell !== false;
     try {
       SwalLocale.fire({
+        didRender: state.popupDidRender,
         title: getLangString('MOD_VOY_TRADER_TITLE'),
         width: '36em', // an eighth wider than the 32em default, so the opening line fits on two lines (user feedback)
-        html: `<div class="text-left voyage-locked"><img class="skill-icon-sm mr-2" src="${game.gp.media}"><div class="voyage-locked-lines">${lines.map((l) => `<div>${l}</div>`).join('')}</div></div>`,
-        icon: 'question',
+        // One picture on top, the coin; no "?" sign beside it (message popup layout, build .94).
+        html: helpLayout.msgHtml(lines),
+        imageUrl: game.gp.media,
+        ...helpLayout.MSG_IMAGE,
         showCancelButton: hasOffer,
         confirmButtonText: getLangString(coins !== undefined ? 'MOD_VOY_TRADER_BUTTON_THANK' : hasOffer ? 'MOD_VOY_TRADER_BUTTON_TRADE' : 'MOD_VOY_BUTTON_OK'),
         cancelButtonText: getLangString('MOD_VOY_TRADER_BUTTON_NOT_NOW'),

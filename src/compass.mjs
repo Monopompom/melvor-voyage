@@ -28,7 +28,7 @@ const STARTER_GP = 2500;
 /** Reading words, coldest last; also the CSS class suffix (voyage-compass-<word>) and the key MOD_VOY_COMPASS_WORD_<WORD>. */
 const WORDS = ['hot', 'warm', 'cold', 'freezing'];
 
-export function install(ctx, { state, rules, terrainMod, model, log }) {
+export function install(ctx, { state, rules, terrainMod, model, helpLayout, log }) {
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // Player-facing text comes from languages/<code>.json (Translatable text).
   const hexes = (n) => templateLangString(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });
@@ -114,16 +114,19 @@ export function install(ctx, { state, rules, terrainMod, model, log }) {
     readingFor: (skillId, pos) => (available() ? readingFor(skillId, pos) : undefined),
     readingTo: (hexes, pos) => (available() ? readingTo(hexes, pos) : undefined),
     describe,
+    /** voyageDev.welcome(): the welcome popup again, without a purse. */
+    welcome: (purse = 0) => { const it = item(); if (it !== undefined) popup(it, purse); },
   };
   state.listeners.push(() => memo.clear());
 
   /**
-   * The first-steps paragraph. Where skills are bought (Adventure) every skill starts locked and there is nothing to
-   * sell, so the first coins come from combat: name the nearest area that pays, with its road (user report, 15 Oct
-   * 2026: a player who wanders off spends the purse before finding one). Elsewhere: get to a trading place.
+   * The first-steps band. Where skills are bought (Adventure) every skill starts locked and there is nothing to sell,
+   * so the first coins come from combat: name the nearest area that pays, with its road (user report, 15 Oct 2026: a
+   * player who wanders off spends the purse before finding one). Elsewhere: get to a trading place.
    */
-  const firstSteps = () => {
-    const trade = getLangString('MOD_VOY_COMPASS_FIRST_TRADE');
+  const firstSteps = (purse) => {
+    const purseLine = purse > 0 ? [{ html: templateLangString('MOD_VOY_WELCOME_PURSE', { gp: numberWithCommas(purse) }), cls: 'text-success' }] : [];
+    const trade = { head: getLangString('MOD_VOY_WELCOME_HEAD_FIRST'), body: [{ html: getLangString('MOD_VOY_WELCOME_TRADE') }, getLangString('MOD_VOY_WELCOME_TRADE_WHERE'), ...purseLine] };
     try {
       if (game.currentGamemode?.allowSkillUnlock !== true || !state.settings.combat()) return trade;
       const pos = state.position();
@@ -132,22 +135,38 @@ export function install(ctx, { state, rules, terrainMod, model, log }) {
       const steps = road.path.length - 1;
       const dir = dirWord(terrainMod.directionLabel(pos, road.path[0]));
       const at = (() => { try { const o = road.path[0].to_oddq(); return `${o.col}, ${o.row}`; } catch { return `${road.path[0].q}, ${road.path[0].r}`; } })();
-      return templateLangString('MOD_VOY_COMPASS_FIRST_COMBAT', { area: esc(road.area.name), at, hexes: hexes(steps), dir: esc(dir), gp: numberWithCommas(road.gp) });
+      return { head: getLangString('MOD_VOY_WELCOME_HEAD_FIRST'), body: [
+        { html: getLangString('MOD_VOY_WELCOME_COMBAT') },
+        { table: { cols: [getLangString('MOD_VOY_WELCOME_COL_FIGHT'), ''], rows: [
+          { cells: [getLangString('MOD_VOY_WELCOME_ROW_AREA'), road.area.name] },
+          { cells: [getLangString('MOD_VOY_WELCOME_ROW_HEX'), `(${at})`] },
+          { cells: [getLangString('MOD_VOY_WELCOME_ROW_WAY'), `${hexes(steps)} ${dir}`.trim()] },
+          { cells: [getLangString('MOD_VOY_WELCOME_ROW_PAYS'), `${numberWithCommas(road.gp)} GP`], cls: ['text-success'] },
+        ] } },
+        { html: getLangString('MOD_VOY_WELCOME_COMBAT_LINE') },
+        getLangString('MOD_VOY_WELCOME_TRADE_WHERE'),
+        ...purseLine,
+      ] };
     } catch (e) { log('first steps failed', e); return trade; }
   };
 
+  /** The welcome, in the help-popup layout: land, first steps, the compass. One picture: the compass in the title. */
   const popup = (it, purse) => {
     try {
-      const gp = purse > 0 ? ` ${templateLangString('MOD_VOY_COMPASS_WELCOME_PURSE', { gp: numberWithCommas(purse) })}` : '';
+      const sections = [
+        { head: getLangString('MOD_VOY_WELCOME_HEAD_LAND'), body: [getLangString('MOD_VOY_WELCOME_LAND'), { html: getLangString('MOD_VOY_WELCOME_SURVEY') }] },
+        firstSteps(purse),
+        { head: getLangString('MOD_VOY_PAGE_COMPASS_TITLE'), body: [
+          getLangString('MOD_VOY_WELCOME_COMPASS'),
+          { html: templateLangString('MOD_VOY_WELCOME_SCALE', { scale: WORDS.map(wordHtml).join(' · ') }) },
+          { html: getLangString('MOD_VOY_WELCOME_SHARPEN') },
+        ] },
+      ];
       SwalLocale.fire({
-        title: `<img class="voyage-title-icon" src="${it.media}">${getLangString('MOD_VOY_COMPASS_WELCOME_TITLE')}`,
-        width: '40em', // wider than the 32em default: three paragraphs (compacted on request, build .42)
-        html: '<div class="text-left voyage-locked"><div class="voyage-locked-lines">' +
-          `<div>${getLangString('MOD_VOY_COMPASS_WELCOME_LAND')}</div>` +
-          `<div>${firstSteps()}${gp}</div>` +
-          `<div>${templateLangString('MOD_VOY_COMPASS_WELCOME_COMPASS', { scale: WORDS.map(wordHtml).join(', ') })}</div>` +
-          '</div></div>',
-        icon: 'info',
+        didRender: state.popupDidRender,
+        title: `<img class="voyage-title-icon" src="${it.media}" alt="">${getLangString('MOD_VOY_COMPASS_WELCOME_TITLE')}`,
+        width: helpLayout.HELP_WIDTH,
+        html: helpLayout.helpHtml(sections),
         confirmButtonText: getLangString('MOD_VOY_BUTTON_GOT_IT'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       });

@@ -6,7 +6,7 @@ const PANEL_ID = 'voyage-here';
 // Modal buttons: confirm green, cancel blue outline.
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
-export function install(ctx, { state, rules, terrainMod, storesModel, model, log }) {
+export function install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // Display text comes from languages/<code>.json; the English labels in terrain.mjs/rules.mjs are for tests and logs.
   const classLabel = (cls) => (terrainMod.CLASS_INFO[cls] !== undefined ? getLangString(terrainMod.classKey(cls)) : cls);
@@ -42,8 +42,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, log
     try {
       const skill = game.skills.getObjectByID(button.dataset.voyageSkill);
       SwalLocale.fire({
+        didRender: state.popupDidRender,
         title: skill?.name ?? '',
-        html: `<div class="text-left voyage-locked">${skill ? `<img class="skill-icon-sm mr-2" src="${skill.media}" alt="">` : ''}<div class="voyage-locked-lines"><div>${esc(button.dataset.tip ?? '')}</div></div></div>`,
+        html: helpLayout.msgHtml([esc(button.dataset.tip ?? '')]),
         confirmButtonText: getLangString('MOD_VOY_BUTTON_OK'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       });

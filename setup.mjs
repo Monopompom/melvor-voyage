@@ -18,7 +18,7 @@
 // Build .72: the ship's hold: bank items stowed aboard and taken back at the ship.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.89';
+export const BUILD = '2026-10-16.94';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -228,6 +228,9 @@ export async function setup(ctx) {
   const knowledgeMod = await ctx.loadModule('src/knowledge.mjs');
   // Not a rule: restarts the game loop when the game's own focus event is missed (src/focus-fix.mjs).
   try { (await ctx.loadModule('src/focus-fix.mjs')).install(ctx, { log }); } catch (e) { console.error('[Voyage] focus fix failed', e); }
+  const helpLayout = await ctx.loadModule('src/help-layout.mjs');
+  // Every popup we open runs this on render: skill names get their icon and bold.
+  state.popupDidRender = (await ctx.loadModule('src/skill-names.mjs')).didRender;
   const compassMod = await ctx.loadModule('src/compass.mjs');
   const traderMod = await ctx.loadModule('src/trader.mjs');
   const stranded = await ctx.loadModule('src/stranded.mjs');
@@ -243,22 +246,22 @@ export async function setup(ctx) {
   knowledgeMod.install(ctx, { state, terrainMod, log });
   overlay.install(ctx, { state, terrainMod, log });
   state.zoneTable = zoneTable;
-  gate.install(ctx, { state, rules, terrainMod, zones: zonesMod, log });
-  compassMod.install(ctx, { state, rules, terrainMod, model, log });
-  traderMod.install(ctx, { state, rules, terrainMod, stranded, log });
-  herePanel.install(ctx, { state, rules, terrainMod, storesModel, model, log });
+  gate.install(ctx, { state, rules, terrainMod, zones: zonesMod, helpLayout, log });
+  compassMod.install(ctx, { state, rules, terrainMod, model, helpLayout, log });
+  traderMod.install(ctx, { state, rules, terrainMod, stranded, helpLayout, log });
+  herePanel.install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, log });
   /** The Voyage skill object, or undefined when it did not register. */
   const voyageSkill = () => { try { return voyageSkillOk ? game.skills.getObjectByID(model.SKILL_ID) : undefined; } catch { return undefined; } };
   state.voyageSkill = voyageSkill;
   unlocks.install(ctx, { state, log });
   // The ship keeps its state in the skill's save, so without the skill it stays inert and travel is vanilla.
-  const ship = shipMod.install(ctx, { state, model, shipModel, terrainMod, log });
+  const ship = shipMod.install(ctx, { state, model, shipModel, terrainMod, helpLayout, log });
   state.markers = markers.install(ctx, { state, log });
   // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
-  const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, log });
+  const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, log });
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.
   holdMod.install(ctx, { state, shipModel, log });
-  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, log }) : undefined;
+  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
   const markPage = () => { const s = voyageSkill(); if (s !== undefined) s.renderQueue.page = true; };
   state.listeners.push(markPage);
 

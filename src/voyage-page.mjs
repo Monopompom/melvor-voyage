@@ -10,7 +10,7 @@ export const CONTAINER_ID = 'voyage-container';
 export const PAGE_ID = 'voyage:Voyage';
 const CARTOGRAPHY_PAGE_ID = 'melvorAoD:Cartography';
 
-export function install(ctx, { state, model, shipModel, storesModel, log }) {
+export function install(ctx, { state, model, shipModel, storesModel, helpHtml, HELP_WIDTH, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const part = (name) => document.querySelector(`#${CONTAINER_ID} [data-voyage="${name}"]`);
@@ -257,7 +257,6 @@ export function install(ctx, { state, model, shipModel, storesModel, log }) {
    * item is a paragraph string, { text, cls } for a coloured one, or { table: { cols, rows } }, where a row is
    * { cells: [label, ...values], cls?: [per-value class], icon? }.
    */
-  const skillMedia = (id) => { try { return game.skills.getObjectByID(id)?.media; } catch { return undefined; } };
   const skillName = (id, fallback) => { try { return game.skills.getObjectByID(id)?.name ?? fallback; } catch { return fallback; } };
   const terrainList = (classes) => classes.map((c) => t(`MOD_VOY_TERRAIN_${c}`)).join(', ');
 
@@ -288,8 +287,8 @@ export function install(ctx, { state, model, shipModel, storesModel, log }) {
     })),
     { cells: [t('MOD_VOY_HELP_PLACE_WILD'), t('MOD_VOY_HELP_NONE'), t('MOD_VOY_HELP_NONE')], cls: ['text-danger', 'text-danger'] },
   ];
+  // The skill's icon comes from the popup's skill-name pass, so the row carries only the name.
   const skillRow = (id, fallback, level, text) => ({
-    icon: skillMedia(id),
     cells: [t('MOD_VOY_HELP_SKILL_LEVEL', { skill: skillName(id, fallback), level: `${level}` }), text],
     cls: ['text-success'],
   });
@@ -399,28 +398,14 @@ export function install(ctx, { state, model, shipModel, storesModel, log }) {
     return [];
   };
 
-  const helpTable = ({ cols, rows }) => {
-    const head = cols.map((c, i) => `<div class="voyage-help-th${i > 0 ? ' text-right' : ''}">${esc(c)}</div>`).join('');
-    const body = rows.map((r) => r.cells.map((c, i) => {
-      if (i === 0) return `<div class="voyage-help-td">${r.icon ? `<img class="skill-icon-xs mr-1" src="${r.icon}" alt="">` : ''}${esc(c)}</div>`;
-      return `<div class="voyage-help-td text-right font-w600 ${r.cls?.[i - 1] ?? ''}">${esc(c)}</div>`;
-    }).join('')).join('');
-    return `<div class="voyage-help-table" style="--voyage-help-cols:${cols.length - 1}">${head}${body}</div>`;
-  };
-  const helpItem = (item) => {
-    if (typeof item === 'string') return `<p class="voyage-help-p">${esc(item)}</p>`;
-    if (item.table !== undefined) return helpTable(item.table);
-    return `<p class="voyage-help-p ${item.cls ?? ''}">${esc(item.text)}</p>`;
-  };
-  const helpHtml = (sections) => sections.map((s) => `<div class="voyage-section voyage-help-section${s.warn ? ' voyage-help-warn border-warning' : ''}">`
-    + `${s.head ? `<div class="voyage-help-head">${esc(s.head)}</div>` : ''}${s.body.map(helpItem).join('')}</div>`).join('');
-
   const TITLE_KEY = { ship: 'MOD_VOY_PAGE_SHIP_TITLE', hold: 'MOD_VOY_HOLD_LABEL', stores: 'MOD_VOY_PAGE_STORES_TITLE', travels: 'MOD_VOY_PAGE_TRAVELS_TITLE', compass: 'MOD_VOY_PAGE_COMPASS_TITLE' };
   const showHelp = (topic) => {
     try {
       SwalLocale.fire({
+        didRender: state.popupDidRender,
         title: t(TITLE_KEY[topic]),
-        html: `<div class="text-left voyage-help-body">${helpHtml(helpSections(topic))}</div>`,
+        html: helpHtml(helpSections(topic)),
+        width: HELP_WIDTH,
         confirmButtonText: t('MOD_VOY_BUTTON_GOT_IT'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       });

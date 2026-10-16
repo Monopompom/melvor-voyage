@@ -8,7 +8,7 @@
 // Modal buttons: confirm green, cancel blue outline (the game's default cancel is red; grey means disabled).
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
-export function install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, log }) {
+export function install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, log }) {
   const S = storesModel;
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -157,6 +157,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
 
   const HULL_WHY = ['hull', 'deep', 'hullAshore'];
   const swal = (opts) => SwalLocale.fire({
+    didRender: state.popupDidRender,
     customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
     ...opts,
   });
@@ -223,7 +224,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       } catch (e) { console.error('[Voyage] escort failed', e); }
     });
   };
-  const body = (lines) => `<div class="text-left voyage-locked"><div class="voyage-locked-lines">${lines.map((l) => `<div>${l}</div>`).join('')}</div></div>`;
+  const body = (lines) => helpLayout.msgHtml(lines);
 
   // ---- hex overview: what the selected path costs ----------------------------------------------------------------
   ctx.patch(HexOverviewElement, 'displayHex').after(function (_r, hex) {

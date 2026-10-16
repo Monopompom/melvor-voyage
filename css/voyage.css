@@ -12,10 +12,11 @@
 .voyage-legend { margin-top: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 1px 14px; font-size: .9rem; line-height: 1.6; }
 .voyage-legend-item { white-space: nowrap; }
 .voyage-skills { margin-top: 4px; }
-.voyage-locked { display: flex; align-items: flex-start; gap: 10px; font-size: 1.15rem; line-height: 1.5; }
-.voyage-locked .skill-icon-sm { width: 40px; height: 40px; }
-.voyage-locked-lines div + div { margin-top: 8px; }
-.voyage-locked b { text-shadow: 0 0 2px rgba(0, 0, 0, 0.7), 0 0 1px rgba(0, 0, 0, 0.9); }
+/* Message popups (refusals, trader, skill tip; build .94): body size, one or two lines centred, more left-aligned;
+   the one picture sits on top (Swal image or icon). */
+.voyage-msg { font-size: 1rem; line-height: 1.5; }
+.voyage-msg > div + div { margin-top: 8px; }
+.voyage-msg b { text-shadow: 0 0 2px rgba(0, 0, 0, 0.7), 0 0 1px rgba(0, 0, 0, 0.9); }
 
 /* phase 2: sidebar dimming, panel skill rows, compass */
 .nav-main-item.voyage-dim { opacity: .45; filter: grayscale(.6); }
@@ -109,7 +110,7 @@
 /* Buttons at the right end of a panel row (Show, Load) share one width. */
 #voyage-here .voyage-row-btn { min-width: 5.5rem; min-height: 32px; text-align: center; font-size: .9rem; padding: .2rem .6rem; }
 
-/* Grey means disabled and nothing else (the Worker Folks rule): no grey buttons unless they can't be used. */
+/* Grey means disabled and nothing else: no grey buttons unless they can't be used. */
 #voyage-container .btn:disabled, #voyage-container .btn.disabled, #voyage-here .btn:disabled, #voyage-here .btn.disabled,
 .voyage-ui .btn:disabled, .voyage-ui .btn.disabled, .voyage-hold-stow .btn:disabled {
   color: #8a949e; border-color: #5c6873; background-color: transparent; opacity: 1;
@@ -165,3 +166,12 @@
 .mm__container:has([id^="voyage:"]) label > small, .mm__container:has([id^="voyage:"]) small.d-block { font-size: .9rem !important; line-height: 1.45; }
 .mm__container:has([id^="voyage:"]) .dropdown-toggle, .mm__container:has([id^="voyage:"]) .dropdown-menu, .mm__container:has([id^="voyage:"]) .btn { font-size: 1rem !important; }
 .mm__container:has([id^="voyage:"]) .content-heading { font-size: 1.25rem; }
+
+/* Popups (the user 16 Oct 2026: "8px -> 20px is much better"): grey bands inside a popup get 20px
+   padding; on a page or the map panel they stay 8px. */
+.swal2-popup .voyage-section { padding: 20px; }
+.swal2-popup .voyage-section + .voyage-section { margin-top: 12px; }
+/* Skill names in popups: the skill's icon, then the name in bold (src/skill-names.mjs). */
+.voyage-skill-name { white-space: nowrap; }
+.voyage-skill-name-icon { width: 1.15em; height: 1.15em; margin-right: .25em; vertical-align: -0.2em; }
+.voyage-skill-name b { font-weight: 600; }
