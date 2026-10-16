@@ -1,13 +1,52 @@
 // Console helpers for development builds only (setup.mjs loads this when DEV is true; the release
 // build leaves it out of player zips). Exposed as `voyageDev` on window.
 
-export function install(ctx, { state, terrainMod, rules, model, log }) {
+export function install(ctx, { state, terrainMod, rules, model, journalModel: jm, log }) {
   const cartography = () => game.cartography;
   const map = () => cartography()?.activeMap;
 
   /** Game display coords ("Coords: (col, row)" in the hex tooltip and the panel) <-> axial (q, r). */
   const fromDisplay = (col, row) => ({ q: col, r: row - (col - (col & 1)) / 2 });
   const display = (hex) => { const o = hex.to_oddq(); return `(${o.col}, ${o.row})`; };
+
+  /** voyageDev.journal('all'): a late-game book (see there). Returns what went in. */
+  const fillJournal = (j) => {
+    if (state.terrain === undefined || state.zoneCandidates === undefined) return 'terrain or zones not loaded';
+    const start = state.zoneTable?.start ?? { q: 0, r: 0 };
+    const dist = (a) => terrainMod.hexDistance(start, a);
+    const all = [...state.terrain.all()].filter((rec) => rec.cloud !== true).sort((a, b) => dist(a) - dist(b));
+    const known = [];
+    const out = { entries: 0, misses: 0, combat: 0, trade: 0, pages: 0 };
+    for (const [skillId, sk] of Object.entries(state.zoneTable?.skills ?? {})) {
+      for (const id of Object.keys(sk.actions ?? {})) {
+        const hexes = state.zoneCandidates(id);
+        for (const rec of hexes) jm.addFound(j, id, rec.q, rec.r, start, model.JOURNAL_LIMITS.found);
+        if (j.found[id]?.length > 0) out.entries += 1;
+        for (const h of j.found[id] ?? []) known.push(jm.parseHex(h));
+        // Where the skill works but this zone says no: the first three from the start.
+        const works = new Set(hexes.map((rec) => jm.hexStr(rec.q, rec.r)));
+        let n = 0;
+        for (const rec of all) {
+          if (n >= 3) break;
+          if (works.has(jm.hexStr(rec.q, rec.r)) || !rules.allowedAt(skillId, rec, state.ruleOpts())) continue;
+          if (jm.addMiss(j, id, rec.q, rec.r, model.JOURNAL_LIMITS.missed)) { n += 1; out.misses += 1; }
+        }
+      }
+    }
+    for (const list of ['combatAreas', 'slayerAreas', 'dungeons', 'strongholds', 'abyssDepths']) {
+      for (const area of game[list]?.allObjects ?? []) {
+        const near = [...state.terrain.placesFor(area.id)].sort((a, b) => dist(a) - dist(b))[0];
+        if (near !== undefined && jm.addPlace(j, 'combat', area.id, near.q, near.r)) { out.combat += 1; known.push(near); }
+      }
+    }
+    for (const rec of all) {
+      if (rules.isTradePlace(rec) && jm.addPlace(j, 'trade', jm.hexStr(rec.q, rec.r), rec.q, rec.r)) { out.trade += 1; known.push(rec); }
+    }
+    for (const id of model.JOURNAL_GUIDES) if (state.journal?.learn(id, true)) out.pages += 1;
+    try { state.knowledge?.markMany(known.filter((h) => h !== undefined)); } catch (e) { log('journal fill: knowledge failed', e); }
+    state.journal?.refresh?.();
+    return out;
+  };
 
   /**
    * Fully surveys one hex with the same bookkeeping the game does after a survey level-up. Hexes whose survey
@@ -197,6 +236,32 @@ export function install(ctx, { state, terrainMod, rules, model, log }) {
     },
     /** The welcome popup (compass, purse line with `voyageDev.welcome(500)`), in its current layout. */
     welcome(purse = 0) { if (state.compass?.welcome === undefined) return 'compass module not loaded'; state.compass.welcome(purse); return 'shown'; },
+    /**
+     * The Captain's Journal record. `voyageDev.journal('reset')` empties it (a new player's book; reload to see the
+     * guide footers as new again), `voyageDev.journal('pages')` writes every guide page quietly, `voyageDev.journal('all')`
+     * fills the book as a late-game player's would be: every zoned action found on every hex it works on now (the
+     * record keeps the nearest to the start, JOURNAL_LIMITS.found), three misses each near the start, every combat area
+     * and trading place on the map, every guide page. The hexes become known (the compass). `voyageDev.journal('notes')`
+     * puts one of each chart in the bank (Prospector's Notes and the rest). Saved with the game.
+     */
+    journal(what) {
+      const s = state.voyageSkill?.();
+      if (s === undefined || s.futureRaw !== undefined) return 'Voyage skill missing';
+      if (what === 'reset') s.record.journal = model.emptyJournal();
+      else if (what === 'pages') for (const id of model.JOURNAL_GUIDES) state.journal?.learn(id, true);
+      else if (what === 'all') return fillJournal(s.record.journal);
+      else if (what === 'notes') {
+        // One of each chart (build .116), into the bank.
+        const got = [];
+        for (const id of Object.values(jm.CHART_ITEMS)) {
+          const item = game.items.getObjectByID(`voyage:${id}`);
+          if (item !== undefined) { game.bank.addItem(item, 1, false, true, true, false, 'Voyage'); got.push(item.name); }
+        }
+        state.journal?.refresh?.();
+        return got;
+      }
+      return JSON.parse(JSON.stringify(s.record.journal));
+    },
     /** The first-load dinghy notice: 'overseas', 'sea' or 'far'. */
     dinghyNotice(kind = 'overseas') { if (state.ship?.demoNotice === undefined) return 'ship module not loaded'; state.ship.demoNotice(kind); return 'shown'; },
     /** The moored-dinghy marker: textures, ship record, sprite state. `voyageDev.marker(true)` redraws it first. */

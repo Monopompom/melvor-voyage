@@ -28,28 +28,141 @@
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
         "sellsFor": 5
+      },
+      {
+        "itemType": "Item",
+        "id": "Prospectors_Notes",
+        "name": "Prospector's Notes",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/chart_mining.png",
+        "customDescription": "A prospector's notes on where one ore runs. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Mining rock.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 100
+      },
+      {
+        "itemType": "Item",
+        "id": "Foresters_Survey",
+        "name": "Forester's Survey",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/chart_woodcutting.png",
+        "customDescription": "A forester's survey of where one tree grows. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Woodcutting tree.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 100
+      },
+      {
+        "itemType": "Item",
+        "id": "Anglers_Log",
+        "name": "Angler's Log",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/chart_fishing.png",
+        "customDescription": "An angler's log of where one fish bites. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Fishing spot.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 100
+      },
+      {
+        "itemType": "Item",
+        "id": "Farmers_Almanac",
+        "name": "Farmer's Almanac",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/chart_farming.png",
+        "customDescription": "A farmer's almanac of where one crop takes. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Farming seed.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 100
+      },
+      {
+        "itemType": "Item",
+        "id": "Fences_Ledger",
+        "name": "Fence's Ledger",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/chart_thieving.png",
+        "customDescription": "A fence's ledger of where one mark can be found. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Thieving target.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 100
+      },
+      {
+        "itemType": "Item",
+        "id": "Star_Chart",
+        "name": "Star Chart",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/chart_astrology.png",
+        "customDescription": "A star chart of where one constellation stands clear. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Astrology constellation.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 100
       }
     ],
     "skillData": [
       {
         "skillID": "melvorD:Firemaking",
         "data": {
-          "primaryProducts": [{ "itemID": "voyage:Pitch", "chance": 10, "quantity": 1 }],
-          "defaultPrimaryProducts": ["voyage:Pitch"]
+          "primaryProducts": [
+            {
+              "itemID": "voyage:Pitch",
+              "chance": 10,
+              "quantity": 1
+            }
+          ],
+          "defaultPrimaryProducts": [
+            "voyage:Pitch"
+          ]
         }
       }
     ],
     "shopCategories": [
-      { "id": "Voyage", "name": "Voyage", "media": "assets/compass.png" }
+      {
+        "id": "Voyage",
+        "name": "Voyage",
+        "media": "assets/compass.png"
+      }
     ],
-    "shopCategoryOrder": [{ "insertAt": "End", "ids": ["voyage:Voyage"] }],
+    "shopCategoryOrder": [
+      {
+        "insertAt": "End",
+        "ids": [
+          "voyage:Voyage"
+        ]
+      }
+    ],
     "shopPurchases": [
       {
         "id": "Wayfinder_Compass",
         "media": "assets/compass.png",
         "category": "voyage:Voyage",
-        "contains": { "items": [{ "id": "voyage:Wayfinder_Compass", "quantity": 1 }] },
-        "cost": { "items": [], "currencies": [{ "currency": "melvorD:GP", "type": "Fixed", "cost": 500 }] },
+        "contains": {
+          "items": [
+            {
+              "id": "voyage:Wayfinder_Compass",
+              "quantity": 1
+            }
+          ]
+        },
+        "cost": {
+          "items": [],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 500
+            }
+          ]
+        },
         "allowQuantityPurchase": false,
         "unlockRequirements": [],
         "purchaseRequirements": [],
@@ -58,6 +171,13 @@
         "showBuyLimit": false
       }
     ],
-    "shopDisplayOrder": [{ "insertAt": "End", "ids": ["voyage:Wayfinder_Compass"] }]
+    "shopDisplayOrder": [
+      {
+        "insertAt": "End",
+        "ids": [
+          "voyage:Wayfinder_Compass"
+        ]
+      }
+    ]
   }
 }

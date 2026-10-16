@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 8;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -28,9 +28,31 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * `unlockNotice` (build .104) lists what a mode that buys skills got for free ('cartography', 'voyage') and the player
  * has not been told yet. It is in the save so the notice still comes when the page reloads during the tutorial (16 Oct
  * 2026: a reload mid-tutorial lost it, the flags were in memory).
+ * `journal` (phase 4, the Captain's Journal) is what the player has found out: `found` and `missed` map
+ * a zoned action id to hexes as "q,r" strings (where it worked, where its zone said no), `places` maps "kind|id" to the
+ * hex it was first met on (combat areas fought in, trading places used), `guides` lists the guide pages written, in
+ * the order they were written.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, hold: [], unlockNotice: [] };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, hold: [], unlockNotice: [], journal: emptyJournal() };
+}
+
+/** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
+export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island'];
+/** Kinds of place the journal records. */
+export const JOURNAL_PLACE_KINDS = ['combat', 'trade'];
+/** Hexes kept per action (found) and misses kept per action (about 20). */
+export const JOURNAL_LIMITS = { found: 20, missed: 20 };
+
+/** Voyage levels that each give one free chart (Charting a country). */
+export const FREE_CHART_LEVELS = [30, 50, 70, 90];
+/** Unread marks kept at most (build .116): the oldest go first. */
+export const JOURNAL_UNREAD_MAX = 300;
+/** What an unread mark says: a new entry or page, or one that changed since it was last read. */
+export const UNREAD_KINDS = ['new', 'more'];
+
+export function emptyJournal() {
+  return { found: {}, missed: {}, places: {}, guides: [], charted: [], freeUsed: 0, unread: {} };
 }
 
 /**
@@ -48,6 +70,10 @@ export const MIGRATIONS = {
   4: (rec) => ({ ...rec, v: 5, hold: [] }),
   // build .104: nothing waiting to be told
   5: (rec) => ({ ...rec, v: 6, unlockNotice: [] }),
+  // phase 4: an empty Captain's Journal
+  6: (rec) => ({ ...rec, v: 7, journal: emptyJournal() }),
+  // build .116: nothing charted, no free chart used, nothing unread
+  7: (rec) => ({ ...rec, v: 8, journal: { ...(rec.journal !== null && typeof rec.journal === 'object' ? rec.journal : {}), charted: [], freeUsed: 0, unread: {} } }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -78,6 +104,55 @@ function cleanShip(ship, hulls) {
   return { hull: ship.hull, q: ship.q, r: ship.r, cond };
 }
 
+const HEX_RE = /^-?\d{1,4},-?\d{1,4}$/;
+const isId = (id) => typeof id === 'string' && id !== '' && id.length <= 128;
+/** Unique "q,r" strings, at most `max` (the first ones kept). */
+function cleanHexes(list, max) {
+  if (!Array.isArray(list)) return [];
+  return [...new Set(list.filter((h) => typeof h === 'string' && HEX_RE.test(h)))].slice(0, max);
+}
+/** action id -> hexes, empty lists dropped. Ids the game no longer knows are kept (an expansion switched off). */
+function cleanHexMap(map, max) {
+  const out = {};
+  if (map === null || typeof map !== 'object' || Array.isArray(map)) return out;
+  for (const [id, list] of Object.entries(map)) {
+    const hexes = cleanHexes(list, max);
+    if (isId(id) && hexes.length > 0) out[id] = hexes;
+  }
+  return out;
+}
+/** "a:<action id>", "p:<kind|id>" or "g:<guide id>" -> 'new' | 'more', the newest last, at most JOURNAL_UNREAD_MAX. */
+function cleanUnread(map) {
+  const out = {};
+  if (map === null || typeof map !== 'object' || Array.isArray(map)) return out;
+  const ok = Object.entries(map).filter(([key, kind]) => /^[apg]:./.test(key) && UNREAD_KINDS.includes(kind));
+  for (const [key, kind] of ok.slice(-JOURNAL_UNREAD_MAX)) out[key] = kind;
+  return out;
+}
+/** The journal as saved: anything malformed dropped, never thrown on. */
+export function cleanJournal(j) {
+  const src = j !== null && typeof j === 'object' ? j : {};
+  const places = {};
+  if (src.places !== null && typeof src.places === 'object' && !Array.isArray(src.places)) {
+    for (const [key, hex] of Object.entries(src.places)) {
+      const bar = key.indexOf('|');
+      if (bar <= 0 || !JOURNAL_PLACE_KINDS.includes(key.slice(0, bar)) || !isId(key.slice(bar + 1))) continue;
+      if (typeof hex === 'string' && HEX_RE.test(hex)) places[key] = hex;
+    }
+  }
+  return {
+    found: cleanHexMap(src.found, JOURNAL_LIMITS.found),
+    missed: cleanHexMap(src.missed, JOURNAL_LIMITS.missed),
+    places,
+    // In the order they were written (the Guide index shows them so); unknown ids and repeats dropped.
+    guides: (Array.isArray(src.guides) ? src.guides : []).filter((g, i, all) => JOURNAL_GUIDES.includes(g) && all.indexOf(g) === i),
+    // Action ids in the order charted; a chart is never undone.
+    charted: (Array.isArray(src.charted) ? src.charted : []).filter((id, i, all) => isId(id) && all.indexOf(id) === i),
+    freeUsed: Math.min(FREE_CHART_LEVELS.length, count(src.freeUsed)),
+    unread: cleanUnread(src.unread),
+  };
+}
+
 /** What `unlockNotice` may hold, in the order the notice names them. */
 export const FREE_UNLOCKS = ['cartography', 'voyage'];
 
@@ -96,6 +171,7 @@ function clean(rec) {
     kitGiven: rec.kitGiven === true,
     hold: cleanHold(rec.hold),
     unlockNotice: FREE_UNLOCKS.filter((x) => Array.isArray(rec.unlockNotice) && rec.unlockNotice.includes(x)),
+    journal: cleanJournal(rec.journal),
   };
 }
 

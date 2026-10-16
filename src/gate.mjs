@@ -120,12 +120,14 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const compassLine = (reading) => state.compass?.describe(reading);
   /**
    * `icon`: a picture that isn't a skill's (an action, a combat area). A skill's own icon comes with its name. Message popup layout (build .94): one picture on top, the action or area's when there is one, else the
-   * warning sign; never both.
+   * warning sign; never both. `guide`: the Captain's Journal page this rule is taught on (phase 4), linked in the
+   * footer and written the first time.
    */
-  const modal = (title, icon, lines, { withMap = true } = {}) => {
+  const modal = (title, icon, lines, { withMap = true, guide } = {}) => {
     try {
       const page = game.pages.getObjectByID('melvorAoD:Cartography');
-      SwalLocale.fire({
+      const fire = (params) => SwalLocale.fire(params).then((result) => { if (withMap && result.isConfirmed) state.openPage(page); });
+      const params = {
         didRender: state.popupDidRender,
         title,
         html: helpLayout.msgHtml(lines.map((l) => l.html)),
@@ -136,7 +138,13 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
         // "Go to map" is filled blue, Stay blue outline (the user, 16 Oct 2026: "Only Go to map"; it was outline since .86);
         // a plain OK stays green.
         customClass: (() => { const c = withMap ? { ...SWAL_CLASS, confirmButton: 'btn btn-info m-1' } : SWAL_CLASS; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
-      }).then((result) => { if (withMap && result.isConfirmed) state.openPage(page); });
+      };
+      // The footer is asked for on every showing: "A new page" the first time, "Read more" after "Back to the lock".
+      const show = () => {
+        const footer = guide === undefined ? undefined : state.journal?.footer(guide, show);
+        fire(footer !== undefined ? { ...params, footer } : params);
+      };
+      show();
     } catch (e) {
       log('modal failed, using notification', e);
       try { game.notifications.createErrorNotification('voyage:locked', lines.map((l) => l.text).join(' ')); } catch {}
@@ -191,7 +199,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const showLocked = (skill, skillId, locked) => {
     const d = describe(skill, skillId, locked);
     log(`refused ${skillId} at (${locked.pos.q},${locked.pos.r}) ${locked.rec.t}`);
-    modal(templateLangString('MOD_VOY_GATE_LOCKED_TITLE', { name: d.name }), undefined, d.lines);
+    modal(templateLangString('MOD_VOY_GATE_LOCKED_TITLE', { name: d.name }), undefined, d.lines, { guide: 'terrain' });
   };
 
   // Layer 1: entry points, checked before the selection changes.
@@ -371,7 +379,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       if (compass !== undefined) lines.push(compass);
     }
     log(`refused ${action.id} at (${pos?.q},${pos?.r}): outside its zone`);
-    modal(templateLangString(skillId === ASTROLOGY ? 'MOD_VOY_ZONE_SKY_TITLE' : 'MOD_VOY_ZONE_TITLE', { name }), action.media, lines);
+    state.journal?.miss(action, pos);
+    modal(templateLangString(skillId === ASTROLOGY ? 'MOD_VOY_ZONE_SKY_TITLE' : 'MOD_VOY_ZONE_TITLE', { name }), action.media, lines, { guide: 'zone' });
   };
   /**
    * Zone entry points, after the skill's own (Layer 1 above): `action(...args)` returns the action being started, or
@@ -445,6 +454,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     } catch (e) { log('zone actions failed', e); return []; }
   };
   state.zonesOn = zonesOn;
+  /** Every hex where a zoned action works now (skill rule, zone, grace); [] for an unzoned one. */
+  state.zoneCandidates = (actionId) => { try { return zoneCandidates(actionId); } catch (e) { log('zone candidates failed', e); return []; } };
   /** Zoned skills without a skill rule (Astrology): the panel shows them only while zones are on. */
   state.zonedUngated = () => (zonesOn() ? Object.keys(state.zoneTable?.skills ?? {}).filter((id) => !rules.isGated(id)) : []);
 
@@ -495,7 +506,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       if (compass !== undefined) lines.push(compass);
     }
     log(`refused combat in ${area.id} at (${pos?.q},${pos?.r})`);
-    modal(templateLangString('MOD_VOY_GATE_AREA_TITLE', { name }), area.media, lines);
+    modal(templateLangString('MOD_VOY_GATE_AREA_TITLE', { name }), area.media, lines, { guide: 'combat' });
   };
   ctx.patch(CombatManager, 'checkAreaEntryRequirements').replace(function (original, area) {
     try {
@@ -533,7 +544,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       if (compass !== undefined) lines.push(compass);
     }
     log(`refused trade (${what}) at (${pos?.q},${pos?.r})`);
-    modal(getLangString('MOD_VOY_GATE_TRADE_TITLE'), undefined, lines);
+    modal(getLangString('MOD_VOY_GATE_TRADE_TITLE'), undefined, lines, { guide: 'trade' });
   };
   const tradeGate = (cls, method, what, quiet = false) => {
     if (typeof cls !== 'function' || typeof cls.prototype?.[method] !== 'function') { console.warn(`[Voyage] trade entry ${method} not found`); return; }

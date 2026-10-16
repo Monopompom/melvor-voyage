@@ -16,9 +16,11 @@
 // Phase 3d: hull wear (4.4): sailing wears the ship; repairs with logs and Pitch, a new Firemaking by-product.
 // Phase 3e: night on the player's clock (4.23): spare fuel lights the way, lit hexes pay more Voyage XP.
 // Build .72: the ship's hold: bank items stowed aboard and taken back at the ship.
+// Phase 4 (build .105): the Captain's Journal (4.20): finds, misses, places and guide pages kept in the save, opened
+// as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.104';
+export const BUILD = '2026-10-16.118';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -66,6 +68,14 @@ export async function setup(ctx) {
       pitch._customDescription = getLangString('MOD_VOY_ITEM_PITCH_DESC');
       pitch._modifiedDescription = undefined;
     }
+    // The six charts (build .116): MOD_VOY_ITEM_<ID>_NAME / _DESC.
+    for (const id of ['Prospectors_Notes', 'Foresters_Survey', 'Anglers_Log', 'Farmers_Almanac', 'Fences_Ledger', 'Star_Chart']) {
+      const it = game.items.getObjectByID(`voyage:${id}`);
+      if (it === undefined) continue;
+      it._name = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_NAME`);
+      it._customDescription = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`);
+      it._modifiedDescription = undefined;
+    }
     const category = game.shop.categories.getObjectByID('voyage:Voyage');
     if (category !== undefined) category._name = getLangString('MOD_VOY_SHOP_CATEGORY');
   } catch (e) { console.error('[Voyage] data names not translated', e); }
@@ -86,6 +96,12 @@ export async function setup(ctx) {
       game.skills.getObjectByID(model.SKILL_ID)?.milestones.forEach((m) => {
         const i = model.COMPASS_STAGES.findIndex((stage) => stage.level === m.level);
         if (i >= 0 && m._milestoneID === undefined && '_name' in m) m._name = getLangString(`MOD_VOY_MILESTONE_${i + 1}`);
+        else if (model.FREE_CHART_LEVELS.includes(m.level) && '_name' in m) {
+          m._name = getLangString('MOD_VOY_MILESTONE_CHART');
+          // The game resolves a custom milestone's media against its own CDN (assets.getURI): the journal icon is ours.
+          const url = ctx.getResourceUrl('assets/journal.png');
+          Object.defineProperty(m, 'media', { get: () => url, configurable: true });
+        }
       });
     } catch (e) { console.error('[Voyage] milestone names not translated', e); }
     voyageSkillOk = true;
@@ -133,6 +149,7 @@ export async function setup(ctx) {
     { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
     { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
     { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
+    { type: 'text', name: 'journalKey', label: getLangString('MOD_VOY_SETTING_JOURNAL_KEY'), hint: getLangString('MOD_VOY_SETTING_JOURNAL_KEY_HINT'), default: 'J', maxLength: 1, onChange: onChange('journalKey') },
   ]);
 
   /** The game's offline loop (tab in the background, or back after a while): see state.onSettingsChange. */
@@ -168,6 +185,8 @@ export async function setup(ctx) {
       trade: () => flag('trade'),
       provisions: () => flag('provisions'),
       night: () => flag('night'),
+      centreKey: () => String(value('centreKey') ?? '').trim().toUpperCase(),
+      journalKey: () => String(value('journalKey') ?? '').trim().toUpperCase(),
       nightShift: () => { const v = Number(value('nightShift')); return Number.isFinite(v) ? Math.max(-12, Math.min(12, Math.round(v))) : 0; },
     },
     onSettingsChange() {
@@ -247,10 +266,12 @@ export async function setup(ctx) {
   const knowledgeMod = await ctx.loadModule('src/knowledge.mjs');
   // Not a rule: restarts the game loop when the game's own focus event is missed (src/focus-fix.mjs).
   try { (await ctx.loadModule('src/focus-fix.mjs')).install(ctx, { log }); } catch (e) { console.error('[Voyage] focus fix failed', e); }
-  try { (await ctx.loadModule('src/map-keys.mjs')).install(ctx, { key: () => value('centreKey'), log }); } catch (e) { console.error('[Voyage] map keys failed', e); }
+  try { (await ctx.loadModule('src/map-keys.mjs')).install(ctx, { key: () => value('centreKey'), journalKey: () => value('journalKey'), journal: () => state.journal, log }); } catch (e) { console.error('[Voyage] map keys failed', e); }
   const helpLayout = await ctx.loadModule('src/help-layout.mjs');
   // Every popup we open runs this on render: skill names get their icon and bold.
-  state.popupDidRender = (await ctx.loadModule('src/skill-names.mjs')).didRender;
+  const skillNamesMod = await ctx.loadModule('src/skill-names.mjs');
+  state.popupDidRender = skillNamesMod.didRender;
+  state.skillNames = skillNamesMod.skillNames;
   const compassMod = await ctx.loadModule('src/compass.mjs');
   const traderMod = await ctx.loadModule('src/trader.mjs');
   const stranded = await ctx.loadModule('src/stranded.mjs');
@@ -264,7 +285,7 @@ export async function setup(ctx) {
   // Pitch from Firemaking (3d). A failure leaves repairs short of Pitch, nothing else.
   try { (await ctx.loadModule('src/pitch.mjs')).install(ctx, { shipModel, log }); } catch (e) { console.error('[Voyage] Pitch failed', e); }
   knowledgeMod.install(ctx, { state, terrainMod, log });
-  overlay.install(ctx, { state, terrainMod, log });
+  state.overlay = overlay.install(ctx, { state, terrainMod, log });
   state.zoneTable = zoneTable;
   gate.install(ctx, { state, rules, terrainMod, zones: zonesMod, helpLayout, log });
   compassMod.install(ctx, { state, rules, terrainMod, model, helpLayout, log });
@@ -282,6 +303,15 @@ export async function setup(ctx) {
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.
   holdMod.install(ctx, { state, shipModel, log });
   const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
+  // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
+  // popups and everything else as they were.
+  state.helpSections = page?.helpSections;
+  try {
+    const journalModel = await ctx.loadModule('src/journal-model.mjs');
+    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, rules, terrainMod, log });
+  } catch (e) { console.error('[Voyage] the journal failed to load; the rest runs', e); state.journal = undefined; }
+  // The journal's heat maps (build .114); without them the entries simply have no heat map button.
+  try { (await ctx.loadModule('src/heatmap.mjs')).install(ctx, { state, terrainMod, log }); } catch (e) { log('heat maps failed to load', e); state.heatmap = undefined; }
   const markPage = () => { const s = voyageSkill(); if (s !== undefined) s.renderQueue.page = true; };
   state.listeners.push(markPage);
 
@@ -314,7 +344,7 @@ export async function setup(ctx) {
     });
   }
 
-  if (DEV) (await ctx.loadModule('src/dev.mjs')).install(ctx, { state, terrainMod, rules, model, log });
+  if (DEV) (await ctx.loadModule('src/dev.mjs')).install(ctx, { state, terrainMod, rules, model, journalModel: await ctx.loadModule('src/journal-model.mjs'), log });
 
   ctx.onCharacterLoaded(() => {
     if (DEV) {

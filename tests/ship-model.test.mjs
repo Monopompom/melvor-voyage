@@ -151,7 +151,7 @@ test('every water and shoal hex has a shore distance; land has none', async () =
 
 test('save v1 migrates up with no ship; a ship round-trips; a bad ship is dropped', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 1, landHexes: 4, waterHexes: 0, backfilled: true }));
-  assert.deepEqual(report.applied, [1, 2, 3, 4, 5]);
+  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7]);
   assert.deepEqual(save, { ...defaultSave(), landHexes: 4, backfilled: true });
   const withShip = { ...defaultSave(), ship: { ...dinghy(3, 7), cond: 64 }, shipChecked: true };
   assert.deepEqual(loadSave(serializeSave(withShip)).save, withShip);

@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import * as terrain from '../src/terrain.mjs';
 import * as rules from '../src/rules.mjs';
+import { JOURNAL_GUIDES } from '../src/voyage-model.mjs';
+import { JOURNAL_CHAPTERS, JOURNAL_CREW, JOURNAL_WRITTEN, CHART_ITEMS, splitLinks, linkTargetExists } from '../src/journal-model.mjs';
 
 const root = new URL('../', import.meta.url);
 const en = JSON.parse(readFileSync(new URL('languages/en.json', root), 'utf8'));
@@ -27,7 +29,18 @@ export const FAMILIES = {
   MOD_VOY_HULL_TIER_: ['1', '2', '3', '4'],
   MOD_VOY_ISLAND_: ['WESTERN', 'GOLDEN', 'FROST', 'CURSED', 'OMINOUS'],
   MOD_VOY_MILESTONE_: ['1', '2', '3'],
+  // the six charts (build .116, setup.mjs): MOD_VOY_ITEM_<ID>_NAME / _DESC
+  MOD_VOY_ITEM_: Object.values(CHART_ITEMS).flatMap((id) => [`${id.toUpperCase()}_NAME`, `${id.toUpperCase()}_DESC`]),
   MOD_VOY_PAGE_COMPASS_STAGE_: ['1', '2', '3'],
+  // the Captain's Journal (src/journal.mjs): chapters, guide pages, place groups
+  MOD_VOY_JOURNAL_CH_: [
+    ...[...JOURNAL_CHAPTERS, ...JOURNAL_CREW].map((c) => c.toUpperCase()).flatMap((c) => [`${c}_TITLE`, `${c}_INTRO`, `${c}_NOTE`]),
+    ...Object.entries(JOURNAL_WRITTEN).flatMap(([c, spec]) => spec.sections.flatMap((x) => [`${c.toUpperCase()}_${x}_HEAD`, `${c.toUpperCase()}_${x}_BODY`])),
+    'MAP_KEYS_BODY_OFF',
+    'FOREWORD_BOOK_BODY_OFF',
+  ],
+  MOD_VOY_JOURNAL_GUIDE_: JOURNAL_GUIDES.flatMap((g) => ['TITLE', 'BODY', 'POINTS'].map((x) => `${g.toUpperCase()}_${x}`)),
+  MOD_VOY_JOURNAL_PLACES_: ['COMBAT', 'TRADE', 'POI'],
   MOD_VOY_RULE_LABEL_: localIds.filter((id, i) => rules.ruleLabelKey(Object.keys(rules.SKILL_RULES)[i]) !== undefined),
 };
 
@@ -70,4 +83,16 @@ test('every key in en.json is used', () => {
     || Object.entries(FAMILIES).some(([prefix, members]) => members.some((m) => `${prefix}${m}` === key))
     || key === 'MOD_VOY_RULE_NOUN_DEFAULT';
   assert.deepEqual(Object.keys(en).filter((k) => !used(k)), []);
+});
+
+test('journal crosslinks: only in journal texts, every target in the book, no stray brackets', () => {
+  const bad = [];
+  for (const [key, value] of Object.entries(en)) {
+    const links = splitLinks(value).filter((p) => p.kind !== undefined);
+    const stray = splitLinks(value).some((p) => p.kind === undefined && /\[\[|\]\]/.test(p.text));
+    if (stray) bad.push(`${key}: malformed link`);
+    if (links.length > 0 && !key.startsWith('MOD_VOY_JOURNAL_')) bad.push(`${key}: links outside the journal`);
+    for (const l of links) if (!linkTargetExists(l.kind, l.id, JOURNAL_GUIDES)) bad.push(`${key}: ${l.kind}:${l.id}`);
+  }
+  assert.deepEqual(bad, []);
 });

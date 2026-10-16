@@ -36,3 +36,14 @@ test('compass item and shop category names match en.json', () => {
   assert.equal(en.MOD_VOY_ITEM_COMPASS_DESC, pkg.items[0].customDescription);
   assert.equal(en.MOD_VOY_SHOP_CATEGORY, pkg.shopCategories[0].name);
 });
+
+test('the six charts are in the data package, named as in en.json', async () => {
+  const { CHART_ITEMS } = await import('../src/journal-model.mjs');
+  const items = json('data/package.json').data.items;
+  for (const id of Object.values(CHART_ITEMS)) {
+    const item = items.find((i) => i.id === id);
+    assert.ok(item, id);
+    assert.equal(en[`MOD_VOY_ITEM_${id.toUpperCase()}_NAME`], item.name, id);
+    assert.equal(en[`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`], item.customDescription, id);
+  }
+});

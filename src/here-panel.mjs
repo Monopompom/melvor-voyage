@@ -128,7 +128,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   /** "Manage voyage": the cross-link to the Voyage skill page; hidden when the page is not registered. */
   const manageLink = () => {
     try { if (game.pages.getObjectByID('voyage:Voyage') === undefined) return ''; } catch { return ''; }
-    return `<button type="button" class="btn btn-sm btn-outline-info voyage-manage-link"><i class="fa fa-ship mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_MANAGE'))}</button>`;
+    const journal = state.journal === undefined ? ''
+      : `<button type="button" class="btn btn-sm voyage-journal-link" aria-label="${esc(getLangString('MOD_VOY_JOURNAL_OPEN'))}" title="${esc(getLangString('MOD_VOY_JOURNAL_TITLE'))}"><img src="${state.journal.iconUrl}" alt=""></button>`;
+    return `<button type="button" class="btn btn-sm btn-outline-info voyage-manage-link"><i class="fa fa-ship mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_MANAGE'))}</button>${journal}`;
   };
 
   /** The trader's status for this render: 'here', 'stranded' or undefined. */
@@ -393,6 +395,10 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (fight !== null) {
         e.preventDefault();
         try { openArea(fight.dataset.area); } catch (err) { log('Combat link failed', err); }
+      }
+      if (e.target instanceof Element && e.target.closest('.voyage-journal-link')) {
+        e.preventDefault();
+        state.journal?.open();
       }
       if (e.target instanceof Element && e.target.closest('.voyage-manage-link')) {
         e.preventDefault();

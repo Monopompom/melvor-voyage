@@ -44,10 +44,10 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
         if (map === undefined) button.classList.add('d-none');
         else button.onclick = () => showMap(false); // the map as it was left (user feedback, build .50)
       }
-      // The "?" next to each block title: that block's rules in a popup.
+      // The "?" next to each block title: that block's chapter in the Captain's Journal (phase 4), else its popup.
       container?.querySelectorAll('[data-voyage-help]').forEach((b) => {
         b.setAttribute('aria-label', t('MOD_VOY_HELP_BUTTON'));
-        b.onclick = () => showHelp(b.dataset.voyageHelp);
+        b.onclick = () => { if (state.journal !== undefined) state.journal.open({ chapter: b.dataset.voyageHelp }); else showHelp(b.dataset.voyageHelp); };
       });
       // Delegated listeners: the blocks are re-rendered as innerHTML.
       part('ship')?.addEventListener('click', (e) => {
@@ -249,7 +249,8 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
 
   /**
    * The rules behind each block (user feedback, build .68: the page had too much text). Shown in a popup from the
-   * block title's "?"; they become the Captain's Journal's guide pages in phase 4.
+   * block title's "?", which opens them as the Captain's Journal's "How it works" chapters (src/journal.mjs, phase 4); the
+   * popup stays for a build where the journal failed to load.
    *
    * Help layout (build .87 user feedback): one grey band per idea, each with a short heading;
    * one sentence per paragraph; numbers in tables, not in sentences; the player's own skill bonuses together in a
@@ -536,5 +537,5 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     return `${held.length}:${held.reduce((n, e) => n + e.qty, 0)}|${sh?.q},${sh?.r},${sh?.cond}|${pitch === undefined ? 0 : game.bank.getQty(pitch)}|${allLogs}|${game.gp.amount}|${logs}|${p?.q},${p?.r}|${state.compass?.owned?.()}|${state.active()}|${st?.food},${st?.fuel}|${game.bank.items.size}|${pickedQty}|${skill()?.level}|${state.stores?.night?.()}`;
   };
 
-  return { render, signature };
+  return { render, signature, helpSections };
 }

@@ -2,7 +2,8 @@
 // way vanilla Cartography only shows what you have surveyed.
 //
 // Known = fully surveyed on the live map, or marked known by the mod (phase 4: visited, rumours, charts).
-// The mod-side set is empty in phase 1 and is not persisted yet; phase 4 puts it in the save with a version.
+// The mod-side set is rebuilt on each load from the Captain's Journal (src/journal.mjs): every hex where something was
+// found and every place used.
 //
 // `version` goes up whenever knowledge changes (a survey completes, a mark is added), so the memoised
 // nearest finder can drop stale answers without being cleared by hand.
@@ -37,6 +38,17 @@ export function install(ctx, { state, terrainMod, log }) {
       const key = terrainMod.hexKey(q, r);
       if (marked.has(key)) return;
       marked.add(key);
+      version++;
+      state.onSettingsChange();
+    },
+    /** Marks many hexes ({ q, r }) with one bump (the journal's finds on load). */
+    markMany(hexes) {
+      let added = 0;
+      for (const h of hexes) {
+        const key = terrainMod.hexKey(h.q, h.r);
+        if (!marked.has(key)) { marked.add(key); added++; }
+      }
+      if (added === 0) return;
       version++;
       state.onSettingsChange();
     },

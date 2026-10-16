@@ -239,6 +239,7 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
     const v = verdict();
     log(`stranded check: ${v.reason}`);
     if (!v.stranded) return false;
+    state.journal?.learn('stranded');
     const coins = spareCoins(v);
     const lines = [getLangString('MOD_VOY_TRADER_ARRIVES')];
     if (v.canSell !== false) {

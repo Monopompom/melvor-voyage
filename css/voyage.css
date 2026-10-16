@@ -178,3 +178,164 @@
 .voyage-skill-name { white-space: nowrap; }
 .voyage-skill-name-icon { width: 1.15em; height: 1.15em; margin-right: .25em; vertical-align: -0.2em; }
 .voyage-skill-name b { font-weight: 600; }
+
+/* ---- The Captain's Journal (phase 4, src/journal.mjs). The look the user signed off on the design canvas (16 Oct
+   2026): parchment pages in a leather frame, ink serif text, ledger tables, bookmark tabs. Its own palette, not the
+   game's: colour classes inside it are darkened to read on paper. Fonts: assets/fonts (SIL OFL), loaded by journal.mjs. */
+.vj-backdrop { position: fixed; inset: 0; z-index: 1055; background: rgba(10, 12, 16, .72); display: flex; align-items: center; justify-content: center; padding: 16px; }
+body.vj-locked { overflow: hidden; }
+.vj-book {
+  --vj-paper: #f1e4c6; --vj-ink: #2b2118; --vj-red: #7a2a1c; --vj-faint: #6b5a44; --vj-blue: #2c3e5c; --vj-leather: #4a2c1a; --vj-rule: rgba(122, 42, 28, .25);
+  width: min(1200px, 100%); height: min(780px, 100%); box-sizing: border-box; background: var(--vj-leather); border-radius: 14px; padding: 18px 0 18px 18px;
+  display: flex; box-shadow: 0 18px 50px rgba(0, 0, 0, .6), inset 0 0 0 2px rgba(0, 0, 0, .35);
+  font-family: 'Voyage Garamond', 'EB Garamond', Georgia, serif; color: var(--vj-ink); text-align: left;
+}
+.vj-book button { font: inherit; }
+.vj-spread { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-radius: 6px; overflow: hidden; outline: 1px dashed rgba(230, 200, 150, .35); outline-offset: 7px; }
+.vj-page { background: var(--vj-paper); padding: 30px 40px 22px 44px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0; font-size: 18px; line-height: 1.45; }
+.vj-left { box-shadow: inset -26px 0 30px -22px rgba(60, 35, 10, .45); }
+.vj-right { padding: 30px 44px 22px 40px; box-shadow: inset 26px 0 30px -22px rgba(60, 35, 10, .45); }
+.vj-running { font-family: 'Voyage Fell', Georgia, serif; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--vj-faint); display: flex; justify-content: space-between; gap: 12px; }
+.vj-running span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.vj-running span:last-child { text-align: right; }
+.vj-h1 { font-family: 'Voyage Fell', Georgia, serif; font-weight: 400; font-size: 32px; line-height: 1.1; margin: 4px 0 0; color: var(--vj-ink); }
+.vj-h3 { font-family: 'Voyage Fell', Georgia, serif; font-weight: 400; font-size: 22px; line-height: 1.2; margin: 6px 0 0; color: var(--vj-ink); }
+/* The game's dark mode sets h2, h4 and h5 to whitesmoke !important (game.css); the book's headings stay ink. */
+#voyage-journal .vj-h1, #voyage-journal .vj-h3 { color: var(--vj-ink) !important; }
+.vj-p { margin: 0; }
+.vj-lead::after { content: ''; display: block; clear: both; }
+.vj-dropcap { float: left; font-family: 'Voyage Fell', Georgia, serif; font-size: 52px; line-height: .9; padding: 4px 8px 0 0; color: var(--vj-red); }
+.vj-italic { font-style: italic; }
+.vj-faint { color: var(--vj-faint); font-style: italic; }
+.vj-section { display: flex; flex-direction: column; gap: 8px; }
+.vj-warn { border-left: 3px solid #8a5a00; padding-left: 12px; }
+.vj-ledger { width: 100%; border-collapse: collapse; font-size: 16px; line-height: 1.3; color: var(--vj-ink); }
+.vj-ledger thead tr { border-top: 3px double var(--vj-red); border-bottom: 1px solid var(--vj-red); }
+.vj-ledger th { text-align: left; padding: 6px 8px; font-weight: 600; color: var(--vj-red); }
+.vj-ledger td { padding: 5px 8px; border-bottom: 1px solid var(--vj-rule); vertical-align: top; }
+.vj-ledger tbody tr:last-child td { border-bottom: 1px solid var(--vj-red); }
+.vj-ledger th:first-child, .vj-ledger td:first-child { padding-left: 0; }
+.vj-ledger .vj-first { font-weight: 600; }
+.vj-ledger .vj-num { text-align: right; white-space: nowrap; }
+.vj-note { margin-top: auto; display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid rgba(122, 42, 28, .45); border-radius: 4px; font-size: 16px; line-height: 1.4; font-style: italic; }
+.vj-note svg { flex: none; margin-top: 2px; color: var(--vj-red); }
+.vj-foot { margin-top: auto; display: flex; justify-content: center; align-items: center; gap: 12px; }
+.vj-foot-end { justify-content: flex-end; }
+.vj-note + .vj-foot { margin-top: 0; }
+.vj-folio { font-family: 'Voyage Fell', Georgia, serif; font-size: 15px; color: var(--vj-faint); }
+.vj-foot-split { justify-content: space-between; }
+/* How it works: the text scrolls in .vj-page-body and the foot (folio, page turn) stays at the bottom of the page. */
+.vj-page.vj-pinned { overflow: hidden; padding-bottom: 10px; }
+.vj-page-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin-right: -12px; padding-right: 12px; }
+.vj-pinned > .vj-foot { margin-top: 0; flex: none; border-top: 1px solid var(--vj-rule); }
+.vj-turn { border: 0; background: none; color: var(--vj-red); font-family: 'Voyage Fell', Georgia, serif !important; font-size: 18px; min-height: 44px; padding: 8px 4px; cursor: pointer; }
+.vj-turn:hover, .vj-turn:focus-visible { color: #4f1a10; text-decoration: underline; }
+.vj-btn { min-height: 44px; padding: 8px 18px; border: 2px solid var(--vj-blue); border-radius: 4px; background: transparent; color: var(--vj-blue); font-size: 18px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.vj-btn:hover, .vj-btn:focus-visible { background: rgba(44, 62, 92, .1); }
+.vj-group { font-family: 'Voyage Fell', Georgia, serif; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--vj-faint); padding: 6px 0 2px; }
+.vj-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 6px 12px; border: 1px solid transparent; border-bottom-color: var(--vj-rule); border-radius: 4px; background: transparent; color: var(--vj-ink); text-align: left; cursor: pointer; }
+.vj-row:hover { background: rgba(122, 42, 28, .06); }
+.vj-row.vj-on { border-color: var(--vj-red); background: rgba(122, 42, 28, .1); }
+.vj-row-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.vj-row-name img, .vj-entry-head img { width: 28px; height: 28px; object-fit: contain; }
+.vj-entry-head img { width: 44px; height: 44px; }
+.vj-row-count { font-size: 16px; white-space: nowrap; color: var(--vj-faint); }
+.vj-entry-head { display: flex; align-items: center; gap: 14px; }
+/* The heat map (src/heatmap.mjs): its button by an entry's name, then the fullscreen map over the book. */
+.vj-heat-btn { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--vj-blue); border-radius: 50%; background: transparent; color: var(--vj-blue); cursor: pointer; }
+.vj-heat-btn:hover, .vj-heat-btn:focus-visible { background: rgba(44, 62, 92, .12); }
+.vj-heat { position: fixed; inset: 0; z-index: 2; display: flex; flex-direction: column; background: #1d140d; color: #f1e4c6; font-family: 'Voyage Garamond', 'EB Garamond', Georgia, serif; }
+.vj-heat-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 10px 16px; background: #4a2c1a; border-bottom: 2px solid #e8c27a; }
+.vj-heat-title { display: flex; align-items: center; gap: 10px; font-family: 'Voyage Fell', Georgia, serif; font-size: 24px; }
+.vj-heat-title b { font-weight: 400; }
+.vj-heat-title img { width: 32px; height: 32px; object-fit: contain; }
+.vj-heat-title span { font-size: 17px; font-style: italic; color: #e8c27a; }
+.vj-heat-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 17px; }
+.vj-heat-key { display: inline-block; width: 16px; height: 16px; margin-right: 7px; vertical-align: -3px; border-radius: 3px; }
+.vj-heat-hot { background: radial-gradient(circle, #be140a, #ff7814 55%, rgba(255, 205, 60, .6)); border: 2px solid #ffd34d; }
+.vj-heat-cold { background: rgba(70, 130, 230, .55); border: 2px solid #2b5fb8; }
+.vj-heat-charted { background: repeating-linear-gradient(-45deg, rgba(255, 226, 150, .9) 0 2px, rgba(255, 226, 150, .16) 2px 5px); border: 2px solid rgba(255, 226, 150, .95); }
+.vj-heat-me { border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px #1d140d; }
+.vj-heat-tools { margin-left: auto; display: flex; gap: 8px; }
+.vj-heat-tool { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid #8fb3e8; border-radius: 4px; background: transparent; color: #f1e4c6; cursor: pointer; }
+.vj-heat-tool:hover, .vj-heat-tool:focus-visible { background: rgba(143, 179, 232, .18); }
+.vj-heat-canvas { flex: 1; min-height: 0; width: 100%; display: block; touch-action: none; cursor: grab; outline: none; }
+.vj-heat-canvas:focus-visible { box-shadow: inset 0 0 0 3px #e8c27a; }
+.vj-heat-canvas.vj-heat-grab { cursor: grabbing; }
+.vj-heat-info { padding: 8px 16px; min-height: calc(1.4em + 16px); font-size: 17px; background: #2a1c12; border-top: 1px solid rgba(232, 194, 122, .35); }
+.vj-search { display: flex; flex-direction: column; gap: 4px; }
+.vj-search label { font-size: 16px; font-weight: 600; color: var(--vj-red); margin: 0; }
+.vj-search-box { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--vj-ink); padding: 2px; }
+.vj-search-box input { flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 20px; color: var(--vj-ink); padding: 8px 0; outline: none; }
+.vj-search-box:focus-within { border-bottom-color: var(--vj-red); }
+.vj-list { margin: 0; padding: 0; list-style: none; border-top: 3px double var(--vj-red); }
+.vj-list li { border-bottom: 1px solid var(--vj-rule); }
+.vj-index { width: 100%; min-height: 44px; padding: 8px 10px; border: 0; background: transparent; color: var(--vj-ink); text-align: left; cursor: pointer; }
+.vj-index.vj-on { background: rgba(122, 42, 28, .1); font-weight: 600; }
+.vj-blank { min-height: 44px; padding: 8px 10px; display: flex; align-items: center; gap: 12px; color: var(--vj-faint); font-size: 15px; }
+.vj-blank span { flex: 1; border-bottom: 1px dotted var(--vj-faint); }
+/* Crosslinks in the book's text (journal-model.mjs splitLinks): inline, ink red, dotted underline. */
+.vj-link { display: inline; border: 0; background: none; padding: 0; margin: 0; color: var(--vj-red); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; text-align: left; }
+.vj-link:hover, .vj-link:focus-visible { color: #4f1a10; text-decoration-style: solid; }
+.vj-page:focus { outline: none; }
+.vj-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(43, 33, 24, .5); margin-right: 8px; vertical-align: -2px; }
+.vj-points { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.vj-tabs { width: 64px; flex: none; display: flex; flex-direction: column; gap: 8px; padding-top: 74px; position: relative; }
+.vj-close { position: absolute; top: -6px; left: 14px; width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(230, 200, 150, .5); background: transparent; color: #e8d6b0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.vj-close:hover, .vj-close:focus-visible { background: rgba(230, 200, 150, .15); }
+.vj-tab { writing-mode: vertical-rl; width: 48px; padding: 18px 12px; border: 0; border-radius: 0 6px 6px 0; color: #fbf3e2; font-family: 'Voyage Fell', Georgia, serif !important; font-size: 17px; text-align: left; cursor: pointer; }
+.vj-tab-how { background: #5c4630; } .vj-tab-resources { background: #7a2a1c; } .vj-tab-places { background: #2c3e5c; } .vj-tab-guide { background: #3d5a3a; }
+.vj-tab.vj-tab-on { background: var(--vj-paper); color: var(--vj-red); width: 52px; margin-left: -4px; }
+/* Bootstrap's colour classes are for the dark game; on paper they need ink-dark versions (4.5:1). */
+#voyage-journal .vj-page .text-success { color: #2f6b34 !important; }
+#voyage-journal .vj-page .text-warning { color: #7a5000 !important; }
+#voyage-journal .vj-page .text-danger { color: #9a2a1c !important; }
+#voyage-journal .vj-page .text-info { color: #2c3e5c !important; }
+#voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
+.vj-page b, .vj-page strong { font-weight: 600; }
+/* Phone and narrow windows: one column that scrolls as a whole, bookmarks along the top. */
+@media (max-width: 899px) {
+  .vj-backdrop { padding: 0; }
+  .vj-book { height: 100%; border-radius: 0; padding: 8px; flex-direction: column; }
+  .vj-tabs { width: auto; flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 4px; padding: 0 0 0 52px; order: -1; min-height: 52px; }
+  .vj-close { top: 4px; left: 0; }
+  .vj-tab { writing-mode: horizontal-tb; width: auto; padding: 10px 12px; border-radius: 6px 6px 0 0; font-size: 16px; min-height: 44px; }
+  .vj-tab.vj-tab-on { width: auto; margin-left: 0; }
+  .vj-spread { grid-template-columns: minmax(0, 1fr); overflow-y: auto; outline: 0; border-radius: 0 0 6px 6px; }
+  .vj-page { overflow: visible; padding: 20px 16px; box-shadow: none; }
+  .vj-page.vj-pinned { overflow: visible; padding-bottom: 20px; }
+  .vj-page-body { overflow: visible; margin-right: 0; padding-right: 0; }
+  .vj-right { border-top: 3px double var(--vj-red); }
+}
+/* Ways in: the lock popups' footer link, the minibar and header buttons, the map panel's book next to Manage voyage. */
+.voyage-journal-footer { display: inline-flex; align-items: center; gap: 8px; font-size: 1rem; }
+.voyage-journal-footer img { width: 24px; height: 24px; }
+.voyage-journal-link { flex: 0 0 auto !important; width: 40px; padding: .15rem; border: 1px solid #e8c27a; background: #4a2c1a; line-height: 1; }
+.voyage-journal-link img { width: 24px; height: 24px; }
+.voyage-journal-link:hover, .voyage-journal-link:focus-visible { background: #5c3a22; }
+.voyage-stacked .voyage-here-head > .voyage-manage-link:not(:last-child) { flex-basis: calc(100% - 48px); }
+
+/* Build .116: unread marks, charts to use, the chart picker. */
+.vj-unread { margin-left: 8px; padding: 1px 8px; border-radius: 10px; background: var(--vj-red); color: #fbf3e2; font-size: 15px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
+.vj-tab-count { display: inline-block; writing-mode: horizontal-tb; margin-top: 8px; min-width: 24px; padding: 1px 6px; border-radius: 12px; background: #fbf3e2; color: var(--vj-red); font-family: 'Voyage Garamond', Georgia, serif; font-size: 15px; font-weight: 600; text-align: center; }
+.vj-readall { margin-top: -10px; }
+.vj-linkbtn { border: 0; background: none; padding: 0; min-height: 44px; color: var(--vj-blue); font-size: 16px; text-decoration: underline; cursor: pointer; }
+.vj-charts { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--vj-rule); border-radius: 4px; background: rgba(122, 42, 28, .06); }
+.vj-charts-head { font-family: 'Voyage Fell', Georgia, serif; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--vj-red); }
+.vj-charts-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 24px; }
+@media (max-width: 480px) { .vj-charts-list { grid-template-columns: minmax(0, 1fr); } }
+.vj-chart-chip { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 16px; }
+.vj-chart-chip img { width: 26px; height: 26px; object-fit: contain; }
+.vj-charts .vj-btn { align-self: flex-start; }
+.vj-confirm { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; padding: 10px 12px; border-left: 3px solid #2f6b2f; background: rgba(47, 107, 47, .08); }
+.vj-confirm-buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+.vj-btn.vj-btn-go { background: #2f6b2f; border-color: #2f6b2f; color: #fff; }
+.vj-charted-line { border-left: 3px solid #c9a24a; padding-left: 10px; }
+.voyage-minibar-journal, .voyage-header-journal { position: relative; }
+.voyage-minibar-journal.voyage-unread::after, .voyage-header-journal.voyage-unread::after { content: ''; position: absolute; top: 2px; right: 2px; width: 10px; height: 10px; border-radius: 50%; background: #e5483b; box-shadow: 0 0 0 2px #1f2433; pointer-events: none; }
+/* The last page's lighthouse (build .116) and the Old Man's Crew tab. */
+.vj-figure { margin: 0; display: flex; justify-content: center; }
+.vj-figure img { width: 100%; max-width: 460px; height: auto; }
+.vj-tab-crew { background: #6b5a2a; }
+.vj-tab[hidden] { display: none; }
+.vj-golbin img { max-width: 340px; }

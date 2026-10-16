@@ -32,6 +32,12 @@ export function splitNames(text, pattern) {
 const build = () => {
   byName = new Map();
   for (const s of game.skills.allObjects) if (s?.name && s?.media) byName.set(s.name, s);
+  // The game names the Alt. Magic skill just "Magic"; our texts use its page name, so that is a name too (else
+  // "Alt." is left outside the chip).
+  try {
+    const alt = getLangString('MOD_VOY_RULE_LABEL_Magic');
+    if (game.altMagic?.media && alt && alt !== game.altMagic.name && !alt.startsWith('UNDEFINED')) byName.set(alt, game.altMagic);
+  } catch {}
   pattern = namePattern(byName.keys());
 };
 

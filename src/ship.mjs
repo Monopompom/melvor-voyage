@@ -164,6 +164,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     const costs = buildCosts();
     costs.consumeCosts();
     setShip({ hull: 'dinghy', q: spot.q, r: spot.r, cond: 100 }, 'built');
+    state.journal?.learn('dinghy');
     try { game.notifications.createSuccessNotification('voyage:ship', t('MOD_VOY_SHIP_BUILT'), ctx.getResourceUrl(HULLS.dinghy.media)); } catch {}
     return true;
   };
@@ -297,6 +298,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       if (island === undefined || island.tier <= HULLS[s.hull].tier) return t('MOD_VOY_SHIP_PATH_HOP_AWAY', { hull: hullWord(HULLS[s.hull]), where: whereIs(s) });
     }
     if (s === null) {
+      state.journal?.learn('dinghy');
       if (shipModel.isSea(to)) return t('MOD_VOY_SHIP_PATH_NEED_BOAT_WATER');
       return t('MOD_VOY_SHIP_PATH_NEED_BOAT_LAND');
     }
@@ -305,6 +307,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     const island = g?.islandOf(to);
     const name = hullWord(hull);
     if (island !== undefined && island.tier > hull.tier) {
+      state.journal?.learn('island');
       return t('MOD_VOY_SHIP_PATH_ISLAND_LOCKED', { hull: name, island: t(shipModel.islandNameKey(island.id)), needed: t(shipModel.tierNameKey(island.tier)) });
     }
     // A lake or a cut-off channel: walking to the ship would not help (3b check, 16 Oct 2026).

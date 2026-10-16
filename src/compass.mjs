@@ -149,11 +149,20 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
       ] };
     } catch (e) { log('first steps failed', e); return trade; }
   };
+  /** The journal's Adventure chapter shows the same band, worked out from where you stand now. */
+  state.compass.firstSteps = firstSteps;
 
-  /** The welcome, in the help-popup layout: land, first steps, the compass. One picture: the compass in the title. */
+  /**
+   * The welcome, in the help-popup layout: what you found (a compass and a journal),
+   * land, first steps, the compass, the journal. One picture: the compass in the title. "Open the journal" is
+   * navigation (blue outline) beside the green "Got it".
+   */
   const popup = (it, purse) => {
     try {
+      const journal = state.journal;
+      journal?.learn('compass', true);
       const sections = [
+        { body: [{ html: getLangString(journal !== undefined ? 'MOD_VOY_WELCOME_FOUND_BOTH' : 'MOD_VOY_WELCOME_FOUND_COMPASS'), cls: 'text-center' }] },
         { head: getLangString('MOD_VOY_WELCOME_HEAD_LAND'), body: [getLangString('MOD_VOY_WELCOME_LAND'), { html: getLangString('MOD_VOY_WELCOME_SURVEY') }] },
         firstSteps(purse),
         { head: getLangString('MOD_VOY_PAGE_COMPASS_TITLE'), body: [
@@ -162,14 +171,17 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
           { html: getLangString('MOD_VOY_WELCOME_SHARPEN') },
         ] },
       ];
+      if (journal !== undefined) sections.push({ head: getLangString('MOD_VOY_JOURNAL_TITLE'), body: [getLangString('MOD_VOY_WELCOME_JOURNAL'), { html: getLangString('MOD_VOY_WELCOME_JOURNAL_WHERE') }] });
       SwalLocale.fire({
         didRender: state.popupDidRender,
         title: `<img class="voyage-title-icon" src="${it.media}" alt="">${getLangString('MOD_VOY_COMPASS_WELCOME_TITLE')}`,
         width: helpLayout.HELP_WIDTH,
         html: helpLayout.helpHtml(sections),
         confirmButtonText: getLangString('MOD_VOY_BUTTON_GOT_IT'),
-        customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
-      });
+        showDenyButton: journal !== undefined,
+        denyButtonText: getLangString('MOD_VOY_JOURNAL_OPEN'),
+        customClass: (() => { const c = { ...SWAL_CLASS, denyButton: 'btn btn-outline-info m-1' }; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
+      }).then((result) => { if (result.isDenied) journal?.open({ guide: 'compass' }); });
     } catch (e) { log('welcome popup failed', e); }
   };
 
