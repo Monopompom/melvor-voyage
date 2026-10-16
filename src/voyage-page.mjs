@@ -164,15 +164,14 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
   /** A grey section band inside a block. */
   const section = (html) => `<div class="voyage-section">${html}</div>`;
   /**
-   * An action block like the bank's Sell / Stow: amount box and blue presets on one row, then one green
-   * main button, centred.
+   * An action block, one row (the user, build .157): the amount box and its blue presets on the left, the
+   * green main button on the right. Too narrow for one line, the button drops under them and fills the line.
    */
   const actionBlock = ({ action, amount = action, itemId, max, value, presets, main }) =>
-    '<div class="voyage-action">' +
-    '<div class="voyage-hold-row">' +
+    '<div class="voyage-action"><div class="voyage-hold-row">' +
     `<input type="number" min="1" max="${max}" value="${value}" inputmode="numeric" class="form-control voyage-hold-qty" data-voyage-amount="${amount}" data-item="${esc(itemId)}" aria-label="${esc(t('MOD_VOY_PAGE_AMOUNT'))}">` +
-    `<div class="voyage-hold-presets">${presets.filter((p) => p.n > 0).map((p) => `<button type="button" class="btn btn-sm btn-info" data-voyage-preset="${p.n}">${esc(p.label)}</button>`).join('')}</div></div>` +
-    `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="${action}">${esc(main)}</button></div></div>`;
+    `<div class="voyage-hold-presets">${presets.filter((p) => p.n > 0).map((p) => `<button type="button" class="btn btn-sm btn-info" data-voyage-preset="${p.n}">${esc(p.label)}</button>`).join('')}</div>` +
+    `<button type="button" class="btn btn-success voyage-hold-go" data-voyage-action="${action}">${esc(main)}</button></div></div>`;
   /** Item chips (bank-style), the picked one filled blue; the name is in a line under them for touch. */
   const chips = (items, pickedId, action, title) =>
     `<div class="voyage-store-items">${items.map((x) => `<button type="button" class="btn btn-sm voyage-store-item ${x.item.id === pickedId ? 'btn-info' : 'btn-outline-info'}" ` +
@@ -327,7 +326,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const costs = [costIcon(logs?.media ?? '', info.plan.full.logs, info.logs, costTitle)];
     if (pitch !== undefined) costs.push(costIcon(pitch.media, info.plan.full.pitch, info.pitch, pitch.name));
     const action = info.blocker === undefined
-      ? `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR', { cond: `${info.plan.to}` })}</button></div>`
+      ? `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR', { cond: `${info.plan.to}` })}</button></div>`
       : (c < 100 ? `<div class="text-warning mt-2">${esc(info.blocker)}</div>` : '');
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/hull_condition.png')}" alt="">` +
       `<div class="flex-grow-1"><div><b>${t('MOD_VOY_PAGE_HULL_LABEL')}</b> <span class="${c <= 0 ? 'text-danger' : c < storesModel.WORN ? 'text-warning' : ''}">${c}%</span></div>` +
@@ -357,26 +356,39 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
    * The Travels stats (build .146): read from what the save and the map already keep, so
    * nothing new is saved. A row whose source is missing is left out.
    */
-  /** Hexes travelled below which each log line shows; the last line is for beyond the last tier. */
-  const TRAVEL_TIERS = [50, 500, 2000, 10000];
-  const TRAVEL_LINES = ['MOD_VOY_PAGE_TRAVEL_LINE_1', 'MOD_VOY_PAGE_TRAVEL_LINE_2', 'MOD_VOY_PAGE_TRAVEL_LINE_3', 'MOD_VOY_PAGE_TRAVEL_LINE_4', 'MOD_VOY_PAGE_TRAVEL_LINE_5'];
   const travelStats = (rec) => {
     const j = rec.journal ?? {};
     const rows = [];
-    const row = (key, value) => rows.push(`<div class="voyage-stat"><span>${esc(t(key))}</span><span class="font-w600">${value}</span></div>`);
-    row('MOD_VOY_PAGE_STAT_PLACES', numberWithCommas(Object.keys(j.places ?? {}).length));
-    row('MOD_VOY_PAGE_STAT_SKILL_HEXES', numberWithCommas(new Set(Object.values(j.found ?? {}).flat()).size));
-    row('MOD_VOY_PAGE_STAT_CHARTS', numberWithCommas((j.charted ?? []).length));
+    // Build .155 (the user: "coloring, bolding, icons"): an icon per row, the value bold, a thin bar under an "n of all".
+    const img = (src) => `<img class="voyage-stat-icon" src="${src}" alt="">`;
+    const fa = (cls) => `<i class="fa ${cls} voyage-stat-icon voyage-stat-fa" aria-hidden="true"></i>`;
+    const row = (icon, key, value, cls = '', share) => rows.push(`<div class="voyage-stat"><span class="voyage-stat-label">${icon}${esc(t(key))}</span><span class="font-w600 ${cls}">${value}</span>` +
+      (share === undefined ? '' : `<span class="voyage-stat-bar ${cls}" aria-hidden="true"><span style="width:${Math.round(Math.min(1, share) * 100)}%"></span></span>`) + '</div>');
+    const of = (n, all) => `${numberWithCommas(n)} <small class="text-muted font-w400">${esc(t('MOD_VOY_PAGE_STAT_OF_ALL', { all: numberWithCommas(all) }))}</small>`;
+    // The balance pass: hexes ever entered (each paid discovery XP once) and the level's travel cut.
+    try {
+      const open = [...(state.terrain?.all() ?? [])].filter((h) => h.cloud !== true).length;
+      const seen = model.visitedCount(rec.visited);
+      if (open > 0) row(img(game.cartography.media), 'MOD_VOY_PAGE_STAT_VISITED', of(seen, open), 'voyage-stat-sea', seen / open);
+    } catch {}
     try {
       const map = game.cartography.activeMap;
       const all = map?.pointsOfInterest?.size;
-      if (map !== undefined && all !== undefined) row('MOD_VOY_PAGE_STAT_DISCOVERIES', t('MOD_VOY_PAGE_STAT_OF', { n: numberWithCommas([...map.discoveredPOIs].length), all: numberWithCommas(all) }));
+      const found = map === undefined ? 0 : [...map.discoveredPOIs].length;
+      if (map !== undefined && all > 0) row(fa('fa-landmark'), 'MOD_VOY_PAGE_STAT_DISCOVERIES', of(found, all), 'voyage-stat-gold', found / all);
     } catch {}
-    // A line from the log that grows with the distance (the user, build .148: "add some love").
+    row(img(ctx.getResourceUrl('assets/chart_mining.png')), 'MOD_VOY_PAGE_STAT_CHARTS', numberWithCommas((j.charted ?? []).length));
+    const cut = model.travelDiscount(skill()?.level ?? 1);
+    if (cut > 0) { try { row(img(game.gp.media), 'MOD_VOY_PAGE_STAT_DISCOUNT', t('MOD_VOY_PAGE_STAT_DISCOUNT_VALUE', { pct: `${cut}` }), 'text-success'); } catch {} }
+    return `<div class="voyage-stats">${rows.join('')}</div>`;
+  };
+  /** The Travels head: the hexes behind you, large, with on foot and under sail as two coloured chips. */
+  const travelHead = (rec) => {
     const total = rec.landHexes + rec.waterHexes;
-    const tier = TRAVEL_TIERS.findIndex((n) => total < n);
-    return `<div class="voyage-stats">${rows.join('')}</div>` +
-      `<div class="voyage-travel-line">${esc(t(TRAVEL_LINES[tier === -1 ? TRAVEL_TIERS.length : tier]))}</div>`;
+    return `<div class="voyage-travel-head"><span class="voyage-travel-total">${numberWithCommas(total)}</span><span class="voyage-travel-label">${esc(t('MOD_VOY_PAGE_HEXES_BEHIND'))}</span></div>` +
+      `<div class="voyage-travel-split">` +
+      `<span class="voyage-travel-chip voyage-travel-foot"><i class="fa fa-shoe-prints mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_HEXES_ON_FOOT', { n: numberWithCommas(rec.landHexes) }))}</span>` +
+      `<span class="voyage-travel-chip voyage-travel-sail"><i class="fa fa-ship mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_HEXES_UNDER_SAIL', { n: numberWithCommas(rec.waterHexes) }))}</span></div>`;
   };
   /** Rounded percentage of a cut: 0.245 -> 24.5. */
   const cutOf = (factor) => Math.round((1 - factor) * 1000) / 10;
@@ -517,8 +529,12 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
             { cells: [t('MOD_VOY_HELP_LAND_HEX'), `${model.XP_PER_HEX.land}`] },
             { cells: [t('MOD_VOY_HELP_WATER_HEX'), `${model.XP_PER_HEX.water}`] },
             { cells: [t('MOD_VOY_HELP_LIT_HEX'), `+${Math.round(model.STAR_XP * 100)}%`], cls: ['text-success'] },
+            { cells: [t('MOD_VOY_HELP_FIRST_HEX'), `+${model.DISCOVERY_XP}`], cls: ['text-success'] },
           ] } },
           t('MOD_VOY_HELP_XP_FAST_TRAVEL'),
+        ] },
+        { head: t('MOD_VOY_HELP_HEAD_DISCOUNT'), body: [
+          t('MOD_VOY_HELP_DISCOUNT', { per: `${model.TRAVEL_DISCOUNT_PER_LEVEL}`, pct: `${model.travelDiscount(skill()?.level ?? 1)}`, max: `${model.travelDiscount(99)}` }),
         ] },
         { head: t('MOD_VOY_HELP_HEAD_NO_XP'), body: [
           { text: t('MOD_VOY_HELP_NO_XP_HUNGRY'), cls: 'text-warning' },
@@ -673,11 +689,12 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
 
     const travels = part('travels');
     if (travels !== null) {
-      const total = rec.landHexes + rec.waterHexes;
+      const ticon = part('travels-icon');
+      // The Travels title's icon: the biggest vessel you own (the dinghy's when you have none yet).
+      try { const v = state.ship?.big?.() ?? state.ship?.boat?.(); if (ticon !== null) ticon.src = ctx.getResourceUrl(shipModel.HULLS[v?.hull ?? 'dinghy'].media); } catch {}
       travels.innerHTML =
         // One grey band, like the compass stages beside it (the user, build .146: "and grayish box").
-        section(`<div>${t('MOD_VOY_PAGE_HEXES_TRAVELLED', { total: numberWithCommas(total) })} <small class="text-muted">${t('MOD_VOY_PAGE_HEXES_SPLIT', { land: numberWithCommas(rec.landHexes), water: numberWithCommas(rec.waterHexes) })}</small></div>` +
-          travelStats(rec)) +
+        section(travelHead(rec) + travelStats(rec)) +
         (s.futureRaw !== undefined ? `<div class="text-warning">${t('MOD_VOY_PAGE_FUTURE_SAVE')}</div>` : '');
     }
 
@@ -685,18 +702,33 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     if (compass !== null) {
       const icon = part('compass-icon');
       try { const it = game.items.getObjectByID('voyage:Wayfinder_Compass'); if (icon !== null && it !== undefined) icon.src = it.media; } catch {}
+      // Build .157 (the user: "icons, bolding, styling"), in the Travels look: how many readings work, large in gold;
+      // chips for the bank and the next stage; a row per stage with an icon, its level on the right (green when
+      // reached, muted with a lock when not).
       // Stage texts: MOD_VOY_PAGE_COMPASS_STAGE_<n>, n = 1.. in model.COMPASS_STAGES order (English kept there).
+      const stageIcons = ['fa-thermometer-half', 'fa-ruler-horizontal', 'fa-map-marker-alt'];
+      const reachedCount = model.COMPASS_STAGES.filter((stage) => level >= stage.level).length;
       const rows = model.COMPASS_STAGES.map((stage, i) => {
         const reached = level >= stage.level;
-        const mark = reached ? '<i class="fa fa-check text-success mr-1"></i>' : '<i class="fa fa-lock text-muted mr-1"></i>';
-        return `<div class="${reached ? '' : 'text-muted'}">${mark}<small>${t('MOD_VOY_PAGE_COMPASS_LEVEL', { level: `${stage.level}` })}</small> ${esc(t(`MOD_VOY_PAGE_COMPASS_STAGE_${i + 1}`))}</div>`;
+        const lvl = esc(t('MOD_VOY_PAGE_COMPASS_LEVEL', { level: `${stage.level}` }));
+        const value = reached
+          ? `<span class="font-w600 text-success text-nowrap"><i class="fa fa-check mr-1" aria-hidden="true"></i>${lvl}</span>`
+          : `<span class="font-w600 text-muted text-nowrap"><i class="fa fa-lock mr-1" aria-hidden="true"></i>${lvl}</span>`;
+        return `<div class="voyage-stat${reached ? '' : ' voyage-stat-locked'}"><span class="voyage-stat-label"><i class="fa ${stageIcons[i] ?? 'fa-compass'} voyage-stat-icon voyage-stat-fa" aria-hidden="true"></i>` +
+          `<span>${esc(t(`MOD_VOY_PAGE_COMPASS_STAGE_${i + 1}`))}</span></span>${value}</div>`;
       });
       const owned = state.compass?.owned?.() === true;
-      const note = owned
-        ? `<span class="text-muted">${t('MOD_VOY_PAGE_COMPASS_OWNED')}</span>`
-        : `<span class="text-warning">${t('MOD_VOY_PAGE_COMPASS_MISSING')}</span>`;
-      // The note in the same grey band, a line below the stages (the user, build .148).
-      compass.innerHTML = section(`<div class="voyage-compass-stages">${rows.join('')}</div><div class="voyage-compass-note">${note}</div>`);
+      const next = model.nextCompassStage(level);
+      const head = `<div class="voyage-travel-head"><span class="voyage-travel-total">${reachedCount}</span><span class="voyage-travel-label">${esc(t('MOD_VOY_PAGE_COMPASS_READINGS', { all: `${model.COMPASS_STAGES.length}` }))}</span></div>` +
+        '<div class="voyage-travel-split">' +
+        (owned
+          ? `<span class="voyage-travel-chip voyage-chip-ok"><i class="fa fa-check mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_COMPASS_IN_BANK'))}</span>`
+          : `<span class="voyage-travel-chip voyage-chip-warn"><i class="fa fa-exclamation-triangle mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_COMPASS_NOT_IN_BANK'))}</span>`) +
+        (next === undefined ? '' : `<span class="voyage-travel-chip voyage-chip-next"><i class="fa fa-arrow-up mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_COMPASS_NEXT', { level: `${next.level}` }))}</span>`) +
+        '</div>';
+      // Without the compass, where to get another sits at the bottom of the band (the user, build .148).
+      const note = owned ? '' : `<div class="voyage-compass-note text-warning">${esc(t('MOD_VOY_PAGE_COMPASS_SHOP'))}</div>`;
+      compass.innerHTML = section(`${head}<div class="voyage-stats">${rows.join('')}</div>${note}`);
     }
   };
 

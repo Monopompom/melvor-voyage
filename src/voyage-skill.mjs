@@ -85,16 +85,45 @@ export function createVoyageClass({ model, log }) {
     }
 
     // ---- travel --------------------------------------------------------------------------------------
-    /** Counts a completed move and pays its XP. `steps` as model.xpForSteps. */
-    onTravelled(steps) {
+    /**
+     * Counts a completed move and pays its XP. `steps` as model.xpForSteps; `entered` the hexes stepped onto ({ q, r },
+     * cloud left out by the caller): each one never entered before pays model.DISCOVERY_XP (the balance pass), free and hungry steps included. Returns what it paid, for the dev pace counter.
+     */
+    onTravelled(steps, entered = []) {
       const r = model.xpForSteps(steps);
-      if (r.land + r.water === 0) return;
+      let discovered = 0;
       if (this.futureRaw === undefined) {
         this.record.landHexes += r.land;
         this.record.waterHexes += r.water;
+        const m = model.markVisited(this.record.visited, entered);
+        this.record.visited = m.visited;
+        discovered = m.added;
       }
-      if (r.xp > 0) this.addXP(r.xp);
-      this.renderQueue.page = true;
+      const discoveryXP = discovered * model.DISCOVERY_XP;
+      if (r.xp + discoveryXP > 0) this.addXP(r.xp + discoveryXP);
+      if (r.land + r.water + discovered > 0) this.renderQueue.page = true;
+      return { land: r.land, water: r.water, hexXP: r.xp, discovered, discoveryXP };
+    }
+
+    /** Marks a hex visited without XP: where the character stands when the save loads (it got there somehow). */
+    markHere(hex) {
+      if (this.futureRaw !== undefined || hex == null) return;
+      this.record.visited = model.markVisited(this.record.visited, [hex]).visited;
+    }
+
+    // ---- the travel discount (the balance pass) -------------------------------------------------
+    /** Each level cuts the game's hex travel cost through its own modifier, so the Cartography numbers show it. */
+    addProvidedStats() {
+      super.addProvidedStats();
+      try {
+        const pct = model.travelDiscount(this.level);
+        if (pct > 0) this.providedStats.addStatObject(this, { modifiers: this.game.getModifierValuesFromData({ cartographyTravelCost: -pct }) });
+      } catch (e) { log('travel discount not applied', e); }
+    }
+
+    onLevelUp(oldLevel, newLevel) {
+      super.onLevelUp(oldLevel, newLevel);
+      this.computeProvidedStats(true);
     }
 
     /** Once per character: XP for the hexes travelled before the skill existed (the game's HexesTravelled stat). */

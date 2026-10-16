@@ -6,7 +6,7 @@ import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, parse
 test('v6 saves get an empty journal', () => {
   const v6 = { v: 6, landHexes: 3, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 10, fuel: 1 }, kitGiven: true, hold: [], unlockNotice: [] };
   const { save, report } = loadSave(JSON.stringify(v6));
-  assert.deepEqual(report.applied, [6, 7, 8, 9]);
+  assert.deepEqual(report.applied, [6, 7, 8, 9, 10]);
   assert.deepEqual(save.journal, emptyJournal());
   assert.equal(save.landHexes, 3);
 });
@@ -111,7 +111,7 @@ test('crosslinks: split into text and links, targets checked', () => {
 test('v7 saves get charting and unread marks, the rest kept', () => {
   const v7 = { v: 7, landHexes: 1, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [], unlockNotice: [], journal: { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'] } };
   const { save, report } = loadSave(JSON.stringify(v7));
-  assert.deepEqual(report.applied, [7, 8, 9]);
+  assert.deepEqual(report.applied, [7, 8, 9, 10]);
   assert.deepEqual(save.journal, { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'], charted: [], freeUsed: 0, unread: {}, golbin: false });
 });
 
@@ -132,11 +132,12 @@ test('charting: once per action, junk cleaned, free charts counted', () => {
   assert.equal(cleanJournal({ freeUsed: 9 }).freeUsed, FREE_CHART_LEVELS.length);
   assert.equal(freeChartsLeft(29, 0, FREE_CHART_LEVELS), 0);
   assert.equal(freeChartsLeft(50, 0, FREE_CHART_LEVELS), 2);
+  assert.equal(freeChartsLeft(60, 0, FREE_CHART_LEVELS), 4, 'all four by Voyage 60 (the balance pass)');
   assert.equal(freeChartsLeft(99, 3, FREE_CHART_LEVELS), 1);
   assert.equal(freeChartsLeft(30, 2, FREE_CHART_LEVELS), 0);
-  assert.equal(chartChance(1).toFixed(6), (1 / 2000 * (1 + 1 / 99)).toFixed(6));
-  assert.equal(chartChance(99), 1 / 1000);
-  assert.equal(chartChance(120), 1 / 1000);
+  assert.equal(chartChance(1).toFixed(6), (1 / 20000 * (1 + 1 / 99)).toFixed(6));
+  assert.equal(chartChance(99), 1 / 10000);
+  assert.equal(chartChance(120), 1 / 10000);
   assert.equal(Object.keys(CHART_ITEMS).length, 6);
 });
 

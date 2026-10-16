@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.152';
+export const BUILD = '2026-10-16.159';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -103,12 +103,13 @@ export async function setup(ctx) {
           const url = ctx.getResourceUrl(shipModel.HULLS[up[0]].media);
           Object.defineProperty(m, 'media', { get: () => url, configurable: true });
         } else if (i >= 0 && m._milestoneID === undefined && '_name' in m) m._name = getLangString(`MOD_VOY_MILESTONE_${i + 1}`);
-        else if (model.FREE_CHART_LEVELS.includes(m.level) && '_name' in m) {
+        // The balance pass: 55 and 60 hold two milestones each, so these are matched by their English names too.
+        else if (model.FREE_CHART_LEVELS.includes(m.level) && m._name === 'Journal: chart one country') {
           m._name = getLangString('MOD_VOY_MILESTONE_CHART');
           // The game resolves a custom milestone's media against its own CDN (assets.getURI): the journal icon is ours.
           const url = ctx.getResourceUrl('assets/journal.png');
           Object.defineProperty(m, 'media', { get: () => url, configurable: true });
-        } else if (shipModel.HOLD_ROW_LEVELS.includes(m.level) && '_name' in m) {
+        } else if (shipModel.HOLD_ROW_LEVELS.includes(m.level) && m._name === 'Hold: a new row of six crates') {
           // Build .134: the hold grows a row of six crates.
           m._name = getLangString('MOD_VOY_MILESTONE_HOLD');
           const url = ctx.getResourceUrl('assets/hull_dinghy.png');
@@ -118,7 +119,7 @@ export async function setup(ctx) {
           m._name = getLangString('MOD_VOY_MILESTONE_PLAN');
           const url = ctx.getResourceUrl('assets/icon.png');
           Object.defineProperty(m, 'media', { get: () => url, configurable: true });
-        } else if (m.level === model.NAVIGATOR_LEVEL && '_name' in m) {
+        } else if (m.level === model.NAVIGATOR_LEVEL && m._name === "Navigator's Charts: sold at ports") {
           // Build .119: Navigator's Charts, Plan a voyage's Sail!.
           m._name = getLangString('MOD_VOY_MILESTONE_NAVIGATOR');
           const url = ctx.getResourceUrl('assets/icon.png');
@@ -360,12 +361,19 @@ export async function setup(ctx) {
         steps = planned?.steps ?? (Array.isArray(path) ? ship.stepsOf(path) : undefined);
       } catch (e) { log('travel steps failed', e); }
       if (planned !== undefined && !planned.plan.ok) { stores.refuse(planned, path); return; }
+      const gpBefore = game.gp.amount;
       const result = original(path, ignoreCosts, ...rest);
       try {
         const dest = path?.[0];
         if (dest !== undefined && from !== dest && this.activeMap?.playerPosition === dest) {
           stores.afterMove(planned);
-          if (!ignoreCosts && steps !== undefined) voyageSkill()?.onTravelled(steps);
+          if (!ignoreCosts && steps !== undefined) {
+            // Discovery XP (the balance pass): the hexes stepped onto, start excluded, none under cloud.
+            const entered = path.slice(0, -1).filter((hex) => !terrainMod.isCloud(state.terrain?.get?.(hex.q, hex.r)));
+            const xpBefore = voyageSkill()?.xp ?? 0;
+            const paid = voyageSkill()?.onTravelled(steps, entered);
+            if (paid !== undefined) state.pace?.({ ...paid, gp: Math.max(0, gpBefore - game.gp.amount), xpBefore });
+          }
           ship.afterMove(path);
         }
       } catch (e) { log('travel XP, stores or ship move failed', e); }
@@ -387,6 +395,8 @@ export async function setup(ctx) {
       map?.forEach((hex) => liveHexes.push({ q: hex.q, r: hex.r, isWater: hex.isWater }));
       const check = terrainMod.checkTable(table, { mapId: map?.id, hexes: liveHexes });
       state.terrain = terrainMod.createTerrain(table);
+      // Where you stand counts as visited, without XP (the balance pass; a new character or one moved by an event).
+      try { const here = map?.playerPosition; if (here !== undefined && !terrainMod.isCloud(state.terrain.get(here.q, here.r))) voyageSkill()?.markHere(here); } catch (e) { log('visited mark failed', e); }
       const opts = () => state.ruleOpts();
       state.nearestFor = terrainMod.createNearestFinder(state.terrain, rules, state.knowledge, opts);
       state.anyNearestFor = terrainMod.createNearestFinder(state.terrain, rules, undefined, opts);

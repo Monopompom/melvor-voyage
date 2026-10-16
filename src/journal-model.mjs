@@ -223,8 +223,8 @@ export const CHART_ITEMS = {
   'melvorD:Thieving': 'Fences_Ledger',
   'melvorD:Astrology': 'Star_Chart',
 };
-/** The chance of a reveal item on one completed zoned action: 1 in 2,000, rising with Voyage level to 1 in 1,000 at 99. */
-export const chartChance = (voyageLevel) => (1 / 2000) * (1 + Math.max(0, Math.min(99, voyageLevel)) / 99);
+/** The chance of a reveal item on one completed zoned action: 1 in 20,000, rising with Voyage level to 1 in 10,000 at 99 (the balance pass; was 1 in 2,000). */
+export const chartChance = (voyageLevel) => (1 / 20000) * (1 + Math.max(0, Math.min(99, voyageLevel)) / 99);
 /** Free charts reached at `level` and not used yet. */
 export const freeChartsLeft = (level, used, levels) => Math.max(0, levels.filter((l) => level >= l).length - used);
 /** Charts an action. True when it was not charted yet. */

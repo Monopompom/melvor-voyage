@@ -516,7 +516,9 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
     const rows = ms.map((m) => [{ text: `${m.level}` }, { text: m.name }, sk.level >= m.level ? { text: '✓', cls: 'vj-num text-success' } : { text: '', cls: 'vj-num' }]);
     rows.numeric = [false, false, true];
     return `<div class="vj-section"><h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_LEVELS_HEAD'))}</h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_BODY'))}</p>`
-      + ledger([t('MOD_VOY_JOURNAL_COL_VOYAGE_LEVEL'), t('MOD_VOY_JOURNAL_COL_GIVES'), t('MOD_VOY_JOURNAL_COL_YOURS')], rows) + '</div>';
+      + ledger([t('MOD_VOY_JOURNAL_COL_VOYAGE_LEVEL'), t('MOD_VOY_JOURNAL_COL_GIVES'), t('MOD_VOY_JOURNAL_COL_YOURS')], rows)
+      // The balance pass: the reward every level gives (model.travelDiscount).
+      + `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_DISCOUNT', { per: `${model.TRAVEL_DISCOUNT_PER_LEVEL}`, pct: `${model.travelDiscount(sk.level)}` }))}</p></div>`;
   };
   const roman = (n) => ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 'xi', 'xii', 'xiii', 'xiv', 'xv', 'xvi'][n - 1] ?? `${n}`;
   /** Chapters two to a spread: How it works (`view.spread`) and the Old Man's Crew (`view.crewSpread`). */
@@ -584,6 +586,8 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
     return runningHead(level !== undefined ? t('MOD_VOY_JOURNAL_SKILL_LEVEL', { skill: skill?.name ?? '', level: `${level}` }) : skill?.name ?? '', '')
       + `<div class="vj-entry-head">${e.action?.media ? `<img src="${e.action.media}" alt="">` : ''}<h2 class="vj-h1">${esc(e.names[0])}</h2>${heatButton(e)}</div>`
       + (why ? `<p class="vj-p vj-italic">${esc(t('MOD_VOY_JOURNAL_WHY', { why }))}</p>` : '')
+      // The balance pass: the first saving-up trip, and the boat nearly halves it.
+      + (e.id === 'melvorD:Coal_Ore' ? `<p class="vj-p vj-italic">${esc(t('MOD_VOY_JOURNAL_COAL_NOTE'))}</p>` : '')
       + (e.charted ? `<p class="vj-p vj-charted-line">${esc(t('MOD_VOY_JOURNAL_CHARTED_LINE', { count: `${chartedHexes(e.id).length}` }))}</p>` : '')
       + (rows.length > 0
         ? `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_WHERE_FOUND'))}</h3>${ledger([t('MOD_VOY_JOURNAL_COL_HEX'), t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_FROM_HERE')], rows)}`

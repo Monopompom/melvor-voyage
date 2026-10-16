@@ -389,7 +389,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
         `<div class="dropdown-menu overflow-y-auto" aria-labelledby="voyage-plan-arrival">${opts.map(item).join('')}</div></div>`);
     }
     const sailBtn = owned() && good ? `<button type="button" class="btn btn-success" data-voyage-plan="sail">${esc(t('MOD_VOY_PLAN_SAIL'))}</button>` : '';
-    out += `<div class="voyage-plan-buttons">${sailBtn}<button type="button" class="btn btn-outline-info" data-voyage-plan="map">${esc(t('MOD_VOY_PLAN_SHOW_MAP'))}</button></div>`;
+    // Green last, at the right edge like every green button on the page (build .157).
+    out += `<div class="voyage-plan-buttons"><button type="button" class="btn btn-outline-info" data-voyage-plan="map">${esc(t('MOD_VOY_PLAN_SHOW_MAP'))}</button>${sailBtn}</div>`;
     return out + navHtml();
   };
 

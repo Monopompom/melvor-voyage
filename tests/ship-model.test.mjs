@@ -206,7 +206,7 @@ test('every water and shoal hex has a shore distance; land has none', async () =
 
 test('save v1 migrates up with no ship; a ship round-trips; a bad ship is dropped', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 1, landHexes: 4, waterHexes: 0, backfilled: true }));
-  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   assert.deepEqual(save, { ...defaultSave(), landHexes: 4, backfilled: true });
   const withShip = { ...defaultSave(), boat: { ...dinghy(3, 7), cond: 64, hold: [], aboard: false }, ship: { hull: 'brig', q: 9, r: 1, cond: 70, hold: [] }, shipChecked: true };
   assert.deepEqual(loadSave(serializeSave(withShip)).save, withShip);
@@ -444,12 +444,12 @@ test('Pitch: better logs give more', () => {
   assert.ok(pitchChance(60) > pitchChance(30));
 });
 
-test('the hold: 6 slots on a dinghy, one more every 10 Voyage levels; reached at the ship', () => {
+test('the hold: 6 slots on a dinghy, a row of six more at Voyage 35 and 55 (the balance pass); reached at the ship', () => {
   assert.equal(holdSlots(dinghy(1, 1), 1), 6);
-  assert.equal(holdSlots(dinghy(1, 1), 39), 6);
-  assert.equal(holdSlots(dinghy(1, 1), 40), 12);
-  assert.equal(holdSlots(dinghy(1, 1), 79), 12);
-  assert.equal(holdSlots(dinghy(1, 1), 80), 18);
+  assert.equal(holdSlots(dinghy(1, 1), 34), 6);
+  assert.equal(holdSlots(dinghy(1, 1), 35), 12);
+  assert.equal(holdSlots(dinghy(1, 1), 54), 12);
+  assert.equal(holdSlots(dinghy(1, 1), 55), 18);
   assert.equal(holdSlots(dinghy(1, 1), 99), 18);
   for (const lv of [1, 40, 60, 80, 99]) assert.equal(holdSlots(dinghy(1, 1), lv) % 6, 0, 'whole rows of crates');
   assert.equal(holdSlots(null, 50), 0);

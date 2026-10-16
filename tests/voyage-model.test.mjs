@@ -36,7 +36,7 @@ test('free-unlock notice: kept through a reload, cleaned, and empty after the v5
   assert.deepEqual(save.unlockNotice, ['cartography', 'voyage']);
   const old = loadSave(JSON.stringify({ v: 5, landHexes: 1, waterHexes: 0, backfilled: false, ship: null, shipChecked: true,
     stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [] }));
-  assert.deepEqual(old.report.applied, [5, 6, 7, 8, 9]);
+  assert.deepEqual(old.report.applied, [5, 6, 7, 8, 9, 10]);
   assert.deepEqual(old.save.unlockNotice, []);
 });
 
@@ -72,7 +72,7 @@ test('skill milestones in data/skill.json: the compass stages, then the free cha
 
 test('v2 saves gain empty stores and a starter kit still to come; stores are cleaned', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 2, landHexes: 5, waterHexes: 1, backfilled: true, ship: null, shipChecked: true }));
-  assert.deepEqual(report.applied, [2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(report.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10]);
   assert.deepEqual(save.stores, { food: 0, fuel: 0 });
   assert.equal(save.kitGiven, false);
   assert.equal(save.landHexes, 5);
@@ -89,7 +89,7 @@ test('XP: a sailed hop counts its length in water hexes; hungry and free steps g
 test('v3 saves: the ship gains a sound hull; condition is kept to 0..100', () => {
   const v3 = { ...defaultSave(), v: 3, boat: undefined, ship: { hull: 'dinghy', q: 2, r: 5 } };
   const { save, report } = loadSave(JSON.stringify(v3));
-  assert.deepEqual(report.applied, [3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(report.applied, [3, 4, 5, 6, 7, 8, 9, 10]);
   assert.deepEqual(save.boat, { hull: 'dinghy', q: 2, r: 5, cond: 100, hold: [], aboard: false });
   assert.equal(save.ship, null);
   assert.equal(loadSave(JSON.stringify({ ...v3, v: 3, ship: null })).save.boat, null);
@@ -108,7 +108,7 @@ test('XP: a hex lit at night gives 25% more', () => {
 
 test('v4 saves gain an empty hold; hold entries are cleaned and merged', () => {
   const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 4, boat: undefined, ship: { hull: 'dinghy', q: 1, r: 1, cond: 90 } }));
-  assert.deepEqual(report.applied, [4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(report.applied, [4, 5, 6, 7, 8, 9, 10]);
   assert.deepEqual(save.boat.hold, []);
   const messy = [{ id: 'melvorD:Bones', qty: 5 }, { id: 'melvorD:Bones', qty: 2.7 }, { id: '', qty: 1 }, { id: 'x:Gone', qty: 3 }, { id: 'melvorD:Feathers', qty: 0 }, null];
   assert.deepEqual(loadSave(JSON.stringify({ ...defaultSave(), boat: { hull: 'dinghy', q: 1, r: 1, hold: messy } })).save.boat.hold, [{ id: 'melvorD:Bones', qty: 7 }, { id: 'x:Gone', qty: 3 }]);
@@ -118,7 +118,7 @@ test('v9 saves: the small boat and its hold become `boat`; no big ship; the boat
   const v9 = { v: 9, landHexes: 3, waterHexes: 1, backfilled: true, ship: { hull: 'longboat', q: 4, r: 8, cond: 61 }, shipChecked: true,
     stores: { food: 10, fuel: 2 }, kitGiven: true, hold: [{ id: 'melvorD:Bones', qty: 4 }], unlockNotice: [], journal: {}, navigator: true };
   const { save, report } = loadSave(JSON.stringify(v9));
-  assert.deepEqual(report.applied, [9]);
+  assert.deepEqual(report.applied, [9, 10]);
   assert.deepEqual(save.boat, { hull: 'longboat', q: 4, r: 8, cond: 61, hold: [{ id: 'melvorD:Bones', qty: 4 }], aboard: false });
   assert.equal(save.ship, null);
   assert.equal(save.hold, undefined);
@@ -133,4 +133,46 @@ test('v9 saves: the small boat and its hold become `boat`; no big ship; the boat
   assert.equal(loadSave(JSON.stringify({ ...defaultSave(), boat: { hull: 'dinghy', q: 0, r: 0, aboard: true } })).save.boat.aboard, false);
   assert.equal(loadSave(JSON.stringify({ ...defaultSave(), boat: brig })).save.boat, null);
   assert.equal(loadSave(JSON.stringify({ ...defaultSave(), ship: { hull: 'dinghy', q: 1, r: 1 } })).save.ship, null);
+});
+
+test('the balance pass: visited hexes as bits, one per hex of the map, cleaned on load', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { visitedBit, markVisited, isVisited, visitedCount, VISITED_BYTES } = await import('../src/voyage-model.mjs');
+  const table = JSON.parse(await readFile(new URL('../data/hex_terrain.json', import.meta.url), 'utf8'));
+  const bits = table.hexes.map((h) => visitedBit(h.q, h.r));
+  assert.ok(bits.every((b) => b >= 0 && b < VISITED_BYTES * 8), 'every map hex has a bit');
+  assert.equal(new Set(bits).size, table.hexes.length, 'no two hexes share one');
+  assert.equal(visitedBit(-1, 0), -1);
+  assert.equal(visitedBit(0, 40), -1);
+  let r = markVisited('', [{ q: 12, r: 13 }, { q: 12, r: 13 }, { q: 2, r: 27 }, { q: 99, r: 0 }]);
+  assert.equal(r.added, 2, 'repeats and off-map hexes are not new');
+  assert.ok(isVisited(r.visited, 12, 13) && isVisited(r.visited, 2, 27) && !isVisited(r.visited, 12, 14));
+  assert.equal(markVisited(r.visited, [{ q: 12, r: 13 }]).added, 0);
+  assert.equal(visitedCount(r.visited), 2);
+  const all = markVisited('', table.hexes).visited;
+  assert.equal(visitedCount(all), table.hexes.length);
+  assert.ok(all.length <= 160);
+  const { save } = loadSave(JSON.stringify({ ...defaultSave(), visited: r.visited }));
+  assert.equal(visitedCount(save.visited), 2, 'kept through a reload');
+  for (const junk of [5, 'not base64!', 'A'.repeat(400), null]) assert.equal(loadSave(JSON.stringify({ ...defaultSave(), visited: junk })).save.visited, '');
+});
+
+test('save v10 -> v11: visited filled from the journal\'s finds, misses and places', async () => {
+  const { isVisited, visitedCount } = await import('../src/voyage-model.mjs');
+  const journal = { found: { 'melvorD:Iron': ['3,4', '5,6'] }, missed: { 'melvorD:Gold': ['7,8'] }, places: { 'combat|melvorD:Farmlands': '3,4', 'trade|x': '10,2' } };
+  const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 10, journal }));
+  assert.deepEqual(report.applied, [10]);
+  assert.equal(visitedCount(save.visited), 4);
+  assert.ok(isVisited(save.visited, 3, 4) && isVisited(save.visited, 10, 2) && isVisited(save.visited, 7, 8) && !isVisited(save.visited, 0, 0));
+});
+
+test('the balance pass: travel discount 0.5% a level, discovery 100 XP', async () => {
+  const { travelDiscount, DISCOVERY_XP } = await import('../src/voyage-model.mjs');
+  assert.equal(travelDiscount(1), 0.5);
+  assert.equal(travelDiscount(30), 15);
+  assert.equal(travelDiscount(60), 30);
+  assert.equal(travelDiscount(99), 49.5);
+  assert.equal(travelDiscount(120), 49.5, 'capped at 99');
+  assert.equal(travelDiscount(NaN), 0);
+  assert.equal(DISCOVERY_XP, 100);
 });

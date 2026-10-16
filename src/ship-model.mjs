@@ -63,7 +63,9 @@ export function buyBlocker(spec, have) {
 export const UPGRADES = {
   longboat: {
     from: 'dinghy', level: 30, gp: 25000,
-    items: [{ id: 'melvorD:Oak_Logs', quantity: 300 }, { id: 'melvorD:Iron_Bar', quantity: 50 }, { id: 'voyage:Pitch', quantity: 25 }],
+    items: [{ id: 'melvorD:Oak_Logs', quantity: 300 }, { id: 'melvorD:Iron_Bar', quantity: 50 }, { id: 'voyage:Pitch', quantity: 25 },
+      // Big Bones for the ribs of the bigger boat (build .158, the user): about fifty giants' worth of combat.
+      { id: 'melvorD:Big_Bones', quantity: 50 }],
     /** data/skill.json's English name for its milestone (setup.mjs finds the milestone by it). */
     milestone: 'Longboat: built at a port',
   },
@@ -431,7 +433,7 @@ export function seaIndex(terrain) {
  */
 export const HOLD_SLOTS = { dinghy: 6, longboat: 12, brig: 18, galleon: 24 };
 export const HOLD_ROW = 6;
-export const HOLD_ROW_LEVELS = [40, 80];
+export const HOLD_ROW_LEVELS = [35, 55]; // the balance pass; was 40, 80
 export function holdSlots(ship, voyageLevel = 1) {
   if (ship == null) return 0;
   return (HOLD_SLOTS[ship.hull] ?? 0) + HOLD_ROW * HOLD_ROW_LEVELS.filter((l) => voyageLevel >= l).length;

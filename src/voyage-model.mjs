@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -13,6 +13,73 @@ export const SAVE_VERSION = 10;
 export const XP_PER_HEX = { land: 20, water: 40 };
 /** A hex lit at night (phase 3e) gives 25% more: the stars pay for the light. */
 export const STAR_XP = 0.25;
+
+/**
+ * Discovery XP (balance pass): the first time you ever enter a hex, land or sea; a hex under cloud
+ * never pays. About 80,000 over the map, so exploring pays more than walking the same road again.
+ */
+export const DISCOVERY_XP = 100;
+/** Each Voyage level cuts the game's hex travel cost by this many percent (4.26): -15% at 30, -49.5% at 99. */
+export const TRAVEL_DISCOUNT_PER_LEVEL = 0.5;
+/** The travel discount in percent at a Voyage level (a positive number; the modifier is its negative). */
+export const travelDiscount = (level) => TRAVEL_DISCOUNT_PER_LEVEL * Math.max(0, Math.min(99, Math.floor(level) || 0));
+
+/**
+ * Visited hexes (save v11): one bit per hex of the AoD map, kept as base64. The map is 32 columns (q 0..31) of 30
+ * offset rows (r + floor(q / 2) in 0..29), so bit q * 30 + row; 960 bits, 120 bytes, 160 characters. A hex outside the
+ * grid has no bit and is never counted.
+ */
+export const VISITED_COLS = 32;
+export const VISITED_ROWS = 30;
+export const VISITED_BYTES = (VISITED_COLS * VISITED_ROWS) / 8;
+export function visitedBit(q, r) {
+  if (!Number.isInteger(q) || !Number.isInteger(r) || q < 0 || q >= VISITED_COLS) return -1;
+  const row = r + Math.floor(q / 2);
+  return row < 0 || row >= VISITED_ROWS ? -1 : q * VISITED_ROWS + row;
+}
+const toBytes = (b64) => {
+  const out = new Uint8Array(VISITED_BYTES);
+  if (typeof b64 !== 'string' || b64 === '') return out;
+  try {
+    const bin = atob(b64);
+    for (let i = 0; i < Math.min(bin.length, VISITED_BYTES); i++) out[i] = bin.charCodeAt(i);
+  } catch { /* malformed: nothing visited */ }
+  return out;
+};
+const fromBytes = (bytes) => (bytes.every((b) => b === 0) ? '' : btoa(String.fromCharCode(...bytes)));
+/** Whether hex (q, r) is marked in `visited`. */
+export function isVisited(visited, q, r) {
+  const bit = visitedBit(q, r);
+  return bit >= 0 && (toBytes(visited)[bit >> 3] & (1 << (bit & 7))) !== 0;
+}
+/** Marks `hexes` ({ q, r }) visited: the new string and how many were new. */
+export function markVisited(visited, hexes) {
+  const bytes = toBytes(visited);
+  let added = 0;
+  for (const h of hexes) {
+    const bit = visitedBit(h?.q, h?.r);
+    if (bit < 0 || (bytes[bit >> 3] & (1 << (bit & 7))) !== 0) continue;
+    bytes[bit >> 3] |= 1 << (bit & 7);
+    added += 1;
+  }
+  return { visited: fromBytes(bytes), added };
+}
+/** How many hexes `visited` marks. */
+export function visitedCount(visited) {
+  let n = 0;
+  for (const b of toBytes(visited)) for (let x = b; x !== 0; x &= x - 1) n += 1;
+  return n;
+}
+/** The journal's hexes ("q,r" in found, missed and places), for the v11 migration: where you have certainly been. */
+export function journalHexes(journal) {
+  const out = [];
+  const add = (key) => { const m = typeof key === 'string' ? /^(-?\d+),(-?\d+)$/.exec(key) : null; if (m) out.push({ q: Number(m[1]), r: Number(m[2]) }); };
+  if (journal !== null && typeof journal === 'object') {
+    for (const list of [...Object.values(journal.found ?? {}), ...Object.values(journal.missed ?? {})]) if (Array.isArray(list)) list.forEach(add);
+    for (const hex of Object.values(journal.places ?? {})) add(hex);
+  }
+  return out;
+}
 
 /** Compass detail by Voyage level. Level 1 is today's reading: temperature and direction (decided 15 Oct 2026). */
 export const COMPASS_LEVELS = { steps: 10, name: 25 };
@@ -35,9 +102,10 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * hex it was first met on (combat areas fought in, trading places used), `guides` lists the guide pages written, in
  * the order they were written.
  * `navigator` (build .119) turns true once Navigator's Charts are bought: Plan a voyage may Set off.
+ * `visited` (save v11, the balance pass) is the hexes ever entered, as base64 bits (visitedBit): each pays DISCOVERY_XP once.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '' };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -48,9 +116,9 @@ export const JOURNAL_PLACE_KINDS = ['combat', 'trade'];
 export const JOURNAL_LIMITS = { found: 20, missed: 20 };
 
 /** Voyage levels that each give one free chart (Charting a country). */
-export const FREE_CHART_LEVELS = [30, 50, 70, 90];
+export const FREE_CHART_LEVELS = [30, 40, 55, 60]; // the balance pass; was 30, 50, 70, 90
 /** The Voyage level from which Navigator's Charts are sold (build .119; plan-model.mjs NAVIGATOR.level must match). */
-export const NAVIGATOR_LEVEL = 60;
+export const NAVIGATOR_LEVEL = 50; // the balance pass (4.26); was 60
 /** Plan a voyage opens at this Voyage level, a milestone (build .133): before it you explore by hand. */
 export const PLAN_LEVEL = 15;
 /** Unread marks kept at most (build .116): the oldest go first. */
@@ -96,6 +164,8 @@ export const MIGRATIONS = {
     const boat = ship !== null && typeof ship === 'object' ? { ...ship, hold: Array.isArray(hold) ? hold : [], aboard: false } : null;
     return { ...rest, v: 10, boat, ship: null };
   },
+  // the balance pass: visited hexes, filled from the journal's finds, misses and places (no XP for them)
+  10: (rec) => ({ ...rec, v: 11, visited: markVisited('', journalHexes(rec.journal)).visited }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -207,7 +277,13 @@ function clean(rec) {
     unlockNotice: FREE_UNLOCKS.filter((x) => Array.isArray(rec.unlockNotice) && rec.unlockNotice.includes(x)),
     journal: cleanJournal(rec.journal),
     navigator: rec.navigator === true,
+    visited: cleanVisited(rec.visited),
   };
+}
+/** Base64 of at most VISITED_BYTES bytes, or '' (nothing visited). */
+function cleanVisited(v) {
+  if (typeof v !== 'string' || v.length > Math.ceil(VISITED_BYTES / 3) * 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(v)) return '';
+  return fromBytes(toBytes(v));
 }
 
 /**
@@ -274,7 +350,7 @@ export function compassDetail(level) {
 
 /** Every compass stage, for the skill page and the milestones. */
 export const COMPASS_STAGES = [
-  { level: 1, text: 'How close (Hot, Warm, Cold, Freezing) and which way' },
+  { level: 1, text: 'How close and which way' },
   { level: COMPASS_LEVELS.steps, text: 'Also how many hexes away' },
   { level: COMPASS_LEVELS.name, text: 'Also the name of the place' },
 ];

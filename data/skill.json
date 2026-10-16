@@ -48,20 +48,26 @@
             {
               "type": "Custom",
               "level": 30,
-              "name": "Journal: chart one country",
-              "media": "assets/journal.png"
-            },
-            {
-              "type": "Custom",
-              "level": 30,
               "name": "Longboat: built at a port",
               "media": "assets/hull_longboat.png"
             },
             {
               "type": "Custom",
-              "level": 40,
+              "level": 30,
+              "name": "Journal: chart one country",
+              "media": "assets/journal.png"
+            },
+            {
+              "type": "Custom",
+              "level": 35,
               "name": "Hold: a new row of six crates",
               "media": "assets/hull_dinghy.png"
+            },
+            {
+              "type": "Custom",
+              "level": 40,
+              "name": "Journal: chart one country",
+              "media": "assets/journal.png"
             },
             {
               "type": "Custom",
@@ -72,8 +78,20 @@
             {
               "type": "Custom",
               "level": 50,
+              "name": "Navigator's Charts: sold at ports",
+              "media": "assets/icon.png"
+            },
+            {
+              "type": "Custom",
+              "level": 55,
               "name": "Journal: chart one country",
               "media": "assets/journal.png"
+            },
+            {
+              "type": "Custom",
+              "level": 55,
+              "name": "Hold: a new row of six crates",
+              "media": "assets/hull_dinghy.png"
             },
             {
               "type": "Custom",
@@ -84,24 +102,6 @@
             {
               "type": "Custom",
               "level": 60,
-              "name": "Navigator's Charts: sold at ports",
-              "media": "assets/icon.png"
-            },
-            {
-              "type": "Custom",
-              "level": 70,
-              "name": "Journal: chart one country",
-              "media": "assets/journal.png"
-            },
-            {
-              "type": "Custom",
-              "level": 80,
-              "name": "Hold: a new row of six crates",
-              "media": "assets/hull_dinghy.png"
-            },
-            {
-              "type": "Custom",
-              "level": 90,
               "name": "Journal: chart one country",
               "media": "assets/journal.png"
             }

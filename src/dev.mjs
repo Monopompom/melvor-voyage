@@ -405,13 +405,45 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       s.record.kitGiven = false;
       return 'kit cleared; save and reload to get it again';
     },
+    /**
+     * The pace counter (the balance pass): per real day, hexes by land and sea, new hexes, Voyage XP
+     * from hexes and from discovery (before the game's XP bonuses), in all (after them), GP paid for travel. Kept in this browser per character. pace('reset')
+     * clears it. Returns the days and a daily average.
+     */
+    pace(cmd) {
+      const all = paceRead();
+      if (cmd === 'reset') { paceWrite({}); return 'pace cleared'; }
+      const rows = Object.entries(all).sort(([a], [b]) => a.localeCompare(b)).map(([day, d]) => ({ day, ...d, xpAll: Math.round(d.xpEnd - d.xpStart) }));
+      const n = rows.length;
+      const avg = {};
+      if (n > 0) for (const k of ['moves', 'land', 'sea', 'newHexes', 'hexXP', 'discoveryXP', 'xpAll', 'gp']) avg[k] = Math.round(rows.reduce((t, r) => t + (r[k] ?? 0), 0) / n);
+      try { console.table(rows.map(({ xpStart, xpEnd, ...r }) => r)); } catch {}
+      return { days: n, perDay: avg, visited: model.visitedCount(state.voyageSkill?.()?.record.visited ?? '') };
+    },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },
     state,
   };
   const watchdog = installWatchdog(ctx, log);
   window.voyageDev = api;
-  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), voyage(level), level(skill, level), ship(), giveShip(false?), giveBrig(false?), brigMaterials(), galleonMaterials(), galleon(hull?), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond, kind), pitch(n, logs)');
+  // The pace counter's store and hook (setup.mjs calls state.pace after every paid move).
+  const paceKey = () => `voyage-pace-${game.characterName ?? 'unknown'}`;
+  function paceRead() { try { return JSON.parse(localStorage.getItem(paceKey()) ?? '{}') ?? {}; } catch { return {}; } }
+  function paceWrite(v) { try { localStorage.setItem(paceKey(), JSON.stringify(v)); } catch {} }
+  state.pace = (paid) => {
+    try {
+      const all = paceRead();
+      const now = new Date();
+      const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const xp = state.voyageSkill?.()?.xp ?? 0;
+      const d = all[day] ?? { moves: 0, land: 0, sea: 0, newHexes: 0, hexXP: 0, discoveryXP: 0, gp: 0, xpStart: paid.xpBefore ?? xp, xpEnd: xp };
+      d.moves += 1; d.land += paid.land; d.sea += paid.water; d.newHexes += paid.discovered;
+      d.hexXP += paid.hexXP; d.discoveryXP += paid.discoveryXP; d.gp += Math.round(paid.gp); d.xpEnd = xp;
+      all[day] = d;
+      paceWrite(all);
+    } catch (e) { log('pace counter failed', e); }
+  };
+  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), voyage(level), level(skill, level), ship(), giveShip(false?), giveBrig(false?), brigMaterials(), galleonMaterials(), galleon(hull?), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond, kind), pitch(n, logs), pace(reset?)');
 }
 
 /**
