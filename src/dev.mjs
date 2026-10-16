@@ -247,12 +247,14 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       }
       return `${s.name}: level ${s.level}`;
     },
-    /** The ship: where it is, whether you are aboard, and why the dinghy can't be built (if so). */
+    /** The vessels: where each is, which you are in, and why the dinghy can't be built or the brig bought (if so). */
     ship() {
       const sh = state.ship;
       if (sh === undefined) return 'ship module not loaded';
-      const s = sh.ship();
-      return { ship: s === undefined ? 'skill missing' : s, aboard: sh.aboard(), rules: sh.enabled(), where: s ? sh.whereIs(s) : undefined, launchSpot: sh.launchSpot(), buildBlocker: sh.buildBlocker() };
+      const s = sh.boat();
+      const b = sh.big();
+      return { boat: s === undefined ? 'skill missing' : s, ship: b, inVessel: sh.inVessel(), rules: sh.enabled(), where: s ? sh.whereIs(s) : undefined,
+        shipWhere: b ? sh.whereIs(b) : undefined, launchSpot: sh.launchSpot(), buildBlocker: sh.buildBlocker(), buyBlocker: sh.buyInfo()?.blocker };
     },
     /** The welcome popup (compass, purse line with `voyageDev.welcome(500)`), in its current layout. */
     welcome(purse = 0) { if (state.compass?.welcome === undefined) return 'compass module not loaded'; state.compass.welcome(purse); return 'shown'; },
@@ -303,15 +305,46 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
     /** A free dinghy: under you on the sea, else next to your coast hex. `false` removes the ship. */
     giveShip(give = true) {
       const sh = state.ship;
-      if (sh?.ship() === undefined) return 'Voyage skill missing';
+      if (sh?.boat() === undefined) return 'Voyage skill missing';
       if (give === false) { sh.setShip(null, 'removed (dev)'); return 'ship removed'; }
       const pos = state.position();
       const rec = pos ? sh.recOf(pos) : undefined;
       const spot = rec && (rec.t === 'water' || rec.t === 'shoal') ? rec : sh.launchSpot();
       if (spot === undefined) return 'stand on a coast hex (or on the sea)';
-      sh.setShip({ hull: 'dinghy', q: spot.q, r: spot.r }, 'given (dev)');
+      sh.setShip({ hull: 'dinghy', q: spot.q, r: spot.r, cond: 100, hold: [], aboard: false }, 'given (dev)');
       const h = map()?.getHex(new HexCoords(spot.q, spot.r));
       return `dinghy at ${h ? display(h) : `q ${spot.q}, r ${spot.r}`}`;
+    },
+    /**
+     * A free brig (build .150): under you on the sea, else at the quay of the port you stand on or next to; your boat
+     * is hoisted aboard when it lies there. `false` removes it, leaving a boat aboard on the brig's hex.
+     */
+    giveBrig(give = true) {
+      const sh = state.ship;
+      if (sh?.boat() == null) return 'needs the small boat first: voyageDev.giveShip()';
+      const boat = sh.boat();
+      if (give === false) {
+        const b = sh.big();
+        if (b == null) return 'no brig';
+        if (boat.aboard === true) sh.setVessel('boat', { ...boat, q: b.q, r: b.r, aboard: false }, 'brig removed (dev)');
+        sh.setVessel('ship', null, 'removed (dev)');
+        return 'brig removed';
+      }
+      const pos = state.position();
+      const rec = pos ? sh.recOf(pos) : undefined;
+      const quay = sh.buyInfo()?.quay;
+      const spot = rec && (rec.t === 'water' || rec.t === 'shoal') ? rec : quay;
+      if (spot === undefined) return 'stand on the sea, or on a port or next to one';
+      sh.setVessel('ship', { hull: 'brig', q: spot.q, r: spot.r, cond: 100, hold: [] }, 'given (dev)');
+      if (boat.aboard !== true && boat.q === spot.q && boat.r === spot.r) sh.setVessel('boat', { ...boat, aboard: true }, 'hoisted aboard (dev)');
+      const h = map()?.getHex(new HexCoords(spot.q, spot.r));
+      return `brig at ${h ? display(h) : `q ${spot.q}, r ${spot.r}`}`;
+    },
+    /** The brig's price on top of what you have: 150,000 GP, 400 Teak Logs, 100 Steel Bars, 75 Pitch. */
+    brigMaterials() {
+      game.gp.add(150000);
+      for (const [id, q] of [['melvorD:Teak_Logs', 400], ['melvorD:Steel_Bar', 100], ['voyage:Pitch', 75]]) game.bank.addItemByID(id, q, false, true, true);
+      return 'added 150,000 GP, 400 Teak Logs, 100 Steel Bars, 75 Pitch';
     },
     /** Builds-dinghy materials: 500 GP and 50 Normal Logs on top of what you have. */
     shipMaterials() {
@@ -323,9 +356,10 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
     resetShipCheck() {
       const s = state.voyageSkill?.();
       if (s === undefined) return 'Voyage skill missing';
+      s.record.boat = null;
       s.record.ship = null;
       s.record.shipChecked = false;
-      return 'ship cleared; save and reload to rerun the first-load placement';
+      return 'boat and ship cleared; save and reload to rerun the first-load placement';
     },
     /** Sets the stores (phase 3c), or reads them with no arguments. */
     stores(food, fuel) {
@@ -334,12 +368,12 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       if (food !== undefined) api.set(food, fuel ?? api.stores().fuel);
       return { ...api.stores(), loading: api.loadingHere() ?? 'none here' };
     },
-    /** Sets the hull condition (3d), 0 to 100, or reads it with no argument. */
-    hull(cond) {
+    /** Sets the hull condition (3d), 0 to 100, or reads it with no argument. `kind` 'boat' or 'ship' (the brig). */
+    hull(cond, kind = 'boat') {
       const sh = state.ship;
-      if (sh?.ship() == null) return 'no ship';
-      if (cond !== undefined) sh.setCond(cond);
-      return { cond: sh.cond(), repair: sh.repairInfo() };
+      if (sh?.vessel(kind) == null) return `no ${kind}`;
+      if (cond !== undefined) sh.setCond(cond, kind);
+      return { cond: sh.cond(kind), repair: sh.repairInfo(kind) };
     },
     /** Puts Pitch (and logs for the repairs) in the bank: pitch(n, logs?). */
     pitch(n = 10, logs = 0) {
@@ -363,7 +397,7 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
   };
   const watchdog = installWatchdog(ctx, log);
   window.voyageDev = api;
-  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), voyage(level), level(skill, level), ship(), giveShip(false?), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond), pitch(n, logs)');
+  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), voyage(level), level(skill, level), ship(), giveShip(false?), giveBrig(false?), brigMaterials(), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond, kind), pitch(n, logs)');
 }
 
 /**

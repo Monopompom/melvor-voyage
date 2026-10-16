@@ -1,19 +1,27 @@
-// The ship in the game (phase 3b): the rules of ship-model.mjs applied to the map. The ship lives in
-// the Voyage skill's save record (`record.ship`); this module keeps it in step with the player.
+// The vessels in the game (phase 3b; two vessels from build .150): the rules of ship-model.mjs applied
+// to the map. They live in the Voyage skill's save record: `record.boat`, the small boat (dinghy or longboat), and
+// `record.ship`, the big ship (the brig) or null. This module keeps them in step with the player. Inside this file
+// `ship()` is the small boat, as it was before the brig; `big()` is the big ship.
 //
 // Pathing: WorldMap.getHexNeighboursAndCosts feeds the game's A* (computePath), which the travel button, the
 // trader and the stranded check all use. Dropping the steps canStep refuses makes every path obey "off the ship,
-// land only" without touching travel itself. The rules apply only while state.active() (table trusted, rules on).
-// A move then calls afterMove, which moves the ship along. The hex overview says why a hex has no path.
+// land only" without touching travel itself. With a big ship that memoryless rule can't say which vessel you are in,
+// so computePath itself is replaced by ship-model.mjs routeSearch, whose path carries the vessel of each step
+// (`path.voyageModes`, destination first like the path). The rules apply only while state.active() (table trusted,
+// rules on). A move then calls afterMove, which moves the vessels along. The hex overview says why a hex has no path.
 
 // Modal buttons: confirm green, cancel blue outline (the game's default cancel is red; grey means disabled).
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
 export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, log }) {
-  const { HULLS, DINGHY_BUILD } = shipModel;
+  const { HULLS, DINGHY_BUILD, BIG_SHIPS } = shipModel;
   const skill = () => state.voyageSkill?.();
-  /** The ship, null when there is none, undefined when the skill is missing or its save is from a newer build. */
-  const ship = () => { const s = skill(); return s === undefined || s.futureRaw !== undefined ? undefined : s.record.ship; };
+  const record = () => { const s = skill(); return s === undefined || s.futureRaw !== undefined ? undefined : s.record; };
+  /** The small boat, null when there is none, undefined when the skill is missing or its save is from a newer build. */
+  const ship = () => record()?.boat;
+  /** The big ship (the brig), null when there is none; undefined as above. */
+  const big = () => record()?.ship;
+  const vessel = (kind) => (kind === 'ship' ? big() : ship());
   const enabled = () => ship() !== undefined && state.active();
   const listeners = [];
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
@@ -34,24 +42,44 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     if (geoFor !== state.terrain) { geo = shipModel.seaIndex(state.terrain); geoFor = state.terrain; }
     return geo;
   };
-  const aboard = () => { const p = player(); return p !== undefined && shipModel.isAboard(recOf(p), ship()); };
+  /** The vessel you are in: 'ship' on the big ship's hex, 'boat' on the small boat's, undefined ashore. */
+  const inVessel = () => {
+    const p = player();
+    if (p === undefined) return undefined;
+    const rec = recOf(p);
+    if (big() != null && shipModel.sameHex(rec, big())) return 'ship';
+    const b = ship();
+    if (b != null && b.aboard !== true && shipModel.sameHex(rec, b)) return 'boat';
+    return undefined;
+  };
+  const aboard = () => inVessel() !== undefined;
 
-  /** Every change to the ship goes through here: page, markers and the selected path follow. */
-  const setShip = (next, why) => {
+  /**
+   * Every change to a vessel goes through here: page, markers and the selected path follow. `kind` 'boat' (the small
+   * boat, `record.boat`) or 'ship' (the big ship, `record.ship`). The boat aboard follows the big ship's hex.
+   */
+  const setVessel = (kind, next, why) => {
     const s = skill();
     if (s === undefined || s.futureRaw !== undefined) return;
-    s.record.ship = next;
+    if (kind === 'ship') {
+      s.record.ship = next;
+      const b = s.record.boat;
+      if (b?.aboard === true) s.record.boat = next == null ? { ...b, aboard: false } : { ...b, q: next.q, r: next.r };
+    } else s.record.boat = next;
     s.renderQueue.page = true;
     try { game.cartography.renderQueue.hexPath = true; } catch {}
-    if (why) log(`ship ${why}:`, next);
+    if (why) log(`${kind} ${why}:`, next);
     listeners.forEach((fn) => { try { fn(); } catch (e) { log('ship listener failed', e); } });
     state.onSettingsChange(); // the here panel and the page redraw
   };
+  const setShip = (next, why) => setVessel('boat', next, why);
 
   // ---- pathing --------------------------------------------------------------------------------------------------
+  /** True while routeSearch reads the game's neighbours: it applies the rules itself. */
+  let rawNeighbours = false;
   ctx.patch(WorldMap, 'getHexNeighboursAndCosts').after(function (result, hex) {
     try {
-      if (!Array.isArray(result) || !enabled()) return result;
+      if (rawNeighbours || !Array.isArray(result) || !enabled()) return result;
       const from = recOf(hex);
       const s = ship();
       const g = geoNow();
@@ -59,6 +87,34 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       // Fast travel between ports is sailing (3c): the hop needs the ship at this port's quay.
       return result.filter(([n]) => (isHop(hex, n) ? shipModel.canHop(from, recOf(n), s, dockOf(n), g) : shipModel.canStep(from, recOf(n), s, g)));
     } catch (e) { log('ship pathing failed; vanilla path', e); return result; }
+  });
+
+  /**
+   * Two vessels (build .150): the route over (hex, vessel you are in). The game's own A* stays for everyone without a
+   * big ship. The path is the game's (destination first) with `voyageModes` alongside.
+   */
+  ctx.patch(WorldMap, 'computePath').replace(function (original, start, goal) {
+    if (!enabled() || big() == null) return original(start, goal);
+    const g = geoNow();
+    if (g === undefined) return original(start, goal);
+    try {
+      const costModifier = this.cartography.travelCostMultiplier;
+      const scale = costModifier * this._lowestTravelCost;
+      rawNeighbours = true;
+      let found;
+      try {
+        found = shipModel.routeSearch({
+          start, goal, key: (h) => `${h.q},${h.r}`, rec: recOf,
+          neighbours: (h) => this.getHexNeighboursAndCosts(h, costModifier).map(([n, c]) => [n, c, isHop(h, n)]),
+          heuristic: (h) => this._pathHeuristic(goal, h, scale),
+          boat: ship(), ship: big(), geo: g, dockOf,
+        });
+      } finally { rawNeighbours = false; }
+      if (found === undefined) return undefined;
+      const path = [...found.path].reverse();
+      path.voyageModes = [...found.modes].reverse();
+      return path;
+    } catch (e) { rawNeighbours = false; log('route search failed; vanilla path', e); return original(start, goal); }
   });
 
   /** A fast-travel hop between two game hexes (the game's port network; getTravelCosts skips these). */
@@ -81,11 +137,11 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     const around = state.terrain.neighbours(rec.q, rec.r);
     return shipModel.dockSpot(rec, around.filter(charted)) ?? shipModel.dockSpot(rec, around);
   };
-  /** Sea steps from `rec` to a coast the current hull may land on (any coast with no ship); 0 on land. */
-  const homeOf = (rec) => {
+  /** Sea steps from `rec` to a coast the hull `v` (the small boat by default) may land on (any coast with none); 0 on land. */
+  const homeOf = (rec, v = ship()) => {
     const g = geoNow();
     if (g === undefined) return shipModel.isSea(rec) ? (rec.shore ?? 1) : 0;
-    return g.home(rec, ship() == null ? 0 : shipModel.tierOf(ship()));
+    return g.home(rec, v == null ? 0 : shipModel.tierOf(v));
   };
 
   /**
@@ -93,10 +149,11 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
    * stores-model.mjs planMove: { water, sea, cls, fastTravel, hop, free, homeward, deep }. `hop` is a fast-travel hop's
    * straight-line length while the ship rules make it sailing; with the rules off a hop stays vanilla (free). `free`
    * also marks the homeward rule's moves. `homeward`: a sea step closer to a coast. `deep`: 3+ hexes from land (hull
-   * wear, 3d).
+   * wear, 3d). `vessel` ('boat' or 'ship', build .150): what a sea step or hop is sailed in, from the path's
+   * `voyageModes` (the small boat for a path without them); its reach, wear and condition apply.
    */
   const stepsOf = (path) => {
-    const s = ship();
+    const modes = path.voyageModes;
     const g = geoNow();
     const sailing = enabled();
     const steps = [];
@@ -104,13 +161,16 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       const next = path[i];
       const prev = path[i + 1];
       const rec = recOf(next);
+      const m = modes?.[i];
+      const kind = m === undefined ? 'boat' : (m.hop ?? (m.m === 'ship' ? 'ship' : 'boat'));
+      const v = vessel(kind);
       const fastTravel = isHop(prev, next);
       const sea = shipModel.isSea(rec);
       const hop = fastTravel && sailing ? terrainMod.hexDistance(prev, next) : 0;
-      const free = (fastTravel && hop === 0) || shipModel.isFreeStep(rec, s, g);
-      const homeward = sea && homeOf(rec) < homeOf(recOf(prev));
+      const free = (fastTravel && hop === 0) || shipModel.isFreeStep(rec, v, g);
+      const homeward = sea && homeOf(rec, v) < homeOf(recOf(prev), v);
       const deep = sea && (Number.isInteger(rec.shore) ? rec.shore : 1) >= shipModel.DEEP_SHORE;
-      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep });
+      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(sea || hop > 0 ? { vessel: kind } : {}) });
     }
     return steps;
   };
@@ -120,15 +180,27 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
    * for. Standing on the sea away from it (a move with the rules off) brings it over: on the sea you are aboard.
    */
   const afterMove = (path) => {
-    const s = ship();
-    if (s == null) return;
+    // Two vessels: replay the route's modes (build .150).
+    if (Array.isArray(path.voyageModes) && big() != null) {
+      const recs = path.map((hex) => ({ ...recOf(hex), hex })).reverse();
+      const modes = [...path.voyageModes].reverse();
+      const after = shipModel.vesselsAfterRoute(recs, modes, ship(), big(), (rec) => dockOf(rec.hex));
+      if (after.ship !== big()) setVessel('ship', after.ship, 'moved');
+      if (after.boat !== ship()) setVessel('boat', after.boat, 'moved');
+      snapToPlayer();
+      return;
+    }
+    // One vessel moves: the big ship when the move starts on it, else the small boat (the trader's roads, rules off).
+    const startRec = recOf(path[path.length - 1]);
+    const kind = big() != null && shipModel.sameHex(startRec, big()) ? 'ship' : 'boat';
+    const s = vessel(kind);
+    if (s == null || (kind === 'boat' && s.aboard === true)) { snapToPlayer(); return; }
     // Walking order; a record reached by a sailed fast-travel hop carries hop: true (the ship goes with you).
     const recs = path.map((hex, i) => ({ ...recOf(hex), hop: enabled() && i < path.length - 1 && isHop(path[i + 1], hex), hex })).reverse();
     let next = shipModel.shipAfterHops(recs, s, (rec) => dockOf(rec.hex));
     if (next !== s && shipModel.sameHex(next, s)) next = s;
-    const here = recs[recs.length - 1];
-    if (shipModel.isSea(here) && !shipModel.sameHex(here, next)) next = { ...next, q: here.q, r: here.r };
-    if (next !== s) setShip(next, 'moved');
+    if (next !== s) setVessel(kind, next, 'moved');
+    snapToPlayer();
   };
 
   // ---- building -------------------------------------------------------------------------------------------------
@@ -165,7 +237,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     const spot = launchSpot();
     const costs = buildCosts();
     costs.consumeCosts();
-    setShip({ hull: 'dinghy', q: spot.q, r: spot.r, cond: 100 }, 'built');
+    setShip({ hull: 'dinghy', q: spot.q, r: spot.r, cond: 100, hold: [], aboard: false }, 'built');
     state.journal?.learn('dinghy');
     try { game.notifications.createSuccessNotification('voyage:ship', t('MOD_VOY_SHIP_BUILT'), ctx.getResourceUrl(HULLS.dinghy.media)); } catch {}
     return true;
@@ -203,14 +275,55 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     return true;
   };
 
+  // ---- the big ship (build .150) ----------------------------------------------
+  /** The port you stand on or next to (a game hex), or undefined. */
+  const portHex = () => {
+    const p = player();
+    if (p === undefined || state.terrain === undefined) return undefined;
+    const rec = recOf(p);
+    if (shipModel.isPort(rec)) return p;
+    const n = state.terrain.neighbours(rec.q, rec.r).find((x) => shipModel.isPort(x));
+    try { return n === undefined ? undefined : game.cartography.activeMap?.getHex(new HexCoords(n.q, n.r)); } catch { return undefined; }
+  };
+  /** { id, hull, spec, quay, blocker } for buying the brig, or undefined once you have a big ship. */
+  const buyInfo = () => {
+    if (big() === undefined || big() !== null) return undefined;
+    const id = 'brig';
+    const spec = BIG_SHIPS[id];
+    const port = portHex();
+    const quay = port === undefined ? undefined : dockOf(port);
+    let blocker;
+    if (!state.active()) blocker = t('MOD_VOY_SHIP_BLOCK_RULES_OFF');
+    else {
+      const why = shipModel.buyBlocker(spec, { ship: big(), level: skill()?.level ?? 1, atPort: atPort() && port !== undefined, quay, owned: costsOf(spec).checkIfOwned() });
+      if (why === 'level') blocker = t('MOD_VOY_UPGRADE_BLOCK_LEVEL', { level: `${spec.level}` });
+      else if (why === 'port') blocker = t('MOD_VOY_BRIG_BLOCK_PORT');
+      else if (why === 'quay') blocker = t('MOD_VOY_BRIG_BLOCK_QUAY');
+      else if (why === 'cost') blocker = t('MOD_VOY_UPGRADE_BLOCK_COST');
+    }
+    return { id, hull: HULLS[id], spec, quay, blocker };
+  };
+  const buy = () => {
+    const info = buyInfo();
+    if (info === undefined) return false;
+    if (info.blocker !== undefined) { notifyPlayer(skill(), info.blocker, 'danger'); return false; }
+    costsOf(info.spec).consumeCosts();
+    setVessel('ship', { hull: info.id, q: info.quay.q, r: info.quay.r, cond: 100, hold: [] }, 'bought');
+    // A boat lying on the brig's new quay is hoisted aboard: two vessels never share a hex otherwise.
+    const b = ship();
+    if (b != null && b.aboard !== true && shipModel.sameHex(b, info.quay)) setVessel('boat', { ...b, aboard: true }, 'hoisted aboard');
+    try { game.notifications.createSuccessNotification('voyage:ship', t('MOD_VOY_BRIG_BOUGHT'), ctx.getResourceUrl(info.hull.media)); } catch {}
+    return true;
+  };
+
   // ---- hull condition and repairs (phase 3d) -----------------------------------------------------
-  const cond = () => shipModel.condOf(ship());
-  /** After a move the stores planned: the hull keeps what the voyage left of it. */
-  const setCond = (value) => {
-    const s = ship();
+  const cond = (kind = 'boat') => shipModel.condOf(vessel(kind));
+  /** After a move the stores planned: each hull keeps what the voyage left of it. `kind` 'boat' or 'ship'. */
+  const setCond = (value, kind = 'boat') => {
+    const s = vessel(kind);
     if (s == null || !Number.isFinite(value)) return;
     const next = Math.min(100, Math.max(0, Math.round(value)));
-    if (next !== shipModel.condOf(s)) setShip({ ...s, cond: next });
+    if (next !== shipModel.condOf(s)) setVessel(kind, { ...s, cond: next });
   };
   /** Every log in the bank, cheapest first (by the Firemaking level it needs): timber for repairs. */
   const logStacks = () => {
@@ -225,8 +338,8 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   };
   const pitchItem = () => { try { return game.items.getObjectByID('voyage:Pitch'); } catch { return undefined; } };
   /** { cond, plan, logs, pitch, blocker }: what a repair here would do, and why it can't when it can't. */
-  const repairInfo = () => {
-    const s = ship();
+  const repairInfo = (kind = 'boat') => {
+    const s = vessel(kind);
     if (s == null) return undefined;
     const logs = logStacks().reduce((n, x) => n + x.qty, 0);
     const item = pitchItem();
@@ -236,12 +349,15 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     let blocker;
     const p = player();
     if (c >= 100) blocker = t('MOD_VOY_HULL_BLOCK_SOUND');
-    else if (p === undefined || !shipModel.canRepair(recOf(p), s, recOf({ q: s.q, r: s.r, isWater: true }))) blocker = t('MOD_VOY_HULL_BLOCK_BEACH', { hull: hullWord(HULLS[s.hull]) });
+    else if (kind === 'ship' && (p === undefined || !shipModel.canRepair(recOf(p), s, recOf({ q: s.q, r: s.r, isWater: true }), atPort() && shipModel.hexDist(recOf(p), s) <= 1))) blocker = t('MOD_VOY_HULL_BLOCK_PORT', { hull: hullWord(HULLS[s.hull]) });
+    // A boat on the big ship's deck is mended there while you are aboard the big ship.
+    else if (kind !== 'ship' && s.aboard === true && inVessel() !== 'ship') blocker = t('MOD_VOY_HULL_BLOCK_DECK', { hull: hullWord(HULLS[s.hull]), ship: hullWord(HULLS[big()?.hull]) });
+    else if (kind !== 'ship' && s.aboard !== true && (p === undefined || !shipModel.canRepair(recOf(p), s, recOf({ q: s.q, r: s.r, isWater: true })))) blocker = t('MOD_VOY_HULL_BLOCK_BEACH', { hull: hullWord(HULLS[s.hull]) });
     else if (plan.steps === 0) blocker = t('MOD_VOY_HULL_BLOCK_MATERIALS', { logs: `${shipModel.REPAIR.logs}`, pitch: `${shipModel.REPAIR.pitch}`, step: `${shipModel.REPAIR.step}` });
     return { cond: c, plan, logs, pitch, blocker };
   };
-  const repair = () => {
-    const info = repairInfo();
+  const repair = (kind = 'boat') => {
+    const info = repairInfo(kind);
     if (info === undefined) return false;
     if (info.blocker !== undefined) { notifyPlayer(skill(), info.blocker, 'danger'); return false; }
     let logs = info.plan.logs;
@@ -252,7 +368,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       logs -= n;
     }
     game.bank.removeItemQuantity(pitchItem(), info.plan.pitch, true);
-    setShip({ ...ship(), cond: info.plan.to }, `repaired to ${info.plan.to}%`);
+    setVessel(kind, { ...vessel(kind), cond: info.plan.to }, `repaired to ${info.plan.to}%`);
     try { game.notifications.createSuccessNotification('voyage:hull', t('MOD_VOY_HULL_REPAIRED', { cond: `${info.plan.to}` }), ctx.getResourceUrl('assets/hull_condition.png')); } catch {}
     return true;
   };
@@ -299,34 +415,42 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     const p = player();
     if (p === undefined) return;
     s.record.shipChecked = true;
-    if (s.record.ship !== null) return;
+    if (s.record.boat !== null) return;
     const map = p.map;
     const rec = recOf(p);
     const spot = shipModel.freeBoatSpot(rec, map?.startingLocation, state.terrain, terrainMod.hexDistance);
     if (spot === undefined) return;
-    setShip({ hull: 'dinghy', q: spot.q, r: spot.r, cond: 100 }, 'given');
+    setShip({ hull: 'dinghy', q: spot.q, r: spot.r, cond: 100, hold: [], aboard: false }, 'given');
     const far = shipModel.beyondReach(rec, { hull: 'dinghy', q: rec.q, r: rec.r }, geoNow());
     const lines = noticeSections(shipModel.isSea(rec) ? (far ? 'far' : 'sea') : 'overseas');
     pendingNotice = lines;
   };
 
-  /** Keeps "on the sea means aboard" true on load, whatever moved the player since (rules off, a portal). */
+  /**
+   * Keeps "on the sea means aboard" true on load, whatever moved the player since (rules off, a portal): on the sea
+   * away from both vessels, the small boat comes over (the big ship when the boat rides on it).
+   */
   const snapToPlayer = () => {
-    const s = ship();
     const p = player();
-    if (s == null || p === undefined) return;
+    if (p === undefined) return;
     const rec = recOf(p);
-    if (shipModel.isSea(rec) && !shipModel.sameHex(rec, s)) setShip({ ...s, q: rec.q, r: rec.r }, 'snapped to the player');
+    if (!shipModel.isSea(rec) || inVessel() !== undefined) return;
+    const b = ship();
+    if (b != null && b.aboard !== true) setVessel('boat', { ...b, q: rec.q, r: rec.r }, 'snapped to the player');
+    else if (big() != null) setVessel('ship', { ...big(), q: rec.q, r: rec.r }, 'snapped to the player');
   };
 
   // ---- hex overview: why there is no path ------------------------------------------------------------------------
   const reasonFor = (hex) => {
     if (!enabled() || hex === undefined || !hex.isFullySurveyed || hex.isPlayerHere || hex.map.selectedHexPath !== undefined) return undefined;
     const to = recOf(hex);
-    const s = ship();
+    // With the big ship (build .150) the reasons speak of it: it takes you furthest, and the boat it carries lands
+    // at its tier. A check below gives its reason only when no vessel you own gets past it.
+    const s = big() ?? ship();
+    const fleet = [big(), ship()].filter((v) => v != null && v.aboard !== true);
     // Fast travel between ports is sailing (3c): the hop is there only with the ship at this port's quay.
     const here = player();
-    if (here !== undefined && isHop(here, hex) && !shipModel.canHop(recOf(here), to, s, dockOf(hex), geoNow())) {
+    if (here !== undefined && isHop(here, hex) && !fleet.some((v) => shipModel.canHop(recOf(here), to, v, dockOf(hex), geoNow()))) {
       const island = geoNow()?.islandOf(to);
       if (s === null) return t('MOD_VOY_SHIP_PATH_HOP_NO_BOAT');
       if (island === undefined || island.tier <= HULLS[s.hull].tier) return t('MOD_VOY_SHIP_PATH_HOP_AWAY', { hull: hullWord(HULLS[s.hull]), where: whereIs(s) });
@@ -345,11 +469,11 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       return t('MOD_VOY_SHIP_PATH_ISLAND_LOCKED', { hull: name, island: t(shipModel.islandNameKey(island.id)), needed: t(shipModel.tierNameKey(island.tier)) });
     }
     // A lake or a cut-off channel: walking to the ship would not help (3b check, 16 Oct 2026).
-    const body = g?.waterBody(s);
-    if (shipModel.isSea(to) && to.cloud !== true && body !== undefined && g.waterBody(to) !== body) {
+    const bodies = fleet.map((v) => g?.waterBody(v));
+    if (shipModel.isSea(to) && to.cloud !== true && bodies.length > 0 && bodies.every((b) => b !== undefined && g.waterBody(to) !== b)) {
       return t('MOD_VOY_SHIP_PATH_OTHER_WATER', { hull: name });
     }
-    if (shipModel.beyondReach(to, s, g)) return t('MOD_VOY_SHIP_PATH_TOO_FAR', { hull: name, reach: `${hull.reach}` });
+    if (fleet.every((v) => shipModel.beyondReach(to, v, g))) return t('MOD_VOY_SHIP_PATH_TOO_FAR', { hull: name, reach: `${hull.reach}` });
     if (!aboard()) return t('MOD_VOY_SHIP_PATH_MOORED', { hull: name, where: whereIs(s) });
     return t('MOD_VOY_SHIP_PATH_OUT_OF_REACH', { hull: name, reach: `${hull.reach}` });
   };
@@ -381,15 +505,21 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   /** voyageDev.dinghyNotice(kind): the first-load notice again. */
   const demoNotice = (kind = 'overseas') => notice(noticeSections(kind));
   const api = {
-    ship, aboard, enabled, setShip, demoNotice,
+    boat: ship, big, vessel, inVessel, aboard, enabled, setShip, setVessel, demoNotice,
     hullName: (s) => hullWord(HULLS[s?.hull]), stepsOf, afterMove, homeOf, dockOf, isHop, build, buildBlocker, buildCosts, launchSpot, whereIs, recOf,
-    cond, setCond, repairInfo, repair, upgradeInfo, upgrade,
+    cond, setCond, repairInfo, repair, upgradeInfo, upgrade, buyInfo, buy, buyCosts: () => costsOf(BIG_SHIPS.brig),
     onChange: (fn) => listeners.push(fn),
-    /** May a road step from one game hex to the next under the ship rules? True while they are off (trader roads). */
+    /**
+     * May a road step from one game hex to the next under the ship rules? True while they are off (trader roads). With
+     * two vessels a step either one could take.
+     */
     allows(fromHex, toHex) {
       if (!enabled()) return true;
       const g = geoNow();
-      return g === undefined || shipModel.canStep(recOf(fromHex), recOf(toHex), ship(), g);
+      if (g === undefined) return true;
+      const from = recOf(fromHex);
+      const to = recOf(toHex);
+      return shipModel.canStep(from, to, ship(), g) || (big() != null && shipModel.canStep(from, to, big(), g));
     },
     /**
      * Centres the map on a hex the way the game's own location search does (animateMoveToHex). Not moveToHex: that
@@ -401,8 +531,8 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       const zoom = cartographyMap.viewport?.scaled;
       cartographyMap.animateMoveToHex(hex, Number.isFinite(zoom) ? zoom : 1);
     },
-    /** The game hex of the ship on the active map, or undefined. */
-    hex: () => { const s = ship(); try { return s ? game.cartography.activeMap?.getHex(new HexCoords(s.q, s.r)) : undefined; } catch { return undefined; } },
+    /** The game hex of a vessel ('boat' by default, or 'ship') on the active map, or undefined. */
+    hex: (kind = 'boat') => { const s = vessel(kind); try { return s ? game.cartography.activeMap?.getHex(new HexCoords(s.q, s.r)) : undefined; } catch { return undefined; } },
     loaded() {
       try { firstLoad(); snapToPlayer(); } catch (e) { console.error('[Voyage] ship load failed', e); }
       listeners.forEach((fn) => { try { fn(); } catch (e) { log('ship listener failed', e); } });

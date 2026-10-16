@@ -64,8 +64,10 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     const st = state.stores;
     let split = { ok: true, legs: [{ from: 0, to: n }] };
     if (st?.enabled?.() === true && steps.length === n) {
-      const ship = state.ship?.ship?.();
-      const have = { ...st.stores(), ...(ship != null && state.ship.enabled() ? { cond: ship.cond } : {}) };
+      // Hull condition: the boat's, or with the big ship (build .150) each vessel's own.
+      const sh = state.ship;
+      const on = sh?.boat?.() != null && sh.enabled();
+      const have = { ...st.stores(), ...(!on ? {} : sh.big?.() != null ? { conds: { boat: sh.cond('boat'), ship: sh.cond('ship') } } : { cond: sh.cond('boat') }) };
       const cap = st.capacity();
       const bank = st.loadable().map((x) => ({ id: x.item.id, kind: x.kind, unit: x.unit, qty: x.qty }));
       const price = (h, from, to) => st.priceSteps(h, steps.slice(from, to), walk[to]);
@@ -78,12 +80,13 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     }
     let costs;
     try { costs = game.cartography.getTravelCosts(r.path); } catch {}
-    const counts = { land: 0, sea: 0, hops: 0, wear: 0 };
+    const counts = { land: 0, sea: 0, hops: 0, wear: 0, wears: { boat: 0, ship: 0 } };
     for (const s of steps) {
       if (s.fastTravel) counts.hops++;
       else if (s.sea) counts.sea++;
       else counts.land++;
       counts.wear += S.wearOf(s);
+      counts.wears[s.vessel === 'ship' ? 'ship' : 'boat'] += S.wearOf(s);
     }
     if (steps.length !== n) counts.land = n;
     return { ...r, walk, steps, split, costs, counts };
@@ -349,10 +352,16 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       rows += `<div></div><div class="voyage-plan-when">${esc(t(end === undefined ? 'MOD_VOY_PLAN_WHEN_NOW' : 'MOD_VOY_PLAN_WHEN'))}</div>`;
       rows += row(t('MOD_VOY_PLAN_ROW_FOOD'), `${icon('assets/ration.png', t('MOD_VOY_PLAN_ROW_FOOD'))}${hp(have.food)}${end === undefined ? '' : `${arrow}<span class="${tone(end.food, S.LOW.food)}">${hp(end.food)}</span>`}`);
       rows += row(t('MOD_VOY_PLAN_ROW_FUEL'), `${icon('assets/fuel.png', t('MOD_VOY_PLAN_ROW_FUEL'))}${fuel(have.fuel)}${end === undefined ? '' : `${arrow}<span class="${tone(end.fuel, S.LOW.fuel)}">${fuel(end.fuel)}</span>`}`);
-      if (c.wear > 0 && state.ship?.enabled?.()) {
-        const cond = state.ship.ship()?.cond ?? 100;
-        const after = Math.max(0, cond - c.wear);
-        rows += row(t('MOD_VOY_PLAN_ROW_HULL'), `${icon('assets/hull_condition.png', t('MOD_VOY_PLAN_ROW_HULL'))}${cond}%${arrow}<span class="${after <= 0 ? 'text-danger' : after < 50 ? 'text-warning' : ''}">${after}%</span> <span class="text-muted ml-1">${esc(t('MOD_VOY_PLAN_WEAR', { wear: `${c.wear}` }))}</span>`);
+      // One hull row per vessel that wears on the way; named when you own two (build .150).
+      const sh = state.ship;
+      const two = sh?.big?.() != null;
+      for (const kind of ['ship', 'boat']) {
+        const wear = c.wears[kind];
+        if (!(wear > 0) || !sh?.enabled?.() || sh.vessel(kind) == null) continue;
+        const cond = sh.cond(kind);
+        const after = Math.max(0, cond - wear);
+        const label = two ? `${t('MOD_VOY_PLAN_ROW_HULL')}: ${sh.hullName(sh.vessel(kind))}` : t('MOD_VOY_PLAN_ROW_HULL');
+        rows += row(label, `${icon('assets/hull_condition.png', t('MOD_VOY_PLAN_ROW_HULL'))}${cond}%${arrow}<span class="${after <= 0 ? 'text-danger' : after < 50 ? 'text-warning' : ''}">${after}%</span> <span class="text-muted ml-1">${esc(t('MOD_VOY_PLAN_WEAR', { wear: `${wear}` }))}</span>`);
       }
     }
     const gpOk = plan.costs?.checkIfOwned() ?? true;

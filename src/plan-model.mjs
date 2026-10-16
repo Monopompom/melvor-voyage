@@ -67,13 +67,13 @@ export function splitLegs(n, have, bank, price, loadAt) {
     const all = price(cur, from, n);
     if (all.ok) {
       legs.push({ from, to: n });
-      return { ok: true, legs, depart, have: { ...cur, food: all.food, fuel: all.fuel, ...(all.cond === undefined ? {} : { cond: all.cond }) } };
+      return { ok: true, legs, depart, have: { ...cur, food: all.food, fuel: all.fuel, ...(all.cond === undefined ? {} : { cond: all.cond }), ...(all.conds === undefined ? {} : { conds: all.conds }) } };
     }
     let stop;
     for (let to = n - 1; to > from; to--) {
       const p = price(cur, from, to);
       if (!p.ok) continue;
-      const after = { ...cur, food: p.food, fuel: p.fuel, ...(p.cond === undefined ? {} : { cond: p.cond }) };
+      const after = { ...cur, food: p.food, fuel: p.fuel, ...(p.cond === undefined ? {} : { cond: p.cond }), ...(p.conds === undefined ? {} : { conds: p.conds }) };
       const l = loadAt(to, after, stock);
       if (l === undefined || l.used.length === 0) continue;
       stop = { to, load: l, after };

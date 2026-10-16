@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -18,13 +18,15 @@ export const STAR_XP = 0.25;
 export const COMPASS_LEVELS = { steps: 10, name: 25 };
 
 /**
- * `ship` is `{ hull, q, r, cond }` or null (phase 3b): the hull id of ship-model.mjs HULLS, the hex it floats on and
- * (3d) its condition, 0 to 100 %.
+ * `boat` is the small boat (dinghy or longboat), `{ hull, q, r, cond, hold, aboard }` or null; `ship` the big ship
+ * (brig, later galleon), `{ hull, q, r, cond, hold }` or null (save v10). The hull
+ * id of ship-model.mjs HULLS, the hex it floats on, its condition 0 to 100 % (3d) and its hold. `aboard`: the boat
+ * rides on the big ship and sits on its hex. Before v10 `ship` was the small boat and `hold` its hold.
  * `shipChecked` turns true after the first load with ships, which places a free dinghy for a character that phase 2
  * left on the water or on another landmass (existing characters). It runs once per character.
  * `stores` (phase 3c) is what the player has loaded for the road: `food` in HP of healing, `fuel` in units (fractional:
  * the Firemaking discount). `kitGiven` turns true once the one-time starter kit has gone into them.
- * `hold` (build .72) is what the ship carries for you: [{ id, qty }], item ids and whole quantities, one entry a slot.
+ * A vessel's `hold` (build .72) is what it carries for you: [{ id, qty }], item ids and whole quantities, one entry a slot.
  * `unlockNotice` (build .104) lists what a mode that buys skills got for free ('cartography', 'voyage') and the player
  * has not been told yet. It is in the save so the notice still comes when the page reloads during the tutorial (16 Oct
  * 2026: a reload mid-tutorial lost it, the flags were in memory).
@@ -35,7 +37,7 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * `navigator` (build .119) turns true once Navigator's Charts are bought: Plan a voyage may Set off.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, hold: [], unlockNotice: [], journal: emptyJournal(), navigator: false };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -88,6 +90,12 @@ export const MIGRATIONS = {
   7: (rec) => ({ ...rec, v: 8, journal: { ...(rec.journal !== null && typeof rec.journal === 'object' ? rec.journal : {}), charted: [], freeUsed: 0, unread: {} } }),
   // build .119: Navigator's Charts not bought yet
   8: (rec) => ({ ...rec, v: 9, navigator: false }),
+  // build .150, two vessels: the small boat and its hold become `boat`; no big ship yet
+  9: (rec) => {
+    const { hold, ship, ...rest } = rec;
+    const boat = ship !== null && typeof ship === 'object' ? { ...ship, hold: Array.isArray(hold) ? hold : [], aboard: false } : null;
+    return { ...rest, v: 10, boat, ship: null };
+  },
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -110,12 +118,19 @@ function cleanHold(hold) {
   return out;
 }
 
-/** A saved ship, or null when it is missing or malformed. `hulls` is the set of known hull ids. */
-function cleanShip(ship, hulls) {
-  if (ship === null || typeof ship !== 'object') return null;
-  if (!hulls.includes(ship.hull) || !Number.isInteger(ship.q) || !Number.isInteger(ship.r)) return null;
-  const cond = Number.isFinite(ship.cond) ? Math.min(100, Math.max(0, Math.round(ship.cond))) : 100;
-  return { hull: ship.hull, q: ship.q, r: ship.r, cond };
+/** A saved vessel, or null when it is missing or malformed. `hulls` is the set of hull ids it may have. */
+function cleanVessel(v, hulls) {
+  if (v === null || typeof v !== 'object') return null;
+  if (!hulls.includes(v.hull) || !Number.isInteger(v.q) || !Number.isInteger(v.r)) return null;
+  const cond = Number.isFinite(v.cond) ? Math.min(100, Math.max(0, Math.round(v.cond))) : 100;
+  return { hull: v.hull, q: v.q, r: v.r, cond, hold: cleanHold(v.hold) };
+}
+/** The boat: aboard only with a big ship to ride on, and then on its hex. */
+function cleanBoat(v, ship) {
+  const boat = cleanVessel(v, BOAT_IDS);
+  if (boat === null) return null;
+  const aboard = v.aboard === true && ship !== null;
+  return aboard ? { ...boat, q: ship.q, r: ship.r, aboard } : { ...boat, aboard };
 }
 
 const HEX_RE = /^-?\d{1,4},-?\d{1,4}$/;
@@ -173,19 +188,22 @@ export function cleanJournal(j) {
 export const FREE_UNLOCKS = ['cartography', 'voyage'];
 
 /** Hull ids a save may name. Kept here so the model stays free of imports; ship-model.mjs HULLS must match. */
-export const HULL_IDS = ['dinghy', 'longboat'];
+export const BOAT_IDS = ['dinghy', 'longboat'];
+export const SHIP_IDS = ['brig'];
+export const HULL_IDS = [...BOAT_IDS, ...SHIP_IDS];
 
 function clean(rec) {
+  const ship = cleanVessel(rec.ship, SHIP_IDS);
   return {
     v: SAVE_VERSION,
     landHexes: count(rec.landHexes),
     waterHexes: count(rec.waterHexes),
     backfilled: rec.backfilled === true,
-    ship: cleanShip(rec.ship, HULL_IDS),
+    boat: cleanBoat(rec.boat, ship),
+    ship,
     shipChecked: rec.shipChecked === true,
     stores: cleanStores(rec.stores),
     kitGiven: rec.kitGiven === true,
-    hold: cleanHold(rec.hold),
     unlockNotice: FREE_UNLOCKS.filter((x) => Array.isArray(rec.unlockNotice) && rec.unlockNotice.includes(x)),
     journal: cleanJournal(rec.journal),
     navigator: rec.navigator === true,

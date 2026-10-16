@@ -41,9 +41,9 @@ test('the longboat (build .142): the dinghy\'s upgrade, at Voyage 30, at a port 
 });
 
 test('a saved longboat loads as one', () => {
-  const { save } = loadSave(JSON.stringify({ ...defaultSave(), ship: { hull: 'longboat', q: 3, r: -2, cond: 80 } }));
-  assert.deepEqual(save.ship, { hull: 'longboat', q: 3, r: -2, cond: 80 });
-  assert.equal(holdSlots(save.ship, 1), 12);
+  const { save } = loadSave(JSON.stringify({ ...defaultSave(), boat: { hull: 'longboat', q: 3, r: -2, cond: 80 } }));
+  assert.deepEqual(save.boat, { hull: 'longboat', q: 3, r: -2, cond: 80, hold: [], aboard: false });
+  assert.equal(holdSlots(save.boat, 1), 12);
 });
 
 test('off the ship, land only: the one sea hex you may enter from land is the ship\'s', () => {
@@ -94,7 +94,7 @@ test('the sailing ships sail under cloud within their reach; the small boats nev
   const brig = { hull: 'brig', q: 9, r: 0 };
   const galleon = { hull: 'galleon', q: 9, r: 0 };
   const longboat = { hull: 'longboat', q: 9, r: 0 };
-  assert.equal(PLANNED_HULLS.brig.reach, 5);
+  assert.equal(HULLS.brig.reach, 5);
   assert.equal(canStep(sea(1, 0, 3), cloud(2, 0, 4), longboat), false);
   assert.equal(canStep(sea(1, 0, 3), cloud(2, 0, 4), brig), true);
   assert.equal(canStep(cloud(1, 0, 4), cloud(2, 0, 5), brig), true, 'deeper, still within reach');
@@ -178,12 +178,12 @@ test('every water and shoal hex has a shore distance; land has none', async () =
 
 test('save v1 migrates up with no ship; a ship round-trips; a bad ship is dropped', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 1, landHexes: 4, waterHexes: 0, backfilled: true }));
-  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
   assert.deepEqual(save, { ...defaultSave(), landHexes: 4, backfilled: true });
-  const withShip = { ...defaultSave(), ship: { ...dinghy(3, 7), cond: 64 }, shipChecked: true };
+  const withShip = { ...defaultSave(), boat: { ...dinghy(3, 7), cond: 64, hold: [], aboard: false }, ship: { hull: 'brig', q: 9, r: 1, cond: 70, hold: [] }, shipChecked: true };
   assert.deepEqual(loadSave(serializeSave(withShip)).save, withShip);
-  assert.equal(loadSave(JSON.stringify({ ...withShip, ship: { hull: 'raft', q: 1, r: 1 } })).save.ship, null);
-  assert.equal(loadSave(JSON.stringify({ ...withShip, ship: { hull: 'dinghy', q: 1.5, r: 1 } })).save.ship, null);
+  assert.equal(loadSave(JSON.stringify({ ...withShip, boat: { hull: 'raft', q: 1, r: 1 } })).save.boat, null);
+  assert.equal(loadSave(JSON.stringify({ ...withShip, boat: { hull: 'dinghy', q: 1.5, r: 1 } })).save.boat, null);
 });
 
 const loadTerrain = async () => createTerrain(JSON.parse(await readFile(new URL('../data/hex_terrain.json', import.meta.url), 'utf8')));

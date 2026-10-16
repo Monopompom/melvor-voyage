@@ -36,7 +36,7 @@ test('free-unlock notice: kept through a reload, cleaned, and empty after the v5
   assert.deepEqual(save.unlockNotice, ['cartography', 'voyage']);
   const old = loadSave(JSON.stringify({ v: 5, landHexes: 1, waterHexes: 0, backfilled: false, ship: null, shipChecked: true,
     stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [] }));
-  assert.deepEqual(old.report.applied, [5, 6, 7, 8]);
+  assert.deepEqual(old.report.applied, [5, 6, 7, 8, 9]);
   assert.deepEqual(old.save.unlockNotice, []);
 });
 
@@ -64,15 +64,15 @@ test('compass level 1 keeps today\'s reading; steps and name unlock later', () =
 test('skill milestones in data/skill.json: the compass stages, then the free charts', async () => {
   const { readFile } = await import('node:fs/promises');
   const { COMPASS_STAGES, FREE_CHART_LEVELS, NAVIGATOR_LEVEL, PLAN_LEVEL } = await import('../src/voyage-model.mjs');
-  const { HOLD_ROW_LEVELS, UPGRADES } = await import('../src/ship-model.mjs');
+  const { HOLD_ROW_LEVELS, UPGRADES, BIG_SHIPS } = await import('../src/ship-model.mjs');
   const pkg = JSON.parse(await readFile(new URL('../data/skill.json', import.meta.url), 'utf8'));
   const levels = pkg.data.skillData[0].data.customMilestones.map((m) => m.level);
-  assert.deepEqual(levels, [...COMPASS_STAGES.map((s) => s.level), ...FREE_CHART_LEVELS, NAVIGATOR_LEVEL, PLAN_LEVEL, ...HOLD_ROW_LEVELS, ...Object.values(UPGRADES).map((u) => u.level)].sort((a, b) => a - b));
+  assert.deepEqual(levels, [...COMPASS_STAGES.map((s) => s.level), ...FREE_CHART_LEVELS, NAVIGATOR_LEVEL, PLAN_LEVEL, ...HOLD_ROW_LEVELS, ...Object.values(UPGRADES).map((u) => u.level), ...Object.values(BIG_SHIPS).map((u) => u.level)].sort((a, b) => a - b));
 });
 
 test('v2 saves gain empty stores and a starter kit still to come; stores are cleaned', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 2, landHexes: 5, waterHexes: 1, backfilled: true, ship: null, shipChecked: true }));
-  assert.deepEqual(report.applied, [2, 3, 4, 5, 6, 7, 8]);
+  assert.deepEqual(report.applied, [2, 3, 4, 5, 6, 7, 8, 9]);
   assert.deepEqual(save.stores, { food: 0, fuel: 0 });
   assert.equal(save.kitGiven, false);
   assert.equal(save.landHexes, 5);
@@ -87,12 +87,13 @@ test('XP: a sailed hop counts its length in water hexes; hungry and free steps g
 });
 
 test('v3 saves: the ship gains a sound hull; condition is kept to 0..100', () => {
-  const v3 = { ...defaultSave(), v: 3, ship: { hull: 'dinghy', q: 2, r: 5 } };
+  const v3 = { ...defaultSave(), v: 3, boat: undefined, ship: { hull: 'dinghy', q: 2, r: 5 } };
   const { save, report } = loadSave(JSON.stringify(v3));
-  assert.deepEqual(report.applied, [3, 4, 5, 6, 7, 8]);
-  assert.deepEqual(save.ship, { hull: 'dinghy', q: 2, r: 5, cond: 100 });
-  assert.equal(loadSave(JSON.stringify({ ...v3, v: 3, ship: null })).save.ship, null);
-  const worn = (cond) => loadSave(JSON.stringify({ ...defaultSave(), ship: { hull: 'dinghy', q: 1, r: 1, cond } })).save.ship.cond;
+  assert.deepEqual(report.applied, [3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(save.boat, { hull: 'dinghy', q: 2, r: 5, cond: 100, hold: [], aboard: false });
+  assert.equal(save.ship, null);
+  assert.equal(loadSave(JSON.stringify({ ...v3, v: 3, ship: null })).save.boat, null);
+  const worn = (cond) => loadSave(JSON.stringify({ ...defaultSave(), boat: { hull: 'dinghy', q: 1, r: 1, cond } })).save.boat.cond;
   assert.equal(worn(37), 37);
   assert.equal(worn(-5), 0);
   assert.equal(worn(140), 100);
@@ -106,9 +107,30 @@ test('XP: a hex lit at night gives 25% more', () => {
 });
 
 test('v4 saves gain an empty hold; hold entries are cleaned and merged', () => {
-  const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 4, hold: undefined }));
-  assert.deepEqual(report.applied, [4, 5, 6, 7, 8]);
-  assert.deepEqual(save.hold, []);
-  const messy = { ...defaultSave(), hold: [{ id: 'melvorD:Bones', qty: 5 }, { id: 'melvorD:Bones', qty: 2.7 }, { id: '', qty: 1 }, { id: 'x:Gone', qty: 3 }, { id: 'melvorD:Feathers', qty: 0 }, null] };
-  assert.deepEqual(loadSave(JSON.stringify(messy)).save.hold, [{ id: 'melvorD:Bones', qty: 7 }, { id: 'x:Gone', qty: 3 }]);
+  const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 4, boat: undefined, ship: { hull: 'dinghy', q: 1, r: 1, cond: 90 } }));
+  assert.deepEqual(report.applied, [4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(save.boat.hold, []);
+  const messy = [{ id: 'melvorD:Bones', qty: 5 }, { id: 'melvorD:Bones', qty: 2.7 }, { id: '', qty: 1 }, { id: 'x:Gone', qty: 3 }, { id: 'melvorD:Feathers', qty: 0 }, null];
+  assert.deepEqual(loadSave(JSON.stringify({ ...defaultSave(), boat: { hull: 'dinghy', q: 1, r: 1, hold: messy } })).save.boat.hold, [{ id: 'melvorD:Bones', qty: 7 }, { id: 'x:Gone', qty: 3 }]);
+});
+
+test('v9 saves: the small boat and its hold become `boat`; no big ship; the boat aboard rides on its hex', () => {
+  const v9 = { v: 9, landHexes: 3, waterHexes: 1, backfilled: true, ship: { hull: 'longboat', q: 4, r: 8, cond: 61 }, shipChecked: true,
+    stores: { food: 10, fuel: 2 }, kitGiven: true, hold: [{ id: 'melvorD:Bones', qty: 4 }], unlockNotice: [], journal: {}, navigator: true };
+  const { save, report } = loadSave(JSON.stringify(v9));
+  assert.deepEqual(report.applied, [9]);
+  assert.deepEqual(save.boat, { hull: 'longboat', q: 4, r: 8, cond: 61, hold: [{ id: 'melvorD:Bones', qty: 4 }], aboard: false });
+  assert.equal(save.ship, null);
+  assert.equal(save.hold, undefined);
+  assert.equal(save.navigator, true);
+  const none = loadSave(JSON.stringify({ ...v9, ship: null })).save;
+  assert.equal(none.boat, null);
+  // v10: a brig is a ship, never a boat; the boat aboard sits on the brig's hex; aboard with no brig is not aboard
+  const brig = { hull: 'brig', q: 10, r: 2, cond: 100, hold: [] };
+  const both = loadSave(JSON.stringify({ ...defaultSave(), boat: { hull: 'dinghy', q: 0, r: 0, aboard: true }, ship: brig })).save;
+  assert.deepEqual(both.ship, brig);
+  assert.deepEqual([both.boat.q, both.boat.r, both.boat.aboard], [10, 2, true]);
+  assert.equal(loadSave(JSON.stringify({ ...defaultSave(), boat: { hull: 'dinghy', q: 0, r: 0, aboard: true } })).save.boat.aboard, false);
+  assert.equal(loadSave(JSON.stringify({ ...defaultSave(), boat: brig })).save.boat, null);
+  assert.equal(loadSave(JSON.stringify({ ...defaultSave(), ship: { hull: 'dinghy', q: 1, r: 1 } })).save.ship, null);
 });

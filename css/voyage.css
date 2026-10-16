@@ -75,6 +75,18 @@
 
 /* phase 3c: stores on the Voyage page, the panel's Load button, the hex overview cost line */
 .voyage-store-items { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The Stores picker (build .149): food | fuel wells, exactly four 40px chip rows (6px gaps, 6px padding) tall, scrolling. */
+.voyage-store-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.voyage-store-col { min-width: 0; }
+.voyage-store-col-head { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 4px; }
+.voyage-store-col-icon { width: 20px; height: 20px; }
+.voyage-store-well { height: calc(4 * 40px + 3 * 6px + 2 * 6px + 2px); overflow-y: auto; padding: 6px; border-radius: 6px;
+  background: rgba(255, 255, 255, .06); border: 1px solid var(--voyage-rule); }
+/* No visible scrollbar (the user, build .149): the well still scrolls by wheel, touch and keyboard. */
+.voyage-store-well { scrollbar-width: none; -ms-overflow-style: none; }
+.voyage-store-well::-webkit-scrollbar { display: none; }
+.voyage-store-well-empty { display: flex; align-items: center; justify-content: center; text-align: center; color: var(--voyage-label); padding: 12px; }
+@media (max-width: 575px) { .voyage-store-cols { grid-template-columns: 1fr; } }
 .voyage-store-item { display: inline-flex; align-items: center; gap: 4px; padding: .2rem .45rem; min-height: 40px; }
 .voyage-store-item img { width: 32px; height: 32px; } /* 32px icons on item chips */
 .voyage-store-item small { font-size: .8rem; }
@@ -112,6 +124,13 @@
 .voyage-hold-row .voyage-hold-presets { display: flex; gap: 8px; }
 .voyage-hold-main { display: flex; justify-content: center; padding-top: 12px; }
 .voyage-hold-main .btn { width: 75%; min-height: 40px; min-width: 120px; }
+/* Two vessels (build .150): the bank's choice of hold, the brig's heading on the Ship tab, and both holds side by side. */
+.voyage-hold-pickers { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
+.voyage-hold-pickers .btn { min-height: 40px; min-width: 96px; font-size: .9rem; }
+.voyage-big-head { font-weight: 600; margin: 12px 0 8px; }
+.voyage-hold-part + .voyage-hold-part { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--voyage-rule, rgba(255, 255, 255, .3)); }
+.voyage-hold-part-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; margin-bottom: 8px; }
+.voyage-hold-part-icon { width: 24px; height: 24px; vertical-align: middle; }
 /* The status row under the Voyage page's skill header: centred chips (day or night now, more status later). */
 /* The status row (build .146): the time centred on top with the fold toggle at its right; under it the compass and travels. */
 .voyage-status-block { padding: 4px 15px; margin-bottom: 12px; }

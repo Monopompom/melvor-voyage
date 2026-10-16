@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-16.148';
+export const BUILD = '2026-10-16.151';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -96,7 +96,8 @@ export async function setup(ctx) {
       game.skills.getObjectByID(model.SKILL_ID)?.milestones.forEach((m) => {
         const i = model.COMPASS_STAGES.findIndex((stage) => stage.level === m.level);
         // Build .142: the longboat shares level 30 with a free chart, so it is found by its English name first.
-        const up = Object.entries(shipModel.UPGRADES).find(([, u]) => u.level === m.level && u.milestone === m._name);
+        // Build .150: the brig (a purchase, not an upgrade) the same way.
+        const up = Object.entries({ ...shipModel.UPGRADES, ...shipModel.BIG_SHIPS }).find(([, u]) => u.level === m.level && u.milestone === m._name);
         if (up !== undefined) {
           m._name = getLangString(`MOD_VOY_MILESTONE_${up[0].toUpperCase()}`);
           const url = ctx.getResourceUrl(shipModel.HULLS[up[0]].media);

@@ -136,6 +136,21 @@ test('a voyage wears the hull; worn through it refuses, but a step home always g
   assert.equal(planMove({ food: 500, fuel: 5 }, [{ cls: 'grasslands', sea: false, hop: 8 }], hull(5)).why, 'hull');
 });
 
+test('two vessels: each sea step wears the vessel it is sailed in; a refusal names it', () => {
+  const ship = (v) => ({ ...sea(), vessel: v });
+  const hulls = (boat, big, reserve = 0) => ({ hulls: { boat: { cond: boat, reserve }, ship: { cond: big, reserve } } });
+  const p = planMove({ food: 500, fuel: 5 }, [ship('ship'), ship('ship'), ship('ship'), ship('boat'), land('beach')], hulls(60, 90));
+  assert.equal(p.ok, true);
+  assert.deepEqual(p.conds, { boat: 59, ship: 87 });
+  assert.equal(p.cond, undefined);
+  const worn = planMove({ food: 500, fuel: 5 }, [ship('ship'), ship('boat'), ship('boat')], hulls(1, 90));
+  assert.equal(worn.why, 'hull');
+  assert.equal(worn.vessel, 'boat');
+  assert.equal(worn.at, 2);
+  // the reserve for the way back is the vessel's that ends the move at sea
+  assert.equal(planMove({ food: 500, fuel: 5 }, [ship('boat'), ship('ship')], hulls(1, 3, 3)).vessel, 'ship');
+});
+
 test('below 50% a hull keeps out of deep water; a voyage ending at sea keeps condition for the way back', () => {
   const opts = (cond, reserve = 0) => ({ hull: { cond, reserve } });
   assert.equal(planMove({ food: 500, fuel: 5 }, [sea(), deepSea()], opts(WORN - 1)).why, 'deep');

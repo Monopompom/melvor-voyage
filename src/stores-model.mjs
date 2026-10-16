@@ -148,23 +148,30 @@ export function pathCost(steps, fmLevel) {
  * 'deep' (deep water below WORN %), 'hull' (worn through); a step closer to a coast always goes, down to 0. A voyage
  * ending at sea keeps `hull.reserve` % for the way back ('hullAshore').
  * On success: { ok: true, food, fuel, spent: { food, fuel }, hungry: [step indices], cond (with a hull) }.
+ * Two vessels (build .150): `hulls` = { boat?, ship? }, each { cond, reserve }, and
+ * each step names the `vessel` it is sailed in ('boat' when it doesn't); a step wears its own vessel. The result then
+ * has `conds` = { boat?, ship? }, a refusal names the `vessel`. `hull` alone is the boat's.
  */
-export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull } = {}) {
+export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull, hulls } = {}) {
   let food = Math.max(0, stores?.food ?? 0);
   let fuel = Math.max(0, stores?.fuel ?? 0);
-  let cond = hull === undefined ? undefined : Math.max(0, hull.cond);
+  const hs = hulls ?? (hull === undefined ? {} : { boat: hull });
+  const conds = {};
+  for (const [v, h] of Object.entries(hs)) if (h !== undefined) conds[v] = Math.max(0, h.cond);
   const hungry = [];
   let outward = false;
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i];
     const c = stepCost(s, fmLevel);
     if (s.sea && !s.free && !s.homeward) outward = true;
+    const v = s.vessel ?? 'boat';
+    const cond = conds[v];
     const w = cond === undefined ? 0 : wearOf(s);
     if (w > 0) {
       const limping = s.sea && s.homeward === true;
-      if (!limping && s.deep && cond < WORN) return { ok: false, why: 'deep', at: i, cond: hull.cond };
-      if (!limping && w > cond) return { ok: false, why: 'hull', at: i, cond: hull.cond, need: pathWear(steps) };
-      cond = Math.max(0, cond - w);
+      if (!limping && s.deep && cond < WORN) return { ok: false, why: 'deep', at: i, cond: hs[v].cond, vessel: v };
+      if (!limping && w > cond) return { ok: false, why: 'hull', at: i, cond: hs[v].cond, need: pathWear(steps.filter((x) => (x.vessel ?? 'boat') === v)), vessel: v };
+      conds[v] = Math.max(0, cond - w);
     }
     if (food >= c.food && fuel + 1e-9 >= c.fuel) {
       food -= c.food;
@@ -183,12 +190,14 @@ export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull } = {})
   }
   const last = steps[steps.length - 1];
   if (last !== undefined && last.sea && outward && food < reserve) return { ok: false, why: 'ashore', at: steps.length - 1, reserve };
-  if (last !== undefined && last.sea && outward && cond !== undefined && cond < hull.reserve) {
-    return { ok: false, why: 'hullAshore', at: steps.length - 1, reserve: hull.reserve, cond: hull.cond };
+  const lastV = last?.vessel ?? 'boat';
+  if (last !== undefined && last.sea && outward && conds[lastV] !== undefined && conds[lastV] < hs[lastV].reserve) {
+    return { ok: false, why: 'hullAshore', at: steps.length - 1, reserve: hs[lastV].reserve, cond: hs[lastV].cond, vessel: lastV };
   }
   const start = { food: Math.max(0, stores?.food ?? 0), fuel: Math.max(0, stores?.fuel ?? 0) };
   const out = { ok: true, food, fuel, spent: { food: start.food - food, fuel: roundFuel(start.fuel - fuel) }, hungry };
-  if (cond !== undefined) out.cond = cond;
+  if (hulls !== undefined) out.conds = conds;
+  else if (conds.boat !== undefined) out.cond = conds.boat;
   return out;
 }
 

@@ -62,32 +62,48 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     `<img src="${ctx.getResourceUrl('assets/ration.png')}">${hp(food)} HP <img src="${ctx.getResourceUrl('assets/fuel.png')}">${fuelText(fuel)}</span>`;
 
   // ---- planning a move -----------------------------------------------------------------------------------------
+  /** The vessel a move ends in: the last step's (build .150, two vessels), else the small boat. */
+  const endKind = (steps) => steps?.[steps.length - 1]?.vessel ?? 'boat';
   /** HP to keep when a move ends on the sea: the rations for the way back (always get ashore, 4.3). */
-  const reserveAt = (hex) => {
+  const reserveAt = (hex, kind = 'boat') => {
     const rec = recOf(hex);
     if (!shipModel.isSea(rec)) return 0;
-    return S.ashoreReserve(state.ship?.homeOf?.(rec), shipModel.reachOf(state.ship?.ship()));
+    const v = state.ship?.vessel?.(kind);
+    return S.ashoreReserve(state.ship?.homeOf?.(rec, v), shipModel.reachOf(v));
   };
   /**
-   * The hull for the plan (3d): its condition and what to keep for the way back when the move ends at sea. Undefined
-   * without a ship or with the ship rules off: then nothing wears.
+   * A hull for the plan (3d): its condition and what to keep for the way back when the move ends at sea in it.
+   * Undefined without that vessel or with the ship rules off: then nothing wears.
    */
-  const hullFor = (dest) => {
+  const hullOf = (dest, kind, endsIn) => {
     const sh = state.ship;
-    const s = sh?.ship();
+    const s = sh?.vessel?.(kind);
     if (s == null || !sh.enabled()) return undefined;
     const rec = recOf(dest);
-    const reserve = shipModel.isSea(rec) ? S.hullReserve(sh.homeOf(rec), shipModel.reachOf(s)) : 0;
+    const reserve = shipModel.isSea(rec) && kind === endsIn ? S.hullReserve(sh.homeOf(rec, s), shipModel.reachOf(s)) : 0;
     return { cond: shipModel.condOf(s), reserve };
   };
   /**
-   * Prices `steps` (walking order) that end on the game hex `dest`, starting from `have` ({ food, fuel, cond? }): the
-   * move's plan as movePlayer would make it, night light included. `cond` stands in for the hull's condition (Plan a
-   * voyage prices later legs with what the earlier ones leave, build .119).
+   * Prices `steps` (walking order) that end on the game hex `dest`, starting from `have` ({ food, fuel, cond?, conds? }):
+   * the move's plan as movePlayer would make it, night light included. `cond` stands in for the small boat's condition
+   * and `conds` ({ boat, ship }) for both vessels' (Plan a voyage prices later legs with what the earlier ones leave,
+   * build .119). With a big ship each step wears its own vessel (`hulls`, build .150).
    */
   const priceSteps = (have, steps, dest) => {
-    const hull = hullFor(dest);
-    const plan = S.planMove(have, steps, { fmLevel: fmLevel(), reserve: reserveAt(dest), hull: hull === undefined || have.cond === undefined ? hull : { ...hull, cond: have.cond } });
+    const ends = endKind(steps);
+    const opts = { fmLevel: fmLevel(), reserve: reserveAt(dest, ends) };
+    if (state.ship?.big?.() != null) {
+      const hulls = {};
+      for (const kind of ['boat', 'ship']) {
+        const h = hullOf(dest, kind, ends);
+        if (h !== undefined) hulls[kind] = have.conds?.[kind] === undefined ? h : { ...h, cond: have.conds[kind] };
+      }
+      opts.hulls = hulls;
+    } else {
+      const hull = hullOf(dest, 'boat', 'boat');
+      opts.hull = hull === undefined || have.cond === undefined ? hull : { ...hull, cond: have.cond };
+    }
+    const plan = S.planMove(have, steps, opts);
     return night() ? S.planLight(plan, steps, { fmLevel: fmLevel(), astroLevel: astroLevel() }) : plan;
   };
   /** { steps, plan } for a game path (destination first), or undefined when provisions are off. */
@@ -103,7 +119,8 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     for (const i of planned.plan.lit ?? []) planned.steps[i].lit = true;
     set(planned.plan.food, planned.plan.fuel);
     if ((planned.plan.lit ?? []).length > 0) log(`lit ${planned.plan.lit.length} hex(es) at night for ${planned.plan.light} fuel`);
-    if (planned.plan.cond !== undefined) state.ship?.setCond?.(planned.plan.cond);
+    if (planned.plan.cond !== undefined) state.ship?.setCond?.(planned.plan.cond, 'boat');
+    for (const [kind, c] of Object.entries(planned.plan.conds ?? {})) state.ship?.setCond?.(c, kind);
     if (planned.plan.hungry.length > 0) log(`walked ${planned.plan.hungry.length} hex(es) hungry`);
   };
 
@@ -145,7 +162,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     if (pos === undefined || !enabled()) return undefined;
     const have = stores();
     const food = bankFood();
-    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.ship()?.q},${state.ship?.ship()?.r}|${food}`;
+    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}`;
     if (rescueMemo?.key === key) return rescueMemo.value;
     let value;
     try { value = rescueFrom(pos, have, food); } catch (e) { log('provisions rescue failed', e); }
@@ -184,7 +201,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       const lines = [];
       // The hull (3d): the fix is a repair, not food, so no trader and no loading hint.
       if (HULL_WHY.includes(p.why)) {
-        const hull = state.ship?.hullName?.(state.ship.ship()) ?? t('MOD_VOY_SHIP_BOAT');
+        const hull = state.ship?.hullName?.(state.ship.vessel(p.vessel ?? 'boat')) ?? t('MOD_VOY_SHIP_BOAT');
         if (p.why === 'deep') lines.push(t('MOD_VOY_STORES_REFUSE_DEEP', { hull, cond: `${p.cond}`, worn: `${S.WORN}` }));
         else if (p.why === 'hullAshore') lines.push(t('MOD_VOY_STORES_REFUSE_HULL_ASHORE', { hull, need: `${p.reserve}`, cond: `${p.cond}` }));
         else lines.push(t('MOD_VOY_STORES_REFUSE_HULL', { hull, cond: `${p.cond}`, need: `${p.need}`, hexes: along }));
@@ -251,9 +268,15 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       const have = stores();
       const p = planned.plan;
       let html = t('MOD_VOY_STORES_PATH_COST', { cost: amounts(cost.food, cost.fuel), have: amounts(have.food, have.fuel) });
-      const wear = S.pathWear(planned.steps);
-      const hull = hullFor(path[0]);
-      if (hull !== undefined && wear > 0) html += ` ${t('MOD_VOY_STORES_PATH_WEAR', { wear: `${wear}`, cond: `${hull.cond}` })}`;
+      // Each vessel's own wear (two vessels, build .150: named when there are two).
+      const two = state.ship?.big?.() != null;
+      for (const kind of ['boat', 'ship']) {
+        const wear = S.pathWear(planned.steps.filter((x) => (x.vessel ?? 'boat') === kind));
+        const hull = hullOf(path[0], kind, endKind(planned.steps));
+        if (hull === undefined || wear <= 0) continue;
+        const line = t('MOD_VOY_STORES_PATH_WEAR', { wear: `${wear}`, cond: `${hull.cond}` });
+        html += ` ${two ? `${esc(t(shipModel.hullNameKey(state.ship.vessel(kind).hull)))}: ` : ''}${line}`;
+      }
       // Night (3e): what the light takes from the spare fuel, and how many hexes it covers.
       if (p.ok && p.lit !== undefined) {
         const could = S.lightable(planned.steps, p);

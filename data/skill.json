@@ -65,6 +65,12 @@
             },
             {
               "type": "Custom",
+              "level": 45,
+              "name": "Brig: bought at a port",
+              "media": "assets/hull_brig.png"
+            },
+            {
+              "type": "Custom",
               "level": 50,
               "name": "Journal: chart one country",
               "media": "assets/journal.png"

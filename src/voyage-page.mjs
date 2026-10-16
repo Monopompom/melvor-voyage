@@ -71,22 +71,25 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       part('ship')?.addEventListener('click', (e) => {
         const target = e.target instanceof Element ? e.target.closest('[data-voyage-action]') : null;
         if (target === null) return;
+        const kind = target.dataset.kind ?? 'boat';
         if (target.dataset.voyageAction === 'build') { if (state.ship?.build()) render(); }
-        else if (target.dataset.voyageAction === 'repair') { if (state.ship?.repair()) render(); }
+        else if (target.dataset.voyageAction === 'repair') { if (state.ship?.repair(kind)) render(); }
         else if (target.dataset.voyageAction === 'upgrade') { if (state.ship?.upgrade()) render(); }
-        else if (target.dataset.voyageAction === 'find') showMap(true);
+        else if (target.dataset.voyageAction === 'buy') { if (state.ship?.buy()) render(); }
+        else if (target.dataset.voyageAction === 'find') showMap(true, kind);
       });
       // Plan a voyage (build .119): src/planner.mjs draws and handles its block.
       part('plan')?.addEventListener('click', (e) => state.planner?.onClick(e));
       part('hold')?.addEventListener('click', (e) => {
         const target = e.target instanceof Element ? e.target.closest('[data-voyage-action], [data-voyage-preset]') : null;
         if (target === null) return;
-        if (target.dataset.voyagePreset !== undefined) { preset(target, 'take'); return; }
-        if (target.dataset.voyageAction === 'hold-pick') { holdPicked = target.dataset.item; render(); }
+        const kind = target.closest('[data-hold-kind]')?.dataset.holdKind ?? 'boat';
+        if (target.dataset.voyagePreset !== undefined) { preset(target, `take-${kind}`); return; }
+        if (target.dataset.voyageAction === 'hold-pick') { holdPicked[kind] = target.dataset.item; render(); }
         else if (target.dataset.voyageAction === 'take') {
-          const item = game.items.getObjectByID(holdPicked ?? '');
-          const n = typed('take');
-          if (item !== undefined && n > 0 && state.hold?.take(item, n) > 0) { delete amounts.take; render(); }
+          const item = game.items.getObjectByID(holdPicked[kind] ?? '');
+          const n = typed(`take-${kind}`);
+          if (item !== undefined && n > 0 && state.hold?.take(item, n, kind) > 0) { delete amounts[`take-${kind}`]; render(); }
         }
       });
       part('stores')?.addEventListener('click', (e) => {
@@ -141,12 +144,15 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     if (btn !== null) btn.disabled = n <= 0;
   };
 
-  /** Opens the map. `onShip`: centred on the moored ship (the ship block's button); otherwise as it was left. */
-  const showMap = (onShip) => {
+  /**
+   * Opens the map. `onShip`: centred on the moored vessel `kind` ('boat' or 'ship', the ship block's buttons);
+   * otherwise as it was left.
+   */
+  const showMap = (onShip, kind = 'boat') => {
     const map = pageOf(CARTOGRAPHY_PAGE_ID);
     if (map === undefined) return;
     state.openPage(map);
-    const hex = !onShip || state.ship?.aboard() ? undefined : state.ship?.hex();
+    const hex = !onShip || state.ship?.inVessel?.() === kind ? undefined : state.ship?.hex(kind);
     if (hex !== undefined) setTimeout(() => { try { state.ship.centreOn(hex); } catch (e) { log('map centre failed', e); } }, 100);
   };
 
@@ -161,10 +167,10 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
    * An action block like the bank's Sell / Stow: amount box and blue presets on one row, then one green
    * main button, centred.
    */
-  const actionBlock = ({ action, itemId, max, value, presets, main }) =>
+  const actionBlock = ({ action, amount = action, itemId, max, value, presets, main }) =>
     '<div class="voyage-action">' +
     '<div class="voyage-hold-row">' +
-    `<input type="number" min="1" max="${max}" value="${value}" inputmode="numeric" class="form-control voyage-hold-qty" data-voyage-amount="${action}" data-item="${esc(itemId)}" aria-label="${esc(t('MOD_VOY_PAGE_AMOUNT'))}">` +
+    `<input type="number" min="1" max="${max}" value="${value}" inputmode="numeric" class="form-control voyage-hold-qty" data-voyage-amount="${amount}" data-item="${esc(itemId)}" aria-label="${esc(t('MOD_VOY_PAGE_AMOUNT'))}">` +
     `<div class="voyage-hold-presets">${presets.filter((p) => p.n > 0).map((p) => `<button type="button" class="btn btn-sm btn-info" data-voyage-preset="${p.n}">${esc(p.label)}</button>`).join('')}</div></div>` +
     `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="${action}">${esc(main)}</button></div></div>`;
   /** Item chips (bank-style), the picked one filled blue; the name is in a line under them for touch. */
@@ -175,7 +181,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
 
   const shipHtml = () => {
     const api = state.ship;
-    const ship = api?.ship();
+    const ship = api?.boat();
     if (api === undefined || ship === undefined) return `<div class="text-warning">${t('MOD_VOY_PAGE_NO_SHIP')}</div>`;
     const icon = (hull) => `<img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">`;
     if (ship === null) {
@@ -196,12 +202,44 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
             : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="build">${t('MOD_VOY_PAGE_BUILD_BUTTON')}</button></div>` +
               `<small class="d-block text-center text-muted mt-1">${t('MOD_VOY_PAGE_BUILD_HINT')}</small>`));
     }
-    const hull = shipModel.HULLS[ship.hull];
-    const where = api.aboard() ? t('MOD_VOY_PAGE_ABOARD') : t('MOD_VOY_PAGE_MOORED', { where: esc(api.whereIs(ship)) });
-    const off = !api.enabled() ? `<div class="text-warning">${t('MOD_VOY_PAGE_RULES_OFF')}</div>` : '';
-    const find = api.aboard() ? '' : `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="find">${t('MOD_VOY_PAGE_FIND_SHIP')}</button>`;
-    return section(`<div class="voyage-row"><div class="d-flex align-items-center">${icon(hull)}<div><div><b>${esc(t(shipModel.hullNameKey(hull.id)))}</b>: ${where}</div>${off}</div></div>${find}</div>`) +
-      hullHtml() + upgradeHtml();
+    return vesselRow('boat') + hullHtml('boat') + upgradeHtml() + bigHtml();
+  };
+  /** A vessel's line: its name, where it is, and Find it on the map while you are not in it. */
+  const vesselRow = (kind) => {
+    const api = state.ship;
+    const v = api.vessel(kind);
+    const hull = shipModel.HULLS[v.hull];
+    const where = api.inVessel() === kind ? t('MOD_VOY_PAGE_ABOARD')
+      : kind === 'boat' && v.aboard === true ? t('MOD_VOY_PAGE_ON_BIG', { hull: esc(api.hullName(api.big())) })
+        : t(kind === 'ship' ? 'MOD_VOY_PAGE_AT_ANCHOR' : 'MOD_VOY_PAGE_MOORED', { where: esc(api.whereIs(v)) });
+    const off = !api.enabled() && kind === 'boat' ? `<div class="text-warning">${t('MOD_VOY_PAGE_RULES_OFF')}</div>` : '';
+    const find = api.inVessel() === kind || (kind === 'boat' && v.aboard === true) ? ''
+      : `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="find" data-kind="${kind}">${t('MOD_VOY_PAGE_FIND_SHIP')}</button>`;
+    return section(`<div class="voyage-row"><div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
+      `<div><div><b>${esc(t(shipModel.hullNameKey(hull.id)))}</b>: ${where}</div>${off}</div></div>${find}</div>`);
+  };
+  /**
+   * The big ship (build .150): bought at a port, shown from the start with what it
+   * costs and why it can't be bought yet, like the longboat; once owned, its line and its hull.
+   */
+  const bigHtml = () => {
+    const api = state.ship;
+    if (api.big() != null) return `<div class="voyage-big-head">${esc(t('MOD_VOY_PAGE_BIG_HEAD'))}</div>${vesselRow('ship')}${hullHtml('ship')}`;
+    const info = api.buyInfo?.();
+    if (info === undefined) return '';
+    const { hull, spec, blocker } = info;
+    const costs = [costIcon(game.gp.media, spec.gp, game.gp.amount, game.gp.name)];
+    for (const { id, quantity } of spec.items) {
+      const item = game.items.getObjectByID(id);
+      if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name));
+    }
+    return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
+        `<div><div><b>${esc(t('MOD_VOY_PAGE_BRIG_COST'))}</b></div><small class="text-muted">${esc(t(shipModel.hullBlurbKey(hull.id)))}</small></div></div>` +
+      `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` +
+      (blocker !== undefined
+        ? `<div class="text-warning mt-2">${esc(blocker)}</div>`
+        : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="buy">${esc(t('MOD_VOY_PAGE_BRIG_BUTTON'))}</button></div>` +
+          `<small class="d-block text-center text-muted mt-1">${esc(t('MOD_VOY_PAGE_BRIG_HINT'))}</small>`));
   };
 
   /**
@@ -218,7 +256,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       const item = game.items.getObjectByID(id);
       if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name));
     }
-    const old = state.ship.hullName(state.ship.ship());
+    const old = state.ship.hullName(state.ship.boat());
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
         `<div><div><b>${esc(t('MOD_VOY_PAGE_UPGRADE_COST', { hull: word }))}</b></div><small class="text-muted">${esc(t(shipModel.hullBlurbKey(hull.id)))}</small></div></div>` +
       `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` +
@@ -252,30 +290,33 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     return `<div class="voyage-crates">${cells.join('')}</div>`;
   };
 
-  /** The hold (build .72; its own block since build .86): what it carries, and taking things back to the bank. */
-  let holdPicked;
-  const holdHtml = () => {
+  /**
+   * The hold (build .72; its own block since build .86): what it carries, and taking things back to the bank. One per
+   * vessel (build .150): `kind` 'boat' or 'ship'.
+   */
+  const holdPicked = {};
+  const holdHtml = (kind) => {
     const h = state.hold;
     if (h === undefined) return '';
-    const items = h.contents();
-    const why = h.blocker();
-    if (items.length === 0) return crates(items, h.slots(), undefined) + `<div class="mt-2">${t('MOD_VOY_HOLD_EMPTY')}</div>`;
-    if (!items.some((x) => x.item.id === holdPicked)) holdPicked = items[0].item.id;
-    const sel = items.find((x) => x.item.id === holdPicked);
-    let html = crates(items, h.slots(), holdPicked) +
+    const items = h.contents(kind);
+    const why = h.blocker(kind);
+    if (items.length === 0) return crates(items, h.slots(kind), undefined) + `<div class="mt-2">${t('MOD_VOY_HOLD_EMPTY')}</div>`;
+    if (!items.some((x) => x.item.id === holdPicked[kind])) holdPicked[kind] = items[0].item.id;
+    const sel = items.find((x) => x.item.id === holdPicked[kind]);
+    let html = crates(items, h.slots(kind), holdPicked[kind]) +
       `<div class="mt-2">${esc(t('MOD_VOY_PAGE_HOLD_SELECTED', { item: sel.item.name, count: numberWithCommas(sel.qty) }))}</div>`;
     if (why !== undefined) return `${html}<div class="text-warning mt-2">${esc(why)}</div>`;
     html += actionBlock({
-      action: 'take', itemId: sel.item.id, max: sel.qty, value: amountFor('take', sel.item.id, sel.qty, sel.qty),
+      action: 'take', amount: `take-${kind}`, itemId: sel.item.id, max: sel.qty, value: amountFor(`take-${kind}`, sel.item.id, sel.qty, sel.qty),
       presets: [{ n: sel.qty - 1, label: t('MOD_VOY_HOLD_ALL_BUT_ONE') }, { n: sel.qty, label: t('MOD_VOY_PAGE_STORES_LOAD_ALL') }],
       main: t('MOD_VOY_HOLD_TAKE'),
     });
     return html;
   };
 
-  /** Hull condition and repairs (phase 3d). */
-  const hullHtml = () => {
-    const info = state.ship?.repairInfo?.();
+  /** Hull condition and repairs (phase 3d), for the vessel `kind`. */
+  const hullHtml = (kind = 'boat') => {
+    const info = state.ship?.repairInfo?.(kind);
     if (info === undefined) return '';
     const R = shipModel.REPAIR;
     const c = info.cond;
@@ -286,7 +327,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const costs = [costIcon(logs?.media ?? '', info.plan.full.logs, info.logs, costTitle)];
     if (pitch !== undefined) costs.push(costIcon(pitch.media, info.plan.full.pitch, info.pitch, pitch.name));
     const action = info.blocker === undefined
-      ? `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="repair">${t('MOD_VOY_PAGE_HULL_REPAIR', { cond: `${info.plan.to}` })}</button></div>`
+      ? `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR', { cond: `${info.plan.to}` })}</button></div>`
       : (c < 100 ? `<div class="text-warning mt-2">${esc(info.blocker)}</div>` : '');
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/hull_condition.png')}" alt="">` +
       `<div class="flex-grow-1"><div><b>${t('MOD_VOY_PAGE_HULL_LABEL')}</b> <span class="${c <= 0 ? 'text-danger' : c < storesModel.WORN ? 'text-warning' : ''}">${c}%</span></div>` +
@@ -393,7 +434,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const st = state.stores;
     const xpCols = [t('MOD_VOY_HELP_COL_HEX'), t('MOD_VOY_HELP_COL_XP')];
     if (topic === 'ship') {
-      const s = state.ship?.ship();
+      const s = state.ship?.boat();
       const hull = shipModel.HULLS[s?.hull ?? 'dinghy'];
       return [
         { body: [t(shipModel.hullBlurbKey(hull.id))] },
@@ -525,16 +566,27 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     if (rates === undefined) return `${html}${section(`<div class="text-warning">${t('MOD_VOY_PAGE_STORES_NO_LOADING')}</div>`)}`;
     let load = `<div>${t('MOD_VOY_PAGE_STORES_LOADING', { place: esc(t(PLACE_KEY[rates.place])), food: pct(rates.food), fuel: pct(rates.fuel) })}</div>`;
     const items = api.loadable().filter((x) => rates[x.kind] > 0);
-    if (items.length === 0) return html + section(`${load}<div class="text-warning mt-1">${t('MOD_VOY_PAGE_STORES_NOTHING')}</div>`);
-    if (!items.some((x) => x.item.id === picked)) picked = items[0].item.id;
     const unit = (x) => `${x.item.name}: ${x.kind === 'food' ? t('MOD_VOY_PAGE_STORES_UNIT_FOOD', { hp: `${x.unit}` }) : t('MOD_VOY_PAGE_STORES_UNIT_FUEL', { fuel: `${x.unit}` })}`;
+    if (items.length > 0 && !items.some((x) => x.item.id === picked)) picked = items[0].item.id;
+    // Two wells, food | fuel, four chip rows tall, scrolling past that (build .149, the user; DESIGN "The Stores
+    // picker"). An empty well says why in its middle.
+    const well = (kind) => {
+      const mine = items.filter((x) => x.kind === kind);
+      const why = rates[kind] <= 0 ? 'MOD_VOY_PAGE_STORES_NOT_HERE' : kind === 'food' ? 'MOD_VOY_PAGE_STORES_NO_FOOD' : 'MOD_VOY_PAGE_STORES_NO_FUEL';
+      const icon = `<img class="voyage-store-col-icon" src="${ctx.getResourceUrl(kind === 'food' ? 'assets/ration.png' : 'assets/fuel.png')}" alt="">`;
+      return `<div class="voyage-store-col"><div class="voyage-store-col-head">${icon}${esc(t(kind === 'food' ? 'MOD_VOY_PAGE_STORES_FOOD' : 'MOD_VOY_PAGE_STORES_FUEL'))}</div>` +
+        (mine.length === 0
+          ? `<div class="voyage-store-well voyage-store-well-empty"><span>${esc(t(why))}</span></div>`
+          : `<div class="voyage-store-well">${chips(mine, picked, 'pick', unit)}</div>`) + '</div>';
+    };
+    load += `<div class="voyage-store-cols mt-2">${well('food')}${well('fuel')}</div>`;
+    if (items.length === 0) return html + section(load);
     const sel = items.find((x) => x.item.id === picked);
     const rate = rates[sel.kind];
     // The limit (build .66): no more items than it takes to fill the room left.
     const room = Math.max(0, cap[sel.kind] - have[sel.kind]);
     const most = storesModel.loadCount(sel.unit, rate, sel.qty, room);
-    load += `<div class="mt-2">${chips(items, picked, 'pick', unit)}</div>` +
-      `<div class="mt-2">${esc(t('MOD_VOY_PAGE_SELECTED', { item: unit(sel), count: numberWithCommas(sel.qty) }))}</div>`;
+    load += `<div class="mt-2">${esc(t('MOD_VOY_PAGE_SELECTED', { item: unit(sel), count: numberWithCommas(sel.qty) }))}</div>`;
     if (most <= 0) return html + section(`${load}<div class="mt-2 text-warning">${t(sel.kind === 'food' ? 'MOD_VOY_PAGE_STORES_FULL_FOOD' : 'MOD_VOY_PAGE_STORES_FULL_FUEL')}</div>`);
     loadPreview = (n) => {
       const v = Math.min(room, storesModel.loadAmount(sel.unit, Math.min(n, most), rate));
@@ -582,22 +634,42 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const ship = part('ship');
     if (ship !== null && !typing(ship)) ship.innerHTML = shipHtml();
     const holdBlock = part('hold-block');
-    const hasShip = state.ship?.ship() != null && state.hold !== undefined;
+    const holdKinds = state.hold?.kinds?.() ?? [];
+    const hasShip = holdKinds.length > 0;
     holdBlock?.classList.toggle('d-none', !hasShip);
     if (hasShip) {
+      // One vessel: its count in the block's header. Two (build .150): each hold under its own heading and count.
+      const slotLine = (kind) => {
+        const used = state.hold.hold(kind).length;
+        const max = state.hold.slots(kind);
+        return { text: t('MOD_VOY_HOLD_SLOTS', { used: `${used}`, slots: `${max}` }), full: used >= max };
+      };
       const slotsEl = part('hold-slots');
       if (slotsEl !== null) {
-        const used = state.hold.hold().length;
-        const max = state.hold.slots();
-        slotsEl.textContent = t('MOD_VOY_HOLD_SLOTS', { used: `${used}`, slots: `${max}` });
-        slotsEl.className = `font-w600 ${used >= max ? 'text-warning' : ''}`;
-        slotsEl.title = used >= max ? t('MOD_VOY_HOLD_FULL_PAGE') : '';
+        const one = holdKinds.length === 1 ? slotLine(holdKinds[0]) : undefined;
+        slotsEl.textContent = one?.text ?? '';
+        slotsEl.className = `font-w600 ${one?.full ? 'text-warning' : ''}`;
+        slotsEl.title = one?.full ? t('MOD_VOY_HOLD_FULL_PAGE') : '';
       }
       const hold = part('hold');
-      if (hold !== null && !typing(hold)) hold.innerHTML = holdHtml();
+      if (hold !== null && !typing(hold)) {
+        hold.innerHTML = holdKinds.length === 1
+          ? `<div data-hold-kind="${holdKinds[0]}">${holdHtml(holdKinds[0])}</div>`
+          : holdKinds.map((kind) => {
+            const line = slotLine(kind);
+            const v = state.ship.vessel(kind);
+            return `<div class="voyage-hold-part" data-hold-kind="${kind}"><div class="voyage-hold-part-head"><span><img class="voyage-hold-part-icon mr-1" src="${ctx.getResourceUrl(shipModel.HULLS[v.hull].media)}" alt="">${esc(t(shipModel.hullNameKey(v.hull)))}</span>` +
+              `<span class="font-w600 ${line.full ? 'text-warning' : ''}">${esc(line.text)}</span></div>${holdHtml(kind)}</div>`;
+          }).join('');
+      }
     }
     const storesPart = part('stores');
-    if (storesPart !== null && !typing(storesPart)) storesPart.innerHTML = storesHtml();
+    if (storesPart !== null && !typing(storesPart)) {
+      // The wells scroll (build .149): a redraw keeps where each was, so picking a chip low down doesn't jump to the top.
+      const scrolled = [...storesPart.querySelectorAll('.voyage-store-well')].map((w) => w.scrollTop);
+      storesPart.innerHTML = storesHtml();
+      storesPart.querySelectorAll('.voyage-store-well').forEach((w, i) => { if (scrolled[i]) w.scrollTop = scrolled[i]; });
+    }
 
     const travels = part('travels');
     if (travels !== null) {
@@ -635,12 +707,13 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     for (const { id } of shipModel.DINGHY_BUILD.items) { const it = game.items.getObjectByID(id); if (it !== undefined) logs += game.bank.getQty(it); }
     const st = state.stores?.stores();
     const pickedQty = picked === undefined ? 0 : game.bank.getQty(game.items.getObjectByID(picked));
-    const sh = state.ship?.ship();
-    const held = state.hold?.hold() ?? [];
+    const sh = state.ship?.boat();
+    const bg = state.ship?.big?.();
+    const held = [...(sh?.hold ?? []), ...(bg?.hold ?? [])];
     const pitch = game.items.getObjectByID('voyage:Pitch');
     let allLogs = 0;
     try { game.firemaking.actions.forEach((a) => { if (a.log !== undefined) allLogs += game.bank.getQty(a.log); }); } catch {}
-    return `${held.length}:${held.reduce((n, e) => n + e.qty, 0)}|${sh?.q},${sh?.r},${sh?.cond}|${pitch === undefined ? 0 : game.bank.getQty(pitch)}|${allLogs}|${game.gp.amount}|${logs}|${p?.q},${p?.r}|${state.compass?.owned?.()}|${state.active()}|${st?.food},${st?.fuel}|${game.bank.items.size}|${pickedQty}|${skill()?.level}|${state.stores?.night?.()}|${state.planner?.signature?.()}`;
+    return `${held.length}:${held.reduce((n, e) => n + e.qty, 0)}|${sh?.q},${sh?.r},${sh?.cond},${sh?.aboard}|${bg?.q},${bg?.r},${bg?.cond}|${pitch === undefined ? 0 : game.bank.getQty(pitch)}|${allLogs}|${game.gp.amount}|${logs}|${p?.q},${p?.r}|${state.compass?.owned?.()}|${state.active()}|${st?.food},${st?.fuel}|${game.bank.items.size}|${pickedQty}|${skill()?.level}|${state.stores?.night?.()}|${state.planner?.signature?.()}`;
   };
 
   return { render, signature, helpSections };

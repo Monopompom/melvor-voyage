@@ -221,18 +221,25 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     }, 50);
   };
 
-  /** Where your boat is (phase 3b): aboard, or moored with a link that centres the map on it. */
+  /**
+   * Where your vessels are (phase 3b): aboard, or moored with a link that centres the map on it. With the big ship
+   * (build .150) one line each; the small boat riding aboard the big ship has none of its own.
+   */
   const shipLine = () => {
     const sh = state.ship;
-    const ship = sh?.ship();
-    if (ship == null || !sh.enabled()) return '';
-    const name = sh.hullName?.(ship) ?? getLangString('MOD_VOY_SHIP_BOAT');
-    // Hull condition (3d), only once it is worn: amber below 50%, red when worn through.
-    const c = sh.cond?.() ?? 100;
-    const hull = c >= 100 ? '' : ` <span class="${c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : 'text-muted'}">(${esc(templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` }))})</span>`;
-    if (sh.aboard()) return `<div class="voyage-here-ship text-info"><span><i class="fa fa-ship mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_ABOARD', { hull: name }))}${hull}</span></div>`;
-    return `<div class="voyage-here-ship"><span><i class="fa fa-anchor mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_MOORED', { hull: name, where: sh.whereIs(ship, true) }))}${hull}</span>` +
-      `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-find-ship">${esc(getLangString('MOD_VOY_PANEL_SHOW_SHIP'))}</button></div>`;
+    if (sh?.boat() == null || !sh.enabled()) return '';
+    const kinds = sh.big?.() != null ? ['ship', 'boat'] : ['boat'];
+    return kinds.map((kind) => {
+      const v = sh.vessel(kind);
+      if (v == null || (kind === 'boat' && v.aboard === true)) return '';
+      const name = sh.hullName?.(v) ?? getLangString('MOD_VOY_SHIP_BOAT');
+      // Hull condition (3d), only once it is worn: amber below 50%, red when worn through.
+      const c = sh.cond?.(kind) ?? 100;
+      const hull = c >= 100 ? '' : ` <span class="${c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : 'text-muted'}">(${esc(templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` }))})</span>`;
+      if (sh.inVessel() === kind) return `<div class="voyage-here-ship text-info"><span><i class="fa fa-ship mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_ABOARD', { hull: name }))}${hull}</span></div>`;
+      return `<div class="voyage-here-ship"><span><i class="fa fa-anchor mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_MOORED', { hull: name, where: sh.whereIs(v, true) }))}${hull}</span>` +
+        `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-find-ship" data-kind="${kind}">${esc(getLangString('MOD_VOY_PANEL_SHOW_SHIP'))}</button></div>`;
+    }).join('');
   };
 
   /** What the stores hold (phase 3c), and the loading rates when this is a place to load; the button opens the page. */
@@ -284,10 +291,12 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     }
     // 3. Hull, once worn.
     const sh = state.ship;
-    if (sh?.ship?.() != null && sh.enabled()) {
-      const c = sh.cond?.() ?? 100;
+    if (sh?.boat?.() != null && sh.enabled()) {
+      // The more worn of your vessels (build .150: the big ship has its own hull).
+      const kind = sh.big?.() != null && (sh.cond?.('ship') ?? 100) < (sh.cond?.('boat') ?? 100) ? 'ship' : 'boat';
+      const c = sh.cond?.(kind) ?? 100;
       if (c < 100) {
-        const tip = `${sh.hullName?.(sh.ship()) ?? getLangString('MOD_VOY_SHIP_BOAT')}: ${templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` })}`;
+        const tip = `${sh.hullName?.(sh.vessel(kind)) ?? getLangString('MOD_VOY_SHIP_BOAT')}: ${templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` })}`;
         out.push(chip(`<i class="fa fa-ship mr-1"></i>${c}%`, tip, c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : ''));
       }
     }
@@ -476,9 +485,10 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         render();
         return;
       }
-      if (e.target instanceof Element && e.target.closest('.voyage-find-ship')) {
+      const findShip = e.target instanceof Element ? e.target.closest('.voyage-find-ship') : null;
+      if (findShip !== null) {
         e.preventDefault();
-        try { const hex = state.ship?.hex(); if (hex !== undefined) state.ship.centreOn(hex); } catch (err) { log('find ship failed', err); }
+        try { const hex = state.ship?.hex(findShip.dataset.kind ?? 'boat'); if (hex !== undefined) state.ship.centreOn(hex); } catch (err) { log('find ship failed', err); }
       }
       const fight = e.target instanceof Element ? e.target.closest('.voyage-fight-link') : null;
       if (fight !== null) {

@@ -1,5 +1,7 @@
-// Map markers: the game's red player pin becomes the traveller figure on land and your boat (dinghy or
-// longboat) with its rower while aboard; a boat you stepped off is drawn moored on its hex.
+// Map markers: the game's red player pin becomes the traveller figure on land and the vessel you are in
+// (dinghy or longboat with its rower, the brig under sail) while aboard; a vessel you stepped off is drawn moored on
+// its hex (the boat beached, the brig at anchor or at the quay). The boat aboard the brig is not drawn, so up to three
+// markers show: you, the boat, the brig (two vessels, build .150).
 //
 // The pin is `cartographyMap.playerPin`, a PIXI.Sprite anchored at its bottom centre. The game sets its texture once
 // (WorldMapDisplayElement.init) and scales it in configurePlayerPin(map) from the texture's height, so the mod swaps
@@ -13,11 +15,14 @@ const TEXTURES = {
   'dinghy.parked': 'assets/marker_dinghy_parked.png',
   'longboat.aboard': 'assets/marker_longboat_aboard.png',
   'longboat.parked': 'assets/marker_longboat_parked.png',
+  'brig.aboard': 'assets/marker_brig_aboard.png',
+  'brig.parked': 'assets/marker_brig_parked.png',
 };
 
 export function install(ctx, { state, log }) {
   const tex = {};
-  let parked;
+  /** The moored sprites, one per vessel kind ('boat', 'ship'). */
+  const parked = {};
 
   // The map being drawn. loadWorldMap moves the pin before it sets `_lastDrawnMap`, so on the first draw the active
   // map stands in; without it the moored dinghy stayed hidden until the first move (build .82, user report).
@@ -27,32 +32,42 @@ export function install(ctx, { state, log }) {
       return cartographyMap._lastDrawnMap ?? game.cartography?.activeMap;
     } catch { return undefined; }
   };
-  /** The ship's own texture for `kind` ('aboard' or 'parked'), the dinghy's when its hull has none. */
-  const hullTex = (kind) => tex[`${state.ship?.ship()?.hull}.${kind}`] ?? tex[`dinghy.${kind}`];
-  const pinTexture = () => (state.ship?.aboard() && hullTex('aboard') !== undefined ? hullTex('aboard') : tex.land);
+  /** A vessel's own texture for `look` ('aboard' or 'parked'), the dinghy's when its hull has none. */
+  const hullTex = (v, look) => tex[`${v?.hull}.${look}`] ?? (v?.hull === 'brig' ? undefined : tex[`dinghy.${look}`]);
+  const pinTexture = () => {
+    const kind = state.ship?.inVessel?.();
+    const want = kind === undefined ? undefined : hullTex(state.ship.vessel(kind), 'aboard');
+    return want ?? tex.land;
+  };
 
-  /** The moored boat: shown on the ship's hex while you are not aboard and the player marker filter is on. */
-  const placeParked = (display, map) => {
-    const want = hullTex('parked');
-    if (want === undefined || display?.markerLayer === undefined) return;
-    if (parked === undefined || parked.destroyed) {
-      parked = new PIXI.Sprite(want);
-      parked.anchor.set(0.5, 1);
-      parked.eventMode = 'none';
+  /**
+   * A moored vessel: shown on its hex while you are not in it and the player marker filter is on. The boat aboard
+   * the big ship is not drawn.
+   */
+  const placeParked = (display, map, kind) => {
+    const v = state.ship?.vessel?.(kind);
+    const want = v == null ? undefined : hullTex(v, 'parked');
+    if (display?.markerLayer === undefined) return;
+    let sprite = parked[kind];
+    if (want === undefined) { if (sprite !== undefined && !sprite.destroyed) sprite.visible = false; return; }
+    if (sprite === undefined || sprite.destroyed) {
+      sprite = new PIXI.Sprite(want);
+      sprite.anchor.set(0.5, 1);
+      sprite.eventMode = 'none';
+      parked[kind] = sprite;
     }
-    if (parked.texture !== want) parked.texture = want; // the hull was upgraded
-    if (parked.parent !== display.markerLayer) {
+    if (sprite.texture !== want) sprite.texture = want; // the hull was upgraded
+    if (sprite.parent !== display.markerLayer) {
       const at = display.markerLayer.getChildIndex(display.playerPin);
-      display.markerLayer.addChildAt(parked, Math.max(0, at));
+      display.markerLayer.addChildAt(sprite, Math.max(0, at));
     }
-    const ship = state.ship?.ship();
-    const hexDisplay = ship ? display.getHexDisplay(ship) : undefined;
-    const show = ship != null && hexDisplay !== undefined && !state.ship.aboard() && state.ship.enabled() && display.playerPin.visible;
-    parked.visible = show;
+    const hexDisplay = display.getHexDisplay(v);
+    const show = hexDisplay !== undefined && v.aboard !== true && state.ship.inVessel() !== kind && state.ship.enabled() && display.playerPin.visible;
+    sprite.visible = show;
     if (!show) return;
-    parked.x = hexDisplay.x;
-    parked.y = hexDisplay.y;
-    parked.scale.set((HexCoords.SQRT3 * map.hexScale.y) / want.orig.height / 2);
+    sprite.x = hexDisplay.x;
+    sprite.y = hexDisplay.y;
+    sprite.scale.set((HexCoords.SQRT3 * map.hexScale.y) / want.orig.height / 2);
   };
 
   /** Puts the right texture on the pin, lets the game rescale it, and places the moored dinghy. */
@@ -64,7 +79,8 @@ export function install(ctx, { state, log }) {
       cartographyMap.playerPin.texture = want;
       cartographyMap.configurePlayerPin(map);
     }
-    placeParked(cartographyMap, map);
+    placeParked(cartographyMap, map, 'ship');
+    placeParked(cartographyMap, map, 'boat');
   };
 
   ctx.patch(WorldMapDisplayElement, 'configurePlayerPin').before(function () {
@@ -97,24 +113,31 @@ export function install(ctx, { state, log }) {
   });
 
   state.ship?.onChange(() => { try { refresh(); } catch (e) { log('marker refresh failed', e); } });
-  /** For voyageDev.marker(): what the moored-dinghy sprite is doing right now. */
+  /** For voyageDev.marker(): what the moored-vessel sprites are doing right now. */
   const debug = () => {
     const map = drawn();
-    const ship = state.ship?.ship();
-    const hexDisplay = ship && typeof cartographyMap !== 'undefined' ? cartographyMap?.getHexDisplay?.(ship) : undefined;
+    const one = (kind) => {
+      const v = state.ship?.vessel?.(kind);
+      const hexDisplay = v && typeof cartographyMap !== 'undefined' ? cartographyMap?.getHexDisplay?.(v) : undefined;
+      const sprite = parked[kind];
+      return {
+        vessel: v ?? null,
+        hexDisplay: hexDisplay ? { x: hexDisplay.x, y: hexDisplay.y } : undefined,
+        sprite: sprite === undefined ? 'never made' : {
+          destroyed: sprite.destroyed,
+          inMarkerLayer: !sprite.destroyed && sprite.parent === cartographyMap?.markerLayer,
+          visible: sprite.visible, x: sprite.x, y: sprite.y, scale: sprite.scale?.x, alpha: sprite.alpha,
+        },
+      };
+    };
     return {
       textures: Object.fromEntries(Object.keys(TEXTURES).map((k) => [k, tex[k] !== undefined])),
       mapDrawn: map !== undefined,
-      ship: ship ?? null,
-      aboard: state.ship?.aboard(),
+      inVessel: state.ship?.inVessel?.(),
       rules: state.ship?.enabled(),
       playerPinVisible: cartographyMap?.playerPin?.visible,
-      hexDisplay: hexDisplay ? { x: hexDisplay.x, y: hexDisplay.y } : undefined,
-      sprite: parked === undefined ? 'never made' : {
-        destroyed: parked.destroyed,
-        inMarkerLayer: !parked.destroyed && parked.parent === cartographyMap?.markerLayer,
-        visible: parked.visible, x: parked.x, y: parked.y, scale: parked.scale?.x, alpha: parked.alpha,
-      },
+      boat: one('boat'),
+      ship: one('ship'),
     };
   };
   return { refresh, debug };

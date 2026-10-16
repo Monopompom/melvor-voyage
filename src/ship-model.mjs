@@ -4,7 +4,8 @@
 // No game objects here; covered by tests/ship-model.test.mjs.
 
 /**
- * Hull tiers. The dinghy (phase 3b) and the longboat (phase 4, build .142); the brig and galleon come later in phase 4.
+ * Hull tiers. The dinghy (phase 3b) and the longboat (phase 4, build .142) are the small boat; the brig (build .150) is
+ * the big ship, a second vessel; the galleon comes later in phase 4.
  * Reach and the island tiers below follow the game's default dungeon order (decided 15 Oct 2026).
  */
 export const HULLS = {
@@ -18,7 +19,38 @@ export const HULLS = {
     id: 'longboat', tier: 2, name: 'Longboat', media: 'assets/hull_longboat.png', reach: 4,
     blurb: 'A bigger rowing boat with a short mast. It stays within 4 hexes of land and you can board or leave it on any coast, the Cursed Isle included.',
   },
+  brig: {
+    id: 'brig', tier: 3, name: 'Brig', media: 'assets/hull_brig.png', reach: 5,
+    blurb: 'A two-masted sailing ship. It sails up to 5 hexes from land, under cloud too, and ties up only at ports. Your small boat rides aboard and rows you ashore anywhere else.',
+  },
 };
+/** The big ships: a second vessel beside the small boat. */
+export const BIG_TIER = 3;
+export const isBig = (v) => tierOf(v) >= BIG_TIER;
+
+/**
+ * Big ships bought at a port: the user's price, 16 Oct 2026, a placeholder for the
+ * balance pass like the longboat's.
+ */
+export const BIG_SHIPS = {
+  brig: {
+    level: 45, gp: 150000,
+    items: [{ id: 'melvorD:Teak_Logs', quantity: 400 }, { id: 'melvorD:Steel_Bar', quantity: 100 }, { id: 'voyage:Pitch', quantity: 75 }],
+    milestone: 'Brig: bought at a port',
+  },
+};
+/**
+ * Why the brig can't be bought now, as a reason id, or undefined: 'owned' (a big ship already), 'level', 'port' (not
+ * on or next to a port), 'quay' (the port has no quay for it), 'cost'. `have` = { ship, level, atPort, quay, owned }.
+ */
+export function buyBlocker(spec, have) {
+  if (have.ship != null) return 'owned';
+  if (have.level < spec.level) return 'level';
+  if (!have.atPort) return 'port';
+  if (have.quay === undefined) return 'quay';
+  if (!have.owned) return 'cost';
+  return undefined;
+}
 
 /**
  * Upgrades of the hull you have: built on the Voyage page at a port with the
@@ -126,7 +158,6 @@ const shoreOf = (rec) => (Number.isInteger(rec?.shore) ? rec.shore : 1);
  * written and tested for them now. Kept out of HULLS: no save names them and nothing builds them.
  */
 export const PLANNED_HULLS = {
-  brig: { id: 'brig', tier: 3, reach: 5 },
   galleon: { id: 'galleon', tier: 4, reach: Infinity },
 };
 const hullOf = (ship) => HULLS[ship?.hull] ?? PLANNED_HULLS[ship?.hull];
@@ -390,7 +421,7 @@ export function seaIndex(terrain) {
  * of HOLD_ROW at a time (build .134, the user: the Voyage page draws them as crates, six to a row): one row at each of
  * HOLD_ROW_LEVELS (skill milestones). Bigger hulls add rows later, and cargo runs use the same slots.
  */
-export const HOLD_SLOTS = { dinghy: 6, longboat: 12 };
+export const HOLD_SLOTS = { dinghy: 6, longboat: 12, brig: 18 };
 export const HOLD_ROW = 6;
 export const HOLD_ROW_LEVELS = [40, 80];
 export function holdSlots(ship, voyageLevel = 1) {
@@ -419,4 +450,209 @@ export function takeOut(hold, id, qty) {
   const left = hold[i].qty - taken;
   const next = left > 0 ? hold.map((e, j) => (j === i ? { id, qty: left } : e)) : hold.filter((_, j) => j !== i);
   return { hold: next, taken };
+}
+
+// ---- two vessels: the route search ---------------------------------------------
+
+/** A port hex (the terrain table's `port` feature), outside the cloud. */
+export const isPort = (rec) => rec !== undefined && rec.cloud !== true && Array.isArray(rec.f) && rec.f.includes('port');
+/**
+ * May a big ship's deck and the land meet across this step (either way)? Only at a port: the quay is the port hex
+ * itself for a port drawn on the water (then any land next to it is the shore), or a sea hex next to a port on land.
+ */
+export const canDock = (seaRec, landRec) => isSea(seaRec) && !isSea(landRec) && (isPort(landRec) || isPort(seaRec));
+/** A big ship is at anchor within this many hexes of land: from there the small boat can be launched. */
+export const ANCHOR_SHORE = 2;
+/** Boat sea steps cost this share more, so the big ship sails as close as it can and the boat rows the rest. */
+export const BOAT_EPSILON = 1e-3;
+
+/**
+ * The cheapest route with two vessels, over states (hex, the vessel you are in), A* like the game's computePath.
+ * `o` = {
+ *   start, goal: nodes (game hexes, or terrain records in the tests);
+ *   key(node): a string per hex; rec(node): its terrain record;
+ *   neighbours(node): [[node, cost, hop]] (hop: a fast-travel jump between ports);
+ *   heuristic(node): a lower bound to the goal (0 is fine);
+ *   boat, ship: the vessel records ({ hull, q, r, aboard }) or null; geo: seaIndex();
+ *   dockOf(node): where a vessel ties up at the port `node` after a hop, { q, r } or undefined.
+ * }
+ * Each vessel is 'h' (where it was), 'w' (with you: you are in it), 'a' (the boat, aboard the ship you are on) or 'l'
+ * (left behind on this route: not boarded again, a cheapest route never needs it). Returns { path: nodes start to
+ * goal, modes: per node { m: 'land' | 'boat' | 'ship', hop?: 'boat' | 'ship' } } or undefined.
+ */
+export function routeSearch(o) {
+  const { boat, ship, geo } = o;
+  const B0 = boat ?? null;
+  const S0 = ship ?? null;
+  const at = (v, rec) => ({ hull: v.hull, q: rec.q, r: rec.r });
+  const nbCache = new Map();
+  const nbs = (node) => {
+    const k = o.key(node);
+    let list = nbCache.get(k);
+    if (list === undefined) { list = o.neighbours(node); nbCache.set(k, list); }
+    return list;
+  };
+  const startRec = o.rec(o.start);
+  let mode = 'land';
+  let b = 'h';
+  let sv = 'h';
+  if (isSea(startRec)) {
+    if (S0 !== null && sameHex(startRec, S0)) { mode = 'ship'; sv = 'w'; if (B0 !== null && B0.aboard === true) b = 'a'; }
+    else if (B0 !== null && sameHex(startRec, B0)) { mode = 'boat'; b = 'w'; }
+    else if (B0 !== null && B0.aboard !== true) { mode = 'boat'; b = 'w'; } // on the sea away from both: as in the boat
+    else if (S0 !== null) { mode = 'ship'; sv = 'w'; if (B0 !== null && B0.aboard === true) b = 'a'; }
+    else mode = 'none';
+  }
+  const stateKey = (st) => `${o.key(st.node)}|${st.mode}|${st.b}|${st.s}|${st.mode === 'boat' && st.s === 'l' ? `${st.sAt.q},${st.sAt.r}` : ''}`;
+  const boatAboard = (st) => st.b === 'a' || (st.b === 'h' && B0 !== null && B0.aboard === true);
+  const shipPos = (st) => (st.s === 'h' ? S0 ?? undefined : st.s === 'l' ? st.sAt : undefined);
+
+  const first = { node: o.start, mode, b, s: sv, sAt: undefined, g: 0, prev: undefined, hop: undefined };
+  const open = [];
+  const push = (st) => {
+    const f = st.g + o.heuristic(st.node);
+    st.f = f;
+    let i = open.length;
+    open.push(st);
+    while (i > 0) { const p = (i - 1) >> 1; if (open[p].f <= f) break; open[i] = open[p]; i = p; }
+    open[i] = st;
+  };
+  const pop = () => {
+    const top = open[0];
+    const last = open.pop();
+    if (open.length > 0) {
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1;
+        if (l >= open.length) break;
+        const c = l + 1 < open.length && open[l + 1].f < open[l].f ? l + 1 : l;
+        if (open[c].f >= last.f) break;
+        open[i] = open[c];
+        i = c;
+      }
+      open[i] = last;
+    }
+    return top;
+  };
+  const best = new Map();
+  const goalKey = o.key(o.goal);
+  best.set(stateKey(first), 0);
+  push(first);
+  const offer = (from, node, cost, patch) => {
+    const st = { ...from, ...patch, node, g: from.g + cost, prev: from };
+    const k = stateKey(st);
+    const old = best.get(k);
+    if (old !== undefined && old <= st.g) return;
+    best.set(k, st.g);
+    push(st);
+  };
+  const done = new Set();
+  while (open.length > 0) {
+    const cur = pop();
+    const ck = stateKey(cur);
+    if (done.has(ck) || best.get(ck) < cur.g) continue;
+    done.add(ck);
+    if (o.key(cur.node) === goalKey) {
+      const states = [];
+      for (let st = cur; st !== undefined; st = st.prev) states.push(st);
+      states.reverse();
+      return { path: states.map((st) => st.node), modes: states.map((st) => (st.hop === undefined ? { m: st.mode } : { m: st.mode, hop: st.hop })) };
+    }
+    const p = o.rec(cur.node);
+    for (const [node, cost, hop] of nbs(cur.node)) {
+      const n = o.rec(node);
+      if (n === undefined) continue;
+      if (hop) { hopFrom(cur, p, node, n, cost); continue; }
+      if (cur.mode === 'none') {
+        // On the sea with no vessel (the rules switched off and on): only towards land, as canStep without a ship.
+        if (canStep(p, n, null, geo)) offer(cur, node, cost, { mode: isSea(n) ? 'none' : 'land', hop: undefined });
+        continue;
+      }
+      if (cur.mode === 'land') {
+        if (!isSea(n)) { offer(cur, node, cost, { hop: undefined }); continue; }
+        if (cur.b === 'h' && B0 !== null && B0.aboard !== true && sameHex(n, B0)) offer(cur, node, cost * (1 + BOAT_EPSILON), { mode: 'boat', b: 'w', hop: undefined });
+        if (cur.s === 'h' && S0 !== null && sameHex(n, S0) && canDock(n, p)) offer(cur, node, cost, { mode: 'ship', s: 'w', b: boatAboard(cur) ? 'a' : cur.b, hop: undefined });
+        continue;
+      }
+      if (cur.mode === 'boat') {
+        if (!isSea(n)) {
+          const sp = shipPos(cur);
+          const tier = Math.max(tierOf(B0), sp !== undefined && hexDist(sp, n) <= ANCHOR_SHORE ? tierOf(S0) : 0);
+          if (tier >= geo.islandTier(n)) offer(cur, node, cost, { mode: 'land', b: 'l', hop: undefined });
+          continue;
+        }
+        const sp = shipPos(cur);
+        if (sp !== undefined && sameHex(n, sp)) {
+          if (cur.s === 'h') offer(cur, node, cost, { mode: 'ship', s: 'w', b: 'a', hop: undefined });
+          continue; // a ship left on this route is not boarded again
+        }
+        if (canStep(p, n, at(B0, p), geo)) offer(cur, node, cost * (1 + BOAT_EPSILON), { hop: undefined });
+        continue;
+      }
+      // in the ship
+      if (!isSea(n)) {
+        if (canDock(p, n) && tierOf(S0) >= geo.islandTier(n)) offer(cur, node, cost, { mode: 'land', s: 'l', b: cur.b === 'a' ? 'l' : cur.b, sAt: { q: p.q, r: p.r }, hop: undefined });
+        continue;
+      }
+      if (canStep(p, n, at(S0, p), geo)) {
+        // sailing over the beached boat takes it aboard
+        const pick = cur.b === 'h' && B0 !== null && B0.aboard !== true && sameHex(n, B0);
+        offer(cur, node, cost, { b: pick ? 'a' : cur.b, hop: undefined });
+      }
+      if (boatAboard(cur) && p.cloud !== true && Number.isInteger(p.shore) && p.shore <= ANCHOR_SHORE && canStep(p, n, at(B0, p), geo)) {
+        offer(cur, node, cost * (1 + BOAT_EPSILON), { mode: 'boat', b: 'w', s: 'l', sAt: { q: p.q, r: p.r }, hop: undefined });
+      }
+    }
+  }
+  return undefined;
+
+  /** A fast-travel hop: the ship sails it when it is at this port's quay (the boat with it if aboard), else the boat. */
+  function hopFrom(cur, p, node, n, cost) {
+    const dock = o.dockOf(node);
+    if (dock === undefined) return;
+    const landing = isSea(n) ? undefined : n;
+    const shipHere = (cur.mode === 'ship') || (cur.mode === 'land' && cur.s === 'h' && S0 !== null && hexDist(p, S0) <= 1);
+    if (shipHere && S0 !== null && canHop(p, n, at(S0, p), dock, geo)) {
+      const aboard = boatAboard(cur);
+      if (landing === undefined) offer(cur, node, cost, { mode: 'ship', s: 'w', b: aboard ? 'a' : cur.b, hop: 'ship' });
+      else offer(cur, node, cost, { mode: 'land', s: 'l', b: aboard ? 'l' : cur.b, sAt: dock, hop: 'ship' });
+      return;
+    }
+    const boatHere = (cur.mode === 'boat') || (cur.mode === 'land' && cur.b === 'h' && B0 !== null && B0.aboard !== true && hexDist(p, B0) <= 1);
+    if (boatHere && B0 !== null && canHop(p, n, at(B0, p), dock, geo)) {
+      if (landing === undefined) offer(cur, node, cost, { mode: 'boat', b: 'w', hop: 'boat' });
+      else offer(cur, node, cost, { mode: 'land', b: 'l', hop: 'boat' });
+    }
+  }
+}
+
+/**
+ * Where both vessels are after a route of routeSearch (records start to destination, `modes` alongside). A vessel
+ * moves while you are in it; the boat aboard moves with the ship; a hop docks the vessel that sailed it at
+ * `dockOf(rec)`. Returns { boat, ship } (the same objects when they did not move).
+ */
+export function vesselsAfterRoute(recs, modes, boat, ship, dockOf) {
+  let b = boat == null ? null : { ...boat };
+  let s = ship == null ? null : { ...ship };
+  for (let i = 1; i < recs.length; i++) {
+    const rec = recs[i];
+    const m = modes[i] ?? { m: 'land' };
+    const prev = modes[i - 1]?.m;
+    if (m.hop !== undefined) {
+      const dock = dockOf(rec);
+      if (dock === undefined) continue;
+      if (m.hop === 'ship' && s !== null) { s = { ...s, q: dock.q, r: dock.r }; if (b?.aboard) b = { ...b, q: dock.q, r: dock.r }; }
+      if (m.hop === 'boat' && b !== null) b = { ...b, q: dock.q, r: dock.r, aboard: false };
+      continue;
+    }
+    if (m.m === 'boat' && b !== null) b = { ...b, q: rec.q, r: rec.r, aboard: false };
+    if (m.m === 'ship' && s !== null) {
+      s = { ...s, q: rec.q, r: rec.r };
+      if (prev === 'boat' && b !== null) b = { ...b, aboard: true };
+      if (b !== null && !b.aboard && sameHex(b, s)) b = { ...b, aboard: true }; // sailed over the beached boat
+      if (b?.aboard) b = { ...b, q: rec.q, r: rec.r };
+    }
+  }
+  const same = (x, y) => x === y || (x !== null && y != null && x.q === y.q && x.r === y.r && (x.aboard === true) === (y.aboard === true));
+  return { boat: same(b, boat ?? null) ? boat ?? null : b, ship: same(s, ship ?? null) ? ship ?? null : s };
 }
