@@ -207,7 +207,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
         section(`<div class="d-flex flex-wrap align-items-center"><span class="mr-2">${t('MOD_VOY_PAGE_BUILD_COST')}</span>${costs.join('')}</div>` +
           (why
             ? `<div class="text-warning mt-2">${esc(why)}</div>`
-            : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="build">${t('MOD_VOY_PAGE_BUILD_BUTTON')}</button></div>` +
+            : `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="build">${t('MOD_VOY_PAGE_BUILD_BUTTON')}</button></div>` +
               `<small class="d-block text-center text-muted mt-1">${t('MOD_VOY_PAGE_BUILD_HINT')}</small>`));
     }
     return vesselRow('boat') + hullHtml('boat') + upgradeHtml() + bigHtml();
@@ -246,7 +246,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` +
       (blocker !== undefined
         ? `<div class="text-warning mt-2">${esc(blocker)}</div>`
-        : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="buy">${esc(t('MOD_VOY_PAGE_BRIG_BUTTON'))}</button></div>` +
+        : `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="buy">${esc(t('MOD_VOY_PAGE_BRIG_BUTTON'))}</button></div>` +
           `<small class="d-block text-center text-muted mt-1">${esc(t('MOD_VOY_PAGE_BRIG_HINT'))}</small>`));
   };
 
@@ -270,7 +270,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` +
       (blocker !== undefined
         ? `<div class="text-warning mt-2">${esc(blocker)}</div>`
-        : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="upgrade" data-kind="${kind}">${esc(t('MOD_VOY_PAGE_UPGRADE_BUTTON', { hull: word }))}</button></div>` +
+        : `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="upgrade" data-kind="${kind}">${esc(t('MOD_VOY_PAGE_UPGRADE_BUTTON', { hull: word }))}</button></div>` +
           `<small class="d-block text-center text-muted mt-1">${esc(t('MOD_VOY_PAGE_UPGRADE_HINT', { old }))}</small>`));
   };
 
@@ -337,7 +337,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const action = info.blocker === undefined
       ? `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR', { cond: `${info.plan.to}` })}</button></div>`
       : (c < 100 ? `<div class="text-warning mt-2">${esc(info.blocker)}</div>` : '');
-    return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/hull_condition.png')}" alt="">` +
+    return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/hull_condition.webp')}" alt="">` +
       `<div class="flex-grow-1"><div><b>${t('MOD_VOY_PAGE_HULL_LABEL')}</b> <span class="${c <= 0 ? 'text-danger' : c < storesModel.WORN ? 'text-warning' : ''}">${c}%</span></div>` +
       `<div class="progress voyage-hull-bar"><div class="progress-bar ${cls}" style="width:${c}%"></div></div></div></div>` +
       (c < 100 ? `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` : '') + action);
@@ -386,7 +386,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       const found = map === undefined ? 0 : [...map.discoveredPOIs].length;
       if (map !== undefined && all > 0) row(fa('fa-landmark'), 'MOD_VOY_PAGE_STAT_DISCOVERIES', of(found, all), 'voyage-stat-gold', found / all);
     } catch {}
-    row(img(ctx.getResourceUrl('assets/chart_mining.png')), 'MOD_VOY_PAGE_STAT_CHARTS', numberWithCommas((j.charted ?? []).length));
+    row(img(ctx.getResourceUrl('assets/chart_mining.webp')), 'MOD_VOY_PAGE_STAT_CHARTS', numberWithCommas((j.charted ?? []).length));
     const cut = model.travelDiscount(skill()?.level ?? 1);
     if (cut > 0) { try { row(img(game.gp.media), 'MOD_VOY_PAGE_STAT_DISCOUNT', t('MOD_VOY_PAGE_STAT_DISCOUNT_VALUE', { pct: `${cut}` }), 'text-success'); } catch {} }
     return `<div class="voyage-stats">${rows.join('')}</div>`;
@@ -611,9 +611,9 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     // What you carry against what fits: 600 / 620 HP, 15 / 15.5 fuel. Amber when low, red when empty.
     const level = (kind) => (have[kind] <= 0 ? 'text-danger' : have[kind] < storesModel.LOW[kind] ? 'text-warning' : '');
     const of = (n) => `<small class="text-muted">/ ${n}</small>`;
-    const carried = `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.png')}" alt=""><span class="${level('food')}">${api.hp(have.food)}</span> ${of(api.hp(cap.food))} HP ` +
-      `<img src="${ctx.getResourceUrl('assets/fuel.png')}" alt=""><span class="${level('fuel')}">${api.fuelText(have.fuel)}</span> ${of(api.fuelText(cap.fuel))}</span>`;
-    let html = section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/ship_stores.png')}" alt=""><b>${carried}</b></div>` +
+    const carried = `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}" alt=""><span class="${level('food')}">${api.hp(have.food)}</span> ${of(api.hp(cap.food))} HP ` +
+      `<img src="${ctx.getResourceUrl('assets/fuel.webp')}" alt=""><span class="${level('fuel')}">${api.fuelText(have.fuel)}</span> ${of(api.fuelText(cap.fuel))}</span>`;
+    let html = section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt=""><b>${carried}</b></div>` +
       (api.enabled() ? '' : `<div class="text-warning">${t('MOD_VOY_PAGE_STORES_OFF')}</div>`));
     const rates = api.loadingHere();
     if (rates === undefined) return `${html}${section(`<div class="text-warning">${t('MOD_VOY_PAGE_STORES_NO_LOADING')}</div>`)}`;
@@ -626,7 +626,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
     const well = (kind) => {
       const mine = items.filter((x) => x.kind === kind);
       const why = rates[kind] <= 0 ? 'MOD_VOY_PAGE_STORES_NOT_HERE' : kind === 'food' ? 'MOD_VOY_PAGE_STORES_NO_FOOD' : 'MOD_VOY_PAGE_STORES_NO_FUEL';
-      const icon = `<img class="voyage-store-col-icon" src="${ctx.getResourceUrl(kind === 'food' ? 'assets/ration.png' : 'assets/fuel.png')}" alt="">`;
+      const icon = `<img class="voyage-store-col-icon" src="${ctx.getResourceUrl(kind === 'food' ? 'assets/ration.webp' : 'assets/fuel.webp')}" alt="">`;
       return `<div class="voyage-store-col"><div class="voyage-store-col-head">${icon}${esc(t(kind === 'food' ? 'MOD_VOY_PAGE_STORES_FOOD' : 'MOD_VOY_PAGE_STORES_FUEL'))}</div>` +
         (mine.length === 0
           ? `<div class="voyage-store-well voyage-store-well-empty"><span>${esc(t(why))}</span></div>`
@@ -779,7 +779,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
       // Build .165 (the user): one portrait, the mount bought last. Build .167: its tooltip is only what it gives, in green.
       const lines = [m === undefined || m.cut === 0 ? t('MOD_VOY_PAGE_LAND_NO_CUT') : { text: t('MOD_VOY_PAGE_LAND_CUT', { pct: `${Math.round(m.cut * 100)}` }), cls: 'text-success' }];
       const tipText = lines.map((l) => (typeof l === 'string' ? l : l.text)).join('. ');
-      const inner = `<div class="voyage-land-face" data-tip-lines="${esc(JSON.stringify(lines))}"><div class="voyage-land-ring"><img src="${m === undefined ? ctx.getResourceUrl('assets/marker_traveller_figure.png') : L.mediaOf(m)}" alt=""></div>` +
+      const inner = `<div class="voyage-land-face" data-tip-lines="${esc(JSON.stringify(lines))}"><div class="voyage-land-ring"><img src="${m === undefined ? ctx.getResourceUrl('assets/marker_traveller_figure.webp') : L.mediaOf(m)}" alt=""></div>` +
         `<div class="voyage-land-name">${esc(name)}</div></div>`;
       const shopHint = next === undefined ? '' : `. ${t('MOD_VOY_PAGE_LAND_NEXT', { name: L.nameOf(next), level: `${next.level}` })}. ${t('MOD_VOY_PAGE_LAND_SHOP')}`;
       const label = `${t('MOD_VOY_PAGE_LAND_TIP', { mount: name })}. ${tipText}${shopHint}`;

@@ -26,7 +26,7 @@ const ANYWHERE = ['melvorD:Agility', 'melvorD:Prayer', 'melvorAoD:Cartography', 
 export function install(ctx, { state, model, journalModel: jm, shipModel, rules, terrainMod, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const iconUrl = ctx.getResourceUrl('assets/journal.png');
+  const iconUrl = ctx.getResourceUrl('assets/journal.webp');
   const start = state.zoneTable?.start;
   const TABS = jm.JOURNAL_TABS;
   let minibarEl;
@@ -230,7 +230,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   const rate = (r) => `${Math.round(r * 100)}%`;
 
   // ---------------------------------------------------------------------------------------------------- the book
-  const view = { open: false, tab: 'how', spread: 0, crewSpread: 0, entry: undefined, place: undefined, guide: undefined, query: '', placeQuery: '', back: null, pick: undefined };
+  const view = { open: false, tab: 'how', spread: 0, crewSpread: 0, entry: undefined, place: undefined, guide: undefined, query: '', placeQuery: '', back: null, pick: undefined, side: 'left' };
   let root;
 
   const ledger = (cols, rows) => `<table class="vj-ledger"><thead><tr>${cols.map((c, i) => `<th class="${i > 0 && rows.numeric?.[i] ? 'vj-num' : ''}">${esc(c)}</th>`).join('')}</tr></thead>`
@@ -483,10 +483,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   };
 
   // The lore's last page: the lighthouse, drawn in ink.
-  const lighthouseUrl = ctx.getResourceUrl('assets/lighthouse.png');
+  const lighthouseUrl = ctx.getResourceUrl('assets/lighthouse.webp');
   const lighthouse = () => `<figure class="vj-figure"><img src="${lighthouseUrl}" alt="${esc(t('MOD_VOY_JOURNAL_LIGHTHOUSE_ALT'))}"></figure>`;
   // The first page: his galleon, Patient Grace, in pencil (the user, build .123).
-  const galleonUrl = ctx.getResourceUrl('assets/galleon.png');
+  const galleonUrl = ctx.getResourceUrl('assets/galleon.webp');
   const galleon = () => `<figure class="vj-figure vj-galleon"><img src="${galleonUrl}" alt="${esc(t('MOD_VOY_JOURNAL_GALLEON_ALT'))}"><figcaption>${esc(t('MOD_VOY_JOURNAL_GALLEON_CAPTION'))}</figcaption></figure>`;
 
   // The Old Man's Crew (build .116): Worker Folks: Hiring, read live where it can be (never written to).
@@ -593,7 +593,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       return out.innerHTML;
     } catch (e) { log(`journal note placement ${id} failed`, e); return content + noteHtml; }
   };
-  const chapterPage = (id, folio, turn = '', left = true) => {
+  const chapterPage = (id, folio, turn = '', left = true, one = '') => {
     const key = id.toUpperCase();
     let body = '';
     try { body = id === 'crafts' ? craftsTable() : jm.JOURNAL_WRITTEN[id] !== undefined ? writtenBody(id) : bookSections(state.helpSections(id)); } catch (e) { log(`journal chapter ${id} failed`, e); }
@@ -605,7 +605,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     return `<div class="vj-page-body${scrawl ? ' vj-has-scrawl' : ''}">` + scrawl + runningHead(t('MOD_VOY_JOURNAL_TITLE'), t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))
       + `<h2 class="vj-h1">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))}</h2>`
       + dropCap(t(`MOD_VOY_JOURNAL_CH_${key}_INTRO`)) + withNote(id, body + (id === 'travels' ? levelsLedger() : '') + (id === 'ship' ? shipBill() : '') + aside(id), noteHtml) + '</div>'
-      + chapterFoot(turn, folio, left);
+      + chapterFoot(turn, folio, left, one);
   };
   // The Manifest button (build .179): in the foot of every left chapter page, right
   // beside "Turn back" (the user: "leave manifest button only near left return"); it opens the first spread. The word
@@ -613,19 +613,23 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   const ANCHOR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
     + '<circle cx="12" cy="5" r="2.2"></circle><path d="M12 7.2V21"></path><path d="M8 11h8"></path><path d="M4 14c0 4 4 7 8 7s8-3 8-7"></path><path d="M4 14l-1.5-2M4 14l2-1M20 14l1.5-2M20 14l-2-1"></path></svg>';
   const manifestButton = () => `<button type="button" class="vj-manifest" data-vj-manifest="1" aria-label="${esc(t('MOD_VOY_JOURNAL_MANIFEST'))}">${ANCHOR}<span class="vj-manifest-word">${esc(t('MOD_VOY_JOURNAL_MANIFEST'))}</span></button>`;
-  const chapterFoot = (turn, folio, left) => (left
-    ? `<div class="vj-foot vj-foot-split"><span class="vj-foot-start">${turn}${manifestButton()}</span><span class="vj-folio">${folio}</span></div>`
-    : `<div class="vj-foot${turn ? ' vj-foot-split' : ''}"><span class="vj-folio">${folio}</span>${turn}</div>`);
+  // `one`: the turn only a phone shows (one page at a time there, the user, 18 Oct 2026): forward on a left page, back on a right one.
+  const chapterFoot = (turn, folio, left, one = '') => (left
+    ? `<div class="vj-foot vj-foot-split"><span class="vj-foot-start">${turn}${manifestButton()}</span><span class="vj-folio">${folio}</span>${one}</div>`
+    : `<div class="vj-foot${turn ? ' vj-foot-split' : ''}">${one}<span class="vj-folio">${folio}</span>${turn}</div>`);
+  /** A page turn: `dir` -1 or 1; `one` marks the extra turn only the phone's one-page book shows. */
+  const turnBtn = (dir, key, one = false) => `<button type="button" class="vj-turn${one ? ' vj-one-only' : ''}" data-vj-turn="${dir}">${dir < 0 ? '<span aria-hidden="true">‹</span> ' : ''}${esc(t(key))}${dir > 0 ? ' <span aria-hidden="true">›</span>' : ''}</button>`;
   /**
    * The first spread (build .179): the Old Man's chart in pencil on the left (no folio), the
    * Manifest on the right: every How it works chapter shown to this character with its folio, each a link to its
    * spread, then the Old Man's Crew chapters while that tab is on.
    */
-  const chartUrl = ctx.getResourceUrl('assets/chart.png');
+  const chartUrl = ctx.getResourceUrl('assets/chart.webp');
   const manifestRow = (attr, title, folio) => `<button type="button" class="vj-mrow" ${attr}><span class="vj-mrow-title">${esc(title)}</span>`
     + `<span class="vj-mrow-dots" aria-hidden="true"></span><span class="vj-folio">${folio}</span></button>`;
   const firstSpread = (list) => {
-    const left = `<figure class="vj-chart"><img src="${chartUrl}" alt="${esc(t('MOD_VOY_JOURNAL_CHART_ALT'))}"></figure>`;
+    const left = `<figure class="vj-chart"><img src="${chartUrl}" alt="${esc(t('MOD_VOY_JOURNAL_CHART_ALT'))}"></figure>`
+      + `<div class="vj-foot vj-foot-end vj-one-only">${turnBtn(1, 'MOD_VOY_JOURNAL_TURN', true)}</div>`;
     const how = list.map((id, i) => manifestRow(`data-vj-go="ch:${id}"`, t(`MOD_VOY_JOURNAL_CH_${id.toUpperCase()}_TITLE`), roman(i + 1))).join('');
     const crew = !crewOn() ? '' : `<div class="vj-manifest-head">${esc(t('MOD_VOY_JOURNAL_TAB_CREW'))}</div><div class="vj-mrows">`
       + jm.JOURNAL_CREW.map((id, i) => manifestRow(`data-vj-crew="${i}"`, t(`MOD_VOY_JOURNAL_CH_${id.toUpperCase()}_TITLE`), roman(i + 1))).join('') + '</div>';
@@ -633,7 +637,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_MANIFEST'))}</h2>` + dropCap(t('MOD_VOY_JOURNAL_MANIFEST_LEAD'))
       + `<div class="vj-manifest-head">${esc(t('MOD_VOY_JOURNAL_TAB_HOW'))}</div><div class="vj-mrows">${how}</div>` + crew
       + `<p class="vj-p vj-manifest-rest">${esc(t('MOD_VOY_JOURNAL_MANIFEST_REST'))}</p></div>`
-      + `<div class="vj-foot vj-foot-end"><button type="button" class="vj-turn" data-vj-turn="1">${esc(t('MOD_VOY_JOURNAL_TURN'))} <span aria-hidden="true">›</span></button></div>`;
+      + `<div class="vj-foot vj-foot-end">${turnBtn(-1, 'MOD_VOY_JOURNAL_TURN_BACK', true)}${turnBtn(1, 'MOD_VOY_JOURNAL_TURN')}</div>`;
     return { pinned: true, chart: true, left, right };
   };
   /** A "Did you know?" slip pasted into the chapter (journal-model.mjs JOURNAL_ASIDES), or ''. */
@@ -671,10 +675,14 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const at = view[field] - first;
     const a = list[at * 2];
     const b = list[at * 2 + 1];
-    const turn = (dir, key) => `<button type="button" class="vj-turn" data-vj-turn="${dir}">${dir < 0 ? '<span aria-hidden="true">‹</span> ' : ''}${esc(t(key))}${dir > 0 ? ' <span aria-hidden="true">›</span>' : ''}</button>`;
-    const back = view[field] > 0 ? turn(-1, 'MOD_VOY_JOURNAL_TURN_BACK') : '';
-    const on = view[field] < spreads - 1 ? turn(1, 'MOD_VOY_JOURNAL_TURN') : '';
-    return { pinned: true, left: chapterPage(a, roman(at * 2 + 1), back, true), right: b === undefined ? '' : chapterPage(b, roman(at * 2 + 2), on, false) };
+    const last = view[field] >= spreads - 1;
+    const back = view[field] > 0 ? turnBtn(-1, 'MOD_VOY_JOURNAL_TURN_BACK') : '';
+    const on = !last ? turnBtn(1, 'MOD_VOY_JOURNAL_TURN') : '';
+    // One page at a time on a phone: the left page turns on to the right one, the right one back to the left.
+    const leftOn = b !== undefined || !last ? turnBtn(1, 'MOD_VOY_JOURNAL_TURN', true) : '';
+    // The right page on a phone gets the left one's Manifest button too (the user, 18 Oct 2026), beside its Turn back.
+    const phoneBack = `<span class="vj-foot-start vj-one-only">${turnBtn(-1, 'MOD_VOY_JOURNAL_TURN_BACK')}${manifestButton()}</span>`;
+    return { pinned: true, left: chapterPage(a, roman(at * 2 + 1), back, true, leftOn), right: b === undefined ? '' : chapterPage(b, roman(at * 2 + 2), on, false, phoneBack) };
   };
 
   // Resources: every journal entry, by skill, with the search over action and item names.
@@ -910,7 +918,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   };
   // Search "goblin" and the Old Man's sketch turns up, his spelling put right the game's way (the user's idea, build
   // .116): the drawing, a line in his voice, then what "golbin" finds.
-  const golbinUrl = ctx.getResourceUrl('assets/golbin.png');
+  const golbinUrl = ctx.getResourceUrl('assets/golbin.webp');
   const golbin = () => `<figure class="vj-figure vj-golbin"><img src="${golbinUrl}" alt="${esc(t('MOD_VOY_JOURNAL_GOLBIN_ALT'))}"></figure>`
     + `<p class="vj-p vj-italic">${esc(t('MOD_VOY_JOURNAL_GOLBIN_NOTE'))}</p>`;
   const isGoblinQuery = (q) => /^goblins?$/.test(jm.fold(q ?? ''));
@@ -1078,7 +1086,11 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
         : view.tab === 'crew' ? howSpread(jm.JOURNAL_CREW, 'crewSpread') : howSpread();
     } catch (e) { log('journal render failed', e); spread = { left: empty('MOD_VOY_JOURNAL_ENTRY_NONE'), right: '' }; }
     const searchHadFocus = ['vj-search', 'vj-place-search'].includes(document.activeElement?.id) ? document.activeElement.id : undefined;
-    for (const [side, html] of [['.vj-left', spread.left], ['.vj-right', spread.right]]) {
+    // On a phone the book shows one page at a time; a list tab's right page (the entry, place or guide page picked
+    // from the list) starts with the way back to the list.
+    const listBack = ['resources', 'places', 'guide'].includes(view.tab) && spread.right
+      ? `<button type="button" class="vj-turn vj-one-only vj-one-back" data-vj-side="left"><span aria-hidden="true">‹</span> ${esc(t('MOD_VOY_JOURNAL_ONE_BACK', { tab: t(TAB_KEY[view.tab]) }))}</button>` : '';
+    for (const [side, html] of [['.vj-left', spread.left], ['.vj-right', listBack + (spread.right ?? '')]]) {
       const page = root.querySelector(side);
       page.innerHTML = html;
       page.classList.toggle('vj-pinned', spread.pinned === true);
@@ -1088,14 +1100,15 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     // The phone layout scrolls the spread, not the pages: a new spread starts at its top there too.
     const spreadEl = root.querySelector('.vj-spread');
     if (spreadEl && !keepScroll) spreadEl.scrollTop = 0;
+    applySide();
     const j = journal();
     root.querySelectorAll('[data-vj-tab]').forEach((b) => {
       const on = b.dataset.vjTab === view.tab;
       b.hidden = b.dataset.vjTab === 'crew' && !crewOn();
-      // Unread marks on the tab: a count after its name.
+      // Unread marks on the tab: a small red dot in its corner, so every tab fits one row on a phone (the user, 18 Oct 2026); the count is in its label.
       const prefix = TAB_UNREAD[b.dataset.vjTab];
       const n = prefix === undefined || j === undefined ? 0 : jm.unreadCount(j, prefix);
-      b.innerHTML = `${TAB_ICON[b.dataset.vjTab]}<span class="vj-tab-name">${esc(t(TAB_KEY[b.dataset.vjTab]))}</span>${n > 0 ? `<span class="vj-tab-count" aria-hidden="true">${n}</span>` : ''}`;
+      b.innerHTML = `${TAB_ICON[b.dataset.vjTab]}<span class="vj-tab-name">${esc(t(TAB_KEY[b.dataset.vjTab]))}</span>${n > 0 ? `<span class="vj-tab-dot" aria-hidden="true"></span>` : ''}`;
       if (n > 0) b.setAttribute('aria-label', t('MOD_VOY_JOURNAL_TAB_UNREAD', { tab: t(TAB_KEY[b.dataset.vjTab]), count: `${n}` })); else b.removeAttribute('aria-label');
       b.classList.toggle('vj-tab-on', on);
       // The name is on the tab beside the icon, except on a phone: there it is the tab's tooltip (press and hold).
@@ -1128,8 +1141,18 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
    * crosslink, a Manifest or Crew row, an entry picked from the list) is scrolled to; on the wide book it is already
    * in view. `focus` moves keyboard focus there as well.
    */
+  /** Which page the phone's one-page book shows (`view.side`); an empty right page falls back to the left. */
+  const applySide = () => {
+    const sp = root?.querySelector('.vj-spread');
+    if (!sp) return;
+    if (view.side === 'right' && (root.querySelector('.vj-right')?.innerHTML ?? '') === '') view.side = 'left';
+    sp.classList.toggle('vj-on-right', view.side === 'right');
+    sp.classList.toggle('vj-on-left', view.side !== 'right');
+  };
   const showPage = (sel, focus = true) => {
-    const page = root?.querySelector(sel);
+    view.side = sel === '.vj-right' ? 'right' : 'left';
+    applySide();
+    const page = root?.querySelector(view.side === 'right' ? '.vj-right' : '.vj-left');
     if (!page) return;
     if (focus) page.focus({ preventScroll: true });
     const sp = root.querySelector('.vj-spread');
@@ -1156,7 +1179,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       if (el === null) return;
       if (el === root || el.closest('[data-vj-close]')) { close(); return; }
       const tab = el.closest('[data-vj-tab]');
-      if (tab !== null) { view.tab = tab.dataset.vjTab; view.back = null; view.pick = undefined; render(); return; }
+      if (tab !== null) { view.tab = tab.dataset.vjTab; view.back = null; view.pick = undefined; view.side = 'left'; render(); return; }
+      if (el.closest('[data-vj-side]')) { showPage('.vj-left'); return; }
       // The Manifest (build .179): its button opens the first spread, a Crew row opens that chapter's spread.
       if (el.closest('[data-vj-manifest]')) { view.tab = 'how'; view.spread = 0; view.back = null; render(); showPage('.vj-right'); return; }
       const crewRow = el.closest('[data-vj-crew]');
@@ -1166,7 +1190,18 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
         showPage(i % 2 === 1 ? '.vj-right' : '.vj-left'); return;
       }
       const turn = el.closest('[data-vj-turn]');
-      if (turn !== null) { view[view.tab === 'crew' ? 'crewSpread' : 'spread'] += Number(turn.dataset.vjTurn); render(); return; }
+      if (turn !== null) {
+        const dir = Number(turn.dataset.vjTurn);
+        const field = view.tab === 'crew' ? 'crewSpread' : 'spread';
+        if (narrow()) {
+          // One page at a time: within the spread first, then on to the next spread's left page or back to the last one's right.
+          const hasRight = (root.querySelector('.vj-right')?.innerHTML ?? '') !== '';
+          if (dir > 0 && view.side !== 'right' && hasRight) { showPage('.vj-right'); return; }
+          if (dir < 0 && view.side === 'right') { showPage('.vj-left'); return; }
+          view[field] += dir; render(); showPage(dir > 0 ? '.vj-left' : '.vj-right'); return;
+        }
+        view[field] += dir; render(); return;
+      }
       const entry = el.closest('[data-vj-entry]');
       if (entry !== null) { view.entry = entry.dataset.vjEntry; view.pick = undefined; render(); showPage('.vj-right', false); return; }
       const pl = el.closest('[data-vj-place]');
@@ -1233,6 +1268,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       else if (entry !== undefined) { view.tab = 'resources'; view.entry = entry; }
       else if (tab !== undefined) view.tab = TABS.includes(tab) ? tab : 'how';
       view.back = typeof back === 'function' ? back : null;
+      view.side = guide !== undefined || entry !== undefined ? 'right' : 'left';
       opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       view.open = true;
       root.classList.remove('d-none');

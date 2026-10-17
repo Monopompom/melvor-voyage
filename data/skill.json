@@ -5,7 +5,7 @@
     "pages": [
       {
         "id": "Voyage",
-        "media": "assets/icon.png",
+        "media": "assets/icon.webp",
         "containerID": "voyage-container",
         "headerBgClass": "bg-voyage",
         "hasGameGuide": false,
@@ -37,7 +37,7 @@
               "type": "Custom",
               "level": 15,
               "name": "Plan a voyage: the route, the stops, the cost",
-              "media": "assets/icon.png"
+              "media": "assets/icon.webp"
             },
             {
               "type": "Custom",
@@ -49,61 +49,61 @@
               "type": "Custom",
               "level": 30,
               "name": "Longboat: built at a port",
-              "media": "assets/hull_longboat.png"
+              "media": "assets/hull_longboat.webp"
             },
             {
               "type": "Custom",
               "level": 30,
               "name": "Journal: chart one country",
-              "media": "assets/journal.png"
+              "media": "assets/journal.webp"
             },
             {
               "type": "Custom",
               "level": 35,
               "name": "Hold: a new row of six crates",
-              "media": "assets/hull_dinghy.png"
+              "media": "assets/hull_dinghy.webp"
             },
             {
               "type": "Custom",
               "level": 40,
               "name": "Journal: chart one country",
-              "media": "assets/journal.png"
+              "media": "assets/journal.webp"
             },
             {
               "type": "Custom",
               "level": 45,
               "name": "Brig: bought at a port",
-              "media": "assets/hull_brig.png"
+              "media": "assets/hull_brig.webp"
             },
             {
               "type": "Custom",
               "level": 50,
               "name": "Navigator's Charts: sold at ports",
-              "media": "assets/icon.png"
+              "media": "assets/icon.webp"
             },
             {
               "type": "Custom",
               "level": 55,
               "name": "Journal: chart one country",
-              "media": "assets/journal.png"
+              "media": "assets/journal.webp"
             },
             {
               "type": "Custom",
               "level": 55,
               "name": "Hold: a new row of six crates",
-              "media": "assets/hull_dinghy.png"
+              "media": "assets/hull_dinghy.webp"
             },
             {
               "type": "Custom",
               "level": 60,
               "name": "Galleon: built at a port",
-              "media": "assets/hull_galleon.png"
+              "media": "assets/hull_galleon.webp"
             },
             {
               "type": "Custom",
               "level": 60,
               "name": "Journal: chart one country",
-              "media": "assets/journal.png"
+              "media": "assets/journal.webp"
             }
           ]
         }

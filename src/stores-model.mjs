@@ -104,7 +104,9 @@ export function loadingAt(rec, neighbours = []) {
     const p = placeOf(r);
     if (p === undefined) continue;
     if (best === undefined) { best = { place: p.id, food: p.food, fuel: p.fuel }; continue; }
-    if (p.food > best.food) { best.food = p.food; best.place = p.id; }
+    // On a food tie the place that also gives the better fuel names the line (build .182: by Old Village the Farmer's
+    // Market read "at the market: fuel 75%", the village's fuel under the market's name).
+    if (p.food > best.food || (p.food === best.food && p.fuel > best.fuel)) { best.food = p.food; best.place = p.id; }
     if (p.fuel > best.fuel) best.fuel = p.fuel;
   }
   return best;

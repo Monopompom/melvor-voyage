@@ -138,7 +138,7 @@ export function install(ctx, { state, shipModel, log }) {
       const why = blocker(kind);
       const used = hold(kind).length;
       const full = used >= slots(kind) && !hold(kind).some((e) => e.id === item.id);
-      const icon = ctx.getResourceUrl(shipModel.HULLS[s.hull]?.media ?? 'assets/hull_dinghy.png');
+      const icon = ctx.getResourceUrl(shipModel.HULLS[s.hull]?.media ?? 'assets/hull_dinghy.webp');
       let html = `<div class="${headClass}"><h5 class="${titleClass} voyage-hold-title"><img class="skill-icon-xxs mr-1" src="${icon}" alt="">${esc(t('MOD_VOY_HOLD_TITLE', { hull: hullName(kind) }))}</h5>` +
         `<div class="block-options"><span class="${full ? `${countClass.replace('text-combat-smoke', '')} text-warning` : countClass}">${esc(t('MOD_VOY_HOLD_SLOTS', { used: `${used}`, slots: `${slots(kind)}` }))}</span></div></div>` +
         `<div class="${bodyClass} voyage-hold-stow-body">`;

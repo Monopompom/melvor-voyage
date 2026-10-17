@@ -6,13 +6,13 @@
 
 /** The four land upgrades, in order. `id` is the shop purchase's local id (namespace `voyage`). */
 export const MOUNTS = [
-  { id: 'Sturdy_Boots', level: 5, cut: 0.1, speed: 1.25, media: 'assets/land_boots.png' },
-  { id: 'Pack_Yak', level: 25, cut: 0.2, speed: 1.5, media: 'assets/land_yak.png' },
-  { id: 'Riding_Horse', level: 45, cut: 0.3, speed: 2, media: 'assets/land_horse.png' },
-  { id: 'Unicorn', level: 60, cut: 0.4, speed: 3, media: 'assets/land_unicorn.png' },
+  { id: 'Sturdy_Boots', level: 5, cut: 0.1, speed: 1.25, media: 'assets/land_boots.webp' },
+  { id: 'Pack_Yak', level: 25, cut: 0.2, speed: 1.5, media: 'assets/land_yak.webp' },
+  { id: 'Riding_Horse', level: 45, cut: 0.3, speed: 2, media: 'assets/land_horse.webp' },
+  { id: 'Unicorn', level: 60, cut: 0.4, speed: 3, media: 'assets/land_unicorn.webp' },
 ];
 /** On foot: tier 0, no cut. */
-export const ON_FOOT = { id: '', level: 0, cut: 0, speed: 1, media: 'assets/marker_traveller_figure.png' };
+export const ON_FOOT = { id: '', level: 0, cut: 0, speed: 1, media: 'assets/marker_traveller_figure.webp' };
 
 /**
  * The tier the player travels at: the number of upgrades owned in order, 0 (on foot) to 4. One missing breaks the

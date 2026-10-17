@@ -243,6 +243,23 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
 
   /**
+   * A hull upgrade ready to build where you stand (build .183, the user: the map gave no sign of it): at a port, with
+   * the hull at the quay, the level and every material. One line per vessel; the button opens the Voyage page at the
+   * upgrade, where the build itself is.
+   */
+  const shipyardLine = () => {
+    const sh = state.ship;
+    if (sh?.boat() == null || !sh.enabled()) return '';
+    return ['boat', 'ship'].map((kind) => {
+      const info = sh.upgradeInfo?.(kind);
+      if (info === undefined || info.blocker !== undefined) return '';
+      const hull = sh.hullName({ hull: info.id });
+      return `<div class="voyage-here-ship"><span><i class="fa fa-hammer mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_SHIPYARD_READY', { hull }))}</span>` +
+        `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-shipyard-link" title="${esc(getLangString('MOD_VOY_PANEL_SHIPYARD_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_SHIPYARD_BUTTON'))}</button></div>`;
+    }).join('');
+  };
+
+  /**
    * The Crossroads Sign on this hex (build .162): "Plant here" on a place with buffs while it is
    * carried, "Pick up" where it stands. Nothing anywhere else.
    */
@@ -283,7 +300,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
 
   /** The ship and stores lines in one band with its own background (user feedback, build .58). */
   const shipBox = () => {
-    const inner = nightLine() + shipLine() + storesLine();
+    const inner = nightLine() + shipLine() + shipyardLine() + storesLine();
     return inner === '' ? '' : `<div class="voyage-here-shipbox">${inner}</div>`;
   };
 
@@ -346,8 +363,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     }
     return out.slice(0, MINI_CHIPS);
   };
-  const miniHtml = (pos, d, tip, status) => {
-    const swatch = d.css ? `<span class="voyage-swatch" style="background:${d.css}"></span>` : '';
+  /** The stranded or hungry warning, or the wandering trader on your hex: the strip's first chips, and beside the phone square. */
+  const warnChips = (status) => {
     const warn = [];
     if (status === 'stranded') warn.push(chip(`<i class="fa fa-exclamation-triangle mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'))}`, getLangString('MOD_VOY_PANEL_STRANDED_HINT'), 'btn btn-sm btn-warning', 'voyage-trader-link'));
     else {
@@ -356,9 +373,51 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     // The wandering trader on your hex: he comes with being stranded, so he stands with its warning (seen on .123:
     // as the last chip he fell off a full strip).
     if (status === 'here' && state.settings.trade()) warn.push(chip('<i class="fa fa-store"></i>', getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'), 'voyage-chip-plain text-warning', 'voyage-chip-tip'));
+    return warn;
+  };
+  /**
+   * The square (the user, 18 Oct 2026, on a 375 x 667 phone: "one more level of collapsing if user with the
+   * phone/touchscreen holds ones finger on the grasslands"): press and hold the strip's caret and the strip
+   * shrinks to one small square with a captain's cap at the map's top left; a tap on it brings the strip back. A dot
+   * on it says the stores or the hull need a look (amber low, red empty); a stranded warning stays beside it.
+   */
+  const PHONE = '(max-width: 767.98px)';
+  const phone = () => window.matchMedia?.(PHONE).matches === true;
+  // The Voyage skill's own icon, the captain (the user, 18 Oct 2026).
+  const captainIcon = () => `<img class="voyage-tuck-icon" src="${ctx.getResourceUrl('assets/icon.webp')}" alt="">`;
+  /** '' when all is well, 'warn' or 'bad' for the square's dot: stores low or empty, hull below half or at 0. */
+  const tuckAlert = () => {
+    let level = '';
+    const raise = (l) => { if (l === 'bad' || (l === 'warn' && level === '')) level = l; };
+    try {
+      const st = state.stores;
+      const have = st?.enabled?.() === true ? st.stores() : undefined;
+      if (have !== undefined) raise(have.food <= 0 || have.fuel <= 0 ? 'bad' : have.food < storesModel.LOW.food || have.fuel < storesModel.LOW.fuel ? 'warn' : '');
+      const sh = state.ship;
+      if (sh?.boat?.() != null && sh.enabled()) for (const kind of ['boat', 'ship']) {
+        if (kind === 'ship' && sh.big?.() == null) continue;
+        const c = sh.cond?.(kind) ?? 100;
+        raise(c <= 0 ? 'bad' : c < 50 ? 'warn' : '');
+      }
+    } catch (e) { log('square alert failed', e); }
+    return level;
+  };
+  const tuckHtml = (tip, status) => {
+    const alert = tuckAlert();
+    const label = `${getLangString('MOD_VOY_PANEL_YOU_ARE_HERE')}: ${tip}.${alert === '' ? '' : ` ${getLangString(alert === 'bad' ? 'MOD_VOY_PANEL_TUCK_BAD' : 'MOD_VOY_PANEL_TUCK_WARN')}`} ${getLangString('MOD_VOY_PANEL_UNTUCK')}`;
+    return `<div class="voyage-tuck-row"><button type="button" class="voyage-panel-toggle voyage-tuck" aria-expanded="false" title="${esc(label)}" aria-label="${esc(label)}">`
+      + `${captainIcon()}${alert === '' ? '' : `<span class="voyage-tuck-dot voyage-tuck-${alert}" aria-hidden="true"></span>`}</button>${warnChips(status).join('')}</div>`;
+  };
+  const miniHtml = (pos, d, tip, status) => {
+    const swatch = d.css ? `<span class="voyage-swatch" style="background:${d.css}"></span>` : '';
+    const warn = warnChips(status);
     const unfold = getLangString('MOD_VOY_PANEL_UNFOLD');
-    return `<div class="voyage-mini-row"><button type="button" class="voyage-panel-toggle voyage-mini-toggle" aria-expanded="false" title="${esc(`${tip}. ${unfold}`)}" aria-label="${esc(`${tip}. ${unfold}`)}">` +
-      `<i class="fa fa-caret-right mr-1"></i>${swatch}${esc(d.label)}</button>${warn.join('')}${miniChips(pos, status).join('')}</div>`;
+    const hold = getLangString('MOD_VOY_PANEL_HOLD_TUCK');
+    // The caret is its own button (the user, 18 Oct 2026): a tap unfolds, a press and hold on a touchscreen shrinks the
+    // strip to the square. The terrain name unfolds too and keeps its tooltip.
+    return `<div class="voyage-mini-row"><button type="button" class="voyage-panel-toggle voyage-mini-caret" data-tip-touch="off" aria-expanded="false" aria-label="${esc(`${unfold}. ${hold}`)}"><i class="fa fa-caret-right"></i></button>` +
+      `<button type="button" class="voyage-panel-toggle voyage-mini-toggle" aria-expanded="false" title="${esc(`${tip}. ${unfold}`)}" aria-label="${esc(`${tip}. ${unfold}`)}">` +
+      `${swatch}${esc(d.label)}</button>${warn.join('')}${miniChips(pos, status).join('')}</div>`;
   };
 
   // The legend folds away behind a "Legend" toggle; closed by default. The choice is a browser convenience kept in
@@ -373,6 +432,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   // stranded warning.
   const PANEL_KEY = 'voyage-panel-open';
   let panelOpen = (() => { try { return localStorage.getItem(PANEL_KEY) !== '0'; } catch { return true; } })();
+  const TUCK_KEY = 'voyage-panel-tucked';
+  let panelTucked = (() => { try { return localStorage.getItem(TUCK_KEY) === '1'; } catch { return false; } })();
+  const setTucked = (on) => { panelTucked = on; try { localStorage.setItem(TUCK_KEY, on ? '1' : '0'); } catch {} };
   const legendBlock = () =>
     `<div class="voyage-legend-wrap"><button type="button" class="voyage-legend-toggle" aria-expanded="${legendOpen}">` +
     `<i class="fa fa-caret-${legendOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_LEGEND'))}</button>` +
@@ -406,6 +468,27 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     } catch (e) { log('panel placement failed', e); }
     moveMapControls();
     clearOfControls();
+    capHeight();
+  };
+
+  /**
+   * On a phone the open panel stops a little past the middle of the map and scrolls inside (the user, 18 Oct 2026:
+   * it ran to the bottom of a 375 x 667 screen). Measured from the map's visible height, again on every resize.
+   */
+  const CAP = 0.55;
+  const capHeight = () => {
+    try {
+      const panel = document.getElementById(PANEL_ID);
+      if (!panel) return;
+      const map = typeof cartographyMap !== 'undefined' ? cartographyMap?.bottomLeftOverlay?.parentElement : undefined;
+      const on = panel.classList.contains('voyage-here-top') && !panel.classList.contains('voyage-mini') && !panel.classList.contains('voyage-tucked') && phone() && map != null;
+      panel.classList.toggle('voyage-capped', on);
+      if (!on) { panel.style.maxHeight = ''; return; }
+      const m = map.getBoundingClientRect();
+      const bottom = Math.min(m.bottom, window.innerHeight);
+      const limit = m.top + (bottom - m.top) * CAP - panel.getBoundingClientRect().top;
+      panel.style.maxHeight = `${Math.max(160, Math.round(limit))}px`;
+    } catch (e) { log('panel height failed', e); }
   };
 
   /** At phone width the panel spans the map and ran under the zoom buttons, hiding "Manage voyage" (16 Oct 2026, 500px): it stops short of them. */
@@ -465,6 +548,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     } catch (e) { log('row buttons failed', e); }
   };
 
+  const HOLD_MS = 500;
+  let holdUntil = 0;
   const ensurePanel = () => {
     if (typeof cartographyMap === 'undefined' || cartographyMap === null) return undefined;
     let panel = document.getElementById(PANEL_ID);
@@ -491,6 +576,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         render();
         return;
       }
+      if (e.target instanceof Element && e.target.closest('.voyage-mini-caret, .voyage-mini-toggle, .voyage-tuck') && Date.now() < holdUntil) { e.preventDefault(); return; } // the hold just tucked it: its lift is no tap
+      if (e.target instanceof Element && e.target.closest('.voyage-tuck')) { setTucked(false); render(); return; }
       if (e.target instanceof Element && e.target.closest('.voyage-panel-toggle')) {
         panelOpen = !panelOpen;
         try { localStorage.setItem(PANEL_KEY, panelOpen ? '1' : '0'); } catch {}
@@ -520,11 +607,38 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         e.preventDefault();
         state.journal?.open();
       }
+      if (e.target instanceof Element && e.target.closest('.voyage-shipyard-link')) {
+        e.preventDefault();
+        try {
+          state.openPage(game.pages.getObjectByID('voyage:Voyage'));
+          setTimeout(() => document.querySelector('#voyage-container [data-voyage-action="upgrade"]')?.scrollIntoView({ block: 'center' }), 100);
+        } catch (err) { log('shipyard link failed', err); }
+        return;
+      }
       if (e.target instanceof Element && e.target.closest('.voyage-manage-link')) {
         e.preventDefault();
         try { state.openPage(game.pages.getObjectByID('voyage:Voyage')); } catch (err) { log('Manage voyage link failed', err); }
       }
     });
+    // Press and hold the strip's caret (touch only) to shrink the strip to the square.
+    let holdTimer = 0;
+    let holdAt = undefined;
+    const stopHold = () => { clearTimeout(holdTimer); holdTimer = 0; holdAt = undefined; };
+    panel.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch' || !(e.target instanceof Element) || e.target.closest('.voyage-mini-caret') === null) return;
+      stopHold();
+      holdAt = { x: e.clientX, y: e.clientY };
+      holdTimer = setTimeout(() => {
+        holdTimer = 0;
+        holdUntil = Date.now() + 800;
+        try { navigator.vibrate?.(15); } catch {}
+        setTucked(true);
+        render();
+      }, HOLD_MS);
+    });
+    panel.addEventListener('pointermove', (e) => { if (holdAt !== undefined && Math.hypot(e.clientX - holdAt.x, e.clientY - holdAt.y) > 10) stopHold(); });
+    for (const type of ['pointerup', 'pointercancel', 'pointerleave']) panel.addEventListener(type, stopHold);
+    panel.addEventListener('contextmenu', (e) => { if (e.target instanceof Element && e.target.closest('.voyage-mini-caret, .voyage-tuck')) e.preventDefault(); });
     // Under the location search bar (top-left of the map), after its results drop-down so results still open
     // right below the input. Falls back to the bottom-left overlay if the search bar is not where we expect.
     const results = cartographyMap.searchResultsCont;
@@ -572,10 +686,12 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const features = d.features.length > 0 ? ` · ${esc(d.features.join(', '))}` : '';
       const mode = state.mode === 'relaxed' ? `<div><small class="text-warning">${esc(getLangString('MOD_VOY_PANEL_TABLE_MISMATCH'))}</small></div>` : '';
       const status = traderStatus();
-      panel.classList.toggle('voyage-mini', !panelOpen);
+      const tucked = !panelOpen && panelTucked;
+      panel.classList.toggle('voyage-mini', !panelOpen && !tucked);
+      panel.classList.toggle('voyage-tucked', tucked);
       if (!panelOpen) {
         const tip = `${d.label}${d.features.length > 0 ? ` · ${d.features.join(', ')}` : ''}${place ? ` · ${[poi, d.area].filter(Boolean).join(', ')}` : ''} ${coordsOf(pos)}`;
-        panel.innerHTML = miniHtml(pos, d, tip, status) + mode;
+        panel.innerHTML = tucked ? tuckHtml(tip, status) : miniHtml(pos, d, tip, status) + mode;
         placeUnderBar();
         return;
       }

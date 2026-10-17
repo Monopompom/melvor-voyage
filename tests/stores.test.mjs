@@ -42,7 +42,9 @@ test('loading: ports full, towns 75%, markets 75/50, farms and camps 50%, one he
   assert.equal(loadingAt(at('forest')), undefined);
   assert.equal(loadingAt({ t: 'water' }), undefined);
   assert.deepEqual(loadingAt({ t: 'water' }, [at('port')]), { place: 'port', food: 1, fuel: 1 }); // at the quay
-  assert.deepEqual(loadingAt(at('market'), [at('city')]), { place: 'market', food: 0.75, fuel: 0.75 }); // best of each
+  assert.deepEqual(loadingAt(at('market'), [at('city')]), { place: 'town', food: 0.75, fuel: 0.75 }); // a food tie: the town gives both
+  assert.deepEqual(loadingAt(at('city'), [at('market')]), { place: 'town', food: 0.75, fuel: 0.75 });
+  assert.deepEqual(loadingAt(at('market'), [at('port')]), { place: 'port', food: 1, fuel: 1 }); // best of each
   assert.equal(loadingAt(at('forest'), [{ ...at('port'), cloud: true }]), undefined);
   assert.equal(loadAmount(30, 10, 0.75), 225);
   assert.equal(loadAmount(30, -2, 1), 0);

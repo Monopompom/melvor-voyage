@@ -9,7 +9,7 @@
         "name": "Wayfinder's Compass",
         "category": "Voyage",
         "type": "Misc",
-        "media": "assets/compass.png",
+        "media": "assets/compass.webp",
         "customDescription": "Warms when you walk toward the nearest place where a locked skill works, and points the way. It never names the place.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
@@ -22,7 +22,7 @@
         "name": "Pitch",
         "category": "Voyage",
         "type": "Misc",
-        "media": "assets/pitch.png",
+        "media": "assets/pitch.webp",
         "customDescription": "Pine tar boiled down by the fire. With logs, it repairs a ship's hull on the Voyage page. Firemaking makes it now and then.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
@@ -35,7 +35,7 @@
         "name": "Prospector's Notes",
         "category": "Voyage",
         "type": "Misc",
-        "media": "assets/chart_mining.png",
+        "media": "assets/chart_mining.webp",
         "customDescription": "A prospector's notes on where one ore runs. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Mining rock.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
@@ -48,7 +48,7 @@
         "name": "Forester's Survey",
         "category": "Voyage",
         "type": "Misc",
-        "media": "assets/chart_woodcutting.png",
+        "media": "assets/chart_woodcutting.webp",
         "customDescription": "A forester's survey of where one tree grows. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Woodcutting tree.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
@@ -61,7 +61,7 @@
         "name": "Angler's Log",
         "category": "Voyage",
         "type": "Misc",
-        "media": "assets/chart_fishing.png",
+        "media": "assets/chart_fishing.webp",
         "customDescription": "An angler's log of where one fish bites. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Fishing spot.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
@@ -74,7 +74,7 @@
         "name": "Farmer's Almanac",
         "category": "Voyage",
         "type": "Misc",
-        "media": "assets/chart_farming.png",
+        "media": "assets/chart_farming.webp",
         "customDescription": "A farmer's almanac of where one crop takes. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Farming seed.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
@@ -87,7 +87,7 @@
         "name": "Fence's Ledger",
         "category": "Voyage",
         "type": "Misc",
-        "media": "assets/chart_thieving.png",
+        "media": "assets/chart_thieving.webp",
         "customDescription": "A fence's ledger of where one mark can be found. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Thieving target.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
@@ -100,7 +100,7 @@
         "name": "Star Chart",
         "category": "Voyage",
         "type": "Misc",
-        "media": "assets/chart_astrology.png",
+        "media": "assets/chart_astrology.webp",
         "customDescription": "A star chart of where one constellation stands clear. Use it in the Captain's Journal (Resources, Chart a country) to chart the whole country of one Astrology constellation.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
@@ -129,7 +129,7 @@
       {
         "id": "Voyage",
         "name": "Voyage",
-        "media": "assets/compass.png"
+        "media": "assets/compass.webp"
       }
     ],
     "shopCategoryOrder": [
@@ -143,7 +143,7 @@
     "shopPurchases": [
       {
         "id": "Wayfinder_Compass",
-        "media": "assets/compass.png",
+        "media": "assets/compass.webp",
         "category": "voyage:Voyage",
         "contains": {
           "items": [
@@ -174,7 +174,7 @@
         "id": "Sturdy_Boots",
         "customName": "Sturdy Boots",
         "customDescription": "Good soles for long roads. Land hexes cost 10% less GP to cross.",
-        "media": "assets/land_boots.png",
+        "media": "assets/land_boots.webp",
         "category": "voyage:Voyage",
         "contains": {
           "items": [],
@@ -212,7 +212,7 @@
         "id": "Pack_Yak",
         "customName": "Pack Yak",
         "customDescription": "A shaggy yak carries your load. Land hexes cost 20% less GP to cross (replaces the boots).",
-        "media": "assets/land_yak.png",
+        "media": "assets/land_yak.webp",
         "category": "voyage:Voyage",
         "contains": {
           "items": [],
@@ -259,7 +259,7 @@
         "id": "Riding_Horse",
         "customName": "Riding Horse",
         "customDescription": "Saddled and shod. Land hexes cost 30% less GP to cross (replaces the yak).",
-        "media": "assets/land_horse.png",
+        "media": "assets/land_horse.webp",
         "category": "voyage:Voyage",
         "contains": {
           "items": [],
@@ -310,7 +310,7 @@
         "id": "Unicorn",
         "customName": "Unicorn",
         "customDescription": "It goes where it pleases, and takes you along. Land hexes cost 40% less GP to cross (replaces the horse).",
-        "media": "assets/land_unicorn.png",
+        "media": "assets/land_unicorn.webp",
         "category": "voyage:Voyage",
         "contains": {
           "items": [],
@@ -357,7 +357,7 @@
         "id": "Crossroads_Sign",
         "customName": "Crossroads Sign",
         "customDescription": "Plant it on a place that gives buffs while you stand there: its buffs follow you wherever you go. One sign; pick it up on its hex to move it.",
-        "media": "assets/crossroads_sign.png",
+        "media": "assets/crossroads_sign.webp",
         "category": "voyage:Voyage",
         "contains": {
           "items": [],

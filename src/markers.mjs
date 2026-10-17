@@ -10,15 +10,15 @@
 // way. If a texture fails to load, the vanilla pin stays (and no moored marker is drawn).
 
 const TEXTURES = {
-  land: 'assets/marker_traveller_figure.png',
-  'dinghy.aboard': 'assets/marker_dinghy_aboard.png',
-  'dinghy.parked': 'assets/marker_dinghy_parked.png',
-  'longboat.aboard': 'assets/marker_longboat_aboard.png',
-  'longboat.parked': 'assets/marker_longboat_parked.png',
-  'brig.aboard': 'assets/marker_brig_aboard.png',
-  'brig.parked': 'assets/marker_brig_parked.png',
-  'galleon.aboard': 'assets/marker_galleon_aboard.png',
-  'galleon.parked': 'assets/marker_galleon_parked.png',
+  land: 'assets/marker_traveller_figure.webp',
+  'dinghy.aboard': 'assets/marker_dinghy_aboard.webp',
+  'dinghy.parked': 'assets/marker_dinghy_parked.webp',
+  'longboat.aboard': 'assets/marker_longboat_aboard.webp',
+  'longboat.parked': 'assets/marker_longboat_parked.webp',
+  'brig.aboard': 'assets/marker_brig_aboard.webp',
+  'brig.parked': 'assets/marker_brig_parked.webp',
+  'galleon.aboard': 'assets/marker_galleon_aboard.webp',
+  'galleon.parked': 'assets/marker_galleon_parked.webp',
 };
 
 export function install(ctx, { state, log }) {

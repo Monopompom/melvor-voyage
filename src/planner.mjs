@@ -209,7 +209,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   // ---- Set off -----------------------------------------------------------------------------------------------------
   const notify = (text, kind = 'success') => {
     try {
-      const media = ctx.getResourceUrl('assets/ship_stores.png');
+      const media = ctx.getResourceUrl('assets/ship_stores.webp');
       if (kind === 'danger') game.notifications.createErrorNotification('voyage:plan', text);
       else game.notifications.createSuccessNotification('voyage:plan', text, media);
     } catch {}
@@ -350,8 +350,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       const hp = (n) => esc(t('MOD_VOY_PLAN_HP', { count: st.hp(n) }));
       const fuel = (n) => (Math.round(n * 10) / 10).toFixed(1);
       rows += `<div></div><div class="voyage-plan-when">${esc(t(end === undefined ? 'MOD_VOY_PLAN_WHEN_NOW' : 'MOD_VOY_PLAN_WHEN'))}</div>`;
-      rows += row(t('MOD_VOY_PLAN_ROW_FOOD'), `${icon('assets/ration.png', t('MOD_VOY_PLAN_ROW_FOOD'))}${hp(have.food)}${end === undefined ? '' : `${arrow}<span class="${tone(end.food, S.LOW.food)}">${hp(end.food)}</span>`}`);
-      rows += row(t('MOD_VOY_PLAN_ROW_FUEL'), `${icon('assets/fuel.png', t('MOD_VOY_PLAN_ROW_FUEL'))}${fuel(have.fuel)}${end === undefined ? '' : `${arrow}<span class="${tone(end.fuel, S.LOW.fuel)}">${fuel(end.fuel)}</span>`}`);
+      rows += row(t('MOD_VOY_PLAN_ROW_FOOD'), `${icon('assets/ration.webp', t('MOD_VOY_PLAN_ROW_FOOD'))}${hp(have.food)}${end === undefined ? '' : `${arrow}<span class="${tone(end.food, S.LOW.food)}">${hp(end.food)}</span>`}`);
+      rows += row(t('MOD_VOY_PLAN_ROW_FUEL'), `${icon('assets/fuel.webp', t('MOD_VOY_PLAN_ROW_FUEL'))}${fuel(have.fuel)}${end === undefined ? '' : `${arrow}<span class="${tone(end.fuel, S.LOW.fuel)}">${fuel(end.fuel)}</span>`}`);
       // One hull row per vessel that wears on the way; named when you own two (build .150).
       const sh = state.ship;
       const two = sh?.big?.() != null;
@@ -361,7 +361,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
         const cond = sh.cond(kind);
         const after = Math.max(0, cond - wear);
         const label = two ? `${t('MOD_VOY_PLAN_ROW_HULL')}: ${sh.hullName(sh.vessel(kind))}` : t('MOD_VOY_PLAN_ROW_HULL');
-        rows += row(label, `${icon('assets/hull_condition.png', t('MOD_VOY_PLAN_ROW_HULL'))}${cond}%${arrow}<span class="${after <= 0 ? 'text-danger' : after < 50 ? 'text-warning' : ''}">${after}%</span> <span class="text-muted ml-1">${esc(t('MOD_VOY_PLAN_WEAR', { wear: `${wear}` }))}</span>`);
+        rows += row(label, `${icon('assets/hull_condition.webp', t('MOD_VOY_PLAN_ROW_HULL'))}${cond}%${arrow}<span class="${after <= 0 ? 'text-danger' : after < 50 ? 'text-warning' : ''}">${after}%</span> <span class="text-muted ml-1">${esc(t('MOD_VOY_PLAN_WEAR', { wear: `${wear}` }))}</span>`);
       }
     }
     const gpOk = plan.costs?.checkIfOwned() ?? true;

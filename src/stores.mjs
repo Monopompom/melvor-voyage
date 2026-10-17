@@ -59,7 +59,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   const amounts = (food, fuel) => t('MOD_VOY_STORES_AMOUNTS', { food: hp(food), fuel: fuelText(fuel) });
   /** The same with the ration and fuel art (page and panel), titled with the words. */
   const icons = (food, fuel) => `<span class="voyage-stores-icons" title="${esc(amounts(food, fuel))}">` +
-    `<img src="${ctx.getResourceUrl('assets/ration.png')}">${hp(food)} HP <img src="${ctx.getResourceUrl('assets/fuel.png')}">${fuelText(fuel)}</span>`;
+    `<img src="${ctx.getResourceUrl('assets/ration.webp')}">${hp(food)} HP <img src="${ctx.getResourceUrl('assets/fuel.webp')}">${fuelText(fuel)}</span>`;
 
   // ---- planning a move -----------------------------------------------------------------------------------------
   /** The vessel a move ends in: the last step's (build .150, two vessels), else the small boat. */
@@ -364,7 +364,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     // What went in, not the kit's size: the stores limit (3d) can cut it short (3c check, 16 Oct 2026).
     const added = { food: after.food - s.food, fuel: after.fuel - s.fuel };
     if (added.food <= 0 && added.fuel <= 0) return;
-    const notify = () => { try { game.notifications.createSuccessNotification('voyage:kit', t('MOD_VOY_STORES_KIT', { amounts: amounts(added.food, added.fuel) }), ctx.getResourceUrl('assets/ship_stores.png')); } catch {} };
+    const notify = () => { try { game.notifications.createSuccessNotification('voyage:kit', t('MOD_VOY_STORES_KIT', { amounts: amounts(added.food, added.fuel) }), ctx.getResourceUrl('assets/ship_stores.webp')); } catch {} };
     if (state.whenNoModal) state.whenNoModal(notify); else notify();
   };
 

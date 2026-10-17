@@ -10,7 +10,7 @@ export function createVoyageClass({ model, log }) {
   class Voyage extends Skill {
     constructor(namespace, game) {
       super(namespace, 'Voyage', game);
-      this._media = 'assets/icon.png';
+      this._media = 'assets/icon.webp';
       this.renderQueue = new SkillRenderQueue();
       this.renderQueue.page = false;
       this.record = model.defaultSave();

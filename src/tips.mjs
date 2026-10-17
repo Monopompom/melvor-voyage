@@ -61,7 +61,8 @@ export function install(ctx, { log }) {
   const make = (el, content, opts = {}) => {
     const inst = tippy(el, {
       content, placement: 'top', interactive: false, animation: false,
-      touch: el.matches('button, [role="button"], a') ? 'hold' : true, ...opts,
+      // `data-tip-touch="off"`: no tooltip on touch, the press-and-hold does something else (the Here strip's name, build .187).
+      touch: el.dataset.tipTouch === 'off' ? false : el.matches('button, [role="button"], a') ? 'hold' : true, ...opts,
     });
     live.add(inst);
     return inst;

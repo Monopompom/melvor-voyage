@@ -3,5 +3,5 @@
   "version": "0.1.0",
   "namespace": "voyage",
   "setup": "setup.mjs",
-  "icon": "assets/icon.png"
+  "icon": "assets/icon.svg"
 }

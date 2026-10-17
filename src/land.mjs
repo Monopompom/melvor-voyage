@@ -112,7 +112,7 @@ export function install(ctx, { state, landModel: L, shipModel, log }) {
   ctx.onInterfaceReady(async () => {
     try {
       const img = new Image();
-      img.src = ctx.getResourceUrl('assets/marker_crossroads_sign.png');
+      img.src = ctx.getResourceUrl('assets/marker_crossroads_sign.webp');
       await img.decode();
       tex = PIXI.Texture.from(img);
       refreshMarker();
@@ -132,7 +132,7 @@ export function install(ctx, { state, landModel: L, shipModel, log }) {
     signPoi: () => poiById(placedId()),
     signAction: action, place, pickup,
     signName: () => purchase(L.SIGN.id)?.name ?? 'Crossroads Sign',
-    signMedia: () => ctx.getResourceUrl('assets/crossroads_sign.png'),
+    signMedia: () => ctx.getResourceUrl('assets/crossroads_sign.webp'),
     /** The signed POI's buffs as the game writes them (coloured spans), or []. */
     signBuffSpans: () => { const p = poiById(placedId()); try { return p?.activeStats?.hasStats ? p.activeStats.describeAsSpans(1, posMult()) : []; } catch { return []; } },
     /** Opens the shop on the Voyage tab (the sign and the mounts are sold there). */

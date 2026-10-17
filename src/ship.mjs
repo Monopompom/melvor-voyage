@@ -377,7 +377,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     }
     game.bank.removeItemQuantity(pitchItem(), info.plan.pitch, true);
     setVessel(kind, { ...vessel(kind), cond: info.plan.to }, `repaired to ${info.plan.to}%`);
-    try { game.notifications.createSuccessNotification('voyage:hull', t('MOD_VOY_HULL_REPAIRED', { cond: `${info.plan.to}` }), ctx.getResourceUrl('assets/hull_condition.png')); } catch {}
+    try { game.notifications.createSuccessNotification('voyage:hull', t('MOD_VOY_HULL_REPAIRED', { cond: `${info.plan.to}` }), ctx.getResourceUrl('assets/hull_condition.webp')); } catch {}
     return true;
   };
 

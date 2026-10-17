@@ -141,7 +141,7 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
           { cells: [getLangString('MOD_VOY_WELCOME_ROW_AREA'), road.area.name] },
           { cells: [getLangString('MOD_VOY_WELCOME_ROW_HEX'), `(${at})`] },
           { cells: [getLangString('MOD_VOY_WELCOME_ROW_WAY'), `${hexes(steps)} ${dir}`.trim()] },
-          { cells: [getLangString('MOD_VOY_WELCOME_ROW_PAYS'), `${numberWithCommas(road.gp)} GP`], cls: ['text-success'] },
+          { cells: [getLangString('MOD_VOY_WELCOME_ROW_ROAD'), `${numberWithCommas(road.gp)} GP`] },
         ] } },
         { html: getLangString('MOD_VOY_WELCOME_COMBAT_LINE') },
         getLangString('MOD_VOY_WELCOME_TRADE_WHERE'),
@@ -181,7 +181,8 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
         showDenyButton: journal !== undefined,
         denyButtonText: getLangString('MOD_VOY_JOURNAL_OPEN'),
         customClass: (() => { const c = { ...SWAL_CLASS, denyButton: 'btn btn-outline-info m-1' }; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
-      }).then((result) => { if (result.isDenied) journal?.open({ guide: 'compass' }); });
+      // Opens on the Foreword, the book's first page (the user, 18 Oct 2026; the compass is in this popup already).
+      }).then((result) => { if (result.isDenied) journal?.open({ chapter: 'foreword' }); });
     } catch (e) { log('welcome popup failed', e); }
   };
 

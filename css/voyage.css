@@ -154,7 +154,7 @@
 /* Every green button on the page one width (build .157, the user), at the right edge of its band. */
 :root { --voyage-main-width: 13rem; }
 .voyage-hold-main { display: flex; justify-content: flex-end; padding-top: 12px; }
-.voyage-hold-main.voyage-hold-main-centre { justify-content: center; } /* hull repairs centred (build .158, the user) */
+.voyage-hold-main.voyage-hold-main-centre { justify-content: center; } /* hull repairs (build .158) and the ship block's build, upgrade and buy (build .182), the user */
 #voyage-container .voyage-hold-main .btn-success, #voyage-container .voyage-hold-go, #voyage-container .voyage-plan-buttons .btn-success { width: var(--voyage-main-width); max-width: 100%; min-height: 40px; }
 /* Two vessels (build .150): the bank's choice of hold, the brig's heading on the Ship tab, and both holds side by side. */
 .voyage-hold-pickers { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
@@ -363,7 +363,7 @@ body.vj-locked { overflow: hidden; }
   font-family: 'Voyage Fell', Georgia, serif !important; font-size: 16px; letter-spacing: .06em; color: var(--vj-red); background: transparent;
   border: 1px solid rgba(122, 42, 28, .35); border-radius: 3px; cursor: pointer; }
 .vj-manifest:hover, .vj-manifest:focus-visible { color: #4f1a10; border-color: rgba(122, 42, 28, .7); background: rgba(122, 42, 28, .06); }
-/* The first spread (build .179): the Old Man's chart (assets/chart.png, pencil on transparent) and the Manifest. */
+/* The first spread (build .179): the Old Man's chart (assets/chart.webp, pencil on transparent) and the Manifest. */
 .vj-page.vj-chart-page { padding: 26px 30px 22px 34px; }
 .vj-chart { flex: 1 1 auto; min-height: 0; margin: 0; display: flex; align-items: center; justify-content: center; }
 .vj-chart img { max-width: 100%; max-height: 100%; object-fit: contain; mix-blend-mode: multiply; }
@@ -391,6 +391,7 @@ body.vj-locked { overflow: hidden; }
 @media (max-width: 899px) { .vj-scrawl { top: 150px; left: 30%; right: 2%; font-size: 22px; } }
 .vj-pinned > .vj-foot { margin-top: 0; flex: none; border-top: 1px solid var(--vj-rule); }
 .vj-turn { border: 0; background: none; color: var(--vj-red); font-family: 'Voyage Fell', Georgia, serif !important; font-size: 18px; min-height: 44px; padding: 8px 4px; cursor: pointer; }
+.vj-one-only { display: none !important; } /* the phone's one-page book only (see the 899px block) */
 .vj-turn:hover, .vj-turn:focus-visible { color: #4f1a10; text-decoration: underline; }
 .vj-btn { min-height: 44px; padding: 8px 18px; border: 2px solid var(--vj-blue); border-radius: 4px; background: transparent; color: var(--vj-blue); font-size: 18px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .vj-btn:hover, .vj-btn:focus-visible { background: rgba(44, 62, 92, .1); }
@@ -445,7 +446,7 @@ body.vj-locked { overflow: hidden; }
 .vj-tabs { width: 64px; flex: none; display: flex; flex-direction: column; gap: 6px; padding-top: 74px; position: relative; }
 .vj-close { position: absolute; top: -6px; left: 14px; width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(230, 200, 150, .5); background: transparent; color: #e8d6b0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .vj-close:hover, .vj-close:focus-visible { background: rgba(230, 200, 150, .15); }
-.vj-tab { writing-mode: vertical-rl; width: 48px; display: flex; align-items: center; gap: 6px; padding: 14px 12px; border: 0; border-radius: 0 6px 6px 0; color: #fbf3e2; font-family: 'Voyage Fell', Georgia, serif !important; font-size: 17px; text-align: left; cursor: pointer; }
+.vj-tab { position: relative; writing-mode: vertical-rl; width: 48px; display: flex; align-items: center; gap: 6px; padding: 14px 12px; border: 0; border-radius: 0 6px 6px 0; color: #fbf3e2; font-family: 'Voyage Fell', Georgia, serif !important; font-size: 17px; text-align: left; cursor: pointer; }
 .vj-tab-how { background: #5c4630; } .vj-tab-resources { background: #7a2a1c; } .vj-tab-places { background: #2c3e5c; } .vj-tab-guide { background: #3d5a3a; }
 .vj-tab.vj-tab-on { background: var(--vj-paper); color: var(--vj-red); width: 52px; margin-left: -4px; }
 .vj-tab-icon { flex: none; transform: rotate(90deg); } /* turned with the side tab's text (the user, 17 Oct 2026) */
@@ -468,13 +469,23 @@ body.vj-locked { overflow: hidden; }
   .vj-tab.vj-tab-on { width: auto; margin-left: 0; }
   .vj-tab-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .vj-tab-icon { width: 22px; height: 22px; transform: none; }
-  .vj-spread { grid-template-columns: minmax(0, 1fr); align-content: start; overflow-y: auto; outline: 0; border-radius: 0 0 6px 6px; }
+  .vj-spread { display: flex; flex-direction: column; overflow-y: auto; outline: 0; border-radius: 0 0 6px 6px; }
+  /* The page shown fills the book to its bottom edge, a short one too, and grows past it to scroll (the user, build .192);
+     its foot (Turn the page) sits at the bottom of the paper. */
+  .vj-spread > .vj-page { flex: 1 0 auto; }
   /* Pages stack and scroll as one column here; the desktop min-height: 0 squeezed them to the screen and their contents ran over each other. */
   .vj-page, .vj-page-body, .vj-chart { min-height: auto; flex-shrink: 0; }
   .vj-page { overflow: visible; padding: 20px 16px; box-shadow: none; }
   .vj-page.vj-pinned { overflow: visible; padding-bottom: 20px; }
   .vj-page-body { overflow: visible; margin-right: 0; padding-right: 0; }
-  .vj-right { border-top: 3px double var(--vj-red); }
+  /* One page at a time (the user, 18 Oct 2026: the right page ran on under the left one): the other page hides,
+     the turns step page by page (journal.mjs showPage, view.side). */
+  .vj-spread.vj-on-left > .vj-right, .vj-spread.vj-on-right > .vj-left { display: none; }
+  .vj-one-only { display: inline-flex !important; }
+  div.vj-one-only { display: flex !important; }
+  /* Spread apart only when the phone's extra turn has company; alone (the chart's Turn the page) it keeps its foot's side (build .193). */
+  .vj-foot:has(> .vj-one-only + *, > * + .vj-one-only) { justify-content: space-between; }
+  .vj-one-back { align-self: flex-start; margin: -8px 0 0 -4px; }
   /* Phone: the chart at full width, the Manifest button as its anchor alone (its aria-label keeps the word). */
   .vj-page.vj-chart-page { padding: 16px; }
   .vj-chart img { width: 100%; max-height: none; height: auto; }
@@ -492,7 +503,7 @@ body.vj-locked { overflow: hidden; }
 
 /* Build .116: unread marks, charts to use, the chart picker. */
 .vj-unread { margin-left: 8px; padding: 1px 8px; border-radius: 10px; background: var(--vj-red); color: #fbf3e2; font-size: 15px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
-.vj-tab-count { display: inline-block; writing-mode: horizontal-tb; min-width: 24px; padding: 1px 6px; border-radius: 12px; background: #fbf3e2; color: var(--vj-red); font-family: 'Voyage Garamond', Georgia, serif; font-size: 15px; font-weight: 600; text-align: center; }
+.vj-tab-dot { position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; border-radius: 50%; background: #e5483b; box-shadow: 0 0 0 2px #fbf3e2; pointer-events: none; }
 .vj-readall { margin-top: -10px; }
 .vj-linkbtn { border: 0; background: none; padding: 0; min-height: 44px; color: var(--vj-blue); font-size: 16px; text-decoration: underline; cursor: pointer; }
 .vj-charts { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--vj-rule); border-radius: 4px; background: rgba(122, 42, 28, .06); }
@@ -609,3 +620,26 @@ body.vj-locked { overflow: hidden; }
 .voyage-tip { text-align: center; }
 .voyage-tip-line { white-space: pre-line; }
 .voyage-tip-icon { width: 1.25em; height: 1.25em; object-fit: contain; vertical-align: middle; margin: -0.15em 0.3em 0 0; }
+
+/* The square (the user, 18 Oct 2026): press and hold the strip's caret on a touchscreen and the strip shrinks to
+   one 44px square with a captain's cap at the map's top left; a tap brings the strip back. A dot like the journal
+   tab's when stores or hull need a look. */
+#voyage-here.voyage-tucked { width: max-content; max-width: 100%; right: auto !important; padding: 0 !important; background: transparent !important; box-shadow: none; }
+.voyage-tuck-row { display: flex; align-items: center; gap: 8px; }
+.voyage-tuck { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--voyage-rule); background: #2b3038; color: #d4a548; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
+@media (hover: hover) { .voyage-tuck:hover { color: #e8c271; background: #323843; } }
+.voyage-tuck-dot { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 2px #2b3038; pointer-events: none; }
+.voyage-tuck-warn { background: #f0b43c; } .voyage-tuck-bad { background: #e5483b; }
+.voyage-mini-caret, .voyage-tuck { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* The strip's caret, its own button: plain on a wide screen; on touch a bigger round grey button, the one to hold. */
+.voyage-mini-caret { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; }
+.voyage-mini-caret i { width: auto !important; }
+@media (pointer: coarse) {
+  .voyage-mini-caret { width: 38px; height: 38px; min-height: 38px; border-radius: 50%; background: rgba(255, 255, 255, .12); font-size: 1.3rem; }
+  .voyage-mini-caret:active { background: rgba(255, 255, 255, .22); }
+}
+.voyage-tuck-icon { width: 32px; height: 32px; object-fit: contain; pointer-events: none; }
+/* On a phone the open panel stops a little past the map's middle and scrolls inside (here-panel.mjs capHeight). */
+#voyage-here.voyage-capped { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* Its title row (the caret, You are here, Manage voyage) stays at the top while the rest scrolls under it (the user, build .190). */
+#voyage-here.voyage-capped .voyage-here-head { position: sticky; top: -.5rem; z-index: 2; margin: -.5rem -.5rem 4px; padding: .5rem .5rem 4px; background: inherit; border-bottom: 1px solid var(--voyage-rule); }

@@ -10,21 +10,21 @@
  */
 export const HULLS = {
   dinghy: {
-    id: 'dinghy', tier: 1, name: 'Dinghy', media: 'assets/hull_dinghy.png',
+    id: 'dinghy', tier: 1, name: 'Dinghy', media: 'assets/hull_dinghy.webp',
     /** Farthest a hull sails from land, in hexes. */
     reach: 2,
     blurb: 'A small rowing boat. It stays within 2 hexes of land and you can board or leave it on any coast.',
   },
   longboat: {
-    id: 'longboat', tier: 2, name: 'Longboat', media: 'assets/hull_longboat.png', reach: 4,
+    id: 'longboat', tier: 2, name: 'Longboat', media: 'assets/hull_longboat.webp', reach: 4,
     blurb: 'A bigger rowing boat with a short mast. It stays within 4 hexes of land and you can board or leave it on any coast, the Cursed Isle included.',
   },
   brig: {
-    id: 'brig', tier: 3, name: 'Brig', media: 'assets/hull_brig.png', reach: 5,
+    id: 'brig', tier: 3, name: 'Brig', media: 'assets/hull_brig.webp', reach: 5,
     blurb: 'A two-masted sailing ship. It sails up to 5 hexes from land, under cloud too, and ties up only at ports. Your small boat rides aboard and rows you ashore anywhere else.',
   },
   galleon: {
-    id: 'galleon', tier: 4, name: 'Galleon', media: 'assets/hull_galleon.png', reach: Infinity,
+    id: 'galleon', tier: 4, name: 'Galleon', media: 'assets/hull_galleon.webp', reach: Infinity,
     blurb: 'A three-masted ship of the line. She sails any sea, however far from land and under cloud too, and ties up only at ports. Your small boat rides aboard and rows you ashore anywhere else.',
   },
 };
