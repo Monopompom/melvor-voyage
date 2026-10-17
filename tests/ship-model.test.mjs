@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   HULLS, PLANNED_HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, dockSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach, isPlace,
   canHop, shipAfterHops, hexDist, condOf, repairPlan, canRepair, pitchChance, REPAIR,
-  holdSlots, atShip, stow, takeOut, UPGRADES, upgradeFor, upgradeBlocker, HOLD_SLOTS,
+  holdSlots, atShip, stow, takeOut, UPGRADES, upgradeFor, upgradeBlocker, HOLD_SLOTS, BIG_SHIPS, shipBill,
 } from '../src/ship-model.mjs';
 import { HULL_IDS, loadSave, serializeSave, defaultSave, xpForSteps } from '../src/voyage-model.mjs';
 import { createTerrain, hexDistance, NEIGHBOURS } from '../src/terrain.mjs';
@@ -51,7 +51,9 @@ test('the galleon (build .152): the brig\'s upgrade, at Voyage 60, at a port wit
   assert.equal(upgradeFor({ hull: 'galleon', q: 0, r: 0 }), undefined, 'the last hull');
   const u = UPGRADES.galleon;
   assert.equal(u.level, 60);
-  assert.ok(u.gp > 150000 && u.items.length === 3, 'dearer than the brig');
+  assert.ok(u.gp > 150000 && u.items.length === 4, 'dearer than the brig');
+  const bones = (items) => items.find((x) => x.id === 'melvorD:Big_Bones')?.quantity;
+  assert.deepEqual([UPGRADES.longboat, BIG_SHIPS.brig, u].map((x) => bones(x.items)), [50, 250, 550], 'Big Bones grow with the hull (build .177)');
   const ok = { level: 60, atPort: true, playerRec: land(0, 0), owned: true };
   assert.equal(upgradeBlocker(brig(1, 0), u, ok), undefined, 'the brig at the quay beside you');
   assert.equal(upgradeBlocker(brig(0, 0), u, ok), undefined, 'aboard at the quay');
@@ -468,4 +470,18 @@ test('stowing stacks like the bank; a new kind needs a free slot; taking out fre
   assert.deepEqual(takeOut(hold, 'a', 2), { hold: [{ id: 'a', qty: 3 }, { id: 'b', qty: 1 }], taken: 2 });
   assert.deepEqual(takeOut(hold, 'b', 99), { hold: [{ id: 'a', qty: 5 }], taken: 1 });
   assert.deepEqual(takeOut(hold, 'z', 1), { hold, taken: 0 });
+});
+
+test('the shipwright\'s bill lists every hull at the price the code charges', () => {
+  const bill = shipBill();
+  assert.deepEqual(bill.map((b) => b.id), ['dinghy', 'longboat', 'brig', 'galleon']);
+  assert.equal(bill[0].level, 0);
+  assert.deepEqual(bill[0].items, DINGHY_BUILD.items);
+  assert.equal(bill[1].from, 'dinghy');
+  assert.equal(bill[2].bought, true);
+  assert.equal(bill[3].from, 'brig');
+  assert.equal(bill[3].reach, Infinity);
+  assert.deepEqual(bill.map((b) => b.hold), [6, 12, 18, 24]);
+  // Big Bones in every hull after the dinghy (builds .148 and .177).
+  assert.deepEqual(bill.map((b) => b.items.find((i) => i.id === 'melvorD:Big_Bones')?.quantity), [undefined, 50, 250, 550]);
 });

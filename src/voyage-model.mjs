@@ -110,7 +110,7 @@ export function defaultSave() {
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
-export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island'];
+export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon'];
 /** Kinds of place the journal records. */
 export const JOURNAL_PLACE_KINDS = ['combat', 'trade'];
 /** Hexes kept per action (found) and misses kept per action (about 20). */

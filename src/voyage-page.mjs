@@ -168,7 +168,7 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
   const qty = (n) => numberWithCommas(n);
   /** A cost: icon, amount and what you have; red with the words when short (never colour alone). */
   const costIcon = (media, need, have, title, itemId) =>
-    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ''}><img class="mr-1" src="${media}" alt="${esc(title)}">${qty(need)}` +
+    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ` data-tip-media="${esc(media)}"`}><img class="mr-1" src="${media}" alt="${esc(title)}">${qty(need)}` +
     ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: qty(have) })})</span></span>`;
   /** A grey section band inside a block. */
   const section = (html) => `<div class="voyage-section">${html}</div>`;
@@ -326,13 +326,13 @@ export function install(ctx, { state, model, shipModel, storesModel, helpHtml, H
   const hullHtml = (kind = 'boat') => {
     const info = state.ship?.repairInfo?.(kind);
     if (info === undefined) return '';
-    const R = shipModel.REPAIR;
     const c = info.cond;
     const cls = c <= 0 ? 'bg-danger' : c < storesModel.WORN ? 'bg-warning' : 'bg-success';
     const pitch = game.items.getObjectByID('voyage:Pitch');
     const logs = game.items.getObjectByID('melvorD:Normal_Logs');
-    const costTitle = t('MOD_VOY_PAGE_HULL_COST', { step: `${R.step}`, logs: `${R.logs}`, pitch: `${R.pitch}` });
-    const costs = [costIcon(logs?.media ?? '', info.plan.full.logs, info.logs, costTitle, logs?.id)];
+    // Any logs count, the cheapest first, so the tooltip names any logs, not Normal Logs; the rate is in the line under
+    // the costs (the user, build .176: the tooltip only names the item).
+    const costs = [costIcon(logs?.media ?? '', info.plan.full.logs, info.logs, t('MOD_VOY_PAGE_HULL_LOGS'), logs?.id)];
     if (pitch !== undefined) costs.push(costIcon(pitch.media, info.plan.full.pitch, info.pitch, pitch.name, pitch.id));
     const action = info.blocker === undefined
       ? `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR', { cond: `${info.plan.to}` })}</button></div>`

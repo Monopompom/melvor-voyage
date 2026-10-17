@@ -156,3 +156,12 @@ test('unread marks: new stays new, updated, read, oldest dropped, junk cleaned',
   assert.equal(markRead(j, 'a:y'), false);
   assert.deepEqual(cleanJournal({ unread: { 'a:x': 'more', 'q:x': 'new', 'g:': 'new', 'g:zone': 'old' } }).unread, { 'a:x': 'more' });
 });
+
+test('the chart and the Manifest come first, so chapter spreads start at 1', async () => {
+  const { chapterSpread, howSpreads, FIRST_SPREADS } = await import('../src/journal-model.mjs');
+  assert.equal(FIRST_SPREADS, 1);
+  assert.deepEqual([0, 1, 2, 3, 15].map(chapterSpread), [1, 1, 2, 2, 8]);
+  assert.equal(howSpreads(16), 9);
+  assert.equal(howSpreads(15), 9);
+  assert.equal(howSpreads(0), 1);
+});

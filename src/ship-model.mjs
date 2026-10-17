@@ -39,7 +39,9 @@ export const isBig = (v) => tierOf(v) >= BIG_TIER;
 export const BIG_SHIPS = {
   brig: {
     level: 45, gp: 150000,
-    items: [{ id: 'melvorD:Teak_Logs', quantity: 400 }, { id: 'melvorD:Steel_Bar', quantity: 100 }, { id: 'voyage:Pitch', quantity: 75 }],
+    items: [{ id: 'melvorD:Teak_Logs', quantity: 400 }, { id: 'melvorD:Steel_Bar', quantity: 100 }, { id: 'voyage:Pitch', quantity: 75 },
+      // Big Bones for the ribs, as the longboat's (build .177, the user): 250 for the first big ship.
+      { id: 'melvorD:Big_Bones', quantity: 250 }],
     milestone: 'Brig: bought at a port',
   },
 };
@@ -72,7 +74,9 @@ export const UPGRADES = {
   /** The big ship's upgrade (build .152): a placeholder price for the balance pass. */
   galleon: {
     from: 'brig', level: 60, gp: 600000,
-    items: [{ id: 'melvorD:Yew_Logs', quantity: 500 }, { id: 'melvorD:Mithril_Bar', quantity: 150 }, { id: 'voyage:Pitch', quantity: 150 }],
+    items: [{ id: 'melvorD:Yew_Logs', quantity: 500 }, { id: 'melvorD:Mithril_Bar', quantity: 150 }, { id: 'voyage:Pitch', quantity: 150 },
+      // Big Bones (build .177, the user): 550 for the biggest.
+      { id: 'melvorD:Big_Bones', quantity: 550 }],
     milestone: 'Galleon: built at a port',
   },
 };
@@ -437,6 +441,18 @@ export const HOLD_ROW_LEVELS = [35, 55]; // the balance pass; was 40, 80
 export function holdSlots(ship, voyageLevel = 1) {
   if (ship == null) return 0;
   return (HOLD_SLOTS[ship.hull] ?? 0) + HOLD_ROW * HOLD_ROW_LEVELS.filter((l) => voyageLevel >= l).length;
+}
+/**
+ * The shipwright's bill (build .178, the journal's hull chapter): every hull in the order you meet it,
+ * with its price as the code has it (DINGHY_BUILD, UPGRADES, BIG_SHIPS), so a price change shows in the book unasked.
+ * `level` 0 = no level needed; `from` = the hull it is built out of; `bought` = bought outright, not built.
+ */
+export const BILL_ORDER = ['dinghy', 'longboat', 'brig', 'galleon'];
+export function shipBill() {
+  return BILL_ORDER.map((id) => {
+    const spec = id === 'dinghy' ? DINGHY_BUILD : UPGRADES[id] ?? BIG_SHIPS[id];
+    return { id, level: spec.level ?? 0, gp: spec.gp, items: spec.items, from: spec.from, bought: BIG_SHIPS[id] !== undefined, reach: HULLS[id].reach, hold: HOLD_SLOTS[id] };
+  });
 }
 /** The hold is reached at the ship: standing on it or on a hex next to it. */
 export const atShip = (playerRec, ship) => ship != null && playerRec !== undefined && hexDist(playerRec, ship) <= 1;

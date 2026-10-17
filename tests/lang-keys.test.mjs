@@ -44,6 +44,9 @@ export const FAMILIES = {
   // the Did you know slips (journal-model.mjs JOURNAL_ASIDES)
   MOD_VOY_JOURNAL_ASIDE_: Object.values(JOURNAL_ASIDES).flatMap((k) => [`${k}_HEAD`, `${k}_BODY`]),
   MOD_VOY_JOURNAL_PLACES_: ['COMBAT', 'TRADE', 'POI'],
+  // The shipwright's bill (build .178, journal.mjs shipBill).
+  MOD_VOY_JOURNAL_BILL_WHERE_: ['DINGHY', 'LONGBOAT', 'BRIG', 'GALLEON'],
+  MOD_VOY_JOURNAL_BILL_REBUILT_: ['LONGBOAT', 'GALLEON'],
   // Plan a voyage (src/planner.mjs VERDICT): the verdicts named by a plan's reason
   MOD_VOY_PLAN_VERDICT_: ['SHORT', 'ASHORE', 'HULL', 'NOWAY', 'UNCHARTED', 'HERE'],
   MOD_VOY_RULE_LABEL_: localIds.filter((id, i) => rules.ruleLabelKey(Object.keys(rules.SKILL_RULES)[i]) !== undefined),

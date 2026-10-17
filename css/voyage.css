@@ -324,6 +324,15 @@ body.vj-locked { overflow: hidden; }
 /* The road chapter (build .170): a mount's icon and name, its price as icon, count, name; the buffs one per line. */
 .vj-mount { display: inline-flex; align-items: center; gap: 8px; }
 .vj-mount img { width: 32px; height: 32px; object-fit: contain; }
+/* The shipwright's bill (build .178): hull icon, then name, Yours and the two facts under it. */
+.vj-hull { display: inline-flex; align-items: flex-start; gap: 10px; }
+.vj-hull img { width: 40px; height: 40px; object-fit: contain; flex: none; }
+.vj-bill-line { display: block; font-size: 15px; line-height: 1.3; font-weight: 400; }
+/* Seen in game (build .179): the vessel column wide enough for "Built on any coast" on one line, Level kept narrow. */
+.vj-bill .vj-ledger td.vj-first, .vj-bill .vj-ledger th:first-child { width: 44%; }
+.vj-bill .vj-ledger td:nth-child(2), .vj-bill .vj-ledger th:nth-child(2) { width: 1%; white-space: nowrap; }
+.vj-bill-rebuilt { font-style: italic; }
+.vj-bill .vj-ledger td { vertical-align: top; }
 .vj-costs { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .vj-cost { display: inline-flex; align-items: center; gap: 4px; }
 .vj-cost img { width: 20px; height: 20px; object-fit: contain; }
@@ -348,6 +357,24 @@ body.vj-locked { overflow: hidden; }
 .vj-note + .vj-foot { margin-top: 0; }
 .vj-folio { font-family: 'Voyage Fell', Georgia, serif; font-size: 15px; color: var(--vj-faint); }
 .vj-foot-split { justify-content: space-between; }
+/* Chapter foot (build .179): on a left page "Turn back" with the Manifest button beside it, the folio at the right. */
+.vj-foot-start { display: inline-flex; align-items: center; gap: 14px; }
+.vj-manifest { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 6px 12px; box-sizing: border-box;
+  font-family: 'Voyage Fell', Georgia, serif !important; font-size: 16px; letter-spacing: .06em; color: var(--vj-red); background: transparent;
+  border: 1px solid rgba(122, 42, 28, .35); border-radius: 3px; cursor: pointer; }
+.vj-manifest:hover, .vj-manifest:focus-visible { color: #4f1a10; border-color: rgba(122, 42, 28, .7); background: rgba(122, 42, 28, .06); }
+/* The first spread (build .179): the Old Man's chart (assets/chart.png, pencil on transparent) and the Manifest. */
+.vj-page.vj-chart-page { padding: 26px 30px 22px 34px; }
+.vj-chart { flex: 1 1 auto; min-height: 0; margin: 0; display: flex; align-items: center; justify-content: center; }
+.vj-chart img { max-width: 100%; max-height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+.vj-manifest-head { font-family: 'Voyage Fell', Georgia, serif; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--vj-faint);
+  padding: 4px 0 3px; border-bottom: 3px double var(--vj-red); }
+.vj-mrows { display: flex; flex-direction: column; font-size: 16.5px; line-height: 1.25; margin-top: -6px; }
+.vj-mrow { display: flex; align-items: baseline; gap: 6px; min-height: 26px; padding: 2px 0; border: 0; background: none; color: var(--vj-ink); text-align: left; cursor: pointer; width: 100%; }
+.vj-mrow-dots { flex: 1; border-bottom: 1px dotted var(--vj-faint); margin: 0 2px 4px; }
+.vj-mrow .vj-folio { font-size: 15px; }
+.vj-mrow:hover .vj-mrow-title, .vj-mrow:focus-visible .vj-mrow-title { color: #4f1a10; text-decoration: underline dotted; text-underline-offset: 3px; }
+.vj-manifest-rest { font-size: 15px; line-height: 1.35; font-style: italic; color: var(--vj-faint); margin: 2px 0 0; }
 /* How it works: the text scrolls in .vj-page-body and the foot (folio, page turn) stays at the bottom of the page. */
 .vj-page.vj-pinned { overflow: hidden; padding-bottom: 10px; }
 .vj-page-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin-right: -12px; padding-right: 12px; }
@@ -415,12 +442,14 @@ body.vj-locked { overflow: hidden; }
 .vj-page:focus { outline: none; }
 .vj-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(43, 33, 24, .5); margin-right: 8px; vertical-align: -2px; }
 .vj-points { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
-.vj-tabs { width: 64px; flex: none; display: flex; flex-direction: column; gap: 8px; padding-top: 74px; position: relative; }
+.vj-tabs { width: 64px; flex: none; display: flex; flex-direction: column; gap: 6px; padding-top: 74px; position: relative; }
 .vj-close { position: absolute; top: -6px; left: 14px; width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(230, 200, 150, .5); background: transparent; color: #e8d6b0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .vj-close:hover, .vj-close:focus-visible { background: rgba(230, 200, 150, .15); }
-.vj-tab { writing-mode: vertical-rl; width: 48px; padding: 18px 12px; border: 0; border-radius: 0 6px 6px 0; color: #fbf3e2; font-family: 'Voyage Fell', Georgia, serif !important; font-size: 17px; text-align: left; cursor: pointer; }
+.vj-tab { writing-mode: vertical-rl; width: 48px; display: flex; align-items: center; gap: 6px; padding: 14px 12px; border: 0; border-radius: 0 6px 6px 0; color: #fbf3e2; font-family: 'Voyage Fell', Georgia, serif !important; font-size: 17px; text-align: left; cursor: pointer; }
 .vj-tab-how { background: #5c4630; } .vj-tab-resources { background: #7a2a1c; } .vj-tab-places { background: #2c3e5c; } .vj-tab-guide { background: #3d5a3a; }
 .vj-tab.vj-tab-on { background: var(--vj-paper); color: var(--vj-red); width: 52px; margin-left: -4px; }
+.vj-tab-icon { flex: none; transform: rotate(90deg); } /* turned with the side tab's text (the user, 17 Oct 2026) */
+.vj-tab-name { white-space: nowrap; }
 /* Bootstrap's colour classes are for the dark game; on paper they need ink-dark versions (4.5:1). */
 #voyage-journal .vj-page .text-success { color: #2f6b34 !important; }
 #voyage-journal .vj-page .text-warning { color: #7a5000 !important; }
@@ -432,15 +461,26 @@ body.vj-locked { overflow: hidden; }
 @media (max-width: 899px) {
   .vj-backdrop { padding: 0; }
   .vj-book { height: 100%; border-radius: 0; padding: 8px; flex-direction: column; }
-  .vj-tabs { width: auto; flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 4px; padding: 0 0 0 52px; order: -1; min-height: 52px; }
+  .vj-tabs { width: auto; flex-direction: row; flex-wrap: nowrap; align-items: flex-end; gap: 3px; padding: 0 0 0 52px; order: -1; min-height: 52px; }
   .vj-close { top: 4px; left: 0; }
-  .vj-tab { writing-mode: horizontal-tb; width: auto; padding: 10px 12px; border-radius: 6px 6px 0 0; font-size: 16px; min-height: 44px; }
+  /* One row of icon tabs (the user, 17 Oct 2026): the name stays for screen readers and is the tab's tooltip. */
+  .vj-tab { writing-mode: horizontal-tb; width: auto; flex: none; min-width: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 12px; border-radius: 6px 6px 0 0; min-height: 44px; }
   .vj-tab.vj-tab-on { width: auto; margin-left: 0; }
-  .vj-spread { grid-template-columns: minmax(0, 1fr); overflow-y: auto; outline: 0; border-radius: 0 0 6px 6px; }
+  .vj-tab-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .vj-tab-icon { width: 22px; height: 22px; transform: none; }
+  .vj-spread { grid-template-columns: minmax(0, 1fr); align-content: start; overflow-y: auto; outline: 0; border-radius: 0 0 6px 6px; }
+  /* Pages stack and scroll as one column here; the desktop min-height: 0 squeezed them to the screen and their contents ran over each other. */
+  .vj-page, .vj-page-body, .vj-chart { min-height: auto; flex-shrink: 0; }
   .vj-page { overflow: visible; padding: 20px 16px; box-shadow: none; }
   .vj-page.vj-pinned { overflow: visible; padding-bottom: 20px; }
   .vj-page-body { overflow: visible; margin-right: 0; padding-right: 0; }
   .vj-right { border-top: 3px double var(--vj-red); }
+  /* Phone: the chart at full width, the Manifest button as its anchor alone (its aria-label keeps the word). */
+  .vj-page.vj-chart-page { padding: 16px; }
+  .vj-chart img { width: 100%; max-height: none; height: auto; }
+  .vj-manifest { padding: 6px 10px; min-width: 44px; justify-content: center; }
+  .vj-manifest-word { display: none; }
+  .vj-mrow { min-height: 36px; }
 }
 /* Ways in: the lock popups' footer link, the minibar and header buttons, the map panel's book next to Manage voyage. */
 .voyage-journal-footer { display: inline-flex; align-items: center; gap: 8px; font-size: 1rem; }
@@ -452,7 +492,7 @@ body.vj-locked { overflow: hidden; }
 
 /* Build .116: unread marks, charts to use, the chart picker. */
 .vj-unread { margin-left: 8px; padding: 1px 8px; border-radius: 10px; background: var(--vj-red); color: #fbf3e2; font-size: 15px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
-.vj-tab-count { display: inline-block; writing-mode: horizontal-tb; margin-top: 8px; min-width: 24px; padding: 1px 6px; border-radius: 12px; background: #fbf3e2; color: var(--vj-red); font-family: 'Voyage Garamond', Georgia, serif; font-size: 15px; font-weight: 600; text-align: center; }
+.vj-tab-count { display: inline-block; writing-mode: horizontal-tb; min-width: 24px; padding: 1px 6px; border-radius: 12px; background: #fbf3e2; color: var(--vj-red); font-family: 'Voyage Garamond', Georgia, serif; font-size: 15px; font-weight: 600; text-align: center; }
 .vj-readall { margin-top: -10px; }
 .vj-linkbtn { border: 0; background: none; padding: 0; min-height: 44px; color: var(--vj-blue); font-size: 16px; text-decoration: underline; cursor: pointer; }
 .vj-charts { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--vj-rule); border-radius: 4px; background: rgba(122, 42, 28, .06); }
@@ -563,3 +603,9 @@ body.vj-locked { overflow: hidden; }
 .voyage-crate-full:hover { border-color: rgba(84, 166, 232, .6); }
 .voyage-crate-picked { border-color: #54a6e8; box-shadow: inset 0 3px 7px rgba(0, 0, 0, .6), 0 0 0 2px #54a6e8; }
 .voyage-crate-qty { position: absolute; right: 6px; bottom: 3px; font-size: .9rem; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000; }
+
+/* Tooltips (the user 17 Oct 2026; build .175): the text centred, an item's icon before its name.
+   The tippy box is appended to <body>, outside the mod's scale class, so sizes are in em of the tooltip's own text. */
+.voyage-tip { text-align: center; }
+.voyage-tip-line { white-space: pre-line; }
+.voyage-tip-icon { width: 1.25em; height: 1.25em; object-fit: contain; vertical-align: middle; margin: -0.15em 0.3em 0 0; }

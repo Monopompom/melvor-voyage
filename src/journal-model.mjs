@@ -17,6 +17,15 @@ export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores',
  */
 export const JOURNAL_CREW = ['crew_hire', 'crew_ranks', 'crew_pay', 'crew_tips'];
 /**
+ * The first spread of How it works (build .179): the Old Man's chart and the
+ * Manifest face each other before the foreword, so chapter spreads start at 1. Chapters keep their folios (i, ii, ...
+ * from their place in the list); only the spread they sit on moves.
+ */
+export const FIRST_SPREADS = 1;
+/** The How it works spread a chapter (index in the shown list) sits on, and how many spreads `count` chapters take. */
+export const chapterSpread = (i) => FIRST_SPREADS + Math.floor(i / 2);
+export const howSpreads = (count) => FIRST_SPREADS + Math.ceil(count / 2);
+/**
  * The book-only chapters: their sections, each a heading and lines in en.json
  * (MOD_VOY_JOURNAL_CH_<CHAPTER>_<SECTION>_HEAD / _BODY, lines split on "\n"). `points`: the lines are a list.
  * `warn`: sections drawn with the amber edge. 'adventure' adds the live first-fight table (compass.mjs firstSteps).

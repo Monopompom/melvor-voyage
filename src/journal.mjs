@@ -23,7 +23,7 @@ const ROOT_ID = 'voyage-journal';
 /** Skills that work anywhere, named on the crafts page. */
 const ANYWHERE = ['melvorD:Agility', 'melvorD:Prayer', 'melvorAoD:Cartography', 'melvorD:Astrology'];
 
-export function install(ctx, { state, model, journalModel: jm, rules, terrainMod, log }) {
+export function install(ctx, { state, model, journalModel: jm, shipModel, rules, terrainMod, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const iconUrl = ctx.getResourceUrl('assets/journal.png');
@@ -421,6 +421,32 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
     rows.numeric = [false, true, true, false];
     return ledger([t('MOD_VOY_JOURNAL_ROAD_COL_MOUNT'), t('MOD_VOY_JOURNAL_ROAD_COL_LEVEL'), t('MOD_VOY_JOURNAL_ROAD_COL_CUT'), t('MOD_VOY_JOURNAL_ROAD_COL_PRICE')], rows);
   };
+  // The shipwright's bill (build .178, the hull chapter): every hull's price live from ship-model.mjs, laid out like
+  // the mounts ledger: hull icon, name, Yours (or what it was rebuilt as), where and how it is had, reach and crates.
+  const shipBill = () => {
+    if (shipModel?.shipBill === undefined) return '';
+    const boat = state.ship?.boat?.()?.hull;
+    const big = state.ship?.big?.()?.hull;
+    const item = (id) => { try { return game.items.getObjectByID(id); } catch { return undefined; } };
+    const cost = (media, n, name) => `<span class="vj-cost">${media ? `<img src="${media}" alt="">` : ''}${esc(numberWithCommas(n))} ${esc(name)}</span>`;
+    const rows = shipModel.shipBill().map((b) => {
+      const key = b.id.toUpperCase();
+      const mine = b.id === boat || b.id === big;
+      const rebuiltAs = b.id === 'dinghy' && boat === 'longboat' ? 'LONGBOAT' : b.id === 'brig' && big === 'galleon' ? 'GALLEON' : undefined;
+      const mark = mine ? `<span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_ROAD_YOURS'))}</span>`
+        : rebuiltAs !== undefined ? `<span class="vj-bill-line vj-bill-rebuilt">${esc(t(`MOD_VOY_JOURNAL_BILL_REBUILT_${rebuiltAs}`))}</span>` : '';
+      const reach = Number.isFinite(b.reach) ? t('MOD_VOY_JOURNAL_BILL_REACH', { reach: `${b.reach}`, hold: `${b.hold}` }) : t('MOD_VOY_JOURNAL_BILL_ANY_SEA', { hold: `${b.hold}` });
+      const name = `<span class="vj-hull"><img src="${ctx.getResourceUrl(shipModel.HULLS[b.id].media)}" alt=""><span><b>${esc(t(shipModel.hullNameKey(b.id)))}</b>${mark}`
+        + `<span class="vj-bill-line">${esc(t(`MOD_VOY_JOURNAL_BILL_WHERE_${key}`))}</span><span class="vj-bill-line">${esc(reach)}</span></span></span>`;
+      const price = [cost(game.gp.media, b.gp, game.gp.name)];
+      for (const { id, quantity } of b.items) { const it = item(id); if (it !== undefined) price.push(cost(it.media, quantity, it.name)); }
+      return [{ html: name }, { text: b.level > 0 ? `${b.level}` : '—', cls: 'vj-num' }, { html: `<span class="vj-costs">${price.join('')}</span>` }];
+    });
+    rows.numeric = [false, true, false];
+    return `<div class="vj-section vj-bill"><h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_BILL_HEAD'))}</h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_BILL_BODY'))}</p>`
+      + ledger([t('MOD_VOY_JOURNAL_BILL_COL_VESSEL'), t('MOD_VOY_JOURNAL_ROAD_COL_LEVEL'), t('MOD_VOY_JOURNAL_ROAD_COL_PRICE')], rows)
+      + note(t('MOD_VOY_JOURNAL_BILL_BONES')) + '</div>';
+  };
   const atHex = (hex) => { try { const o = hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${hex.q}, ${hex.r})`; } };
   /** Where the sign is now, and the places with buffs found so far (their buffs as the game writes them). */
   const signLedger = () => {
@@ -578,8 +604,37 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       + `<span class="vj-scrawl-line">${esc(t('MOD_VOY_JOURNAL_GOBLIN_SCRAWL'))}</span><span class="vj-scrawl-line vj-scrawl-big">${esc(t('MOD_VOY_JOURNAL_GOBLIN_SCRAWL_WHAT'))}</span></div>`;
     return `<div class="vj-page-body${scrawl ? ' vj-has-scrawl' : ''}">` + scrawl + runningHead(t('MOD_VOY_JOURNAL_TITLE'), t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))
       + `<h2 class="vj-h1">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))}</h2>`
-      + dropCap(t(`MOD_VOY_JOURNAL_CH_${key}_INTRO`)) + withNote(id, body + (id === 'travels' ? levelsLedger() : '') + aside(id), noteHtml) + '</div>'
-      + `<div class="vj-foot${turn ? ' vj-foot-split' : ''}">${left ? turn : ''}<span class="vj-folio">${folio}</span>${left ? '' : turn}</div>`;
+      + dropCap(t(`MOD_VOY_JOURNAL_CH_${key}_INTRO`)) + withNote(id, body + (id === 'travels' ? levelsLedger() : '') + (id === 'ship' ? shipBill() : '') + aside(id), noteHtml) + '</div>'
+      + chapterFoot(turn, folio, left);
+  };
+  // The Manifest button (build .179): in the foot of every left chapter page, right
+  // beside "Turn back" (the user: "leave manifest button only near left return"); it opens the first spread. The word
+  // hides at phone width, the anchor and label stay.
+  const ANCHOR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<circle cx="12" cy="5" r="2.2"></circle><path d="M12 7.2V21"></path><path d="M8 11h8"></path><path d="M4 14c0 4 4 7 8 7s8-3 8-7"></path><path d="M4 14l-1.5-2M4 14l2-1M20 14l1.5-2M20 14l-2-1"></path></svg>';
+  const manifestButton = () => `<button type="button" class="vj-manifest" data-vj-manifest="1" aria-label="${esc(t('MOD_VOY_JOURNAL_MANIFEST'))}">${ANCHOR}<span class="vj-manifest-word">${esc(t('MOD_VOY_JOURNAL_MANIFEST'))}</span></button>`;
+  const chapterFoot = (turn, folio, left) => (left
+    ? `<div class="vj-foot vj-foot-split"><span class="vj-foot-start">${turn}${manifestButton()}</span><span class="vj-folio">${folio}</span></div>`
+    : `<div class="vj-foot${turn ? ' vj-foot-split' : ''}"><span class="vj-folio">${folio}</span>${turn}</div>`);
+  /**
+   * The first spread (build .179): the Old Man's chart in pencil on the left (no folio), the
+   * Manifest on the right: every How it works chapter shown to this character with its folio, each a link to its
+   * spread, then the Old Man's Crew chapters while that tab is on.
+   */
+  const chartUrl = ctx.getResourceUrl('assets/chart.png');
+  const manifestRow = (attr, title, folio) => `<button type="button" class="vj-mrow" ${attr}><span class="vj-mrow-title">${esc(title)}</span>`
+    + `<span class="vj-mrow-dots" aria-hidden="true"></span><span class="vj-folio">${folio}</span></button>`;
+  const firstSpread = (list) => {
+    const left = `<figure class="vj-chart"><img src="${chartUrl}" alt="${esc(t('MOD_VOY_JOURNAL_CHART_ALT'))}"></figure>`;
+    const how = list.map((id, i) => manifestRow(`data-vj-go="ch:${id}"`, t(`MOD_VOY_JOURNAL_CH_${id.toUpperCase()}_TITLE`), roman(i + 1))).join('');
+    const crew = !crewOn() ? '' : `<div class="vj-manifest-head">${esc(t('MOD_VOY_JOURNAL_TAB_CREW'))}</div><div class="vj-mrows">`
+      + jm.JOURNAL_CREW.map((id, i) => manifestRow(`data-vj-crew="${i}"`, t(`MOD_VOY_JOURNAL_CH_${id.toUpperCase()}_TITLE`), roman(i + 1))).join('') + '</div>';
+    const right = '<div class="vj-page-body">' + runningHead(t('MOD_VOY_JOURNAL_TITLE'), t('MOD_VOY_JOURNAL_MANIFEST'))
+      + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_MANIFEST'))}</h2>` + dropCap(t('MOD_VOY_JOURNAL_MANIFEST_LEAD'))
+      + `<div class="vj-manifest-head">${esc(t('MOD_VOY_JOURNAL_TAB_HOW'))}</div><div class="vj-mrows">${how}</div>` + crew
+      + `<p class="vj-p vj-manifest-rest">${esc(t('MOD_VOY_JOURNAL_MANIFEST_REST'))}</p></div>`
+      + `<div class="vj-foot vj-foot-end"><button type="button" class="vj-turn" data-vj-turn="1">${esc(t('MOD_VOY_JOURNAL_TURN'))} <span aria-hidden="true">›</span></button></div>`;
+    return { pinned: true, chart: true, left, right };
   };
   /** A "Did you know?" slip pasted into the chapter (journal-model.mjs JOURNAL_ASIDES), or ''. */
   const aside = (id) => {
@@ -608,14 +663,17 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
   const roman = (n) => ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 'xi', 'xii', 'xiii', 'xiv', 'xv', 'xvi'][n - 1] ?? `${n}`;
   /** Chapters two to a spread: How it works (`view.spread`) and the Old Man's Crew (`view.crewSpread`). */
   const howSpread = (list = chapters(), field = 'spread') => {
-    const spreads = Math.ceil(list.length / 2);
+    // How it works opens on the chart and the Manifest (build .179); the Crew tab has no first spread of its own.
+    const first = field === 'spread' ? jm.FIRST_SPREADS : 0;
+    const spreads = first + Math.ceil(list.length / 2);
     view[field] = Math.max(0, Math.min(spreads - 1, view[field]));
-    const at = view[field];
+    if (view[field] < first) return firstSpread(list);
+    const at = view[field] - first;
     const a = list[at * 2];
     const b = list[at * 2 + 1];
     const turn = (dir, key) => `<button type="button" class="vj-turn" data-vj-turn="${dir}">${dir < 0 ? '<span aria-hidden="true">‹</span> ' : ''}${esc(t(key))}${dir > 0 ? ' <span aria-hidden="true">›</span>' : ''}</button>`;
-    const back = at > 0 ? turn(-1, 'MOD_VOY_JOURNAL_TURN_BACK') : '';
-    const on = at < spreads - 1 ? turn(1, 'MOD_VOY_JOURNAL_TURN') : '';
+    const back = view[field] > 0 ? turn(-1, 'MOD_VOY_JOURNAL_TURN_BACK') : '';
+    const on = view[field] < spreads - 1 ? turn(1, 'MOD_VOY_JOURNAL_TURN') : '';
     return { pinned: true, left: chapterPage(a, roman(at * 2 + 1), back, true), right: b === undefined ? '' : chapterPage(b, roman(at * 2 + 2), on, false) };
   };
 
@@ -994,8 +1052,24 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
   };
 
   const TAB_UNREAD = { resources: 'a:', places: 'p:', guide: 'g:' };
+  /**
+   * Tab icons (the user, 17 Oct 2026: "icons for the journal tabs, only icons on phones"): line drawings in the
+   * tab's text colour, above the name on the side tabs, alone on a phone (the name then in a Melvor tooltip and for
+   * screen readers). How it works an open book, Resources a barrel, Places a map pin, Guide a compass, Crew two hands.
+   */
+  const TAB_SVG = (paths) => `<svg class="vj-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+  const TAB_ICON = {
+    how: TAB_SVG('<path d="M12 6.5C9.8 5 6.8 4.5 3.5 5v13c3.3-.5 6.3 0 8.5 1.5 2.2-1.5 5.2-2 8.5-1.5V5c-3.3-.5-6.3 0-8.5 1.5z"></path><path d="M12 6.5v13"></path>'),
+    resources: TAB_SVG('<path d="M7 3.5h10c1.6 2.8 1.6 14.2 0 17H7c-1.6-2.8-1.6-14.2 0-17z"></path><path d="M5.4 8.5h13.2M5.4 15.5h13.2"></path>'),
+    places: TAB_SVG('<path d="M12 21s-6.5-5.8-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.2 12 21 12 21z"></path><circle cx="12" cy="10.5" r="2.3"></circle>'),
+    guide: TAB_SVG('<circle cx="12" cy="12" r="8.5"></circle><path d="M15.5 8.5l-2.2 4.8-4.8 2.2 2.2-4.8z"></path>'),
+    crew: TAB_SVG('<circle cx="9" cy="8" r="3"></circle><path d="M3.5 20c0-3.2 2.4-5.8 5.5-5.8s5.5 2.6 5.5 5.8"></path><circle cx="16.5" cy="9" r="2.4"></circle><path d="M15.6 14.3c2.8.3 4.9 2.6 4.9 5.7"></path>'),
+  };
+  /** Phone width (the journal's one-column layout, css/voyage.css): the tabs show their icon only. */
+  const narrow = () => window.matchMedia?.('(max-width: 899px)').matches === true;
   const TAB_KEY = { how: 'MOD_VOY_JOURNAL_TAB_HOW', resources: 'MOD_VOY_JOURNAL_TAB_RESOURCES', places: 'MOD_VOY_JOURNAL_TAB_PLACES', guide: 'MOD_VOY_JOURNAL_TAB_GUIDE', crew: 'MOD_VOY_JOURNAL_TAB_CREW' };
-  const render = () => {
+  /** Draws the open book; `keepScroll` (a record changed under the reader) leaves the pages where they were. */
+  const render = (keepScroll = false) => {
     if (!view.open || root === undefined) return;
     let spread;
     try {
@@ -1008,8 +1082,12 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       const page = root.querySelector(side);
       page.innerHTML = html;
       page.classList.toggle('vj-pinned', spread.pinned === true);
-      page.scrollTop = 0;
+      page.classList.toggle('vj-chart-page', side === '.vj-left' && spread.chart === true);
+      if (!keepScroll) page.scrollTop = 0;
     }
+    // The phone layout scrolls the spread, not the pages: a new spread starts at its top there too.
+    const spreadEl = root.querySelector('.vj-spread');
+    if (spreadEl && !keepScroll) spreadEl.scrollTop = 0;
     const j = journal();
     root.querySelectorAll('[data-vj-tab]').forEach((b) => {
       const on = b.dataset.vjTab === view.tab;
@@ -1017,9 +1095,11 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       // Unread marks on the tab: a count after its name.
       const prefix = TAB_UNREAD[b.dataset.vjTab];
       const n = prefix === undefined || j === undefined ? 0 : jm.unreadCount(j, prefix);
-      b.innerHTML = `${esc(t(TAB_KEY[b.dataset.vjTab]))}${n > 0 ? `<span class="vj-tab-count" aria-hidden="true">${n}</span>` : ''}`;
+      b.innerHTML = `${TAB_ICON[b.dataset.vjTab]}<span class="vj-tab-name">${esc(t(TAB_KEY[b.dataset.vjTab]))}</span>${n > 0 ? `<span class="vj-tab-count" aria-hidden="true">${n}</span>` : ''}`;
       if (n > 0) b.setAttribute('aria-label', t('MOD_VOY_JOURNAL_TAB_UNREAD', { tab: t(TAB_KEY[b.dataset.vjTab]), count: `${n}` })); else b.removeAttribute('aria-label');
       b.classList.toggle('vj-tab-on', on);
+      // The name is on the tab beside the icon, except on a phone: there it is the tab's tooltip (press and hold).
+      state.tips?.set(b, narrow() ? t(TAB_KEY[b.dataset.vjTab]) : '');
       b.setAttribute('aria-current', on ? 'page' : 'false');
     });
     try { state.skillNames?.(root.querySelector('.vj-spread')); } catch {}
@@ -1032,17 +1112,29 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       const i = chapters().indexOf(id);
       if (i < 0) return;
       view.tab = 'how';
-      view.spread = Math.floor(i / 2);
+      view.spread = jm.chapterSpread(i);
       if (i % 2 === 1) side = '.vj-right';
     } else if (kind === 'guide') { view.tab = 'guide'; view.guide = id; side = '.vj-right'; }
     else if (kind === 'tab' && TABS.includes(id) && (id !== 'crew' || crewOn())) view.tab = id;
     else return;
     view.back = null;
     render();
-    root.querySelector(side)?.focus();
+    showPage(side);
   };
   /** Redraws the open book after a record changed; cheap when it is closed. */
-  function refresh() { if (view.open) render(); }
+  function refresh() { if (view.open) render(true); }
+  /**
+   * Brings a page to its top: at phone width the pages stack in one scrolling spread, so a page landed on (a
+   * crosslink, a Manifest or Crew row, an entry picked from the list) is scrolled to; on the wide book it is already
+   * in view. `focus` moves keyboard focus there as well.
+   */
+  const showPage = (sel, focus = true) => {
+    const page = root?.querySelector(sel);
+    if (!page) return;
+    if (focus) page.focus({ preventScroll: true });
+    const sp = root.querySelector('.vj-spread');
+    if (sp) sp.scrollTop += page.getBoundingClientRect().top - sp.getBoundingClientRect().top;
+  };
 
   const build = () => {
     root = document.createElement('div');
@@ -1052,26 +1144,36 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       + '<div class="vj-spread"><section class="vj-page vj-left" tabindex="-1"></section><section class="vj-page vj-right" tabindex="-1"></section></div>'
       + `<nav class="vj-tabs" aria-label="${esc(t('MOD_VOY_JOURNAL_SECTIONS'))}">`
       + `<button type="button" class="vj-close" data-vj-close="1" aria-label="${esc(t('MOD_VOY_JOURNAL_CLOSE'))}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>`
-      + TABS.map((id) => `<button type="button" class="vj-tab vj-tab-${id}" data-vj-tab="${id}">${esc(t(TAB_KEY[id]))}</button>`).join('')
+      + TABS.map((id) => `<button type="button" class="vj-tab vj-tab-${id}" data-vj-tab="${id}">${TAB_ICON[id]}<span class="vj-tab-name">${esc(t(TAB_KEY[id]))}</span></button>`).join('')
       + '</nav></div>';
     document.body.append(root);
     // Melvor's tooltips for every title in the book and the heat map over it (build .161).
     state.tips?.watch(root);
+    // The tab tooltips come and go with the phone layout.
+    window.matchMedia?.('(max-width: 899px)').addEventListener?.('change', refresh);
     root.addEventListener('click', (e) => {
       const el = e.target instanceof Element ? e.target : null;
       if (el === null) return;
       if (el === root || el.closest('[data-vj-close]')) { close(); return; }
       const tab = el.closest('[data-vj-tab]');
       if (tab !== null) { view.tab = tab.dataset.vjTab; view.back = null; view.pick = undefined; render(); return; }
+      // The Manifest (build .179): its button opens the first spread, a Crew row opens that chapter's spread.
+      if (el.closest('[data-vj-manifest]')) { view.tab = 'how'; view.spread = 0; view.back = null; render(); showPage('.vj-right'); return; }
+      const crewRow = el.closest('[data-vj-crew]');
+      if (crewRow !== null && crewOn()) {
+        const i = Number(crewRow.dataset.vjCrew);
+        view.tab = 'crew'; view.crewSpread = Math.floor(i / 2); view.back = null; render();
+        showPage(i % 2 === 1 ? '.vj-right' : '.vj-left'); return;
+      }
       const turn = el.closest('[data-vj-turn]');
       if (turn !== null) { view[view.tab === 'crew' ? 'crewSpread' : 'spread'] += Number(turn.dataset.vjTurn); render(); return; }
       const entry = el.closest('[data-vj-entry]');
-      if (entry !== null) { view.entry = entry.dataset.vjEntry; view.pick = undefined; render(); return; }
+      if (entry !== null) { view.entry = entry.dataset.vjEntry; view.pick = undefined; render(); showPage('.vj-right', false); return; }
       const pl = el.closest('[data-vj-place]');
-      if (pl !== null) { view.place = pl.dataset.vjPlace; render(); return; }
+      if (pl !== null) { view.place = pl.dataset.vjPlace; render(); showPage('.vj-right', false); return; }
       const guide = el.closest('[data-vj-guide]');
-      if (guide !== null) { view.guide = guide.dataset.vjGuide; view.back = null; render(); return; }
-      if (el.closest('[data-vj-pick="open"]')) { view.pick = {}; render(); root.querySelector('.vj-right')?.focus(); return; }
+      if (guide !== null) { view.guide = guide.dataset.vjGuide; view.back = null; render(); showPage('.vj-right', false); return; }
+      if (el.closest('[data-vj-pick="open"]')) { view.pick = {}; render(); showPage('.vj-right'); return; }
       const src = el.closest('[data-vj-pick-source]');
       if (src !== null) { view.pick = { source: src.dataset.vjPickSource }; render(); return; }
       const psk = el.closest('[data-vj-pick-skill]');
@@ -1125,7 +1227,8 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       if (journal() === undefined && tab !== 'how' && chapter === undefined) { tab = 'how'; }
       if (root === undefined) build();
       clearMarks();
-      if (chapter !== undefined) { view.tab = 'how'; const i = chapters().indexOf(chapter); view.spread = i < 0 ? 0 : Math.floor(i / 2); }
+      let onRight = false;
+      if (chapter !== undefined) { view.tab = 'how'; const i = chapters().indexOf(chapter); view.spread = i < 0 ? 0 : jm.chapterSpread(i); onRight = i % 2 === 1; }
       else if (guide !== undefined) { view.tab = 'guide'; view.guide = guide; }
       else if (entry !== undefined) { view.tab = 'resources'; view.entry = entry; }
       else if (tab !== undefined) view.tab = TABS.includes(tab) ? tab : 'how';
@@ -1136,6 +1239,8 @@ export function install(ctx, { state, model, journalModel: jm, rules, terrainMod
       document.body.classList.add('vj-locked');
       render();
       root.querySelector('.vj-close')?.focus();
+      // At phone width the pages stack: a chapter on the right page is scrolled to, not left below the other one.
+      if (onRight) showPage('.vj-right', false);
     } catch (e) { log('journal open failed', e); }
   };
   function close() {

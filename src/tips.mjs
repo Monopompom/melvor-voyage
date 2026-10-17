@@ -1,46 +1,66 @@
 // Melvor's own tooltips (tippy) instead of the browser's `title` boxes (the user, build .160). After a
-// part of the page or the Here panel redraws, apply(root) turns every `title` under it into a tippy tooltip, plain
-// text, no pictures (the user, build .161); an item icon carries `data-tip-item="<item id>"` and shows the item's name
-// (its title text when it has one, e.g. "Normal Logs: 1 fuel each"). watch(root) applies them whenever root changes
-// (the journal); set(el, text) gives one element its tooltip (the sidebar). Buttons that act on a tap show theirs on
-// press-and-hold on a phone (`touch: 'hold'`). Tooltips of elements a redraw removed are destroyed.
-// `data-tip-lines` (build .167, the user): a JSON list of lines, each a string or `{ text, cls }`, one line each; `cls`
-// colours it (a buff in the game's green). Built as text, never as HTML.
+// part of the page or the Here panel redraws, apply(root) turns every `title` under it into a tippy tooltip; watch(root)
+// applies them whenever root changes (the journal); set(el, text) gives one element its tooltip (the sidebar). Buttons
+// that act on a tap show theirs on press-and-hold on a phone (`touch: 'hold'`). Tooltips of elements a redraw removed
+// are destroyed.
+// The look (the user, 17 Oct 2026; build .175): every tooltip's text is centred, and an item named in it has the
+// item's icon before the name, as on the page. An item icon carries `data-tip-item="<item id>"`: its tooltip is the
+// icon, then its title text (which starts with the name, e.g. "Normal Logs: 1 fuel each") or the item's name. A cost
+// that is not an item (GP, a currency) carries `data-tip-media="<icon url>"` for the same look. No other pictures.
+// `data-tip-lines` (build .167, the user): a JSON list of lines, each a string or `{ text, cls, item, media }`, one
+// line each; `cls` colours it (a buff in the game's green), `item` (an item id) or `media` puts an icon before it.
+// Everything is built as DOM nodes, never as HTML from strings.
 
 export function install(ctx, { log }) {
   const live = new Set();
 
-  const contentOf = (el, text) => {
-    if (text) return text;
-    try { return game.items.getObjectByID(el.dataset.tipItem)?.name ?? ''; } catch { return ''; }
-  };
+  const itemOf = (id) => { try { return id ? game.items.getObjectByID(id) : undefined; } catch { return undefined; } };
 
-  // Text with line breaks keeps them (a list of buffs, one per line).
-  const body = (text) => {
-    if (!text.includes('\n')) return text;
+  /** The centred box every tooltip sits in. */
+  const box = () => {
     const div = document.createElement('div');
-    div.style.whiteSpace = 'pre-line';
-    div.textContent = text;
+    div.className = 'voyage-tip';
     return div;
   };
+  /** The small icon before an item's name. */
+  const icon = (src) => {
+    const img = document.createElement('img');
+    img.className = 'voyage-tip-icon';
+    img.src = src;
+    img.alt = '';
+    return img;
+  };
+  /** One line: an optional icon, then the text (line breaks kept, a list of buffs one per line). */
+  const line = (text, media, cls) => {
+    const row = document.createElement('div');
+    row.className = `voyage-tip-line${cls ? ` ${cls}` : ''}`;
+    if (media) row.append(icon(media));
+    row.append(document.createTextNode(text));
+    return row;
+  };
+  const body = (text, media) => { const div = box(); div.append(line(text, media)); return div; };
 
   const linesOf = (el) => {
     try { const v = JSON.parse(el.dataset.tipLines ?? ''); return Array.isArray(v) && v.length > 0 ? v : undefined; } catch { return undefined; }
   };
   const linesBody = (lines) => {
-    const div = document.createElement('div');
-    for (const line of lines) {
-      const row = document.createElement('div');
-      if (typeof line === 'string') row.textContent = line;
-      else { row.textContent = line?.text ?? ''; if (line?.cls) row.className = line.cls; }
-      div.append(row);
+    const div = box();
+    for (const l of lines) {
+      if (typeof l === 'string') { div.append(line(l)); continue; }
+      const item = itemOf(l?.item);
+      div.append(line(l?.text ?? item?.name ?? '', l?.media ?? item?.media, l?.cls));
     }
     return div;
+  };
+  /** What an element's tooltip says: its title text, else the item's name; and the icon to put before it. */
+  const contentOf = (el, text) => {
+    const item = itemOf(el.dataset.tipItem);
+    return { text: text || item?.name || '', media: item?.media ?? el.dataset.tipMedia };
   };
 
   const make = (el, content, opts = {}) => {
     const inst = tippy(el, {
-      content: Array.isArray(content) ? linesBody(content) : body(content), placement: 'top', interactive: false, animation: false,
+      content, placement: 'top', interactive: false, animation: false,
       touch: el.matches('button, [role="button"], a') ? 'hold' : true, ...opts,
     });
     live.add(inst);
@@ -53,24 +73,23 @@ export function install(ctx, { log }) {
     for (const inst of [...live]) {
       if (!inst.reference.isConnected) { try { inst.destroy(); } catch {} live.delete(inst); }
     }
-    const sel = '[title], [data-tip-item], [data-tip-lines]';
+    const sel = '[title], [data-tip-item], [data-tip-media], [data-tip-lines]';
     const els = [...(root.matches?.(sel) ? [root] : []), ...root.querySelectorAll(sel)];
     for (const el of els) {
       const lines = linesOf(el);
       if (lines !== undefined) {
         el.removeAttribute('title');
-        if (el._tippy === undefined) { try { make(el, lines); el.dataset.tipShown = el.dataset.tipLines; } catch (e) { log('tooltip failed', e); } }
+        if (el._tippy === undefined) { try { make(el, linesBody(lines)); el.dataset.tipShown = el.dataset.tipLines; } catch (e) { log('tooltip failed', e); } }
         else if (el.dataset.tipShown !== el.dataset.tipLines) { el._tippy.setContent(linesBody(lines)); el.dataset.tipShown = el.dataset.tipLines; }
         continue;
       }
       const fresh = el.getAttribute('title');
       if (fresh !== null) { el.removeAttribute('title'); el.dataset.tipText = fresh; }
-      const text = el.dataset.tipText ?? '';
       const tip = el._tippy;
-      const content = contentOf(el, text);
-      if (content === '') { if (tip !== undefined) { tip.destroy(); live.delete(tip); } continue; }
-      if (tip !== undefined) { if (fresh !== null) tip.setContent(body(content)); continue; }
-      try { make(el, content); } catch (e) { log('tooltip failed', e); }
+      const { text, media } = contentOf(el, el.dataset.tipText ?? '');
+      if (text === '') { if (tip !== undefined) { tip.destroy(); live.delete(tip); } continue; }
+      if (tip !== undefined) { if (fresh !== null) tip.setContent(body(text, media)); continue; }
+      try { make(el, body(text, media)); } catch (e) { log('tooltip failed', e); }
     }
   };
 
@@ -92,7 +111,7 @@ export function install(ctx, { log }) {
     el.dataset.tipText = text;
     const tip = el._tippy;
     if (text === '') { if (tip !== undefined) { tip.destroy(); live.delete(tip); } return; }
-    if (tip !== undefined) tip.setContent(body(text)); else { try { make(el, text, opts); } catch (e) { log('tooltip failed', e); } }
+    if (tip !== undefined) tip.setContent(body(text)); else { try { make(el, body(text), opts); } catch (e) { log('tooltip failed', e); } }
   };
 
   return { apply, watch, set };

@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-17.173';
+export const BUILD = '2026-10-17.179';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -341,7 +341,7 @@ export async function setup(ctx) {
   state.helpSections = page?.helpSections;
   try {
     const journalModel = await ctx.loadModule('src/journal-model.mjs');
-    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, rules, terrainMod, log });
+    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, shipModel, rules, terrainMod, log });
   } catch (e) { console.error('[Voyage] the journal failed to load; the rest runs', e); state.journal = undefined; }
   // The journal's heat maps (build .114); without them the entries simply have no heat map button.
   try { (await ctx.loadModule('src/heatmap.mjs')).install(ctx, { state, terrainMod, log }); } catch (e) { log('heat maps failed to load', e); state.heatmap = undefined; }

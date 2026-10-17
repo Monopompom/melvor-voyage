@@ -276,6 +276,8 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     costsOf(info.upgrade).consumeCosts();
     // The new hull takes the old one's place, hold and all; a boat aboard the big ship stays aboard (setVessel).
     setVessel(kind, { ...vessel(kind), hull: info.id, cond: 100 }, `upgraded to ${info.id}`);
+    // The new hull's guide page (build .174): the longboat's or the galleon's, the first time it is yours.
+    state.journal?.learn(info.id);
     try { game.notifications.createSuccessNotification('voyage:ship', t('MOD_VOY_SHIP_UPGRADED', { hull: hullWord(info.hull) }), ctx.getResourceUrl(info.hull.media)); } catch {}
     return true;
   };
@@ -314,6 +316,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     if (info.blocker !== undefined) { notifyPlayer(skill(), info.blocker, 'danger'); return false; }
     costsOf(info.spec).consumeCosts();
     setVessel('ship', { hull: info.id, q: info.quay.q, r: info.quay.r, cond: 100, hold: [] }, 'bought');
+    state.journal?.learn('brig');
     // A boat lying on the brig's new quay is hoisted aboard: two vessels never share a hex otherwise.
     const b = ship();
     if (b != null && b.aboard !== true && shipModel.sameHex(b, info.quay)) setVessel('boat', { ...b, aboard: true }, 'hoisted aboard');
