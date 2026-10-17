@@ -7,7 +7,7 @@
     "waterHash": "244f4b1a",
     "waterHashSpec": "fnv1a32 of 'q,r,w' lines (w=1 for isWater) sorted by q then r, joined by \\n",
     "source": "hex_terrain_user_mapped.json",
-    "builtAt": "2026-10-16",
+    "builtAt": "2026-10-17",
     "classes": [
       "water",
       "shoal",
@@ -571,7 +571,7 @@
     {"q":13,"r":7,"t":"grasslands","area":"Graveyard","dungeon":"UndeadGraveyard","f":["forest","combat_area","dungeon"]},
     {"q":13,"r":8,"t":"grasslands","poi":"RestlessSanctum","dungeon":"AncientSanctuary","f":["tree","building","temple","dungeon"]},
     {"q":13,"r":9,"t":"grasslands","f":["tree","river"]},
-    {"q":13,"r":10,"t":"grasslands","poi":"FarmersMarket","f":["tree","river","building","farm","market","combat_area"]},
+    {"q":13,"r":10,"t":"grasslands","poi":"FarmersMarket","area":"Farmlands","f":["tree","river","building","farm","market","combat_area"]},
     {"q":13,"r":11,"t":"grasslands","coast":true,"poi":"OldVillage","f":["building","farm","city","combat_area"]},
     {"q":13,"r":12,"t":"shoal","shore":1,"f":["sand"]},
     {"q":13,"r":13,"t":"water","shore":2},

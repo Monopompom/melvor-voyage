@@ -71,7 +71,7 @@ test('indexes: unique numeric keys, class/feature/poi/area/dungeon lookups', () 
   assert.ok(t.withFeature('forest').every((h) => hasFeature(h, 'forest')));
   assert.deepEqual(t.withClass('nope'), []);
   assert.equal(t.poi('WetForest').q, 9);
-  assert.equal(t.area('Farmlands').length, 2);
+  assert.equal(t.area('Farmlands').length, 3);
   assert.equal(t.dungeon('ThroneOfTheHerald').poi, 'Monolith');
   assert.equal(t.poi('nope'), undefined);
 });

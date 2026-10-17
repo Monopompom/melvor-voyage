@@ -61,7 +61,7 @@ Provisions and the timed voyage come later.
 
 - **Terrain overlay**: tint on or off.
 - **Voyage rules**: off turns every location lock off. The overlay and the panel stay.
-- **Strictness**: Strict locks gathering and crafting; Relaxed locks gathering only.
+- **Strictness**: Strict locks gathering and crafting; Relaxed locks gathering only, and keeps Firemaking and Cooking on dry land.
 - **Resource zones**: each ore, tree, fish, crop, thieving target and constellation is found only in its own places (iron and copper
   are in different regions; the panel's skill icons list what is found on your hex). Off: the skill's terrain decides alone.
 - **Combat needs its area** and **Trade only near markets**: each can be switched off on its own.

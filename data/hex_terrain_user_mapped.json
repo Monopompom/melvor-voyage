@@ -402,7 +402,7 @@
       {"q":13,"r":7,"t":"grasslands","area":"Graveyard","dungeon":"UndeadGraveyard","f":["forest","combat_area","dungeon"],"src":"user"},
       {"q":13,"r":8,"t":"grasslands","poi":"RestlessSanctum","dungeon":"AncientSanctuary","f":["building","temple","tree","dungeon"],"src":"user"},
       {"q":13,"r":9,"t":"grasslands","f":["river","tree"],"src":"user"},
-      {"q":13,"r":10,"t":"grasslands","poi":"FarmersMarket","f":["river","building","market","farm","tree","combat_area"],"src":"user"},
+      {"q":13,"r":10,"t":"grasslands","poi":"FarmersMarket","area":"Farmlands","f":["river","building","market","farm","tree","combat_area"],"src":"user"},
       {"q":13,"r":11,"t":"grasslands","poi":"OldVillage","f":["building","city","farm","combat_area"],"src":"poi"},
       {"q":13,"r":12,"t":"shoal","f":["sand"],"src":"user"},
       {"q":13,"r":13,"t":"water","src":"data"},
