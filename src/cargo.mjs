@@ -39,6 +39,33 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     const name = p === undefined ? undefined : gameHex(p)?.pointOfInterest?.name;
     return name ?? poi.replace(/([a-z])([A-Z])/g, '$1 $2');
   };
+  /**
+   * "Needs a bigger hull" (phase 4 wrap-up): the warning line for a way from the port `from` to `to`
+   * that no hull you own can sail today, or ''. The tier a lane needs is fixed by the map, so it is kept per pair.
+   */
+  const laneTiers = new Map();
+  const hullWarning = (from, to) => {
+    try {
+      const geo = state.ship?.geo?.();
+      const a = portRec.get(from);
+      const b = portRec.get(to);
+      if (geo === undefined || a === undefined || b === undefined || state.ship?.enabled?.() === false) return '';
+      const k = `${from}|${to}`;
+      if (!laneTiers.has(k)) laneTiers.set(k, shipModel.laneTier(state.terrain.get(a.q, a.r), state.terrain.get(b.q, b.r), state.terrain, geo));
+      const need = laneTiers.get(k);
+      const vessels = [state.ship.vessel('boat'), state.ship.vessel('ship')].filter((v) => v != null);
+      const mine = vessels.reduce((best, v) => (shipModel.tierOf(v) > shipModel.tierOf(best) ? v : best), vessels[0]);
+      if (need === undefined || mine === undefined || shipModel.tierOf(mine) >= need) return '';
+      const needName = t(shipModel.tierNameKey(need));
+      const mineName = t(shipModel.tierNameKey(shipModel.tierOf(mine)));
+      const toRec = state.terrain.get(b.q, b.r);
+      const island = shipModel.isSea(toRec) ? undefined : geo.islandOf(toRec);
+      const text = island !== undefined && island.tier > shipModel.tierOf(mine)
+        ? t('MOD_VOY_CARGO_NEEDS_HULL_ISLAND', { port: portName(to), island: t(shipModel.islandNameKey(island.id)), need: needName })
+        : t('MOD_VOY_CARGO_NEEDS_HULL', { need: needName, hull: mineName, reach: `${shipModel.reachOf(mine)}` });
+      return `<div class="text-warning voyage-cargo-hull">${esc(text)}</div>`;
+    } catch (e) { log('hull warning failed', e); return ''; }
+  };
   /** The port you stand on or next to: its table record, or undefined. */
   const portHere = () => {
     const pos = state.position?.();
@@ -245,6 +272,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     return k;
   };
 
+  /** The journal's Ports used (phase 4 wrap-up): a deed at the port `poi`. */
+  const usedPort = (poi, deed) => { try { state.journal?.portUsed?.(poi, deed, portRec.get(poi)); } catch (e) { log('journal port failed', e); } };
   /** Takes a request off this port's board and loads what fits. */
   const take = (reqId) => {
     const c = data();
@@ -261,6 +290,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     c.boards[poi].reqs = reqs.filter((q) => q.id !== reqId);
     c.runs.push(run);
     changed();
+    usedPort(poi, 'load');
     notify(t('MOD_VOY_CARGO_LOADED', { n: `${k}`, what: containerWord(run.c, k), port: portName(run.to) }), 'success');
     log(`cargo ${run.id}: took, loaded ${k}`);
     return true;
@@ -275,6 +305,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     if (info.why !== undefined || info.k <= 0) { notify(info.why ?? t('MOD_VOY_CARGO_HOLD_FULL')); return false; }
     const k = pack(run, info);
     changed();
+    usedPort(poi, 'load');
     notify(t('MOD_VOY_CARGO_LOADED', { n: `${k}`, what: containerWord(run.c, k), port: portName(run.to) }), 'success');
     return true;
   };
@@ -302,6 +333,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     // Now and then the port's sea chart comes with the pay.
     try { state.charts?.rollDelivery?.(run.to); } catch (e) { log('delivery chart failed', e); }
     changed();
+    usedPort(run.to, 'deliver');
     notify(t(M.finished(run) ? 'MOD_VOY_CARGO_DELIVERED_DONE' : 'MOD_VOY_CARGO_DELIVERED', { n: `${k}`, what: containerWord(run.c, k), gp: qty(gp), xp: qty(xp) }), 'success');
     log(`cargo ${run.id}: delivered ${k} for ${gp} GP, ${xp} XP`);
     return true;
@@ -374,6 +406,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
       acts.push(button('btn-success', t('MOD_VOY_CARGO_DELIVER'), `data-cargo="deliver" data-run="${esc(run.id)}"`));
     } else {
       lines.push(`<div>${t('MOD_VOY_CARGO_TO', { port: `<b>${esc(portName(run.to))}</b>`, hexes: `${run.hexes}` })}</div>`);
+      lines.push(hullWarning(run.from, run.to));
       if (run.to === poi && aboard > 0) lines.push(`<div class="text-warning">${esc(t('MOD_VOY_CARGO_BRING_HOLD'))}</div>`);
       if (run.packed < run.n && run.from === poi) {
         const info = loadInfo(run, poi);
@@ -406,7 +439,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     const run = M.takeRun(req, poi);
     const info = loadInfo(run, poi);
     const why = full ? t('MOD_VOY_CARGO_MAX_RUNS', { n: `${M.MAX_RUNS}` }) : info.why;
-    const lines = [`<div>${whatLine(req, item)}</div>`, `<div>${t('MOD_VOY_CARGO_TO', { port: `<b>${esc(portName(req.to))}</b>`, hexes: `${req.hexes}` })}</div>`];
+    const lines = [`<div>${whatLine(req, item)}</div>`, `<div>${t('MOD_VOY_CARGO_TO', { port: `<b>${esc(portName(req.to))}</b>`, hexes: `${req.hexes}` })}</div>`, hullWarning(poi, req.to)];
     if (why === undefined && info.limit !== undefined) lines.push(`<div class="text-info">${esc(partLoad(info, req.c))}</div>`);
     if (why !== undefined) lines.push(`<div class="text-warning">${full ? esc(why) : info.whyHtml}</div>`);
     const label = why === undefined && info.k < req.n ? t('MOD_VOY_CARGO_LOAD_N', { k: `${info.k}` }) : t('MOD_VOY_CARGO_LOAD');
@@ -551,7 +584,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
       const prog = progress(run, aboard, toLoad);
       return `<div class="voyage-errand">${art(run.c, item, 'voyage-cargo-art voyage-cargo-art-sm')}<div class="voyage-cargo-mid">` +
         `<div>${t('MOD_VOY_CARGO_ERRAND', { item: `<b>${esc(item?.name ?? run.item)}</b>`, n: qty(run.n * M.PER_CONTAINER), k: `${run.n}`, what: containerWord(run.c, run.n), port: `<b>${esc(portName(run.to))}</b>` })}</div>` +
-        `${line}<div class="text-muted">${esc(prog)}</div></div>${act}</div>`;
+        `${line}${toLoad ? '' : hullWarning(run.from, run.to)}<div class="text-muted">${esc(prog)}</div></div>${act}</div>`;
     });
     const task = state.tasks?.errandHtml?.() ?? '';
     if (task !== '') rows.unshift(task);

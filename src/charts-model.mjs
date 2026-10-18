@@ -11,6 +11,32 @@ export const RUMOUR_HOURS = 144;
 export const TASK_RUMOUR = 0.1;
 /** A cargo delivery: this chance of the delivery port's sea chart, free (rare). */
 export const CARGO_CHART = 0.01;
+/**
+ * The Starlit Chart, the one night find (phase 4 wrap-up): a chance per lit night sea hex, the rarest tier
+ * like the heat-map items (the user: "as balanced as others, so not to drop too often"). Sailing 50 sea hexes every
+ * night finds one about every 3 weeks; land hexes, unlit hexes and night set to Off find none.
+ */
+export const STAR_CHANCE = 1 / 1000;
+/** Item local id of the Starlit Chart (data/package.json). */
+export const STAR_CHART = 'Starlit_Chart';
+/** The chance of a Starlit Chart on a move that lit `seaHexes` sea hexes at night: at most one a move. */
+export const starChance = (seaHexes) => (Number.isFinite(seaHexes) && seaHexes > 0 ? 1 - (1 - STAR_CHANCE) ** Math.floor(seaHexes) : 0);
+/**
+ * The sea a Starlit Chart is read on: the port (seas() key) whose sea holds `pos`, or on land the one whose hex lies
+ * nearest (a tie goes to the port first by name). Undefined with no seas.
+ */
+export function seaAt(seaMap, pos) {
+  if (pos === undefined) return undefined;
+  let best;
+  let bestD = Infinity;
+  for (const poi of Object.keys(seaMap).sort()) {
+    for (const h of seaMap[poi]) {
+      const d = hexDist(h, pos);
+      if (d < bestD) { bestD = d; best = poi; if (d === 0) return poi; }
+    }
+  }
+  return best;
+}
 /** The rumours: item local ids in the voyage namespace. A Sailor's Rumour is heard by a port and points at the sea. */
 export const RUMOURS = { tavern: 'Tavern_Tale', sailor: 'Sailors_Rumour' };
 

@@ -193,6 +193,40 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   };
   ctx.patch(Bank, 'processItemSale').after(onTrade);
   ctx.patch(Shop, 'buyItemOnClick').after(onTrade);
+  // Islands reached (phase 4 wrap-up): a named island (ship-model ISLANDS) or the mainland,
+  // noted at the first hex you stand on it. The mainland is the landmass of the game's own start hex, axial (15, 9).
+  const MAINLAND_HEX = { q: 15, r: 9 };
+  const islandIdOf = (rec) => {
+    const geo = state.ship?.geo?.();
+    if (rec === undefined || geo === undefined || shipModel.isSea(rec)) return undefined;
+    const island = geo.islandOf(rec);
+    if (island !== undefined) return island.id;
+    const home = state.terrain?.get(MAINLAND_HEX.q, MAINLAND_HEX.r);
+    return home !== undefined && state.terrain.landmass(rec.q, rec.r) === state.terrain.landmass(home.q, home.r) ? 'mainland' : undefined;
+  };
+  const onLand = () => {
+    try {
+      if (!state.active()) return;
+      const rec = state.recordAt(state.position());
+      const id = islandIdOf(rec);
+      if (id !== undefined) place('island', id, rec);
+    } catch (e) { log('journal island place failed', e); }
+  };
+  ctx.patch(WorldMap, 'setPlayerPosition').after(function () {
+    try { if (game.cartography?.activeMap === this) setTimeout(onLand, 0); } catch {}
+  });
+  ctx.onCharacterLoaded(() => { setTimeout(onLand, 0); });
+  /**
+   * Ports used (phase 4 wrap-up): cargo.mjs, charts.mjs and tasks.mjs call this for a load, a delivery, a chart bought,
+   * a task taken or handed in at the port `poi` (the table's POI key, at { q, r }).
+   */
+  const portUsed = (poi, deed, hex) => {
+    const j = journal();
+    if (j === undefined || hex === undefined || !model.PORT_DEEDS.includes(deed)) return;
+    if (jm.notePort(j, poi, deed, hex.q, hex.r)) { markKnown([hex]); unread(j, `p:port|${poi}`, 'new'); }
+    else unread(j, `p:port|${poi}`, 'more');
+    refresh();
+  };
   // Markets with prices (phase 4): a place's price list is learnt the first time you stand within a
   // hex of it, so arriving notes it too, not only trading there.
   ctx.onCharacterLoaded(() => {
@@ -953,16 +987,21 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const out = [];
     if (j === undefined) return out;
     for (const p of jm.placesOf(j, 'combat')) { const a = areaById(p.id); out.push({ key: `combat|${p.id}`, group: 'combat', name: a?.name ?? terrainMod.areaLabel(p.id), media: a?.media, q: p.q, r: p.r }); }
+    // Ports used (phase 4 wrap-up): a port's board was used there; it is not listed again under Trading places.
+    for (const p of jm.placesOf(j, 'port')) { const poi = poiAt(p.q, p.r); out.push({ key: `port|${p.id}`, group: 'port', name: poi?.name ?? p.id.replace(/([a-z])([A-Z])/g, '$1 $2'), media: poi?.media, q: p.q, r: p.r }); }
+    // Islands reached: the named islands and the mainland, at the first hex stood on.
+    for (const p of jm.placesOf(j, 'island')) out.push({ key: `island|${p.id}`, group: 'island', name: islandName(p.id), island: p.id, q: p.q, r: p.r });
     // The Markets ledger (phase 4): every price list you know, first under the trading places.
     const mk = state.market?.enabled?.() ? state.market.known() : [];
     if (mk.length > 0) out.push({ key: 'markets', group: 'trade', name: t('MOD_VOY_JOURNAL_MARKETS_TITLE'), ledger: mk.length });
     // A trade noted before build .173 at a place still undiscovered waits until it is found (and is not left unread).
-    for (const p of jm.placesOf(j, 'trade')) { if (!tradeKnown(p)) { jm.markRead(j, `p:trade|${p.id}`); continue; } const poi = poiAt(p.q, p.r); out.push({ key: `trade|${p.id}`, group: 'trade', name: poi?.name ?? land(p.q, p.r), media: poi?.media, q: p.q, r: p.r }); }
+    const usedPort = (h) => out.some((p) => p.group === 'port' && p.q === h.q && p.r === h.r);
+    for (const p of jm.placesOf(j, 'trade')) { if (usedPort(p)) continue; if (!tradeKnown(p)) { jm.markRead(j, `p:trade|${p.id}`); continue; } const poi = poiAt(p.q, p.r); out.push({ key: `trade|${p.id}`, group: 'trade', name: poi?.name ?? land(p.q, p.r), media: poi?.media, q: p.q, r: p.r }); }
     try {
       live()?.forEach((hex) => {
         const poi = hex.pointOfInterest;
         // A market or port already under "Traded at" is not listed again.
-        if (poi !== undefined && poi.isDiscovered && !out.some((p) => p.group === 'trade' && p.q === hex.q && p.r === hex.r)) out.push({ key: `poi|${poi.id}`, group: 'poi', name: poi.name, media: poi.media, q: hex.q, r: hex.r });
+        if (poi !== undefined && poi.isDiscovered && !out.some((p) => (p.group === 'trade' || p.group === 'port') && p.q === hex.q && p.r === hex.r)) out.push({ key: `poi|${poi.id}`, group: 'poi', name: poi.name, media: poi.media, q: hex.q, r: hex.r });
       });
     } catch (e) { log('journal POIs failed', e); }
     return out;
@@ -973,10 +1012,40 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
    */
   const placeSearchEntry = (p) => {
     if (p.ledger !== undefined) return { id: p.key, names: [p.name], skill: t('MOD_VOY_JOURNAL_PLACES_TRADE') };
-    const names = [p.name, land(p.q, p.r)];
-    if (p.group === 'combat') { try { areaById(p.key.slice(p.key.indexOf('|') + 1))?.monsters?.forEach((m) => { if (m?.name) names.push(m.name); }); } catch {} }
+    const names = p.group === 'island' ? [p.name] : [p.name, land(p.q, p.r)];
+    if (p.group === 'combat') {
+      for (const m of monstersOf(p)) {
+        if (m?.name) names.push(m.name);
+        // Monster drops (phase 4 wrap-up): "bones" finds the areas fought at whose monsters drop them.
+        for (const item of dropsOf(m)) names.push(item.name);
+      }
+    }
     return { id: p.key, names, skill: t(`MOD_VOY_JOURNAL_PLACES_${p.group.toUpperCase()}`) };
   };
+  const monstersOf = (p) => { try { return areaById(p.key.slice(p.key.indexOf('|') + 1))?.monsters ?? []; } catch { return []; } };
+  /** A monster's drops as the game has them: its loot table and its bones. */
+  const dropsOf = (m) => {
+    const out = [];
+    try { m?.lootTable?.drops?.forEach((d) => { if (d?.item?.name && !out.includes(d.item)) out.push(d.item); }); } catch {}
+    try { const b = m?.bones?.item; if (b?.name && !out.includes(b)) out.push(b); } catch {}
+    return out;
+  };
+  /**
+   * "Cow, Chicken drop Bones" under a combat row the search found by a drop and not by its name or a monster's name:
+   * the drops whose names every query word starts a word of, and the monsters that drop them.
+   */
+  const dropNote = (p, query) => {
+    const words = jm.fold(query).split(' ').filter((w) => w !== '');
+    if (words.length === 0 || p.group !== 'combat') return '';
+    const hit = (name) => { const parts = jm.fold(name).split(' '); return words.every((w) => parts.some((x) => x.startsWith(w))); };
+    if (hit(p.name) || hit(land(p.q, p.r)) || monstersOf(p).some((m) => hit(m?.name ?? ''))) return '';
+    const byItem = new Map();
+    for (const m of monstersOf(p)) for (const item of dropsOf(m)) if (hit(item.name)) { if (!byItem.has(item)) byItem.set(item, []); byItem.get(item).push(m.name); }
+    if (byItem.size === 0) return '';
+    return [...byItem].map(([item, who]) => t(who.length === 1 ? 'MOD_VOY_JOURNAL_PLACES_DROP_ONE' : 'MOD_VOY_JOURNAL_PLACES_DROP_MANY', { monsters: who.join(', '), item: item.name })).join(' · ');
+  };
+  /** An island's name for a heading or a row: "The Western Isle", "Frost Island", "The mainland". */
+  const islandName = (id) => { const s = t(shipModel.islandNameKey(id)); return s.charAt(0).toUpperCase() + s.slice(1); };
   // Search "goblin" and the Old Man's sketch turns up, his spelling put right the game's way (the user's idea, build
   // .116): the drawing, a line in his voice, then what "golbin" finds.
   const golbinUrl = ctx.getResourceUrl('assets/golbin.webp');
@@ -1055,13 +1124,20 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const shown = all.filter((p) => hits.has(p.key));
     if (shown.length === 0) return (isGoblin ? golbin() : '') + `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_SEARCH_NONE', { query: view.placeQuery.trim() }))}</p>`;
     let list = isGoblin ? golbin() : '';
-    for (const g of ['combat', 'trade', 'poi']) {
+    for (const g of ['combat', 'port', 'trade', 'island', 'poi']) {
       const rows = shown.filter((p) => p.group === g);
       if (rows.length === 0) continue;
       list += `<div class="vj-group">${esc(t(`MOD_VOY_JOURNAL_PLACES_${g.toUpperCase()}`))}</div>`;
       for (const p of rows) {
+        const drop = dropNote(p, query);
         list += `<button type="button" class="vj-row${p.key === view.place ? ' vj-on' : ''}" data-vj-place="${esc(p.key)}" aria-pressed="${p.key === view.place}">`
-          + `<span class="vj-row-name">${p.media ? `<img src="${p.media}" alt="">` : ''}<b>${esc(p.name)}</b>${unreadTag(`p:${p.key}`)}</span><span class="vj-row-count">${esc(p.ledger !== undefined ? t('MOD_VOY_JOURNAL_MARKETS_COUNT', { n: `${p.ledger}`, of: `${state.market.total()}` }) : at(p.q, p.r))}</span></button>`;
+          + `<span class="vj-row-name">${p.media ? `<img src="${p.media}" alt="">` : ''}<b>${esc(p.name)}</b>${unreadTag(`p:${p.key}`)}</span><span class="vj-row-count">${esc(p.ledger !== undefined ? t('MOD_VOY_JOURNAL_MARKETS_COUNT', { n: `${p.ledger}`, of: `${state.market.total()}` }) : at(p.q, p.r))}</span>`
+          + (drop === '' ? '' : `<span class="vj-row-drop">${esc(drop)}</span>`) + '</button>';
+      }
+      if (g === 'island' && view.placeQuery.trim() === '') {
+        const n = all.filter((p) => p.group === 'island').length;
+        const of = shipModel.ISLANDS.length + 1;
+        list += `<p class="vj-p vj-faint vj-islands-left">${esc(t(n < of ? 'MOD_VOY_JOURNAL_ISLANDS_LEFT' : 'MOD_VOY_JOURNAL_ISLANDS_ALL', { n: `${n}`, of: `${of}` }))}</p>`;
       }
     }
     return list;
@@ -1080,6 +1156,24 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     return `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_PLACE_EFFECTS'))}</h3>`
       + `<p class="vj-p vj-buffs">${buffs.map((b) => `<span class="${esc(b.className || 'text-success')}">${esc(b.textContent)}</span>`).join('')}</p>`
       + (signed ? `<p class="vj-p vj-sign-here"><img src="${esc(state.land.signMedia())}" alt=""><span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_PLACE_SIGNED'))}</span></p>` : '');
+  };
+  /** A port's page: what you did there (phase 4 wrap-up), from `journal.ports`. */
+  const portDeeds = (p) => {
+    const deeds = journal()?.ports?.[p.key.slice(p.key.indexOf('|') + 1)] ?? {};
+    const rows = model.PORT_DEEDS.filter((d) => deeds[d] > 0).map((d) => [t(`MOD_VOY_JOURNAL_PORT_${d.toUpperCase()}`), { text: numberWithCommas(deeds[d]), cls: 'vj-num' }]);
+    if (rows.length === 0) return '';
+    rows.numeric = [false, true];
+    return `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_PORT_DID'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_COL_DEED'), t('MOD_VOY_JOURNAL_COL_TIMES')], rows);
+  };
+  /** An island's page: the places you know on it, any kind (the journal's own list, so only what you know). */
+  const islandKnows = (p, all) => {
+    const lm = (h) => state.terrain?.landmass(h.q, h.r);
+    const here = lm(p);
+    const rows = all.filter((x) => x.group !== 'island' && x.ledger === undefined && x.q !== undefined && lm(x) === here)
+      .map((x) => [x.name, t(`MOD_VOY_JOURNAL_PLACES_${x.group.toUpperCase()}`)]);
+    return `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_ISLAND_ASHORE', { hex: at(p.q, p.r) }))}</p>`
+      + (rows.length === 0 ? `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_ISLAND_NOTHING'))}</p>`
+        : `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_ISLAND_KNOWS'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_COL_PLACE'), t('MOD_VOY_JOURNAL_COL_KIND')], rows));
   };
   /** A market's prices on its place page (phase 4): what it pays well and little for. */
   const pctCell = (pct) => ({ text: `${pct}%`, cls: `vj-num ${pct > 100 ? 'vj-dear' : 'vj-cheap'}` });
@@ -1117,8 +1211,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       : runningHead(t(`MOD_VOY_JOURNAL_PLACES_${p.group.toUpperCase()}`), '')
         + `<div class="vj-entry-head">${p.media ? `<img src="${p.media}" alt="">` : ''}<h2 class="vj-h1">${esc(p.name)}</h2></div>`
         + ledger([t('MOD_VOY_JOURNAL_COL_HEX'), t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_FROM_HERE')], [[{ text: at(p.q, p.r) }, land(p.q, p.r), fromHere(p)]])
+        + (p.group === 'port' ? portDeeds(p) : '')
+        + (p.group === 'island' ? islandKnows(p, all) : '')
         + placeEffects(p)
-        + (p.group === 'trade' ? marketPrices(p) : '')
+        + (p.group === 'trade' || p.group === 'port' ? marketPrices(p) : '')
         + `<div class="vj-foot vj-foot-end">${planButton('place', p.key)}${mapButton('place', p.key)}</div>`;
     return { left, right };
   };
@@ -1532,7 +1628,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
 
   /** The hexes where an action was found, as { q, r } (the planner heads for the nearest, build .119). */
   const foundHexes = (actionId) => (journal()?.found[actionId] ?? []).map(jm.parseHex).filter((h) => h !== undefined);
-  const api = { open, close, learn, miss, footer, iconUrl, isOpen: () => view.open, refresh, badge, foundHexes, golbinLetter: showLetter, chartAny, canChartAny };
+  const api = { open, close, learn, miss, footer, portUsed, iconUrl, isOpen: () => view.open, refresh, badge, foundHexes, golbinLetter: showLetter, chartAny, canChartAny };
   state.journal = api;
   return api;
 }

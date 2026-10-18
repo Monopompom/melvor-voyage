@@ -182,6 +182,17 @@ export function addPlace(journal, kind, id, q, r) {
   return true;
 }
 
+/**
+ * Counts one deed at a port (`load`, `deliver`, `chart`, `take`, `hand`: voyage-model PORT_DEEDS) and notes the port
+ * as a place used, at its hex (phase 4 wrap-up). True when the port is new to the journal.
+ */
+export function notePort(journal, poi, deed, q, r) {
+  journal.ports ??= {};
+  const deeds = (journal.ports[poi] ??= {});
+  deeds[deed] = (deeds[deed] ?? 0) + 1;
+  return addPlace(journal, 'port', poi, q, r);
+}
+
 /** The places of one kind: [{ id, q, r }], in the order they were met. */
 export function placesOf(journal, kind) {
   const out = [];

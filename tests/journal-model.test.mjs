@@ -24,7 +24,7 @@ test('a journal round-trips and junk is dropped', () => {
     places: { 'combat|a': '1,2', 'boat|b': '1,2', 'trade|': '1,2', 'trade|c': 'far' },
     guides: ['grace', 'nope', 'terrain', 'grace'],
   });
-  assert.deepEqual(dirty, { found: { a: ['1,2'] }, missed: {}, places: { 'combat|a': '1,2' }, guides: ['grace', 'terrain'], charted: [], freeUsed: 0, unread: {}, golbin: false });
+  assert.deepEqual(dirty, { found: { a: ['1,2'] }, missed: {}, places: { 'combat|a': '1,2' }, guides: ['grace', 'terrain'], charted: [], freeUsed: 0, unread: {}, golbin: false, ports: {} });
   assert.deepEqual(cleanJournal(null), emptyJournal());
 });
 
@@ -112,7 +112,7 @@ test('v7 saves get charting and unread marks, the rest kept', () => {
   const v7 = { v: 7, landHexes: 1, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [], unlockNotice: [], journal: { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'] } };
   const { save, report } = loadSave(JSON.stringify(v7));
   assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13]);
-  assert.deepEqual(save.journal, { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'], charted: [], freeUsed: 0, unread: {}, golbin: false });
+  assert.deepEqual(save.journal, { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'], charted: [], freeUsed: 0, unread: {}, golbin: false, ports: {} });
 });
 
 test('the golbin\'s purse is given once: the flag survives a save, junk reads as not given', () => {
@@ -165,4 +165,18 @@ test('the chart and the Manifest come first, so chapter spreads start at 1', asy
   assert.equal(howSpreads(16), 9);
   assert.equal(howSpreads(15), 9);
   assert.equal(howSpreads(0), 1);
+});
+
+test('islands reached and ports used (phase 4 wrap-up): place kinds, port deeds counted and cleaned', async () => {
+  const jm = await import('../src/journal-model.mjs');
+  const save = defaultSave();
+  assert.equal(jm.addPlace(save.journal, 'island', 'mainland', 15, 9), true);
+  assert.equal(jm.notePort(save.journal, 'BeginningPort', 'load', 17, 13), true);
+  assert.equal(jm.notePort(save.journal, 'BeginningPort', 'load', 17, 13), false, 'one place, two loads');
+  jm.notePort(save.journal, 'BeginningPort', 'chart', 17, 13);
+  assert.deepEqual(save.journal.ports, { BeginningPort: { load: 2, chart: 1 } });
+  assert.deepEqual(jm.placesOf(save.journal, 'port'), [{ id: 'BeginningPort', q: 17, r: 13 }]);
+  assert.deepEqual(loadSave(serializeSave(save)).save, save);
+  assert.deepEqual(cleanJournal({ ports: { A: { load: 2, nope: 3, deliver: -1 }, B: { take: 'x' }, '': { load: 1 } } }).ports, { A: { load: 2 } });
+  assert.deepEqual(cleanJournal({ places: { 'island|frost': '20,26', 'port|A': '1,1' } }).places, { 'island|frost': '20,26', 'port|A': '1,1' });
 });

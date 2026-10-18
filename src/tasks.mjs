@@ -148,6 +148,7 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     changed();
     notify(t('MOD_VOY_TASK_TAKEN'), 'info');
     try { state.journal?.learn('notices'); } catch {}
+    try { state.journal?.portUsed?.(poi, 'take', portRec.get(poi)); } catch (e) { log('journal port failed', e); }
     log(`task ${id} taken at ${poi}`);
     checkReach();
     return true;
@@ -159,6 +160,7 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     game.bank.removeItemQuantity(game.items.getObjectByID(cur.item), cur.n, false);
     d.cur = null;
     changed();
+    try { state.journal?.portUsed?.(poi, 'hand', portRec.get(poi)); } catch (e) { log('journal port failed', e); }
     pay(cur, 'MOD_VOY_TASK_HANDED_IN');
     return true;
   };

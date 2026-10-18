@@ -5,9 +5,9 @@ A mod for **Melvor Idle v1.3.1** that needs **Atlas of Discovery**. Every hex of
 cursedlands, shoals and open water) and features such as forest, river or snow, and skills only work where their
 terrain is. Woodcutting needs trees. You have to go there.
 
-This is an early build (phase 4 of 8, in progress): the map overlay, the "You are here" panel, the full set of location
+This is an early build (phase 4 of 8 built): the map overlay, the "You are here" panel, the full set of location
 rules, combat and trade tied to the map, a compass to find your way, boats and ships for the water, provisions, cargo
-runs and markets, and the Captain's Journal. Travel is still instant; the timed voyage comes later.
+runs and markets, harbour notices, sea charts and rumours, a Random start, and the Captain's Journal. Travel is still instant; the timed voyage comes later.
 
 ## What it does
 
@@ -62,7 +62,8 @@ runs and markets, and the Captain's Journal. Travel is still instant; the timed 
   port you have found at least 12 hexes away by sea (so a board stays bare until you know a second port). Requests
   grow with your level in their trade, and a big one goes in several loads. Delivering pays twice what the goods sell
   for, plus GP and Voyage XP for every hex. Boards change every 3 days; you can carry 3 runs at once, listed under the
-  Hold on the Voyage page. Packed cargo stays in the hold until it is delivered.
+  Hold on the Voyage page. Packed cargo stays in the hold until it is delivered. When the way needs a bigger hull
+  than yours (open sea, or an island your boat can't land on), the request says which one.
 - **Notices.** Every harbour board posts a few tasks each season: set foot on a place you have not found yet and
   can reach today, or bring goods you gather after taking it to a port you know. One task at a time; it pays GP and Voyage XP, now and
   then a rumour besides.
@@ -82,12 +83,15 @@ runs and markets, and the Captain's Journal. Travel is still instant; the timed 
   hexes cheaper, and from Voyage 35 a Crossroads Sign that carries a place's gifts with you.
 - **The Captain's Journal.** The book button on the Voyage page (or the J key) opens a journal of chapters on every
   rule (notices, charts and rumours too), guide pages that turn up as you meet things, the markets' ledger and maps of where resources are.
+  Its Places list where you fought, the ports you used and what you did there, the markets, and the islands you set
+  foot on; search them by place, land, monster or what a monster drops.
 - **Your page, your panel.** Drag the Voyage page's blocks by their title (hold a moment on a phone) and fold the ones
   you seldom need; Reset layout puts them back. On the map, tap You are here to fold the panel to a strip; on a phone,
   hold its triangle to shrink it to a small square, and tap the square to get it back as it was.
 - **Night.** From 21:00 to 05:00 on your own clock, the fuel a trip leaves over lights the way, and every lit hex gives
   25% more Voyage XP. Light never takes the fuel a trip needs, so playing at night is never worse than by day.
-  Astrology levels make the light go further. You can move the night in the settings, or switch it off.
+  Astrology levels make the light go further. You can move the night in the settings, or switch it off. Very rarely
+  a lit hex at sea turns up a Starlit Chart: read it from the bank to clear the fog of the sea you are on.
 - **Worker Folks.** With Worker Folks loaded, hiring, promoting and firing need a town or port, like Township.
 
 ## Settings (Mod Settings, section Voyage)
@@ -102,6 +106,11 @@ runs and markets, and the Captain's Journal. Travel is still instant; the timed 
 - **Night** and **Move the night (hours)**: night on or off, and when it falls (−12 to 12 hours from 21:00 to 05:00).
 - **Keys**: G centres the map on you, J opens and closes the journal, M opens the map. Each can be changed, or left
   empty to turn it off.
+
+## Themes
+
+The Voyage page, the map panel and the mod's popups follow the game's theme: Light, Dark or Super Dark (Settings).
+The Captain's Journal keeps its parchment in all three.
 
 ## Languages
 

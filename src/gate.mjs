@@ -56,16 +56,25 @@ const TRADE_ONLY_KEYS = { sell: 'MOD_VOY_GATE_TRADE_ONLY_SELL', buy: 'MOD_VOY_GA
 export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  /** Map colours are picked for tinting hexes; for text on the dark modal, lift dark ones towards white. */
+  /** Map colours are picked for tinting hexes; for text on the dark modal, lift dark ones towards white. On the
+   *  Light theme's white modal darken them instead, step by step, until they reach 4.5:1 on white. */
   const textColour = (css) => {
     const m = /^#([0-9a-f]{6})$/i.exec(css ?? '');
     if (m === null) return css ?? 'inherit';
     const n = parseInt(m[1], 16);
     const ch = (shift) => (n >> shift) & 0xff;
-    const lum = 0.299 * ch(16) + 0.587 * ch(8) + 0.114 * ch(0);
+    const hex = (rgb) => `#${rgb.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
+    const rgb = [ch(16), ch(8), ch(0)];
+    if (!document.body.classList.contains('darkMode')) {
+      const lin = (v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+      const onWhite = (c) => 1.05 / (0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]) + 0.05);
+      let c = rgb;
+      for (let k = 1; onWhite(c) < 4.5 && k <= 20; k++) c = rgb.map((v) => v * (1 - k * 0.05));
+      return hex(c);
+    }
+    const lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
     const mix = lum < 110 ? 0.45 : lum < 160 ? 0.25 : 0;
-    const lift = (v) => Math.round(v + (255 - v) * mix).toString(16).padStart(2, '0');
-    return `#${lift(ch(16))}${lift(ch(8))}${lift(ch(0))}`;
+    return hex(rgb.map((v) => v + (255 - v) * mix));
   };
   const coloured = (label, css) => ({ text: label, html: `<b style="color:${textColour(css)}">${esc(label)}</b>` });
   const biome = (cls) => { const info = terrainMod.CLASS_INFO[cls]; return coloured(info === undefined ? cls : getLangString(terrainMod.classKey(cls)), info?.css); };

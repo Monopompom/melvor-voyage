@@ -27,7 +27,7 @@ export const FAMILIES = {
   MOD_VOY_HULL_NAME_: ['DINGHY', 'LONGBOAT', 'BRIG', 'GALLEON'],
   MOD_VOY_HULL_BLURB_: ['DINGHY', 'LONGBOAT', 'BRIG', 'GALLEON'],
   MOD_VOY_HULL_TIER_: ['1', '2', '3', '4'],
-  MOD_VOY_ISLAND_: ['WESTERN', 'GOLDEN', 'FROST', 'CURSED', 'OMINOUS'],
+  MOD_VOY_ISLAND_: ['WESTERN', 'GOLDEN', 'FROST', 'CURSED', 'OMINOUS', 'MAINLAND'],
   MOD_VOY_MILESTONE_: ['1', '2', '3', 'LONGBOAT', 'BRIG', 'GALLEON'], // LONGBOAT, GALLEON, BRIG: shipModel.UPGRADES, BIG_SHIPS (setup.mjs)
   // the six charts (build .116, setup.mjs): MOD_VOY_ITEM_<ID>_NAME / _DESC
   MOD_VOY_ITEM_: Object.values(CHART_ITEMS).flatMap((id) => [`${id.toUpperCase()}_NAME`, `${id.toUpperCase()}_DESC`]),
@@ -43,7 +43,9 @@ export const FAMILIES = {
   MOD_VOY_JOURNAL_GUIDE_: JOURNAL_GUIDES.flatMap((g) => ['TITLE', 'BODY', 'POINTS'].map((x) => `${g.toUpperCase()}_${x}`)),
   // the Did you know slips (journal-model.mjs JOURNAL_ASIDES)
   MOD_VOY_JOURNAL_ASIDE_: Object.values(JOURNAL_ASIDES).flatMap((k) => [`${k}_HEAD`, `${k}_BODY`]),
-  MOD_VOY_JOURNAL_PLACES_: ['COMBAT', 'TRADE', 'POI'],
+  MOD_VOY_JOURNAL_PLACES_: ['COMBAT', 'TRADE', 'POI', 'PORT', 'ISLAND'],
+  // Ports used (phase 4 wrap-up, journal.mjs portDeeds): voyage-model PORT_DEEDS
+  MOD_VOY_JOURNAL_PORT_: ['LOAD', 'DELIVER', 'CHART', 'TAKE', 'HAND'],
   // The shipwright's bill (build .178, journal.mjs shipBill).
   MOD_VOY_JOURNAL_BILL_WHERE_: ['DINGHY', 'LONGBOAT', 'BRIG', 'GALLEON'],
   MOD_VOY_JOURNAL_BILL_REBUILT_: ['LONGBOAT', 'GALLEON'],

@@ -52,3 +52,16 @@ test('the six charts are in the data package, named as in en.json', async () => 
     assert.equal(en[`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`], item.customDescription, id);
   }
 });
+
+test('item ids in the data package are unique, the rumours and the Starlit Chart named as in en.json', () => {
+  // .214: the night find first shipped as Star_Chart, the id the Astrology heat-map chart already had.
+  const items = json('data/package.json').data.items;
+  const ids = items.map((i) => i.id);
+  assert.deepEqual(ids.filter((id, i) => ids.indexOf(id) !== i), []);
+  for (const id of ['Tavern_Tale', 'Sailors_Rumour', 'Starlit_Chart']) {
+    const item = items.find((i) => i.id === id);
+    assert.ok(item, id);
+    assert.equal(en[`MOD_VOY_ITEM_${id.toUpperCase()}_NAME`], item.name, id);
+    assert.equal(en[`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`], item.customDescription, id);
+  }
+});

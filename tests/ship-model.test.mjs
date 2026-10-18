@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   HULLS, PLANNED_HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, dockSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach, isPlace,
-  canHop, shipAfterHops, hexDist, condOf, repairPlan, canRepair, pitchChance, REPAIR,
+  canHop, shipAfterHops, laneTier, hexDist, condOf, repairPlan, canRepair, pitchChance, REPAIR,
   holdSlots, atShip, stow, takeOut, UPGRADES, upgradeFor, upgradeBlocker, HOLD_SLOTS, BIG_SHIPS, shipBill, dinghyBuild, OLD_HAT,
 } from '../src/ship-model.mjs';
 import { HULL_IDS, loadSave, serializeSave, defaultSave, xpForSteps } from '../src/voyage-model.mjs';
@@ -237,6 +237,20 @@ test('every island anchor is on its own landmass, off the mainland', async () =>
   assert.equal(idx.islandTier(terrain.poi('OminousPort')), 3);
   assert.equal(idx.islandTier(start), 1);
   assert.equal(idx.islandOf(start), undefined);
+});
+
+test('laneTier (phase 4 wrap-up): the smallest hull for a cargo lane on the real map', async () => {
+  const { laneDistances } = await import('../src/cargo-model.mjs');
+  const table = JSON.parse(await readFile(new URL('../data/hex_terrain.json', import.meta.url), 'utf8'));
+  const terrain = createTerrain(table);
+  const idx = seaIndex(terrain);
+  const tier = (a, b) => laneTier(terrain.poi(a), terrain.poi(b), terrain, idx);
+  assert.equal(tier('BeginningPort', 'FrostDriftPort'), 1);
+  assert.equal(tier('BeginningPort', 'OminousPort'), 3, 'the Ominous Isle wants a brig');
+  assert.equal(tier('OminousPort', 'BeginningPort'), 3, 'and its waters too');
+  assert.equal(tier('BustlingPort', 'FakePort'), 2, 'the Cursed Isle wants a longboat');
+  for (const [a, to] of Object.entries(laneDistances(table.hexes))) for (const b of Object.keys(to)) assert.ok(tier(a, b) !== undefined, `${a} -> ${b}`);
+  assert.equal(laneTier(undefined, terrain.poi('BeginningPort'), terrain, idx), undefined);
 });
 
 /** Hexes a dinghy launched at `from` can reach (clouds excluded, like the game's unsurveyable corners). */

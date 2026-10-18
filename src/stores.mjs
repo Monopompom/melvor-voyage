@@ -119,6 +119,9 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     for (const i of planned.plan.lit ?? []) planned.steps[i].lit = true;
     set(planned.plan.food, planned.plan.fuel);
     if ((planned.plan.lit ?? []).length > 0) log(`lit ${planned.plan.lit.length} hex(es) at night for ${planned.plan.light} fuel`);
+    // The stars pay at sea: a lit sea hex may turn up a Starlit Chart (phase 4 wrap-up, charts.mjs rollStars).
+    const seaLit = (planned.plan.lit ?? []).reduce((n, i) => n + (planned.steps[i].hop > 0 ? planned.steps[i].hop : planned.steps[i].sea ? 1 : 0), 0);
+    if (seaLit > 0) { try { state.charts?.rollStars?.(seaLit); } catch (e) { log('star chart roll failed', e); } }
     if (planned.plan.cond !== undefined) state.ship?.setCond?.(planned.plan.cond, 'boat');
     for (const [kind, c] of Object.entries(planned.plan.conds ?? {})) state.ship?.setCond?.(c, kind);
     if (planned.plan.hungry.length > 0) log(`walked ${planned.plan.hungry.length} hex(es) hungry`);

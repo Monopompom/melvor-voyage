@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-18.212';
+export const BUILD = '2026-10-18.215';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -76,8 +76,8 @@ export async function setup(ctx) {
       it._customDescription = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`);
       it._modifiedDescription = undefined;
     }
-    // The two rumours (build .210, src/charts.mjs).
-    for (const [id, name, desc] of [['Tavern_Tale', 'MOD_VOY_ITEM_TAVERN_TALE_NAME', 'MOD_VOY_ITEM_TAVERN_TALE_DESC'], ['Sailors_Rumour', 'MOD_VOY_ITEM_SAILORS_RUMOUR_NAME', 'MOD_VOY_ITEM_SAILORS_RUMOUR_DESC']]) {
+    // The two rumours (build .210) and the Starlit Chart (.214), src/charts.mjs.
+    for (const [id, name, desc] of [['Tavern_Tale', 'MOD_VOY_ITEM_TAVERN_TALE_NAME', 'MOD_VOY_ITEM_TAVERN_TALE_DESC'], ['Sailors_Rumour', 'MOD_VOY_ITEM_SAILORS_RUMOUR_NAME', 'MOD_VOY_ITEM_SAILORS_RUMOUR_DESC'], ['Starlit_Chart', 'MOD_VOY_ITEM_STARLIT_CHART_NAME', 'MOD_VOY_ITEM_STARLIT_CHART_DESC']]) {
       const it = game.items.getObjectByID(`voyage:${id}`);
       if (it === undefined) continue;
       it._name = getLangString(name);

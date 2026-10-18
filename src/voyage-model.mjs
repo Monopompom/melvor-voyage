@@ -116,9 +116,14 @@ export function defaultSave() {
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
-export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'cargo', 'ports', 'market', 'notices', 'charts', 'rumour'];
-/** Kinds of place the journal records. */
-export const JOURNAL_PLACE_KINDS = ['combat', 'trade'];
+export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'cargo', 'ports', 'market', 'notices', 'charts', 'rumour', 'stars'];
+/**
+ * Kinds of place the journal records. `island`: a named island (ship-model ISLANDS) or the mainland, at the first hex
+ * you stood on it; `port`: a port whose harbour board you used (phase 4 wrap-up).
+ */
+export const JOURNAL_PLACE_KINDS = ['combat', 'trade', 'island', 'port'];
+/** What the journal counts at a port you used, in the order its page lists them: `journal.ports[poi][deed]`. */
+export const PORT_DEEDS = ['load', 'deliver', 'chart', 'take', 'hand'];
 /** Hexes kept per action (found) and misses kept per action (about 20). */
 export const JOURNAL_LIMITS = { found: 20, missed: 20 };
 
@@ -141,7 +146,7 @@ export const UNREAD_KINDS = ['new', 'more'];
 export const GOLBIN_GIFT = { gp: 50000, items: [{ id: 'voyage:Pitch', quantity: 25 }] };
 
 export function emptyJournal() {
-  return { found: {}, missed: {}, places: {}, guides: [], charted: [], freeUsed: 0, unread: {}, golbin: false };
+  return { found: {}, missed: {}, places: {}, guides: [], charted: [], freeUsed: 0, unread: {}, golbin: false, ports: {} };
 }
 
 /**
@@ -242,6 +247,18 @@ function cleanUnread(map) {
   for (const [key, kind] of ok.slice(-JOURNAL_UNREAD_MAX)) out[key] = kind;
   return out;
 }
+/** `journal.ports`: { [poi]: { [deed]: count } }, only PORT_DEEDS with a count above 0. */
+function cleanPorts(map) {
+  const out = {};
+  if (map === null || typeof map !== 'object' || Array.isArray(map)) return out;
+  for (const [poi, deeds] of Object.entries(map)) {
+    if (!isId(poi) || deeds === null || typeof deeds !== 'object') continue;
+    const kept = {};
+    for (const d of PORT_DEEDS) if (count(deeds[d]) > 0) kept[d] = count(deeds[d]);
+    if (Object.keys(kept).length > 0) out[poi] = kept;
+  }
+  return out;
+}
 /** The journal as saved: anything malformed dropped, never thrown on. */
 export function cleanJournal(j) {
   const src = j !== null && typeof j === 'object' ? j : {};
@@ -265,6 +282,7 @@ export function cleanJournal(j) {
     unread: cleanUnread(src.unread),
     // The golbin's purse was given (GOLBIN_GIFT); a save without it never had it.
     golbin: src.golbin === true,
+    ports: cleanPorts(src.ports),
   };
 }
 

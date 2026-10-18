@@ -546,6 +546,8 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     hullName: (s) => hullWord(HULLS[s?.hull]), stepsOf, afterMove, homeOf, dockOf, isHop, build, buildBlocker, buildCosts, canFish, launchSpot, whereIs, recOf,
     startOverseas, cond, setCond, repairInfo, repair, upgradeInfo, upgrade, buyInfo, buy, buyCosts: () => costsOf(BIG_SHIPS.brig),
     onChange: (fn) => listeners.push(fn),
+    /** The step rule's map facts (ship-model seaIndex), or undefined before a character is loaded. */
+    geo: geoNow,
     /**
      * May a road step from one game hex to the next under the ship rules? True while they are off (trader roads). With
      * two vessels a step either one could take.

@@ -491,6 +491,41 @@ export function takeOut(hold, id, qty) {
 /** A port hex (the terrain table's `port` feature), outside the cloud. */
 export const isPort = (rec) => rec !== undefined && rec.cloud !== true && Array.isArray(rec.f) && rec.f.includes('port');
 /**
+ * The smallest hull tier (1-4) that sails from the port `from` to the port `to` (terrain records) within its reach,
+ * or undefined when none does (phase 4 wrap-up): a breadth-first search over
+ * the sea hexes that tier keeps to (within reach of a coast it may land on; under cloud only the sailing ships), from
+ * the port or the sea next to it to the port or the sea next to it. A port on an island needs that island's tier.
+ * The homeward rule is left out: it only brings a hull back, it never takes one farther out.
+ */
+export function laneTier(from, to, terrain, geo) {
+  if (from === undefined || to === undefined) return undefined;
+  const hulls = Object.values(HULLS).sort((a, b) => a.tier - b.tier);
+  for (const hull of hulls) {
+    const tier = hull.tier;
+    if (!isSea(to) && geo.islandTier(to) > tier) continue;
+    const open = (rec) => isSea(rec) && (rec.cloud !== true || tier >= CLOUD_TIER) && geo.home(rec, tier) <= hull.reach;
+    const ends = (rec) => rec === to || (isSea(rec) && terrain.neighbours(rec.q, rec.r).includes(to));
+    const start = isSea(from) ? [from] : terrain.neighbours(from.q, from.r).filter(open);
+    if (isSea(from) && !open(from)) continue;
+    const seen = new Set(start);
+    const queue = [...start];
+    let found = false;
+    for (let i = 0; i < queue.length && !found; i++) {
+      const cur = queue[i];
+      if (ends(cur)) { found = true; break; }
+      for (const n of terrain.neighbours(cur.q, cur.r)) {
+        if (seen.has(n)) continue;
+        if (n === to) { found = true; break; }
+        if (!open(n)) continue;
+        seen.add(n);
+        queue.push(n);
+      }
+    }
+    if (found) return tier;
+  }
+  return undefined;
+}
+/**
  * May a big ship's deck and the land meet across this step (either way)? Only at a port: the quay is the port hex
  * itself for a port drawn on the water (then any land next to it is the shore), or a sea hex next to a port on land.
  */

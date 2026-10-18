@@ -158,6 +158,19 @@
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
         "sellsFor": 50
+      },
+      {
+        "itemType": "Item",
+        "id": "Starlit_Chart",
+        "name": "Starlit Chart",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/starlit_chart.webp",
+        "customDescription": "The night sky over open water, set down by a steersman who kept to the stars. Read it from the bank to chart the sea you are on, or the nearest one from land.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 500
       }
     ],
     "skillData": [

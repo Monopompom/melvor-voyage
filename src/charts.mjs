@@ -119,6 +119,7 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
     const n = clear(fog);
     notify(t('MOD_VOY_CHARTS_BOUGHT', { name: chartName(sea), n: `${n}` }));
     try { state.journal?.learn('charts'); } catch {}
+    try { const rec = state.cargo.portHere(); state.journal?.portUsed?.(poi, 'chart', rec); } catch (e) { log('journal port failed', e); }
     log(`chart of ${sea} bought for ${price} GP: ${n} hexes`);
     return true;
   };
@@ -234,6 +235,11 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
     }
     tellCache.at = 0;
     try { state.journal?.learn('rumour', true); } catch {}
+    readPopup(item, sections);
+    return true;
+  };
+  /** The popup after reading a rumour or a Starlit Chart: what it told, in the help layout. */
+  const readPopup = (item, sections) => {
     try {
       SwalLocale.fire({
         didRender: state.popupDidRender,
@@ -246,14 +252,73 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
         customClass: (() => { const c = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1' }; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
       });
     } catch (e) { log('rumour popup failed', e); }
+  };
+
+  // ---- the Starlit Chart: the one night find (phase 4 wrap-up) ----------------------------------------
+  const starItem = () => { try { return game.items.getObjectByID(`voyage:${CM.STAR_CHART}`); } catch { return undefined; } };
+  const isStar = (item) => item !== undefined && item?.id === `voyage:${CM.STAR_CHART}`;
+  /** The sea a Starlit Chart read here would chart: the one you are on, or the nearest from land. */
+  const starSea = () => CM.seaAt(seaMap, state.position?.());
+  /** A Starlit Chart could still tell something: some sea under fog, or a resource country to chart. */
+  const starsWorth = () => Object.keys(seaMap).some((poi) => fogOf(poi).length > 0) || state.journal?.canChartAny?.() === true;
+  /**
+   * A move landed that lit `seaHexes` sea hexes at night (stores.mjs afterMove): now and then a Starlit Chart
+   * (charts-model starChance), never once nothing is left for one to chart.
+   */
+  const rollStars = (seaHexes) => {
+    if (!usable() || Math.random() >= CM.starChance(seaHexes)) return false;
+    const item = starItem();
+    if (item === undefined || !starsWorth()) return false;
+    game.bank.addItem(item, 1, false, true, true, true, 'Voyage');
+    try { game.notifications.createInfoNotification('voyage:stars', t('MOD_VOY_STAR_FOUND', { name: item.name }), item.media); } catch {}
+    log(`star chart found after ${seaHexes} lit sea hexes`);
+    try { state.journal?.learn('stars'); } catch {}
     return true;
+  };
+  /** Reads a Starlit Chart from the bank: the fog of the sea it is read on clears, or a country is charted. */
+  const readStar = (item) => {
+    if (!usable() || !isStar(item) || game.bank.getQty(item) < 1) return false;
+    const sea = starSea();
+    const fog = sea === undefined ? [] : fogOf(sea);
+    let sections;
+    if (fog.length > 0) {
+      game.bank.removeItemQuantity(item, 1, false);
+      const n = clear(fog);
+      sections = [{ body: [
+        { html: `<i>${esc(t('MOD_VOY_STAR_TALE'))}</i>`, cls: 'voyage-rumour-tale' },
+        { html: t('MOD_VOY_STAR_CLEARS', { name: `<b>${esc(seaName(sea))}</b>`, n: `<b class="text-success">${n}</b>` }) },
+      ] }];
+      log(`star chart read: ${n} hexes of ${sea}`);
+    } else {
+      const charted = state.journal?.chartAny?.();
+      if (charted === undefined) { notify(t('MOD_VOY_STAR_NOTHING'), 'info'); return false; }
+      game.bank.removeItemQuantity(item, 1, false);
+      sections = [{ body: [
+        { html: `<i>${esc(t('MOD_VOY_STAR_TALE_ZONE'))}</i>`, cls: 'voyage-rumour-tale' },
+        { html: t('MOD_VOY_RUMOUR_ZONE', { name: `<b>${esc(charted.name)}</b>`, n: `${charted.count}` }) },
+      ] }];
+      log(`star chart read: charted ${charted.id}`);
+    }
+    try { state.journal?.learn('stars', true); } catch {}
+    readPopup(item, sections);
+    return true;
+  };
+  /** The bank Read block's line for a Starlit Chart: what reading it here would chart. */
+  const starLine = () => {
+    const sea = starSea();
+    const fog = sea === undefined ? [] : fogOf(sea);
+    if (fog.length === 0) return t('MOD_VOY_STAR_READ_CLEAR');
+    // Ashore it reads for the nearest sea (.215: the line said "the sea you are on" on a land hex too).
+    const pos = state.position?.();
+    const afloat = pos !== undefined && seaMap[sea].some((h) => h.q === pos.q && h.r === pos.r);
+    return t(afloat ? 'MOD_VOY_STAR_READ_BODY' : 'MOD_VOY_STAR_READ_BODY_LAND', { name: seaName(sea), n: `${fog.length}` });
   };
 
   // The bank: a "Read" block under Sell for a rumour, in Sell's own look (as the hold's Stow block, src/hold.mjs).
   ctx.patch(BankSelectedItemMenuElement, 'setItem').after(function (_r, bankItem) {
     try {
       let box = this.querySelector('.voyage-rumour-read');
-      const kind = kindOf(bankItem?.item);
+      const kind = isStar(bankItem?.item) ? 'star' : kindOf(bankItem?.item);
       if (kind === undefined || !usable()) { (box?.closest('.voyage-rumour-col') ?? box)?.classList.add('d-none'); return; }
       const sell = this.sellItemButton?.closest('.block');
       if (box === null) {
@@ -277,12 +342,12 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
       const mainColClass = this.sellItemButton?.parentElement?.className || 'col-12 text-center';
       const mainClass = (this.sellItemButton?.className ?? 'btn btn-danger').replace('btn-danger', 'btn-success');
       box.innerHTML = `<div class="${headClass}"><h5 class="${titleClass}">${esc(t('MOD_VOY_RUMOUR_READ_TITLE'))}</h5></div>` +
-        `<div class="col-12 pt-2"><div class="row no-gutters"><div class="col-12 py-1">${esc(t(`MOD_VOY_RUMOUR_READ_${kind.toUpperCase()}`))}</div>` +
+        `<div class="col-12 pt-2"><div class="row no-gutters"><div class="col-12 py-1">${esc(kind === 'star' ? starLine() : t(`MOD_VOY_RUMOUR_READ_${kind.toUpperCase()}`))}</div>` +
         `<div class="${mainColClass}"><button type="button" class="${mainClass} voyage-rumour-go">${esc(t('MOD_VOY_RUMOUR_READ'))}</button></div></div></div>`;
       const item = bankItem.item;
       const menu = this;
       box.querySelector('.voyage-rumour-go')?.addEventListener('click', () => {
-        if (!read(item)) return;
+        if (!(kind === 'star' ? readStar(item) : read(item))) return;
         const left = game.bank.items.get(item);
         if (left !== undefined && left.quantity > 0) { try { menu.setItem(left, game.bank); } catch (e) { log('read redraw failed', e); } }
       });
@@ -290,7 +355,7 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
   });
 
   const api = {
-    html, onClick, grant, giveRumour, read,
+    html, onClick, grant, giveRumour, read, rollStars, readStar,
     /** A cargo delivery at `poi`: now and then its sea chart, free (charts-model CARGO_CHART). */
     rollDelivery: (poi) => (seaMap[poi] !== undefined && Math.random() < CM.CARGO_CHART ? grant(poi) : false), seaOf: (poi) => seaMap[poi], seas: () => Object.keys(seaMap),
     /** The overlay: a hex cleared of fog by a chart or a rumour and not surveyed yet. */

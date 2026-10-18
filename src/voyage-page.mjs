@@ -605,6 +605,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
             { cells: [t('MOD_VOY_HELP_SEA_HEX'), `${storesModel.LIGHT.sea}`] },
           ] } },
           { text: t('MOD_VOY_HELP_NIGHT_XP', { bonus: `${Math.round(model.STAR_XP * 100)}` }), cls: 'text-success' },
+          t('MOD_VOY_HELP_NIGHT_STARS'),
         ] });
       }
       if (st !== undefined) {

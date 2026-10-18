@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CHART_SHARE, perAction, seas, seaNeighbours, chartsAt, chartPrice, rumourTarget, ringOf, RUMOUR_HOURS } from '../src/charts-model.mjs';
+import { CHART_SHARE, perAction, seas, seaNeighbours, chartsAt, chartPrice, rumourTarget, ringOf, RUMOUR_HOURS, STAR_CHANCE, starChance, seaAt } from '../src/charts-model.mjs';
 import { chartChance } from '../src/journal-model.mjs';
 
 const table = JSON.parse(readFileSync(new URL('../data/hex_terrain.json', import.meta.url), 'utf8'));
@@ -66,4 +66,20 @@ test('a rumour points at the nearest place not found; a sailor\'s at the sea fir
   assert.equal(ring.length, 7);
   assert.deepEqual(ring[0], { q: 12, r: 13 });
   assert.ok(ringOf({ q: 0, r: 0 }, hexes).length < 7); // the map's corner
+});
+
+test('the Starlit Chart (phase 4 wrap-up): 1 in 1,000 lit sea hexes, at most one a move, read on the nearest sea', () => {
+  assert.equal(STAR_CHANCE, 1 / 1000);
+  assert.equal(starChance(0), 0);
+  assert.equal(starChance(-3), 0);
+  assert.equal(starChance(NaN), 0);
+  assert.ok(Math.abs(starChance(1) - 0.001) < 1e-12);
+  // 50 lit sea hexes a night for 21 nights: about one chart (63% to have found at least one).
+  const threeWeeks = starChance(50 * 21);
+  assert.ok(threeWeeks > 0.6 && threeWeeks < 0.7, `${threeWeeks}`);
+  const map = { A: [{ q: 0, r: 0 }, { q: 1, r: 0 }], B: [{ q: 10, r: 0 }] };
+  assert.equal(seaAt(map, { q: 1, r: 0 }), 'A');
+  assert.equal(seaAt(map, { q: 8, r: 0 }), 'B', 'on land: the nearest sea');
+  assert.equal(seaAt(map, undefined), undefined);
+  assert.equal(seaAt({}, { q: 0, r: 0 }), undefined);
 });
