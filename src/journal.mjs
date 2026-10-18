@@ -181,9 +181,23 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const h = rules.isTradePlace(rec) ? rec : state.terrain.neighbours(rec.q, rec.r).filter((n) => rules.isTradePlace(n)).find(tradeKnown);
     return h !== undefined && tradeKnown(h) ? h : undefined;
   };
-  const onTrade = () => { try { const h = tradePlace(); if (h !== undefined) place('trade', jm.hexStr(h.q, h.r), h); } catch (e) { log('journal trade place failed', e); } };
+  const onTrade = () => {
+    try {
+      const h = tradePlace();
+      if (h === undefined) return;
+      place('trade', jm.hexStr(h.q, h.r), h);
+      // A market with prices: its guide page the first time (phase 4).
+      if (state.market?.enabled?.() && state.market.marketAt(h.q, h.r) !== undefined) learn('market');
+    } catch (e) { log('journal trade place failed', e); }
+  };
   ctx.patch(Bank, 'processItemSale').after(onTrade);
   ctx.patch(Shop, 'buyItemOnClick').after(onTrade);
+  // Markets with prices (phase 4): a place's price list is learnt the first time you stand within a
+  // hex of it, so arriving notes it too, not only trading there.
+  ctx.onCharacterLoaded(() => {
+    try { game.cartography?.on('travel', () => setTimeout(onTrade, 0)); } catch (e) { log('journal travel hook failed', e); }
+    setTimeout(onTrade, 0);
+  });
 
   // Found hexes are known (4.15), from the first load on.
   ctx.onCharacterLoaded(() => {
@@ -429,7 +443,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const big = state.ship?.big?.()?.hull;
     const item = (id) => { try { return game.items.getObjectByID(id); } catch { return undefined; } };
     const cost = (media, n, name) => `<span class="vj-cost">${media ? `<img src="${media}" alt="">` : ''}${esc(numberWithCommas(n))} ${esc(name)}</span>`;
-    const rows = shipModel.shipBill().map((b) => {
+    const rows = shipModel.shipBill(state.ship?.canFish?.() !== false).map((b) => {
       const key = b.id.toUpperCase();
       const mine = b.id === boat || b.id === big;
       const rebuiltAs = b.id === 'dinghy' && boat === 'longboat' ? 'LONGBOAT' : b.id === 'brig' && big === 'galleon' ? 'GALLEON' : undefined;
@@ -896,6 +910,9 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const out = [];
     if (j === undefined) return out;
     for (const p of jm.placesOf(j, 'combat')) { const a = areaById(p.id); out.push({ key: `combat|${p.id}`, group: 'combat', name: a?.name ?? terrainMod.areaLabel(p.id), media: a?.media, q: p.q, r: p.r }); }
+    // The Markets ledger (phase 4): every price list you know, first under the trading places.
+    const mk = state.market?.enabled?.() ? state.market.known() : [];
+    if (mk.length > 0) out.push({ key: 'markets', group: 'trade', name: t('MOD_VOY_JOURNAL_MARKETS_TITLE'), ledger: mk.length });
     // A trade noted before build .173 at a place still undiscovered waits until it is found (and is not left unread).
     for (const p of jm.placesOf(j, 'trade')) { if (!tradeKnown(p)) { jm.markRead(j, `p:trade|${p.id}`); continue; } const poi = poiAt(p.q, p.r); out.push({ key: `trade|${p.id}`, group: 'trade', name: poi?.name ?? land(p.q, p.r), media: poi?.media, q: p.q, r: p.r }); }
     try {
@@ -912,6 +929,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
    * and, for a combat area, the monsters in it ("goblin" finds the area it was fought in).
    */
   const placeSearchEntry = (p) => {
+    if (p.ledger !== undefined) return { id: p.key, names: [p.name], skill: t('MOD_VOY_JOURNAL_PLACES_TRADE') };
     const names = [p.name, land(p.q, p.r)];
     if (p.group === 'combat') { try { areaById(p.key.slice(p.key.indexOf('|') + 1))?.monsters?.forEach((m) => { if (m?.name) names.push(m.name); }); } catch {} }
     return { id: p.key, names, skill: t(`MOD_VOY_JOURNAL_PLACES_${p.group.toUpperCase()}`) };
@@ -1000,7 +1018,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       list += `<div class="vj-group">${esc(t(`MOD_VOY_JOURNAL_PLACES_${g.toUpperCase()}`))}</div>`;
       for (const p of rows) {
         list += `<button type="button" class="vj-row${p.key === view.place ? ' vj-on' : ''}" data-vj-place="${esc(p.key)}" aria-pressed="${p.key === view.place}">`
-          + `<span class="vj-row-name">${p.media ? `<img src="${p.media}" alt="">` : ''}<b>${esc(p.name)}</b>${unreadTag(`p:${p.key}`)}</span><span class="vj-row-count">${esc(at(p.q, p.r))}</span></button>`;
+          + `<span class="vj-row-name">${p.media ? `<img src="${p.media}" alt="">` : ''}<b>${esc(p.name)}</b>${unreadTag(`p:${p.key}`)}</span><span class="vj-row-count">${esc(p.ledger !== undefined ? t('MOD_VOY_JOURNAL_MARKETS_COUNT', { n: `${p.ledger}`, of: `${state.market.total()}` }) : at(p.q, p.r))}</span></button>`;
       }
     }
     return list;
@@ -1020,6 +1038,28 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       + `<p class="vj-p vj-buffs">${buffs.map((b) => `<span class="${esc(b.className || 'text-success')}">${esc(b.textContent)}</span>`).join('')}</p>`
       + (signed ? `<p class="vj-p vj-sign-here"><img src="${esc(state.land.signMedia())}" alt=""><span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_PLACE_SIGNED'))}</span></p>` : '');
   };
+  /** A market's prices on its place page (phase 4): what it pays well and little for. */
+  const pctCell = (pct) => ({ text: `${pct}%`, cls: `vj-num ${pct > 100 ? 'vj-dear' : 'vj-cheap'}` });
+  const marketPrices = (p) => {
+    const m = state.market?.enabled?.() ? state.market.marketAt(p.q, p.r) : undefined;
+    if (m === undefined) return '';
+    const rows = state.market.listOf(m).map((x) => [x.name, pctCell(x.percent)]);
+    rows.numeric = [false, true];
+    return `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_MARKET_PAYS'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_COL_GOODS'), t('MOD_VOY_JOURNAL_COL_PRICE')], rows)
+      + `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_MARKET_REST'))}</p>`;
+  };
+  /** The Markets ledger: every market whose prices you know, what each pays well and little for. */
+  const marketsLedger = () => {
+    const known = state.market.known().sort((a, b) => (state.market.name(a.id) < state.market.name(b.id) ? -1 : 1));
+    const list = (m, dear) => state.market.listOf(m).filter((x) => !x.done && (dear ? x.percent > 100 : x.percent < 100))
+      .map((x) => `<span class="${dear ? 'vj-dear' : 'vj-cheap'}">${esc(x.name)} ${x.percent}%</span>`).join(', ') || '–';
+    const rows = known.map((m) => [{ text: state.market.name(m.id), cls: 'vj-strong' }, { html: list(m, true) }, { html: list(m, false) }]);
+    const left = state.market.total() - known.length;
+    return runningHead(t('MOD_VOY_JOURNAL_PLACES_TRADE'), '')
+      + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_MARKETS_TITLE'))}</h2><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_MARKETS_INTRO'))}</p>`
+      + ledger([t('MOD_VOY_JOURNAL_COL_MARKET'), t('MOD_VOY_JOURNAL_COL_DEAR'), t('MOD_VOY_JOURNAL_COL_CHEAP')], rows)
+      + `<p class="vj-p vj-faint">${esc(t(left > 0 ? 'MOD_VOY_JOURNAL_MARKETS_LEFT' : 'MOD_VOY_JOURNAL_MARKETS_ALL', { n: `${left}` }))}</p>`;
+  };
   const placesSpread = () => {
     const all = placeList();
     if (view.place === undefined || !all.some((p) => p.key === view.place)) view.place = all[0]?.key;
@@ -1030,10 +1070,12 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       + `<div class="vj-results vj-place-results">${placeResultsHtml(all)}</div>`;
     const p = all.find((x) => x.key === view.place);
     const right = p === undefined ? runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), '') + empty('MOD_VOY_JOURNAL_ENTRY_NONE')
+      : p.ledger !== undefined ? marketsLedger()
       : runningHead(t(`MOD_VOY_JOURNAL_PLACES_${p.group.toUpperCase()}`), '')
         + `<div class="vj-entry-head">${p.media ? `<img src="${p.media}" alt="">` : ''}<h2 class="vj-h1">${esc(p.name)}</h2></div>`
         + ledger([t('MOD_VOY_JOURNAL_COL_HEX'), t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_FROM_HERE')], [[{ text: at(p.q, p.r) }, land(p.q, p.r), fromHere(p)]])
         + placeEffects(p)
+        + (p.group === 'trade' ? marketPrices(p) : '')
         + `<div class="vj-foot vj-foot-end">${planButton('place', p.key)}${mapButton('place', p.key)}</div>`;
     return { left, right };
   };

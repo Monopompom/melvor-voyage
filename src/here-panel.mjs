@@ -175,6 +175,10 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return out;
   };
 
+  /** At a port: the harbour board's button (cargo runs, phase 4) and what waits here. */
+  const harbourLine = () => {
+    try { return state.cargo?.panelLine() ?? ''; } catch (e) { log('harbour line failed', e); return ''; }
+  };
   /** Trade status on its own line under the terrain line; empty while trade is not gated. */
   const tradeLine = (status) => {
     if (!state.active() || !state.settings.trade()) return '';
@@ -433,8 +437,15 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   const PANEL_KEY = 'voyage-panel-open';
   let panelOpen = (() => { try { return localStorage.getItem(PANEL_KEY) !== '0'; } catch { return true; } })();
   const TUCK_KEY = 'voyage-panel-tucked';
-  let panelTucked = (() => { try { return localStorage.getItem(TUCK_KEY) === '1'; } catch { return false; } })();
-  const setTucked = (on) => { panelTucked = on; try { localStorage.setItem(TUCK_KEY, on ? '1' : '0'); } catch {} };
+  // The square remembers what it was shrunk from (the user, build .208): '1' the strip, 'open' the open panel; a tap on
+  // it gives that back.
+  let tuckFrom = (() => { try { const v = localStorage.getItem(TUCK_KEY); return v === 'open' ? 'open' : v === '1' ? 'strip' : undefined; } catch { return undefined; } })();
+  let panelTucked = tuckFrom !== undefined;
+  const setTucked = (on, from = 'strip') => {
+    panelTucked = on;
+    tuckFrom = on ? from : undefined;
+    try { localStorage.setItem(TUCK_KEY, on ? (from === 'open' ? 'open' : '1') : '0'); } catch {}
+  };
   const legendBlock = () =>
     `<div class="voyage-legend-wrap"><button type="button" class="voyage-legend-toggle" aria-expanded="${legendOpen}">` +
     `<i class="fa fa-caret-${legendOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_LEGEND'))}</button>` +
@@ -559,6 +570,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     panel.className = 'voyage-ui block block-rounded bg-combat-inner-dark p-2 mb-2';
     panel.addEventListener('click', (e) => {
       if (e.target instanceof Element && e.target.closest('.voyage-trader-link')) { e.preventDefault(); state.trader?.offer(); }
+      if (e.target instanceof Element && e.target.closest('.voyage-harbour-link')) { e.preventDefault(); state.cargo?.open(); }
       if (e.target instanceof Element && e.target.closest('.voyage-rescue-link')) { e.preventDefault(); state.stores?.offer(); }
       if (e.target instanceof Element && e.target.closest('.voyage-sign-place')) { e.preventDefault(); state.land?.place(); render(); return; }
       if (e.target instanceof Element && e.target.closest('.voyage-sign-pickup')) { e.preventDefault(); state.land?.pickup(); render(); return; }
@@ -576,8 +588,14 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         render();
         return;
       }
-      if (e.target instanceof Element && e.target.closest('.voyage-mini-caret, .voyage-mini-toggle, .voyage-tuck') && Date.now() < holdUntil) { e.preventDefault(); return; } // the hold just tucked it: its lift is no tap
-      if (e.target instanceof Element && e.target.closest('.voyage-tuck')) { setTucked(false); render(); return; }
+      if (e.target instanceof Element && e.target.closest('.voyage-mini-caret, .voyage-open-caret, .voyage-mini-toggle, .voyage-tuck') && Date.now() < holdUntil) { e.preventDefault(); return; } // the hold just tucked it: its lift is no tap
+      if (e.target instanceof Element && e.target.closest('.voyage-tuck')) {
+        const back = tuckFrom;
+        setTucked(false);
+        if (back === 'open') { panelOpen = true; try { localStorage.setItem(PANEL_KEY, '1'); } catch {} }
+        render();
+        return;
+      }
       if (e.target instanceof Element && e.target.closest('.voyage-panel-toggle')) {
         panelOpen = !panelOpen;
         try { localStorage.setItem(PANEL_KEY, panelOpen ? '1' : '0'); } catch {}
@@ -620,25 +638,28 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         try { state.openPage(game.pages.getObjectByID('voyage:Voyage')); } catch (err) { log('Manage voyage link failed', err); }
       }
     });
-    // Press and hold the strip's caret (touch only) to shrink the strip to the square.
+    // Press and hold the strip's caret, or the open panel's "You are here" (touch only; the user, 18 Oct 2026), to
+    // shrink it to the square. A tap on the square gives back what it was shrunk from (build .208).
     let holdTimer = 0;
     let holdAt = undefined;
     const stopHold = () => { clearTimeout(holdTimer); holdTimer = 0; holdAt = undefined; };
     panel.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'touch' || !(e.target instanceof Element) || e.target.closest('.voyage-mini-caret') === null) return;
+      if (e.pointerType !== 'touch' || !(e.target instanceof Element) || e.target.closest('.voyage-mini-caret, .voyage-open-caret') === null) return;
       stopHold();
       holdAt = { x: e.clientX, y: e.clientY };
       holdTimer = setTimeout(() => {
         holdTimer = 0;
         holdUntil = Date.now() + 800;
         try { navigator.vibrate?.(15); } catch {}
-        setTucked(true);
+        const from = panelOpen ? 'open' : 'strip';
+        if (panelOpen) { panelOpen = false; try { localStorage.setItem(PANEL_KEY, '0'); } catch {} }
+        setTucked(true, from);
         render();
       }, HOLD_MS);
     });
     panel.addEventListener('pointermove', (e) => { if (holdAt !== undefined && Math.hypot(e.clientX - holdAt.x, e.clientY - holdAt.y) > 10) stopHold(); });
     for (const type of ['pointerup', 'pointercancel', 'pointerleave']) panel.addEventListener(type, stopHold);
-    panel.addEventListener('contextmenu', (e) => { if (e.target instanceof Element && e.target.closest('.voyage-mini-caret, .voyage-tuck')) e.preventDefault(); });
+    panel.addEventListener('contextmenu', (e) => { if (e.target instanceof Element && e.target.closest('.voyage-mini-caret, .voyage-open-caret, .voyage-tuck')) e.preventDefault(); });
     // Under the location search bar (top-left of the map), after its results drop-down so results still open
     // right below the input. Falls back to the bottom-left overlay if the search bar is not where we expect.
     const results = cartographyMap.searchResultsCont;
@@ -696,12 +717,13 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         return;
       }
       panel.innerHTML =
-        `<div class="voyage-here-head"><button type="button" class="voyage-panel-toggle" aria-expanded="${panelOpen}" title="${esc(getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD'))}">` +
+        `<div class="voyage-here-head"><button type="button" class="voyage-panel-toggle voyage-open-caret" data-tip-touch="off" aria-expanded="${panelOpen}" title="${esc(getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD'))}" aria-label="${esc(`${getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD')}. ${getLangString('MOD_VOY_PANEL_HOLD_TUCK')}`)}">` +
         `<i class="fa fa-caret-${panelOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_YOU_ARE_HERE'))}</button>${manageLink()}</div>` +
         strandedLines(status) +
         `<div>${swatch}${esc(d.label)}<small class="text-muted">${features}${where}</small></div>` +
         shipBox() +
         tradeLine(status) +
+        harbourLine() +
         fightLine() +
         signLine() +
         mode +

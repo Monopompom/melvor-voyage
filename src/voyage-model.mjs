@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -104,13 +104,15 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * `navigator` (build .119) turns true once Navigator's Charts are bought: Plan a voyage may Set off.
  * `visited` (save v11, the balance pass) is the hexes ever entered, as base64 bits (visitedBit): each pays DISCOVERY_XP once.
  * `sign` (save v12) is the full id of the POI the Crossroads Sign stands on, '' while carried or not bought.
+ * `cargo` (save v13) is the cargo runs: `boards` (each port's requests this season) and `runs` (taken);
+ * cargo-model.mjs cleanCargo checks it in depth when the runtime reads it (modules here can't import each other).
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '' };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] } };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
-export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon'];
+export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'cargo', 'ports', 'market'];
 /** Kinds of place the journal records. */
 export const JOURNAL_PLACE_KINDS = ['combat', 'trade'];
 /** Hexes kept per action (found) and misses kept per action (about 20). */
@@ -169,6 +171,8 @@ export const MIGRATIONS = {
   10: (rec) => ({ ...rec, v: 11, visited: markVisited('', journalHexes(rec.journal)).visited }),
   // the Crossroads Sign: not standing anywhere
   11: (rec) => ({ ...rec, v: 12, sign: '' }),
+  // phase 4 cargo runs: no boards seen, no runs taken
+  12: (rec) => ({ ...rec, v: 13, cargo: { boards: {}, runs: [] } }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -176,7 +180,7 @@ const amount = (n) => (Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) / 100
 const cleanStores = (st) => ({ food: count(st?.food), fuel: amount(st?.fuel) });
 /**
  * The hold: entries with an item id and a positive whole quantity, one per id. Ids the game no longer knows are kept
- * as they are (an expansion switched off): the items come back when it is on again.
+ * as they are (an expansion switched off): the items come back when it is on again. Packed cargo (save v13) is one entry a sack or crate, `{ id, qty, cargo: run id, c: 'sack' | 'crate' }`, never merged.
  */
 function cleanHold(hold) {
   if (!Array.isArray(hold)) return [];
@@ -185,7 +189,8 @@ function cleanHold(hold) {
     if (e === null || typeof e !== 'object' || typeof e.id !== 'string' || e.id === '') continue;
     const qty = count(e.qty);
     if (qty <= 0) continue;
-    const same = out.find((x) => x.id === e.id);
+    if (typeof e.cargo === 'string' && e.cargo !== '' && (e.c === 'sack' || e.c === 'crate')) { out.push({ id: e.id, qty, cargo: e.cargo, c: e.c }); continue; }
+    const same = out.find((x) => x.id === e.id && x.cargo === undefined);
     if (same !== undefined) same.qty += qty; else out.push({ id: e.id, qty });
   }
   return out;
@@ -282,6 +287,7 @@ function clean(rec) {
     navigator: rec.navigator === true,
     visited: cleanVisited(rec.visited),
     sign: typeof rec.sign === 'string' && /^[\w]+:[\w]+$/.test(rec.sign) ? rec.sign : '',
+    cargo: rec.cargo !== null && typeof rec.cargo === 'object' && !Array.isArray(rec.cargo) ? rec.cargo : { boards: {}, runs: [] },
   };
 }
 /** Base64 of at most VISITED_BYTES bytes, or '' (nothing visited). */

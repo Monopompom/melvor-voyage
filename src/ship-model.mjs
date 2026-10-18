@@ -126,7 +126,14 @@ export const tierNameKey = (tier) => (TIER_NAMES[tier] === undefined ? 'MOD_VOY_
 /** English for MOD_VOY_HULL_TIER_UNKNOWN: an island tier with no hull name yet. */
 export const UNKNOWN_TIER_NAME = 'bigger ship';
 
-export const DINGHY_BUILD = { gp: 500, items: [{ id: 'melvorD:Normal_Logs', quantity: 50 }] };
+// The Old Hat (Fishing's junk) is the new captain's first hat (the user, 18 Oct 2026: "one funny detail").
+export const DINGHY_BUILD = { gp: 500, items: [{ id: 'melvorD:Normal_Logs', quantity: 50 }, { id: 'melvorD:Old_Hat', quantity: 1 }] };
+export const OLD_HAT = 'melvorD:Old_Hat';
+/**
+ * The dinghy's price for this character: without the Old Hat while Fishing can't be had (Adventure before Fishing is
+ * unlocked; the user, 18 Oct 2026: "skip for Adv").
+ */
+export const dinghyBuild = (canFish = true) => (canFish ? DINGHY_BUILD : { ...DINGHY_BUILD, items: DINGHY_BUILD.items.filter((x) => x.id !== OLD_HAT) });
 
 /**
  * Hull condition (phase 3d): `ship.cond`, 0 to 100 (%). Sailing wears it (stores-model.mjs wearOf);
@@ -448,9 +455,9 @@ export function holdSlots(ship, voyageLevel = 1) {
  * `level` 0 = no level needed; `from` = the hull it is built out of; `bought` = bought outright, not built.
  */
 export const BILL_ORDER = ['dinghy', 'longboat', 'brig', 'galleon'];
-export function shipBill() {
+export function shipBill(canFish = true) {
   return BILL_ORDER.map((id) => {
-    const spec = id === 'dinghy' ? DINGHY_BUILD : UPGRADES[id] ?? BIG_SHIPS[id];
+    const spec = id === 'dinghy' ? dinghyBuild(canFish) : UPGRADES[id] ?? BIG_SHIPS[id];
     return { id, level: spec.level ?? 0, gp: spec.gp, items: spec.items, from: spec.from, bought: BIG_SHIPS[id] !== undefined, reach: HULLS[id].reach, hold: HOLD_SLOTS[id] };
   });
 }
@@ -463,14 +470,15 @@ export const atShip = (playerRec, ship) => ship != null && playerRec !== undefin
 export function stow(hold, id, qty, slots) {
   const n = Math.max(0, Math.floor(qty));
   if (n <= 0) return hold;
-  const i = hold.findIndex((e) => e.id === id);
+  // Packed cargo never takes loose items in.
+  const i = hold.findIndex((e) => e.id === id && e.cargo === undefined);
   if (i >= 0) return hold.map((e, j) => (j === i ? { id, qty: e.qty + n } : e));
   if (hold.length >= slots) return undefined;
   return [...hold, { id, qty: n }];
 }
 /** Takes up to `qty` of item `id` out: { hold, taken }. An emptied slot is freed. */
 export function takeOut(hold, id, qty) {
-  const i = hold.findIndex((e) => e.id === id);
+  const i = hold.findIndex((e) => e.id === id && e.cargo === undefined); // packed cargo stays sealed
   if (i < 0) return { hold, taken: 0 };
   const taken = Math.min(hold[i].qty, Math.max(0, Math.floor(qty)));
   const left = hold[i].qty - taken;

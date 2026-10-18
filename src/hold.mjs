@@ -73,8 +73,11 @@ export function install(ctx, { state, shipModel, log }) {
     log(`took ${taken} ${item.id} from the ${kind}'s hold`);
     return taken;
   };
-  /** The hold for the page: [{ item, qty }] for items the game knows (an expansion switched off keeps its entries). */
-  const contents = (kind = defaultKind()) => hold(kind).map((e) => ({ item: game.items.getObjectByID(e.id), qty: e.qty })).filter((e) => e.item !== undefined);
+  /**
+   * The hold for the page: [{ item, qty, entry }] for items the game knows (an expansion switched off keeps its
+   * entries). Packed cargo (phase 4) has `entry.cargo`: a sealed sack or crate, one a slot.
+   */
+  const contents = (kind = defaultKind()) => hold(kind).map((e) => ({ item: game.items.getObjectByID(e.id), qty: e.qty, entry: e })).filter((e) => e.item !== undefined);
 
   // ---- the bank: "Stow in the hold" under Sell -------------------------------------------------------------------
   // Built like the game's Sell block right above it (user feedback build .72): the same block, header band
@@ -137,7 +140,7 @@ export function install(ctx, { state, shipModel, log }) {
       const item = bankItem.item;
       const why = blocker(kind);
       const used = hold(kind).length;
-      const full = used >= slots(kind) && !hold(kind).some((e) => e.id === item.id);
+      const full = used >= slots(kind) && !hold(kind).some((e) => e.id === item.id && e.cargo === undefined);
       const icon = ctx.getResourceUrl(shipModel.HULLS[s.hull]?.media ?? 'assets/hull_dinghy.webp');
       let html = `<div class="${headClass}"><h5 class="${titleClass} voyage-hold-title"><img class="skill-icon-xxs mr-1" src="${icon}" alt="">${esc(t('MOD_VOY_HOLD_TITLE', { hull: hullName(kind) }))}</h5>` +
         `<div class="block-options"><span class="${full ? `${countClass.replace('text-combat-smoke', '')} text-warning` : countClass}">${esc(t('MOD_VOY_HOLD_SLOTS', { used: `${used}`, slots: `${slots(kind)}` }))}</span></div></div>` +

@@ -64,7 +64,7 @@ test('save v9: Navigator\'s Charts start unbought and stay bought', async () => 
   const old = { ...defaultSave(), v: 8 };
   delete old.navigator;
   const { save, report } = loadSave(JSON.stringify(old));
-  assert.deepEqual(report.applied, [8, 9, 10, 11]);
+  assert.deepEqual(report.applied, [8, 9, 10, 11, 12]);
   assert.equal(save.navigator, false);
   const bought = loadSave(serializeSave({ ...save, navigator: true })).save;
   assert.equal(bought.navigator, true);

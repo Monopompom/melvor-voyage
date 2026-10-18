@@ -106,6 +106,32 @@
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
         "sellsFor": 100
+      },
+      {
+        "itemType": "Item",
+        "id": "Sack",
+        "name": "Sack",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/sack.webp",
+        "customDescription": "An empty cargo sack. At a harbour board it takes 50 soft goods (crops, ash, herbs, dust, scrolls) for a cargo run. One hold slot.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 120
+      },
+      {
+        "itemType": "Item",
+        "id": "Crate",
+        "name": "Crate",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/crate.webp",
+        "customDescription": "An empty cargo crate. At a harbour board it takes 50 hard goods (bars, charcoal, crafted goods, Township boxes) for a cargo run. One hold slot.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 160
       }
     ],
     "skillData": [
@@ -121,6 +147,47 @@
           ],
           "defaultPrimaryProducts": [
             "voyage:Pitch"
+          ]
+        }
+      },
+      {
+        "skillID": "melvorD:Crafting",
+        "data": {
+          "recipes": [
+            {
+              "id": "Sack",
+              "level": 10,
+              "productID": "voyage:Sack",
+              "baseQuantity": 1,
+              "baseExperience": 24,
+              "categoryID": "melvorF:Bags",
+              "itemCosts": [
+                {
+                  "id": "melvorD:Leather",
+                  "quantity": 2
+                }
+              ],
+              "currencyCosts": []
+            },
+            {
+              "id": "Crate",
+              "level": 30,
+              "productID": "voyage:Crate",
+              "baseQuantity": 1,
+              "baseExperience": 34,
+              "categoryID": "melvorF:Bags",
+              "itemCosts": [
+                {
+                  "id": "melvorD:Leather",
+                  "quantity": 1
+                },
+                {
+                  "id": "melvorD:Oak_Logs",
+                  "quantity": 20
+                }
+              ],
+              "currencyCosts": []
+            }
           ]
         }
       }

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   HULLS, PLANNED_HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, dockSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach, isPlace,
   canHop, shipAfterHops, hexDist, condOf, repairPlan, canRepair, pitchChance, REPAIR,
-  holdSlots, atShip, stow, takeOut, UPGRADES, upgradeFor, upgradeBlocker, HOLD_SLOTS, BIG_SHIPS, shipBill,
+  holdSlots, atShip, stow, takeOut, UPGRADES, upgradeFor, upgradeBlocker, HOLD_SLOTS, BIG_SHIPS, shipBill, dinghyBuild, OLD_HAT,
 } from '../src/ship-model.mjs';
 import { HULL_IDS, loadSave, serializeSave, defaultSave, xpForSteps } from '../src/voyage-model.mjs';
 import { createTerrain, hexDistance, NEIGHBOURS } from '../src/terrain.mjs';
@@ -208,7 +208,7 @@ test('every water and shoal hex has a shore distance; land has none', async () =
 
 test('save v1 migrates up with no ship; a ship round-trips; a bad ship is dropped', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 1, landHexes: 4, waterHexes: 0, backfilled: true }));
-  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   assert.deepEqual(save, { ...defaultSave(), landHexes: 4, backfilled: true });
   const withShip = { ...defaultSave(), boat: { ...dinghy(3, 7), cond: 64, hold: [], aboard: false }, ship: { hull: 'brig', q: 9, r: 1, cond: 70, hold: [] }, shipChecked: true };
   assert.deepEqual(loadSave(serializeSave(withShip)).save, withShip);
@@ -470,6 +470,13 @@ test('stowing stacks like the bank; a new kind needs a free slot; taking out fre
   assert.deepEqual(takeOut(hold, 'a', 2), { hold: [{ id: 'a', qty: 3 }, { id: 'b', qty: 1 }], taken: 2 });
   assert.deepEqual(takeOut(hold, 'b', 99), { hold: [{ id: 'a', qty: 5 }], taken: 1 });
   assert.deepEqual(takeOut(hold, 'z', 1), { hold, taken: 0 });
+});
+
+test('the dinghy wants an Old Hat only where Fishing can be had (the user, 18 Oct 2026: "skip for Adv")', () => {
+  assert.ok(dinghyBuild(true).items.some((x) => x.id === OLD_HAT));
+  assert.ok(!dinghyBuild(false).items.some((x) => x.id === OLD_HAT));
+  assert.equal(dinghyBuild(false).gp, DINGHY_BUILD.gp);
+  assert.ok(!shipBill(false)[0].items.some((x) => x.id === OLD_HAT));
 });
 
 test('the shipwright\'s bill lists every hull at the price the code charges', () => {

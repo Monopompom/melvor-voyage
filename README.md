@@ -35,8 +35,8 @@ Provisions and the timed voyage come later.
   (water hexes more), and earlier travels count once when you first load. Levels sharpen the compass: at 10 it says
   how many hexes away, at 25 the name of the place. "Manage voyage" on the map and "Show map" on the page link the
   two.
-- **A boat for the water.** On foot you walk on land only. Build a dinghy on the Voyage page (500 GP and 50 Normal
-  Logs, standing on a coast); it goes into the water next to you. Step onto it to board, sail up to 2 hexes from land,
+- **A boat for the water.** On foot you walk on land only. Build a dinghy on the Voyage page (500 GP, 50 Normal
+  Logs and an Old Hat from Fishing (not in Adventure until you unlock Fishing), standing on a coast); it goes into the water next to you. Step onto it to board, sail up to 2 hexes from land,
   and step ashore on any coast: the boat waits where you left it, shown on the map with its anchor. Some islands
   need a bigger ship, in step with the dungeons on them: a dinghy can't land on the Cursed or the Ominous Isle. If you were already
   out on the water or on another island when you installed this version, you get a dinghy for free.
@@ -52,6 +52,13 @@ Provisions and the timed voyage come later.
 - **The hold.** Your boat has a hold for bank items: one kind of item a slot, in any amount (6 slots on a dinghy, one
   more every 10 Voyage levels). Stow items from the bank's item panel and take them back on the Voyage page, standing
   on the boat or next to it. The hold is kept in the mod's save data: take everything out before you remove the mod.
+- **Cargo runs.** Once a dungeon near a port is cleared, its harbour board (on the map's Here panel at the port)
+  posts requests: goods from your bank, packed 50 to a Sack or Crate (made in Crafting), carried in your hold to a
+  port at least 12 hexes away by sea. Delivering pays twice what the goods sell for, plus GP and Voyage XP for every
+  hex. Boards change every 3 days; you can carry 3 runs at once. Packed cargo stays in the hold until it is delivered.
+- **Markets with prices.** Each market pays well for some goods (140 to 180%) and little for others (60 to 80%);
+  worked goods fetch 20 points more than raw ones. You learn a market's prices by visiting it: the bank's Sell block
+  shows the price here and the best and worst you know, and the journal keeps a ledger.
 - **Night.** From 21:00 to 05:00 on your own clock, the fuel a trip leaves over lights the way, and every lit hex gives
   25% more Voyage XP. Light never takes the fuel a trip needs, so playing at night is never worse than by day.
   Astrology levels make the light go further. You can move the night in the settings, or switch it off.

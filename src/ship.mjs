@@ -14,7 +14,7 @@
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
 export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, log }) {
-  const { HULLS, DINGHY_BUILD, BIG_SHIPS } = shipModel;
+  const { HULLS, BIG_SHIPS } = shipModel;
   const skill = () => state.voyageSkill?.();
   const record = () => { const s = skill(); return s === undefined || s.futureRaw !== undefined ? undefined : s.record; };
   /** The small boat, null when there is none, undefined when the skill is missing or its save is from a newer build. */
@@ -214,7 +214,9 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     }
     return costs;
   };
-  const buildCosts = () => costsOf(DINGHY_BUILD);
+  /** Fishing can be had: not Adventure before Fishing is bought (the Old Hat is Fishing junk). */
+  const canFish = () => { try { return game.fishing?.isUnlocked !== false; } catch { return true; } };
+  const buildCosts = () => costsOf(shipModel.dinghyBuild(canFish()));
   const launchSpot = () => {
     const p = player();
     if (p === undefined || state.terrain === undefined) return undefined;
@@ -509,12 +511,21 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     } catch (e) { log('path note failed', e); }
   });
 
+  // The game's "Travelling to other hexes with Ports is free." is not so under the ship rules: a hop is a sail, paid in stores, wear and light for its straight-line hexes (the user, 18 Oct 2026: "not true anymore").
+  ctx.patch(HexOverviewElement, 'updateFastTravel').after(function (_r, hex) {
+    try {
+      const ft = hex?.pointOfInterest?.fastTravel;
+      if (!enabled() || ft === undefined || !ft.isUnlocked || this.fastTravelInfo == null) return;
+      this.fastTravelInfo.textContent = t('MOD_VOY_SHIP_FAST_TRAVEL', { groupName: ft.group.name });
+    } catch (e) { log('fast travel note failed', e); }
+  });
+
   // ---- dev and page helpers ------------------------------------------------------------------------------------
   /** voyageDev.dinghyNotice(kind): the first-load notice again. */
   const demoNotice = (kind = 'overseas') => notice(noticeSections(kind));
   const api = {
     boat: ship, big, vessel, inVessel, aboard, enabled, setShip, setVessel, demoNotice,
-    hullName: (s) => hullWord(HULLS[s?.hull]), stepsOf, afterMove, homeOf, dockOf, isHop, build, buildBlocker, buildCosts, launchSpot, whereIs, recOf,
+    hullName: (s) => hullWord(HULLS[s?.hull]), stepsOf, afterMove, homeOf, dockOf, isHop, build, buildBlocker, buildCosts, canFish, launchSpot, whereIs, recOf,
     cond, setCond, repairInfo, repair, upgradeInfo, upgrade, buyInfo, buy, buyCosts: () => costsOf(BIG_SHIPS.brig),
     onChange: (fn) => listeners.push(fn),
     /**

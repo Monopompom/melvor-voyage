@@ -457,6 +457,11 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       try { console.table(rows.map(({ xpStart, xpEnd, ...r }) => r)); } catch {}
       return { days: n, perDay: avg, visited: model.visitedCount(state.voyageSkill?.()?.record.visited ?? '') };
     },
+    /**
+     * How the harbour boards spread their goods (build .205, cargo-model weigh): `seasons` seasons of every open port's
+     * boards from this character's real goods, posted as the game would but not saved. Returns each good's share.
+     */
+    boardShares(seasons = 10) { return state.cargo?.shares?.(seasons) ?? 'cargo runs not loaded'; },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },
     state,

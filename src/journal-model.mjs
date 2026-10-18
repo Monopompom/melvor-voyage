@@ -10,7 +10,7 @@
  * 'planning' (build .123) is Plan a voyage, shown while the planner is loaded. 'road' (build .170, the
  * user's ask) is the land upgrades and the Crossroads Sign (4.27, 4.28), with live ledgers.
  */
-export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'travels', 'road', 'planning', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
+export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'cargo', 'markets', 'travels', 'road', 'planning', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
 /**
  * The Old Man's Crew pages (build .116, the user's ask): a guide to Worker Folks: Hiring in the captain's voice, shown
  * as their own tab only while that mod is loaded. Written chapters like the ones below (MOD_VOY_JOURNAL_CH_CREW_*).
@@ -41,11 +41,15 @@ export const JOURNAL_WRITTEN = {
   map: { sections: ['TINT', 'PANEL', 'KEYS', 'MARKS'] },
   planning: { sections: ['WHERE', 'STOPS', 'CHARTS'] },
   lands: { sections: ['KINDS', 'FEATURES'] },
-  tricks: { sections: ['STORES', 'BOAT', 'NIGHT', 'WAY'], points: true },
+  tricks: { sections: ['STORES', 'BOAT', 'TRADE', 'NIGHT', 'WAY', 'PAGE'], points: true },
   settings: { sections: ['EASIER', 'KEYS', 'WHY'] },
   leaving: { sections: ['WHAT', 'HOW'], warn: ['WHAT'] },
   adventure: { sections: ['FIRST', 'NEXT'] },
   road: { sections: ['MOUNTS', 'SIGN'] },
+  // Cargo runs (phase 4).
+  cargo: { sections: ['BOARD', 'TRADE', 'LOAD', 'DELIVER', 'DROP'] },
+  // Markets with prices (phase 4).
+  markets: { sections: ['PRICES', 'LEARN'] },
 };
 
 /**

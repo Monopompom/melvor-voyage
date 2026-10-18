@@ -290,6 +290,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   };
   const VERDICT = { food: 'SHORT', fuel: 'SHORT', ashore: 'ASHORE', deep: 'HULL', hull: 'HULL', hullAshore: 'HULL', noway: 'NOWAY', uncharted: 'UNCHARTED', here: 'HERE' };
 
+  /** Navigator's Charts for sale: drawn in the Ship block's Shipwright row since build .205 (was under the plan). */
   const navHtml = () => {
     if (owned()) return '';
     const why = navBlocker();
@@ -301,13 +302,13 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       `<div class="mb-1">${esc(t('MOD_VOY_PLAN_NAV_NEED', { level: `${P.NAVIGATOR.level}` }))}</div>` +
       `<div class="d-flex flex-wrap align-items-center">${costs.join('')}</div>` +
       (why === undefined
-        ? `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-plan="buy">${esc(t('MOD_VOY_PLAN_NAV_BUY'))}</button></div>`
+        ? `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-plan="buy">${esc(t('MOD_VOY_PLAN_NAV_BUY'))}</button></div>`
         : `<div class="text-warning mt-2">${esc(reason)}</div>`));
   };
 
   const html = () => {
     if (!open()) return '';
-    if (target === undefined) return section(`<div>${esc(t('MOD_VOY_PLAN_EMPTY'))}</div>`) + navHtml();
+    if (target === undefined) return section(`<div>${esc(t('MOD_VOY_PLAN_EMPTY'))}</div>`);
     const plan = compute();
     const media = target.media ? `<img class="voyage-plan-icon mr-2" src="${esc(target.media)}" alt="">` : '';
     const destAt = plan.dest !== undefined ? ` <span class="text-muted">${at(plan.dest)}</span>` : '';
@@ -315,7 +316,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="clear">${esc(t('MOD_VOY_PLAN_CLEAR'))}</button></div>`);
     if (plan.path === undefined) {
       out += section(`<div class="font-w600 ${plan.why === 'here' ? 'text-success' : 'text-danger'}">${esc(t(`MOD_VOY_PLAN_VERDICT_${VERDICT[plan.why] ?? 'NOWAY'}`))}</div>`);
-      return out + navHtml();
+      return out;
     }
     // The plan as a small ledger (the user, build .124: "give some love to that text"): a label, then the value;
     // food, fuel and hull read "now → on arrival", amber or red when they arrive low.
@@ -391,7 +392,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     const sailBtn = owned() && good ? `<button type="button" class="btn btn-success" data-voyage-plan="sail">${esc(t('MOD_VOY_PLAN_SAIL'))}</button>` : '';
     // Green last, at the right edge like every green button on the page (build .157).
     out += `<div class="voyage-plan-buttons"><button type="button" class="btn btn-outline-info" data-voyage-plan="map">${esc(t('MOD_VOY_PLAN_SHOW_MAP'))}</button>${sailBtn}</div>`;
-    return out + navHtml();
+    return out;
   };
 
   /** Opens the map on the destination with the route selected, so the map's own Travel can take you (one leg). */
@@ -431,6 +432,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   /** Opens the Voyage page at the planner block. */
   const showBlock = () => {
     try { state.openPage(game.pages.getObjectByID(VOYAGE_PAGE)); } catch (e) { log('plan page failed', e); }
+    state.pageLayout?.unfold('plan-block'); // a folded plan opens when a plan is set (build .203)
     setTimeout(() => { try { document.querySelector('#voyage-container [data-voyage="plan-block"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch {} }, 100);
   };
   /** A target for a zoned action: the hexes where the journal found it, else the known hexes of its zone, else `hexes`. */
@@ -464,7 +466,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     return { name: target.name, media: target.media, distance: Number.isFinite(d) ? d : undefined };
   };
   const reopen = () => { if (target === undefined) return false; showBlock(); return true; };
-  const api = { planTo, forAction, forArea, html, onClick, signature, open, owned, summary, reopen, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
+  const api = { planTo, forAction, forArea, html, onClick, signature, open, owned, summary, reopen, navHtml, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
   state.planner = api;
   return api;
 }
