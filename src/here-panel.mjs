@@ -302,9 +302,15 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return `<div class="voyage-here-ship voyage-here-time ${tod.night ? 'text-info' : 'text-muted'}" title="${esc(hint)}"><span><i class="fa fa-${tod.night ? 'moon' : 'sun'} mr-1"></i>${esc(text)}</span></div>`;
   };
 
+  /** Under way (phase 5a): where to and the time left, as of the hex entered last. */
+  const underwayLine = () => {
+    const way = state.clock?.chip?.();
+    return way === undefined ? '' : `<div class="voyage-here-ship text-info"><span><i class="fa fa-route mr-1"></i>${esc(way.tip)}</span></div>`;
+  };
+
   /** The ship and stores lines in one band with its own background (user feedback, build .58). */
   const shipBox = () => {
-    const inner = nightLine() + shipLine() + shipyardLine() + storesLine();
+    const inner = underwayLine() + nightLine() + shipLine() + shipyardLine() + storesLine();
     return inner === '' ? '' : `<div class="voyage-here-shipbox">${inner}</div>`;
   };
 
@@ -320,6 +326,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const out = [];
     const st = state.stores;
     const on = st?.enabled?.() === true;
+    // 1b. Under way (phase 5a): the time left, as of the hex entered last.
+    const way = state.clock?.chip?.();
+    if (way !== undefined) out.push(chip(`<i class="fa fa-route mr-1"></i>${esc(way.text)}`, way.tip, 'text-info'));
     // 2. Stores, coloured like the panel's line.
     const have = on ? st.stores() : undefined;
     if (have !== undefined) {

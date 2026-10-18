@@ -6,7 +6,7 @@ import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, parse
 test('v6 saves get an empty journal', () => {
   const v6 = { v: 6, landHexes: 3, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 10, fuel: 1 }, kitGiven: true, hold: [], unlockNotice: [] };
   const { save, report } = loadSave(JSON.stringify(v6));
-  assert.deepEqual(report.applied, [6, 7, 8, 9, 10, 11, 12, 13]);
+  assert.deepEqual(report.applied, [6, 7, 8, 9, 10, 11, 12, 13, 14]);
   assert.deepEqual(save.journal, emptyJournal());
   assert.equal(save.landHexes, 3);
 });
@@ -111,7 +111,7 @@ test('crosslinks: split into text and links, targets checked', () => {
 test('v7 saves get charting and unread marks, the rest kept', () => {
   const v7 = { v: 7, landHexes: 1, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [], unlockNotice: [], journal: { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'] } };
   const { save, report } = loadSave(JSON.stringify(v7));
-  assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13]);
+  assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13, 14]);
   assert.deepEqual(save.journal, { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'], charted: [], freeUsed: 0, unread: {}, golbin: false, ports: {} });
 });
 
@@ -179,4 +179,11 @@ test('islands reached and ports used (phase 4 wrap-up): place kinds, port deeds 
   assert.deepEqual(loadSave(serializeSave(save)).save, save);
   assert.deepEqual(cleanJournal({ ports: { A: { load: 2, nope: 3, deliver: -1 }, B: { take: 'x' }, '': { load: 1 } } }).ports, { A: { load: 2 } });
   assert.deepEqual(cleanJournal({ places: { 'island|frost': '20,26', 'port|A': '1,1' } }).places, { 'island|frost': '20,26', 'port|A': '1,1' });
+});
+
+test('roman folios go past xvi', async () => {
+  const { roman, JOURNAL_CHAPTERS } = await import('../src/journal-model.mjs');
+  assert.deepEqual([1, 4, 9, 14, 16, 17, 19, 20, 24, 40].map(roman), ['i', 'iv', 'ix', 'xiv', 'xvi', 'xvii', 'xix', 'xx', 'xxiv', 'xl']);
+  for (let i = 1; i <= JOURNAL_CHAPTERS.length + 4; i++) assert.match(roman(i), /^[ivxl]+$/);
+  assert.equal(roman(0), '0');
 });

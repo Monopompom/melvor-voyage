@@ -181,6 +181,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     if (rules.allowedAt(skillId, rec, state.ruleOpts())) return undefined;
     return { pos, rec };
   };
+  /** True when the gate refuses a gated skill on the player's hex (the ship's clock leaves it to the gate). */
+  state.skillLockedHere = (skillId) => lockedHere(skillId) !== undefined;
 
   const describe = (skill, skillId, { pos, rec }) => {
     const n = need(skillId);

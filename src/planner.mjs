@@ -206,6 +206,17 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     } catch (e) { log('arrival action failed', e); notify(t('MOD_VOY_PLAN_START_FAILED', { name: a.action?.name ?? a.area?.name ?? '' }), 'danger'); }
   };
 
+  /** The arrival pick as a ship's clock choice (clock-model cleanChoice), or undefined for none. */
+  const pickChoice = () => {
+    const pick = arrivalNow();
+    const a = target?.arrival;
+    if (pick === 'none' || a === undefined) return undefined;
+    if (a.kind === 'action' && a.action !== undefined) return { k: 'skill', skill: a.skillId, action: a.action.id };
+    if (pick === 'go' && isDungeon(a.area)) return { k: 'dungeon', area: a.area.id };
+    if (pick.startsWith('m:')) return { k: 'fight', area: a.area.id, monster: pick.slice(2) };
+    return undefined;
+  };
+
   // ---- Set off -----------------------------------------------------------------------------------------------------
   const notify = (text, kind = 'success') => {
     try {
@@ -225,6 +236,19 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     const cart = game.cartography;
     const name = target.name;
     if (plan.split.depart !== undefined) loadHere();
+    // Timed travel (phase 5a): the whole route becomes one voyage, loading at the planned stops, the pick started on
+    // arrival, then what you were doing (voyage-clock.mjs).
+    const clock = state.clock;
+    if (clock?.on?.() === true) {
+      const chain = [pickChoice(), clock.doingNow()].filter((c) => c !== undefined);
+      const loads = plan.split.legs.filter((leg) => leg.load !== undefined).map((leg) => leg.to);
+      if (clock.setOff({ path: plan.path, name, chain, loads })) {
+        target = undefined;
+        try { cart.render(); } catch {}
+        refresh();
+        return;
+      }
+    }
     for (const leg of plan.split.legs) {
       const path = plan.walk.slice(leg.from, leg.to + 1).reverse();
       try { cart.movePlayer(path, false); } catch (e) { log('plan leg failed', e); }
@@ -330,6 +354,14 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       `<span class="voyage-plan-bit"><i class="fa fa-water"></i>${esc(t('MOD_VOY_PLAN_SEA', { count: `${c.sea}` }))}</span>`];
     if (c.hops > 0) parts.push(`<span class="voyage-plan-bit"><i class="fa fa-ship"></i>${esc(t('MOD_VOY_PLAN_HOPS', { count: `${c.hops}` }))}</span>`);
     let rows = row(t('MOD_VOY_PLAN_ROW_ROUTE'), parts.join(''));
+    // Timed travel (phase 5a): how long the route takes and when you arrive.
+    const clock = state.clock;
+    if (clock?.on?.() === true) {
+      try {
+        const ms = clock.routeInfo(plan.path).ms;
+        rows += row(t('MOD_VOY_PLAN_ROW_TIME'), `${esc(clock.duration(ms))}<span class="text-muted ml-2">${esc(t('MOD_VOY_CLOCK_ARRIVE_AT', { time: clock.clockAt(Date.now() + ms) }))}</span>`);
+      } catch (e) { log('plan time failed', e); }
+    }
     const legs = [];
     if (sp.depart !== undefined) legs.push(`<li>${esc(t('MOD_VOY_PLAN_DEPART'))} <span class="text-success">${esc(loadText(sp.depart))}</span></li>`);
     sp.legs.forEach((leg) => {

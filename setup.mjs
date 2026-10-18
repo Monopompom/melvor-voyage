@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-18.215';
+export const BUILD = '2026-10-18.223';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -177,6 +177,7 @@ export async function setup(ctx) {
     { type: 'switch', name: 'combat', label: getLangString('MOD_VOY_SETTING_COMBAT'), hint: getLangString('MOD_VOY_SETTING_COMBAT_HINT'), default: true, onChange: onChange('combat') },
     { type: 'switch', name: 'trade', label: getLangString('MOD_VOY_SETTING_TRADE'), hint: getLangString('MOD_VOY_SETTING_TRADE_HINT'), default: true, onChange: onChange('trade') },
     { type: 'switch', name: 'provisions', label: getLangString('MOD_VOY_SETTING_PROVISIONS'), hint: getLangString('MOD_VOY_SETTING_PROVISIONS_HINT'), default: true, onChange: onChange('provisions') },
+    { type: 'switch', name: 'timedTravel', label: getLangString('MOD_VOY_SETTING_TIMED'), hint: getLangString('MOD_VOY_SETTING_TIMED_HINT'), default: true, onChange: onChange('timedTravel') },
     { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
     { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
     { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
@@ -217,6 +218,7 @@ export async function setup(ctx) {
       trade: () => flag('trade'),
       provisions: () => flag('provisions'),
       night: () => flag('night'),
+      timedTravel: () => flag('timedTravel'),
       centreKey: () => String(value('centreKey') ?? '').trim().toUpperCase(),
       journalKey: () => String(value('journalKey') ?? '').trim().toUpperCase(),
       mapKey: () => String(value('mapKey') ?? '').trim().toUpperCase(),
@@ -240,6 +242,8 @@ export async function setup(ctx) {
     },
     /** The player's hex on the active map, or undefined. Never cached: position is read live. */
     position() {
+      // The Set off popup asks "what works there" as if you stood on the destination (voyage-clock.mjs).
+      if (this.posOverride !== undefined) return this.posOverride;
       try {
         const map = game.cartography?.activeMap ?? game.cartography?.worldMaps.getObjectByID(table.meta.mapId);
         return map?.playerPosition;
@@ -360,6 +364,13 @@ export async function setup(ctx) {
       const planModel = await ctx.loadModule('src/plan-model.mjs');
       (await ctx.loadModule('src/planner.mjs')).install(ctx, { state, model, planModel, storesModel, terrainMod, log });
     } catch (e) { console.error('[Voyage] the planner failed to load; the rest runs', e); state.planner = undefined; }
+    // The ship's clock (phase 5a): travel takes time. A failure leaves phase 4's instant travel.
+    try {
+      const clockModel = await ctx.loadModule('src/clock-model.mjs');
+      const clock = (await ctx.loadModule('src/voyage-clock.mjs')).install(ctx, { state, C: clockModel, storesModel, rules, terrainMod, helpLayout, log });
+      const s = voyageSkill();
+      if (s !== undefined) s.clock = clock;
+    } catch (e) { console.error('[Voyage] the ship\'s clock failed to load; travel stays instant', e); state.clock = undefined; state.timed = () => false; }
   }
   // Markets with prices (phase 4): sale prices by market, the bank's Sell line, the journal's ledger.
   try {

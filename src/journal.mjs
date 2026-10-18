@@ -445,7 +445,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       if (id === 'settings' && sec === 'KEYS') html += keysTable();
       if (id === 'lands' && sec === 'KINDS') html += landsTable();
       if (id === 'lands' && sec === 'FEATURES') html += featuresTable();
-      if (id === 'road' && sec === 'MOUNTS') html += mountsTable();
+      if (id === 'road' && sec === 'MOUNTS') html += mountsTable() + unicorn();
       if (id === 'road' && sec === 'SIGN') html += signLedger();
       if (id === 'crew_hire' && sec === 'START') html += crewAboard();
       if (id === 'crew_ranks' && sec === 'TIERS') html += crewTiers();
@@ -474,16 +474,18 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   const mountsTable = () => {
     const M = state.landModel;
     if (M === undefined) return '';
+    // Phase 5a: with timed travel the mounts give land speed, not a GP cut.
+    const timed = state.timed?.() === true;
     const rows = M.MOUNTS.map((m) => {
       const p = shopPurchase(m.id);
       const mine = owns(p);
       // "Yours" under the name, not a column of its own: the page is narrow (build .172).
       return [{ html: `<span class="vj-mount">${p?.media ? `<img src="${p.media}" alt="">` : ''}<span><b>${esc(p?.name ?? m.id)}</b>${mine ? `<span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_ROAD_YOURS'))}</span>` : ''}</span></span>` },
-        { text: `${m.level}`, cls: 'vj-num' }, { text: `${Math.round(m.cut * 100)}%`, cls: 'vj-num' },
+        { text: `${m.level}`, cls: 'vj-num' }, { text: timed ? `×${m.speed}` : `${Math.round(m.cut * 100)}%`, cls: 'vj-num' },
         { html: p === undefined ? '' : `<span class="vj-costs">${priceHtml(p)}</span>` }];
     });
     rows.numeric = [false, true, true, false];
-    return ledger([t('MOD_VOY_JOURNAL_ROAD_COL_MOUNT'), t('MOD_VOY_JOURNAL_ROAD_COL_LEVEL'), t('MOD_VOY_JOURNAL_ROAD_COL_CUT'), t('MOD_VOY_JOURNAL_ROAD_COL_PRICE')], rows);
+    return ledger([t('MOD_VOY_JOURNAL_ROAD_COL_MOUNT'), t('MOD_VOY_JOURNAL_ROAD_COL_LEVEL'), t(timed ? 'MOD_VOY_JOURNAL_ROAD_COL_SPEED' : 'MOD_VOY_JOURNAL_ROAD_COL_CUT'), t('MOD_VOY_JOURNAL_ROAD_COL_PRICE')], rows);
   };
   // The shipwright's bill (build .178, the hull chapter): every hull's price live from ship-model.mjs, laid out like
   // the mounts ledger: hull icon, name, Yours (or what it was rebuilt as), where and how it is had, reach and crates.
@@ -552,6 +554,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   // The first page: his galleon, Patient Grace, in pencil (the user, build .123).
   const galleonUrl = ctx.getResourceUrl('assets/galleon.webp');
   const galleon = () => `<figure class="vj-figure vj-galleon"><img src="${galleonUrl}" alt="${esc(t('MOD_VOY_JOURNAL_GALLEON_ALT'))}"><figcaption>${esc(t('MOD_VOY_JOURNAL_GALLEON_CAPTION'))}</figcaption></figure>`;
+  // The captain's sketch of the unicorn under the mounts (build .223, the user: "a captain's hand-drawn picture of the
+  // unicorn. With some funny text"), drawn and captioned like the galleon.
+  const unicornUrl = ctx.getResourceUrl('assets/unicorn_sketch.webp');
+  const unicorn = () => `<figure class="vj-figure vj-galleon"><img src="${unicornUrl}" alt="${esc(t('MOD_VOY_JOURNAL_UNICORN_ALT'))}"><figcaption>${esc(t('MOD_VOY_JOURNAL_UNICORN_CAPTION'))}</figcaption></figure>`;
 
   // The Old Man's Crew (build .116): Worker Folks: Hiring, read live where it can be (never written to).
   const crewSkill = () => skillOf(jm.CREW_SKILL_ID);
@@ -728,7 +734,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       // The balance pass: the reward every level gives (model.travelDiscount).
       + `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_DISCOUNT', { per: `${model.TRAVEL_DISCOUNT_PER_LEVEL}`, pct: `${model.travelDiscount(sk.level)}` }))}</p></div>`;
   };
-  const roman = (n) => ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 'xi', 'xii', 'xiii', 'xiv', 'xv', 'xvi'][n - 1] ?? `${n}`;
+  const roman = jm.roman;
   /** Chapters two to a spread: How it works (`view.spread`) and the Old Man's Crew (`view.crewSpread`). */
   const howSpread = (list = chapters(), field = 'spread') => {
     // How it works opens on the chart and the Manifest (build .179); the Crew tab has no first spread of its own.

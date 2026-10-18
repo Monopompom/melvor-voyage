@@ -22,7 +22,8 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   const astroLevel = () => { try { return game.astrology?.level ?? 1; } catch { return 1; } };
   // ---- night (3e): the player's own clock ----------------------------------------------------------
   const shift = () => state.settings.nightShift?.() ?? 0;
-  const hourNow = () => { const d = new Date(); return d.getHours() + d.getMinutes() / 60; };
+  // Phase 5a: the clock a timed voyage reads (during the offline catch-up, the hour being replayed; voyage-clock.mjs).
+  const hourNow = () => { const d = new Date(state.clockNow?.() ?? Date.now()); return d.getHours() + d.getMinutes() / 60; };
   /** True at night with the "Night" setting on: light is bought from spare fuel and lit hexes pay more XP. */
   const night = () => state.settings.night?.() !== false && S.isNight(hourNow(), shift());
   const clock = (h) => `${String(h).padStart(2, '0')}:00`;
@@ -104,7 +105,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       opts.hull = hull === undefined || have.cond === undefined ? hull : { ...hull, cond: have.cond };
     }
     const plan = S.planMove(have, steps, opts);
-    return night() ? S.planLight(plan, steps, { fmLevel: fmLevel(), astroLevel: astroLevel() }) : plan;
+    return night() ? S.planLight(plan, steps, { fmLevel: fmLevel(), astroLevel: astroLevel(), hold: state.lightHold ?? 0 }) : plan;
   };
   /** { steps, plan } for a game path (destination first), or undefined when provisions are off. */
   const planFor = (path) => {

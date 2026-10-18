@@ -1,6 +1,8 @@
 // The Voyage skill: a passive skill like Township, with its own page and sidebar entry under Passive.
-// Phase 3a is the shell: registration, page, save block, XP per hex travelled, compass levels. No passiveTick yet
-// (the ship's clock arrives in phase 5), so Game.registerSkill keeps it out of the passive and active actions.
+// Registration, page, save block, XP per hex travelled, compass levels. Phase 5a's ship's clock makes it an active
+// action: the activeTick method puts it in game.activeActions (Game.registerSkill), so a voyage under way is saved and
+// ticked like any skill, offline too. The voyage itself is src/voyage-clock.mjs (set as `clock` by setup); without it
+// the skill is never active. No actionTimer on purpose: Worker Folks delegates only actions that have one.
 //
 // Save: the game writes every registered skill into the save inside a length-marked region, Creator Toolkit mods
 // included (Game.encode walks game.skills; unlike mod settings and characterStorage). A save made with Voyage
@@ -21,6 +23,8 @@ export function createVoyageClass({ model, log }) {
       /** Set by setup: a string that changes when what the open page shows changes (GP, logs, position). */
       this.pageSignature = undefined;
       this._pageSig = undefined;
+      /** Set by setup: the ship's clock (src/voyage-clock.mjs). */
+      this.clock = undefined;
     }
 
     get name() { return getLangString('SKILL_NAME_Voyage'); }
@@ -29,6 +33,15 @@ export function createVoyageClass({ model, log }) {
      * has none (Skill.getRealmOptions returns []), so Voyage looked disabled. It works in every realm.
      */
     shouldShowSkillInSidebar() { return true; }
+
+    // ---- the active action (a voyage under way) ---------------------------------------------------------
+    activeTick() { try { this.clock?.tick(); } catch (e) { log('voyage tick failed', e); } }
+    get isActive() { return this.clock?.running?.() === true; }
+    get activeSkills() { return this.isActive ? [this] : []; }
+    /** The game stopping the action (another action after the question, a gamemode change): the voyage ends here. */
+    stop() { try { return this.clock?.stop?.() ?? false; } catch (e) { log('voyage stop failed', e); return false; } }
+    /** Lines for the game's offline summary when the catch-up began under way (OfflineProgressElement.setMessages). */
+    getOfflineMessages() { try { return this.clock?.offlineMessages?.() ?? []; } catch (e) { log('voyage offline lines failed', e); return []; } }
 
     // ---- persistence ---------------------------------------------------------------------------------
     encode(writer) {
@@ -149,6 +162,8 @@ export function createVoyageClass({ model, log }) {
         try { this._pageSig = this.pageSignature?.(); } catch {}
         try { this.pageRenderer?.(); } catch (e) { log('Voyage page render failed', e); }
       }
+      // The Under way block's bars move every frame while the page is open.
+      if (this.game.openPage?.id === model.SKILL_ID) { try { this.clock?.render?.(); } catch (e) { log('Under way render failed', e); } }
     }
 
     getErrorLog() {

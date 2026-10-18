@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { stepMs, LAND_MS } from '../src/clock-model.mjs';
 import { MOUNTS, mountTier, mountAt, nextMount, gpFactor, hexGp, pathGp, SIGN, SIGN_POIS, signAction, signAdds } from '../src/land-model.mjs';
 
 // The shop as data/package.json sells it: the Voyage purchases and a buy that checks their requirements the way the
@@ -142,7 +143,16 @@ test('buying one by one: the land speed rises with each mount (phase 5 data)', (
   }
 });
 
-test.todo('phase 5: after each mount bought, a land hex takes 1 / speed of the on-foot travel time (the cut gives way to speed)');
+test('phase 5: after each mount bought, a land hex takes 1 / speed of the on-foot travel time (the cut gives way to speed)', () => {
+  const s = shop(99);
+  const onFoot = stepMs({ cls: 'grasslands' }, { mountSpeed: mountAt(mountTier(s.owned)).speed });
+  assert.equal(onFoot, LAND_MS);
+  for (const m of MOUNTS) {
+    s.buy(m.id);
+    const ms = stepMs({ cls: 'grasslands' }, { mountSpeed: mountAt(mountTier(s.owned)).speed });
+    assert.equal(ms, Math.round(LAND_MS / m.speed), m.id);
+  }
+});
 
 test('hexGp rounds each hex down, as the game does', () => {
   assert.equal(hexGp(33, 0.7, 1, true), Math.floor(33 * 0.7 * 0.9));

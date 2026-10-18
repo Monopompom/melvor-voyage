@@ -1,8 +1,10 @@
 // Land upgrades and the Crossroads Sign (build .162), the game side. Rules in land-model.mjs.
 //
 // Both are shop purchases in the Voyage category (data/package.json), so the game keeps what was bought in its own
-// shop save. Land: until phase 5 the mount cuts the GP of land hexes, in Cartography.getTravelCosts (the one place the
-// game prices a path: travel, the planner, the stores' rescue and the trader's floor all read it). The route search
+// shop save. Land: with instant travel (phase 5a: the Timed travel setting off) the mount cuts the GP of land hexes, in
+// Cartography.getTravelCosts (the one place the
+// game prices a path: travel, the planner, the stores' rescue and the trader's floor all read it); with timed travel it
+// gives speed instead (`speed`, read by voyage-clock.mjs) and the GP stay the game's. The route search
 // still weighs hexes at the game's prices. Sign: the POI it stands on is the skill record's `sign` (save v12); its
 // standing buffs are added after the game's own (Cartography.addProvidedStats), unless it is the POI underfoot, which
 // the game already counts. A signpost marker stands on its hex.
@@ -20,8 +22,10 @@ export function install(ctx, { state, landModel: L, shipModel, log }) {
   /** Land for the cut: Voyage's terrain says sea or not; without the table, the game's water flag. */
   const isLand = (hex) => { const rec = state.recordAt?.(hex); return rec !== undefined ? !shipModel.isSea(rec) : hex?.isWater !== true; };
 
+  /** The tier whose GP cut applies: none while travel is timed (the cut gives way to speed). */
+  const cutTier = () => (state.timed?.() === true ? 0 : tier());
   ctx.patch(Cartography, 'getTravelCosts').replace(function (original, path) {
-    const t = tier();
+    const t = cutTier();
     if (t === 0) return original(path);
     try {
       const costs = new Costs(this.game);
@@ -125,7 +129,9 @@ export function install(ctx, { state, landModel: L, shipModel, log }) {
     tier, mount: () => L.mountAt(tier()), next: () => L.nextMount(tier()), nameOf,
     mediaOf: (m) => ctx.getResourceUrl(m.media), isLand,
     /** The GP factor for one hex now (the trader's floor reads it). */
-    gpFactor: (hex) => L.gpFactor(tier(), isLand(hex)),
+    gpFactor: (hex) => L.gpFactor(cutTier(), isLand(hex)),
+    /** The land speed now (phase 5a): the mount's, 1 on foot. */
+    speed: () => L.mountAt(tier()).speed,
     levelOf: (m) => m.level,
     // sign
     signOwned: () => enabled() && owned(L.SIGN.id),

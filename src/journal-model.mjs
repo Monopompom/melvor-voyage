@@ -8,9 +8,10 @@
  * "write it all down": reading the map, tricks, settings, removing the mod, Adventure's first coins). 'lands' (build
  * .113) adds two live ledgers from the rule table: what each kind of land and each feature lets a craft do.
  * 'planning' (build .123) is Plan a voyage, shown while the planner is loaded. 'road' (build .170, the
- * user's ask) is the land upgrades and the Crossroads Sign (4.27, 4.28), with live ledgers.
+ * user's ask) is the land upgrades and the Crossroads Sign (4.27, 4.28), with live ledgers. 'clock' (build .219) is
+ * timed travel (phase 5a, 4.5).
  */
-export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'cargo', 'markets', 'notices', 'travels', 'road', 'planning', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
+export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'cargo', 'markets', 'notices', 'travels', 'clock', 'road', 'planning', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
 /**
  * The Old Man's Crew pages (build .116, the user's ask): a guide to Worker Folks: Hiring in the captain's voice, shown
  * as their own tab only while that mod is loaded. Written chapters like the ones below (MOD_VOY_JOURNAL_CH_CREW_*).
@@ -22,6 +23,15 @@ export const JOURNAL_CREW = ['crew_hire', 'crew_ranks', 'crew_pay', 'crew_tips']
  * from their place in the list); only the spread they sit on moves.
  */
 export const FIRST_SPREADS = 1;
+/** A folio in small roman numerals (the list stopped at xvi until build .220, so chapters 17 on read "17"). */
+export function roman(n) {
+  if (!Number.isInteger(n) || n < 1 || n > 3999) return `${n}`;
+  let out = '';
+  for (const [v, s] of [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']]) {
+    while (n >= v) { out += s; n -= v; }
+  }
+  return out;
+}
 /** The How it works spread a chapter (index in the shown list) sits on, and how many spreads `count` chapters take. */
 export const chapterSpread = (i) => FIRST_SPREADS + Math.floor(i / 2);
 export const howSpreads = (count) => FIRST_SPREADS + Math.ceil(count / 2);
@@ -46,6 +56,8 @@ export const JOURNAL_WRITTEN = {
   leaving: { sections: ['WHAT', 'HOW'], warn: ['WHAT'] },
   adventure: { sections: ['FIRST', 'NEXT'] },
   road: { sections: ['MOUNTS', 'SIGN'] },
+  // The ship's clock (phase 5a, build .219).
+  clock: { sections: ['PACE', 'WAY', 'LAND', 'ASK', 'AWAY', 'OFF'] },
   // Cargo runs (phase 4).
   cargo: { sections: ['BOARD', 'TRADE', 'LOAD', 'DELIVER', 'DROP'] },
   // Markets with prices (phase 4).

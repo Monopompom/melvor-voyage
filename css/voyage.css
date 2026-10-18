@@ -816,3 +816,63 @@ body.vj-locked { overflow: hidden; }
 #voyage-here.voyage-capped .voyage-here-head { position: sticky; top: -.5rem; z-index: 2; margin: -.5rem -.5rem 4px; padding: .5rem .5rem 4px; background: inherit; border-bottom: 1px solid var(--voyage-rule); }
 /* Touch: the harbour board's buttons are 40px high too (build .209). */
 @media (pointer: coarse) { .voyage-cargo-act > .btn, .voyage-board-tabs > .btn { min-height: 40px; } }
+
+/* The ship's clock (phase 5a, src/voyage-clock.mjs): the Under way block, its ending and the Set off popup. Colours
+   from the theme tokens above; the bars are the game's own progress (themed by the game). */
+.voyage-underway-block { margin-bottom: 16px; }
+.voyage-clock-top { display: flex; align-items: center; gap: 12px; }
+.voyage-clock-pic { width: 48px; height: 48px; flex: none; }
+.voyage-clock-bars { display: flex; flex-direction: column; gap: 4px; }
+.voyage-clock-bar-row { display: flex; justify-content: space-between; gap: 12px; font-size: 1rem; }
+.voyage-clock-bar { height: 10px; margin-bottom: 8px; }
+.voyage-clock-bar .progress-bar { transition: none; }
+.voyage-clock-leg { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.voyage-clock-leg > span:last-child { margin-left: auto; }
+.voyage-clock-leg-done { color: var(--voyage-label); }
+.voyage-clock-leg-now { font-weight: 600; }
+.voyage-clock-head { color: var(--voyage-label); font-weight: 600; margin-bottom: 4px; }
+.voyage-clock-note { font-size: .9rem; margin-top: 6px; }
+.voyage-clock-ended { display: flex; align-items: flex-start; gap: 12px; }
+.voyage-clock-ended-text { flex: 1; }
+.voyage-clock-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.voyage-clock-tile-wide { grid-column: 1 / -1; }
+/* Set off popup (build .222, the user: icons, colour, decoration): each tile has a gold edge on the left. */
+.voyage-clock-tile { background: var(--voyage-tile); border-radius: 6px; padding: 8px 10px 8px 12px; border-left: 3px solid var(--voyage-ring); }
+.voyage-clock-tile-label { display: flex; align-items: center; gap: 6px; color: var(--voyage-label); font-size: .9rem; }
+.voyage-clock-fa { color: var(--voyage-gold); width: 1.1em; text-align: center; }
+.voyage-clock-icon { width: 18px; height: 18px; object-fit: contain; flex: none; }
+.voyage-clock-tile-value { font-weight: 600; font-size: 1.1rem; }
+.voyage-clock-tile-sub { font-size: .9rem; }
+.voyage-clock-gp { color: var(--voyage-gold); }
+.voyage-clock-time-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; }
+.voyage-clock-time { font-size: 1.5rem; font-weight: 700; line-height: 1.2; color: var(--voyage-gold); }
+.voyage-clock-sun { color: var(--voyage-gold); }
+.voyage-clock-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.voyage-clock-costs { display: flex; flex-wrap: wrap; column-gap: 12px; row-gap: 2px; margin-top: 4px; font-size: .9rem; }
+.voyage-clock-cost { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+/* The route strip: a dot where you stand, the legs as long as they take (land brown, sea blue), the pin at the end. */
+.voyage-clock-strip { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.voyage-clock-strip-start { font-size: .6rem; color: var(--voyage-label); }
+.voyage-clock-strip-end { font-size: 1.1rem; color: var(--voyage-pin); }
+.voyage-clock-strip-legs { flex: 1; display: flex; gap: 2px; height: 18px; border-radius: 9px; overflow: hidden; background: var(--voyage-track); }
+.voyage-clock-strip-legs > span { flex-basis: 0; min-width: 6px; display: flex; align-items: center; justify-content: center; font-size: .7rem; color: #fff; }
+.voyage-clock-strip-land { background: var(--voyage-foot); }
+.voyage-clock-strip-sea { background: var(--voyage-sea); }
+body.darkMode .voyage-clock-strip-legs > span { color: #1b1f24; }
+/* On arrival: a numbered row per pick, the chosen action's icon by its select. */
+.voyage-clock-head { display: flex; align-items: center; gap: 6px; }
+.voyage-clock-pick { display: grid; grid-template-columns: 22px 9.5rem 32px minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 6px; }
+.voyage-clock-pick label { margin: 0; color: var(--voyage-label); }
+.voyage-clock-pick select { font-size: 1rem; }
+.voyage-clock-pick-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--voyage-ring); color: var(--voyage-gold); font-size: .8rem; font-weight: 700; }
+.voyage-clock-pick-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--voyage-ring-bg); }
+.voyage-clock-pick-icon img { width: 24px; height: 24px; object-fit: contain; }
+.voyage-clock-pick-icon i { color: var(--voyage-label); font-size: 1.1rem; }
+@media (max-width: 575px) {
+  .voyage-clock-tiles { grid-template-columns: 1fr; }
+  .voyage-clock-pick { grid-template-columns: 22px 32px minmax(0, 1fr); row-gap: 2px; }
+  .voyage-clock-pick label { grid-column: 2 / -1; }
+  .voyage-clock-pick-icon { grid-column: 2; }
+}
+.voyage-clock-top + .voyage-section, .voyage-clock-tiles + .voyage-section { margin-top: 12px; }

@@ -272,16 +272,19 @@ export function lightCost(step, fmLevel, astroLevel) {
  * never takes fuel a later step needs, and an unlit hex is just a day hex. Returns the plan with `lit` (step indices),
  * the fuel left and spent updated, and `light` (the fuel burned); a refused plan comes back as it was.
  */
-export function planLight(plan, steps, { fmLevel = 1, astroLevel = 1 } = {}) {
+export function planLight(plan, steps, { fmLevel = 1, astroLevel = 1, hold = 0 } = {}) {
   if (!plan.ok) return plan;
   const hungry = new Set(plan.hungry);
   let fuel = plan.fuel;
+  // `hold` (phase 5a): fuel the rest of a timed voyage still needs, never spent on light for this hex.
+  let spare = roundFuel(Math.max(0, fuel - (Number.isFinite(hold) && hold > 0 ? hold : 0)));
   let light = 0;
   const lit = [];
   for (let i = 0; i < steps.length; i++) {
     const c = hungry.has(i) ? 0 : lightCost(steps[i], fmLevel, astroLevel);
     if (c <= 0) continue;
-    if (fuel + 1e-9 < c) break;
+    if (spare + 1e-9 < c) break;
+    spare = roundFuel(Math.max(0, spare - c));
     fuel = roundFuel(Math.max(0, fuel - c));
     light = roundFuel(light + c);
     lit.push(i);

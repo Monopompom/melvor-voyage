@@ -852,7 +852,10 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       const name = m === undefined ? t('MOD_VOY_PAGE_LAND_ON_FOOT') : L.nameOf(m);
       const next = L?.next();
       // Build .165 (the user): one portrait, the mount bought last. Build .167: its tooltip is only what it gives, in green.
-      const lines = [m === undefined || m.cut === 0 ? t('MOD_VOY_PAGE_LAND_NO_CUT') : { text: t('MOD_VOY_PAGE_LAND_CUT', { pct: `${Math.round(m.cut * 100)}` }), cls: 'text-success' }];
+      // Phase 5a: with timed travel the mount gives speed, not a GP cut.
+      const lines = state.timed?.() === true
+        ? [m === undefined || !(m.speed > 1) ? t('MOD_VOY_PAGE_LAND_NO_SPEED') : { text: t('MOD_VOY_PAGE_LAND_SPEED', { speed: `${m.speed}` }), cls: 'text-success' }]
+        : [m === undefined || m.cut === 0 ? t('MOD_VOY_PAGE_LAND_NO_CUT') : { text: t('MOD_VOY_PAGE_LAND_CUT', { pct: `${Math.round(m.cut * 100)}` }), cls: 'text-success' }];
       const tipText = lines.map((l) => (typeof l === 'string' ? l : l.text)).join('. ');
       const inner = `<div class="voyage-land-face" data-tip-lines="${esc(JSON.stringify(lines))}"><div class="voyage-land-ring"><img src="${m === undefined ? ctx.getResourceUrl('assets/marker_traveller_figure.webp') : L.mediaOf(m)}" alt=""></div>` +
         `<div class="voyage-land-name">${esc(name)}</div></div>`;

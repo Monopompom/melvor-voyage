@@ -5,9 +5,9 @@ A mod for **Melvor Idle v1.3.1** that needs **Atlas of Discovery**. Every hex of
 cursedlands, shoals and open water) and features such as forest, river or snow, and skills only work where their
 terrain is. Woodcutting needs trees. You have to go there.
 
-This is an early build (phase 4 of 8 built): the map overlay, the "You are here" panel, the full set of location
+This is an early build (phase 5 of 8 under way): the map overlay, the "You are here" panel, the full set of location
 rules, combat and trade tied to the map, a compass to find your way, boats and ships for the water, provisions, cargo
-runs and markets, harbour notices, sea charts and rumours, a Random start, and the Captain's Journal. Travel is still instant; the timed voyage comes later.
+runs and markets, harbour notices, sea charts and rumours, a Random start, the Captain's Journal, and now timed travel: a voyage takes time, one hex after another.
 
 ## What it does
 
@@ -76,11 +76,17 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, and t
 - **Markets with prices.** Each market pays well for some goods (140 to 180%) and little for others (60 to 80%);
   worked goods fetch 20 points more than raw ones. You learn a market's prices by visiting it: the bank's Sell block
   shows the price here and the best and worst you know, and the journal keeps a ledger.
+- **Timed travel.** Travel is the work you are doing, like a skill: a land hex takes 6 minutes on foot (longer on
+  rough ground, snow and lava), a sea hex 5 minutes in the dinghy down to 2 in the galleon. Each hex is paid as you
+  enter it, and Stop here on the Voyage page keeps the hexes reached. Before setting off, pick up to three things to
+  do on arrival; the first that can start, starts. Starting something else under way asks first. The voyage goes on
+  while the game is closed, and Welcome Back tells where it ended. It is a setting, on by default; off, travel is
+  instant as in the base game.
 - **Plan a voyage.** From Voyage 15, Plan voyage (on a journal page, a cargo run or a popup that sends you elsewhere)
   shows the route, the stops to stock up and the cost. With Navigator's Charts (Voyage 50, bought once at a port for
-  300,000 GP and 100 Pitch) Set off makes the whole trip in one click, and On arrival starts the work you planned.
+  300,000 GP and 100 Pitch) Set off makes the whole trip in one go (in time, with Timed travel on), and On arrival starts the work you planned.
 - **On land.** The shop's Voyage tab sells Sturdy Boots, a Pack Yak, a Riding Horse and a Unicorn, each making land
-  hexes cheaper, and from Voyage 35 a Crossroads Sign that carries a place's gifts with you.
+  hexes quicker to cross (cheaper instead with Timed travel off), and from Voyage 35 a Crossroads Sign that carries a place's gifts with you.
 - **The Captain's Journal.** The book button on the Voyage page (or the J key) opens a journal of chapters on every
   rule (notices, charts and rumours too), guide pages that turn up as you meet things, the markets' ledger and maps of where resources are.
   Its Places list where you fought, the ports you used and what you did there, the markets, and the islands you set
