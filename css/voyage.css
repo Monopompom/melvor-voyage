@@ -649,9 +649,6 @@ body.vj-locked { overflow: hidden; }
 .voyage-plan-pick-ico { width: 24px; height: 24px; margin-right: 10px; flex: none; object-fit: contain; text-align: center; line-height: 24px; }
 .voyage-plan-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 12px; padding-top: 12px; }
 .voyage-plan-buttons .btn { min-height: 40px; min-width: 140px; }
-/* On a phone the skill's floating buttons (journal, settings, milestones) sit on the right edge over the page: the
-   page's button rows (Set off, Stop here) centre, clear of them (the phone run, build .239). */
-@media (max-width: 767.98px) { #voyage-container .voyage-plan-buttons { justify-content: center; } }
 .vj-foot-end { gap: 12px; flex-wrap: wrap; }
 
 /* The mini panel: the folded Here panel as one strip, only as wide as its content, wrapping to a
@@ -827,6 +824,12 @@ body.vj-locked { overflow: hidden; }
 .voyage-underway-block { margin-bottom: 16px; }
 .voyage-clock-top { display: flex; align-items: center; gap: 12px; }
 .voyage-clock-pic { width: 48px; height: 48px; flex: none; }
+/* Under the title, one fact a line (build .241): the ground in bold with its map colour, then the hexes and how you go,
+   each after an icon in a fixed column so the texts line up. */
+.voyage-clock-facts { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; font-size: .95rem; line-height: 1.35; }
+.voyage-clock-facts i { width: 1.25em; margin-right: 6px; text-align: center; }
+.voyage-clock-ground { font-weight: 600; }
+.voyage-clock-ground .voyage-swatch { width: 1.25em; height: 12px; margin-right: 6px; vertical-align: -1px; }
 .voyage-clock-bars { display: flex; flex-direction: column; gap: 4px; }
 .voyage-clock-bar-row { display: flex; justify-content: space-between; gap: 12px; font-size: 1rem; }
 .voyage-clock-bar { height: 10px; margin-bottom: 8px; }

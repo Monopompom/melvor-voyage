@@ -889,7 +889,12 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
         : `<div><b>${esc(labelOf(v.chain[0]))}</b></div>${v.chain.length > 1 ? `<div class="text-muted">${esc(t('MOD_VOY_CLOCK_THEN', { list: v.chain.slice(1).map(labelOf).join(' · ') }))}</div>` : ''}`;
       return `<div class="voyage-clock-top"><img class="voyage-clock-pic" src="${ctx.getResourceUrl('assets/icon.webp')}" alt="">`
         + `<div><h5 class="font-w600 mb-0">${esc(t('MOD_VOY_CLOCK_UNDERWAY', { name: v.name }))}</h5>`
-        + `<div class="text-muted">${esc(t('MOD_VOY_CLOCK_HEX_OF', { at: `${v.at}`, of: `${v.walk.length - 1}` }))} · ${esc(how)}${where ? ` · ${esc(where)}` : ''}</div></div></div>`
+        // One per line under the title: the ground (its map colour), the hexes behind you, how you go (the user,
+        // build .241; icons as the panel on the map's).
+        + '<div class="voyage-clock-facts">'
+        + (where ? `<div class="voyage-clock-ground"><span class="voyage-swatch" style="background:${terrainMod.CLASS_INFO[rec.t]?.css ?? 'transparent'}"></span>${esc(where)}</div>` : '')
+        + `<div class="text-muted"><i class="fa fa-fw fa-route" aria-hidden="true"></i>${esc(t('MOD_VOY_CLOCK_HEX_OF', { at: `${v.at}`, of: `${v.walk.length - 1}` }))}</div>`
+        + `<div class="${aboard ? 'text-info' : 'text-muted'}"><i class="fa fa-fw fa-${aboard ? 'ship' : 'walking'}" aria-hidden="true"></i>${esc(how)}</div></div></div></div>`
         + '<div class="voyage-section voyage-clock-bars">'
         + `<div class="voyage-clock-bar-row"><span data-voyage-clock="hex-label">${esc(t('MOD_VOY_CLOCK_THIS_HEX'))}</span><span class="text-muted" data-voyage-clock="hex-time"></span></div>`
         + '<div class="progress voyage-clock-bar"><div class="progress-bar bg-info" data-voyage-clock="hex-bar"></div></div>'
