@@ -437,6 +437,24 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   };
 
   /**
+   * A Random start (start.mjs) that put you on another landmass than the game's start: the first-load check above has
+   * already run on the game's start, so the same gift is made here, with the same notice ("the boat you hired to get
+   * here is yours now"). Without it a new character on an island with no trees could never leave.
+   */
+  const startOverseas = () => {
+    const s = skill();
+    if (s === undefined || s.futureRaw !== undefined || s.record.boat !== null || state.mode !== 'strict') return false;
+    const p = player();
+    const rec = p === undefined ? undefined : recOf(p);
+    if (rec === undefined || shipModel.isSea(rec)) return false;
+    const spot = shipModel.freeBoatSpot(rec, p.map?.startingLocation, state.terrain, terrainMod.hexDistance);
+    if (spot === undefined) return false;
+    setShip({ hull: 'dinghy', q: spot.q, r: spot.r, cond: 100, hold: [], aboard: false }, 'given (Random start)');
+    showWhenFree(noticeSections('overseas'));
+    return true;
+  };
+
+  /**
    * Keeps "on the sea means aboard" true on load, whatever moved the player since (rules off, a portal): on the sea
    * away from both vessels, the small boat comes over (the big ship when the boat rides on it).
    */
@@ -526,7 +544,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   const api = {
     boat: ship, big, vessel, inVessel, aboard, enabled, setShip, setVessel, demoNotice,
     hullName: (s) => hullWord(HULLS[s?.hull]), stepsOf, afterMove, homeOf, dockOf, isHop, build, buildBlocker, buildCosts, canFish, launchSpot, whereIs, recOf,
-    cond, setCond, repairInfo, repair, upgradeInfo, upgrade, buyInfo, buy, buyCosts: () => costsOf(BIG_SHIPS.brig),
+    startOverseas, cond, setCond, repairInfo, repair, upgradeInfo, upgrade, buyInfo, buy, buyCosts: () => costsOf(BIG_SHIPS.brig),
     onChange: (fn) => listeners.push(fn),
     /**
      * May a road step from one game hex to the next under the ship rules? True while they are off (trader roads). With

@@ -12,6 +12,8 @@
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
 const GATHERING = ['melvorD:Woodcutting', 'melvorD:Fishing', 'melvorD:Mining'];
+/** His portrait (build .210, the user's pick); the GP coin before. */
+const TRADER_ART = 'assets/trader.webp';
 const HALF = 0.5;
 
 export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, log }) {
@@ -21,6 +23,7 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
   const hexes = (n) => templateLangString(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });
   /** The trader met on this stranded spell: { key, coinsGiven }; undefined when none is here. */
   let met;
+  const art = () => { try { return ctx.getResourceUrl(TRADER_ART); } catch { return game.gp.media; } };
 
   // ------------------------------------------------------------------------------------------------ the road
   const neighboursOf = (map) => (hex) => {
@@ -225,7 +228,7 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
       if (!moved && verdict().stranded) return;
       met = undefined;
       log(`wandering trader left (${moved ? 'moved' : 'no longer stranded'})`);
-      try { game.notifications.createSuccessNotification('voyage:trader', getLangString(moved ? 'MOD_VOY_TRADER_LEFT_BEHIND' : 'MOD_VOY_TRADER_MOVES_ON'), game.gp.media); } catch {}
+      try { game.notifications.createSuccessNotification('voyage:trader', getLangString(moved ? 'MOD_VOY_TRADER_LEFT_BEHIND' : 'MOD_VOY_TRADER_MOVES_ON'), art()); } catch {}
       state.onSettingsChange();
     }, 0);
   };
@@ -261,10 +264,11 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
         didRender: state.popupDidRender,
         title: getLangString('MOD_VOY_TRADER_TITLE'),
         width: '36em', // an eighth wider than the 32em default, so the opening line fits on two lines (user feedback)
-        // One picture on top, the coin; no "?" sign beside it (message popup layout, build .94).
+        // One picture on top, the trader (the coin until build .210); no "?" sign beside it (message popup layout, build .94).
         html: helpLayout.msgHtml(lines),
-        imageUrl: game.gp.media,
+        imageUrl: art(),
         ...helpLayout.MSG_IMAGE,
+        imageWidth: 112, imageHeight: 112, // the trader bigger than a message's usual 64 px (the user, build .210)
         showCancelButton: hasOffer,
         confirmButtonText: getLangString(coins !== undefined ? 'MOD_VOY_TRADER_BUTTON_THANK' : hasOffer ? 'MOD_VOY_TRADER_BUTTON_TRADE' : 'MOD_VOY_BUTTON_OK'),
         cancelButtonText: getLangString('MOD_VOY_TRADER_BUTTON_NOT_NOW'),

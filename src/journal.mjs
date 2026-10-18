@@ -109,11 +109,11 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   const chartItem = (skillId) => { try { return game.items.getObjectByID(`voyage:${jm.CHART_ITEMS[skillId]}`); } catch { return undefined; } };
   /**
    * The reveal item roll (Charting a country): one completed zoned action of its skill while zones are
-   * on, 1 in 2,000 rising with Voyage level to 1 in 1,000 at 99.
+   * on, about one per 3 weeks of that work (journal-model chartChance, from the action's interval).
    */
-  const rollChart = (action, skillId) => {
+  const rollChart = (action, skillId, intervalMs) => {
     if (journal() === undefined || action === undefined || action === null || !zoned.has(action.id) || !state.zonesOn?.()) return;
-    if (Math.random() >= jm.chartChance(voyageLevel())) return;
+    if (Math.random() >= jm.chartChance(intervalMs)) return;
     const item = chartItem(skillId);
     if (item === undefined) return;
     game.bank.addItem(item, 1, false, true, true, true, 'Voyage');
@@ -124,11 +124,12 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   try {
     ctx.patch(GatheringSkill, 'action').replace(function (original, ...args) {
       let doing = [];
-      try { if (zoned.size > 0 && state.zoneTable?.skills?.[this.id] !== undefined) doing = running(this); } catch {}
+      let interval = 0;
+      try { if (zoned.size > 0 && state.zoneTable?.skills?.[this.id] !== undefined) { doing = running(this); interval = this.currentActionInterval; } } catch {}
       const result = original(...args);
       for (const a of doing) {
         try { found(a, this.id); } catch (e) { log('journal find failed', e); }
-        try { rollChart(a, this.id); } catch (e) { log('journal chart roll failed', e); }
+        try { rollChart(a, this.id, interval); } catch (e) { log('journal chart roll failed', e); }
       }
       return result;
     });
@@ -258,8 +259,23 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     if (kind === 'guide') return (journal()?.guides ?? []).includes(id);
     return kind === 'tab' && TABS.includes(id) && (id === 'how' || journal() !== undefined) && (id !== 'crew' || crewOn());
   };
-  const rich = (text) => jm.splitLinks(text).map((p) => (p.kind !== undefined && linkLive(p.kind, p.id)
-    ? `<button type="button" class="vj-link" data-vj-go="${p.kind}:${p.id}">${esc(p.text)}</button>` : esc(p.text))).join('');
+  const rich = (text) => {
+    const parts = jm.splitLinks(text).map((p) => ({ ...p }));
+    let out = '';
+    parts.forEach((p, i) => {
+      if (p.kind === undefined || !linkLive(p.kind, p.id)) { out += esc(p.text); return; }
+      // A link is a button, laid out as an inline box: the line could break between "(" and it (build .212). The
+      // bracket before it and the closing punctuation after it go in one unbreakable span with it.
+      const open = out.endsWith('(') ? '(' : '';
+      if (open) out = out.slice(0, -1);
+      const next = parts[i + 1];
+      const close = next?.kind === undefined ? (next?.text.match(/^[).,;:!?]+/)?.[0] ?? '') : '';
+      if (close) next.text = next.text.slice(close.length);
+      const link = `<button type="button" class="vj-link" data-vj-go="${p.kind}:${p.id}">${esc(p.text)}</button>`;
+      out += open || close ? `<span class="vj-nobr">${open}${link}${esc(close)}</span>` : link;
+    });
+    return out;
+  };
   const runningHead = (left, right) => `<div class="vj-running"><span>${esc(left)}</span><span>${esc(right)}</span></div>`;
   const note = (text) => `<div class="vj-note"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"></path><path d="M14 7l3 3"></path></svg><span>${rich(text)}</span></div>`;
   const dropCap = (text) => { const s = String(text); return `<p class="vj-p vj-lead"><span class="vj-dropcap">${esc(s.slice(0, 1))}</span>${rich(s.slice(1))}</p>`; };
@@ -861,6 +877,32 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     if (p.action === undefined) html += `<div class="vj-foot vj-foot-end"><button type="button" class="vj-btn" data-vj-pick-cancel="1">${esc(t('MOD_VOY_JOURNAL_PICK_CANCEL'))}</button></div>`;
     return html;
   };
+  /**
+   * A rumour with no place left to find charts a resource country instead: one zoned action of an
+   * unlocked skill, within its level and not charted yet, picked by `r`. Returns { name, count, media } or undefined.
+   */
+  const chartAny = (r = Math.random) => {
+    const j = journal();
+    if (j === undefined) return undefined;
+    const list = [...zoned].map(([id, skillId]) => ({ a: actionOf(id), skill: skillOf(skillId) }))
+      .filter(({ a, skill }) => a !== undefined && skill !== undefined && skill.isUnlocked !== false && (a.level ?? 1) <= (skill.level ?? 1) && !j.charted.includes(a.id))
+      .sort((x, y) => (x.a.id < y.a.id ? -1 : 1));
+    if (list.length === 0) return undefined;
+    const { a } = list[Math.floor(r() * list.length) % list.length];
+    const had = (j.found[a.id]?.length ?? 0) + (j.missed[a.id]?.length ?? 0) > 0;
+    if (!jm.chart(j, a.id)) return undefined;
+    const hexes = chartedHexes(a.id);
+    markKnown(hexes);
+    unread(j, `a:${a.id}`, had ? 'more' : 'new');
+    badge();
+    log(`journal: ${a.id} charted (${hexes.length} hexes) by a rumour`);
+    return { name: a.name, count: hexes.length, media: a.media, id: a.id };
+  };
+  /** True when a rumour could still chart a country (chartAny would find one). */
+  const canChartAny = () => {
+    const j = journal();
+    return j !== undefined && [...zoned].some(([id, skillId]) => { const a = actionOf(id); const sk = skillOf(skillId); return a !== undefined && sk !== undefined && sk.isUnlocked !== false && (a.level ?? 1) <= (sk.level ?? 1) && !j.charted.includes(id); });
+  };
   /** Uses the chosen chart: the item (or a free chart) goes, the action is charted and its entry opens. */
   const doChart = () => {
     const p = view.pick;
@@ -1374,6 +1416,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       hexes = [p];
       name = p.name;
     }
+    showHexes(hexes, name);
+  };
+  /** Marks `hexes` gold on the map, centres it on the nearest and names it in a notice (an entry, a place, a rumour). */
+  const showHexes = (hexes, name) => {
     if (hexes.length === 0) return;
     const pos = state.position();
     const nearest = jm.byDistance(hexes.map((h) => jm.hexStr(h.q, h.r)), pos)[0];
@@ -1486,7 +1532,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
 
   /** The hexes where an action was found, as { q, r } (the planner heads for the nearest, build .119). */
   const foundHexes = (actionId) => (journal()?.found[actionId] ?? []).map(jm.parseHex).filter((h) => h !== undefined);
-  const api = { open, close, learn, miss, footer, iconUrl, isOpen: () => view.open, refresh, badge, foundHexes, golbinLetter: showLetter };
+  const api = { open, close, learn, miss, footer, iconUrl, isOpen: () => view.open, refresh, badge, foundHexes, golbinLetter: showLetter, chartAny, canChartAny };
   state.journal = api;
   return api;
 }

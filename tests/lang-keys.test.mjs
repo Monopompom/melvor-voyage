@@ -49,6 +49,9 @@ export const FAMILIES = {
   MOD_VOY_JOURNAL_BILL_REBUILT_: ['LONGBOAT', 'GALLEON'],
   // Plan a voyage (src/planner.mjs VERDICT): the verdicts named by a plan's reason
   MOD_VOY_PLAN_VERDICT_: ['SHORT', 'ASHORE', 'HULL', 'NOWAY', 'UNCHARTED', 'HERE'],
+  // Rumours (src/charts.mjs): the tales by kind, and the bank's Read line
+  MOD_VOY_RUMOUR_TALE_: ['TAVERN', 'SAILOR'].flatMap((k) => [1, 2, 3, 4].map((n) => `${k}_${n}`)),
+  MOD_VOY_RUMOUR_READ_: ['TAVERN', 'SAILOR', 'TITLE'],
   MOD_VOY_RULE_LABEL_: localIds.filter((id, i) => rules.ruleLabelKey(Object.keys(rules.SKILL_RULES)[i]) !== undefined),
 };
 

@@ -132,6 +132,32 @@
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
         "sellsFor": 160
+      },
+      {
+        "itemType": "Item",
+        "id": "Tavern_Tale",
+        "name": "Tavern Tale",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/rumour_tavern.webp",
+        "customDescription": "A tale heard over a drink, of a place not yet found. Read it from the bank: it lifts the fog from that place and the hexes around it, or charts something you can gather.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 50
+      },
+      {
+        "itemType": "Item",
+        "id": "Sailors_Rumour",
+        "name": "Sailor's Rumour",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/rumour_sailor.webp",
+        "customDescription": "Word passed along the quay, of a place not yet found. Read it from the bank: it lifts the fog from that place, a sea place when there is one, and the hexes around it.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 50
       }
     ],
     "skillData": [

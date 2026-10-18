@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -106,13 +106,17 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * `sign` (save v12) is the full id of the POI the Crossroads Sign stands on, '' while carried or not bought.
  * `cargo` (save v13) is the cargo runs: `boards` (each port's requests this season) and `runs` (taken);
  * cargo-model.mjs cleanCargo checks it in depth when the runtime reads it (modules here can't import each other).
+ * `charted` (save v14) is the hexes a sea chart or a rumour cleared of fog, as base64 bits like
+ * `visited`. `tasks` (v14) is the Voyage tasks: `boards` (each port's notices this season), `cur` (the task taken, or
+ * null) and `wait` (no Take before this time, after a drop); tasks-model.mjs cleanTasks checks it in depth. `start`
+ * (v14) is the start chosen on the first load: '' not asked yet, 'game' or 'random'.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] } };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '' };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
-export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'cargo', 'ports', 'market'];
+export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'cargo', 'ports', 'market', 'notices', 'charts', 'rumour'];
 /** Kinds of place the journal records. */
 export const JOURNAL_PLACE_KINDS = ['combat', 'trade'];
 /** Hexes kept per action (found) and misses kept per action (about 20). */
@@ -173,6 +177,8 @@ export const MIGRATIONS = {
   11: (rec) => ({ ...rec, v: 12, sign: '' }),
   // phase 4 cargo runs: no boards seen, no runs taken
   12: (rec) => ({ ...rec, v: 13, cargo: { boards: {}, runs: [] } }),
+  // phase 4, the rest: nothing charted, no task; a character from before has long since started (never asked)
+  13: (rec) => ({ ...rec, v: 14, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: 'game' }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -266,6 +272,8 @@ export function cleanJournal(j) {
 export const FREE_UNLOCKS = ['cartography', 'voyage'];
 
 /** Hull ids a save may name. Kept here so the model stays free of imports; ship-model.mjs HULLS must match. */
+/** The start chosen on the first load (start-model.mjs CHOICES; modules here can't import each other). */
+export const START_CHOICES = ['', 'game', 'random'];
 export const BOAT_IDS = ['dinghy', 'longboat'];
 export const SHIP_IDS = ['brig', 'galleon'];
 export const HULL_IDS = [...BOAT_IDS, ...SHIP_IDS];
@@ -288,6 +296,9 @@ function clean(rec) {
     visited: cleanVisited(rec.visited),
     sign: typeof rec.sign === 'string' && /^[\w]+:[\w]+$/.test(rec.sign) ? rec.sign : '',
     cargo: rec.cargo !== null && typeof rec.cargo === 'object' && !Array.isArray(rec.cargo) ? rec.cargo : { boards: {}, runs: [] },
+    charted: cleanVisited(rec.charted),
+    tasks: rec.tasks !== null && typeof rec.tasks === 'object' && !Array.isArray(rec.tasks) ? rec.tasks : { boards: {}, cur: null, wait: 0 },
+    start: START_CHOICES.includes(rec.start) ? rec.start : 'game',
   };
 }
 /** Base64 of at most VISITED_BYTES bytes, or '' (nothing visited). */

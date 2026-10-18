@@ -10,7 +10,7 @@
  * 'planning' (build .123) is Plan a voyage, shown while the planner is loaded. 'road' (build .170, the
  * user's ask) is the land upgrades and the Crossroads Sign (4.27, 4.28), with live ledgers.
  */
-export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'cargo', 'markets', 'travels', 'road', 'planning', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
+export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'cargo', 'markets', 'notices', 'travels', 'road', 'planning', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
 /**
  * The Old Man's Crew pages (build .116, the user's ask): a guide to Worker Folks: Hiring in the captain's voice, shown
  * as their own tab only while that mod is loaded. Written chapters like the ones below (MOD_VOY_JOURNAL_CH_CREW_*).
@@ -50,6 +50,8 @@ export const JOURNAL_WRITTEN = {
   cargo: { sections: ['BOARD', 'TRADE', 'LOAD', 'DELIVER', 'DROP'] },
   // Markets with prices (phase 4).
   markets: { sections: ['PRICES', 'LEARN'] },
+  // Notices, sea charts and rumours (phase 4, build .212).
+  notices: { sections: ['TASKS', 'ONE', 'CHARTS', 'RUMOURS'] },
 };
 
 /**
@@ -238,8 +240,14 @@ export const CHART_ITEMS = {
   'melvorD:Thieving': 'Fences_Ledger',
   'melvorD:Astrology': 'Star_Chart',
 };
-/** The chance of a reveal item on one completed zoned action: 1 in 20,000, rising with Voyage level to 1 in 10,000 at 99 (the balance pass; was 1 in 2,000). */
-export const chartChance = (voyageLevel) => (1 / 20000) * (1 + Math.max(0, Math.min(99, voyageLevel)) / 99);
+/** A reveal item comes about once per this many hours of its skill (the user, 17 Oct 2026). */
+export const REVEAL_HOURS = 504;
+/**
+ * The chance of a reveal item on one completed zoned action that took `intervalMs`: interval / 3 weeks, so fast and
+ * slow actions pay the same per hour (a 3 s action: 1 in 604,800). Replaced the Voyage-level rate of 4.26 (1 in
+ * 20,000 rising to 1 in 10,000) in build .210.
+ */
+export const chartChance = (intervalMs) => (Number.isFinite(intervalMs) && intervalMs > 0 ? Math.min(1, intervalMs / (REVEAL_HOURS * 3600000)) : 0);
 /** Free charts reached at `level` and not used yet. */
 export const freeChartsLeft = (level, used, levels) => Math.max(0, levels.filter((l) => level >= l).length - used);
 /** Charts an action. True when it was not charted yet. */

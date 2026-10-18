@@ -190,7 +190,9 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
   const everFound = (it) => { try { return game.stats.itemFindCount(it) > 0; } catch { return false; } };
 
   // After the tutorial (setup.mjs afterTutorial): the purse and the welcome are for the map, which opens then.
-  ctx.onInterfaceReady(() => state.afterTutorial(grant));
+  // The start choice (src/start.mjs, Random start) comes first: the welcome's first steps are worked out from where
+  // the player then stands.
+  ctx.onInterfaceReady(() => state.afterTutorial(function startThenGrant() { if (typeof state.startChoice === 'function') state.startChoice(grant); else grant(); }));
   function grant() {
     try {
       if (state.mode !== 'strict') return;

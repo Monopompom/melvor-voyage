@@ -63,6 +63,15 @@ runs and markets, and the Captain's Journal. Travel is still instant; the timed 
   grow with your level in their trade, and a big one goes in several loads. Delivering pays twice what the goods sell
   for, plus GP and Voyage XP for every hex. Boards change every 3 days; you can carry 3 runs at once, listed under the
   Hold on the Voyage page. Packed cargo stays in the hold until it is delivered.
+- **Notices.** Every harbour board posts a few tasks each season: set foot on a place you have not found yet and
+  can reach today, or bring goods you gather after taking it to a port you know. One task at a time; it pays GP and Voyage XP, now and
+  then a rumour besides.
+- **Sea charts and rumours.** A board sells the chart of its port's sea and its neighbours': it clears the fog, and
+  the price falls as you clear the fog yourself. Working near a town, port or market, you sometimes hear a Tavern
+  Tale or a Sailor's Rumour; read it from the bank to lift the fog round a place you have not found. Surveying stays
+  yours.
+- **Where you start.** A new character chooses once: the game's own start, or a random start somewhere else you can
+  live and grow from. On an island, the boat that brought you there is yours.
 - **Markets with prices.** Each market pays well for some goods (140 to 180%) and little for others (60 to 80%);
   worked goods fetch 20 points more than raw ones. You learn a market's prices by visiting it: the bank's Sell block
   shows the price here and the best and worst you know, and the journal keeps a ledger.
@@ -72,7 +81,7 @@ runs and markets, and the Captain's Journal. Travel is still instant; the timed 
 - **On land.** The shop's Voyage tab sells Sturdy Boots, a Pack Yak, a Riding Horse and a Unicorn, each making land
   hexes cheaper, and from Voyage 35 a Crossroads Sign that carries a place's gifts with you.
 - **The Captain's Journal.** The book button on the Voyage page (or the J key) opens a journal of chapters on every
-  rule, guide pages that turn up as you meet things, the markets' ledger and maps of where resources are.
+  rule (notices, charts and rumours too), guide pages that turn up as you meet things, the markets' ledger and maps of where resources are.
 - **Your page, your panel.** Drag the Voyage page's blocks by their title (hold a moment on a phone) and fold the ones
   you seldom need; Reset layout puts them back. On the map, tap You are here to fold the panel to a strip; on a phone,
   hold its triangle to shrink it to a small square, and tap the square to get it back as it was.
@@ -103,7 +112,7 @@ picks the matching file when one exists.
 
 If the game's map ever differs from the mod's terrain table (an expansion update, for example) the mod says
 so once and turns the locks off until it is updated. The mod keeps its own data in your save under its own name:
-the Voyage skill, your vessels and their holds, cargo, the journal. The game's own data is left as it is. Removing
+the Voyage skill, your vessels and their holds, cargo, tasks, the fog you have charted, the journal. The game's own data is left as it is. Removing
 the mod drops all of its data, so take your items out of the holds first (packed cargo can't come out).
 
 Built by a developer using assistive AI.

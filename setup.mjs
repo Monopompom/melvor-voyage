@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-18.209';
+export const BUILD = '2026-10-18.212';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -74,6 +74,14 @@ export async function setup(ctx) {
       if (it === undefined) continue;
       it._name = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_NAME`);
       it._customDescription = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`);
+      it._modifiedDescription = undefined;
+    }
+    // The two rumours (build .210, src/charts.mjs).
+    for (const [id, name, desc] of [['Tavern_Tale', 'MOD_VOY_ITEM_TAVERN_TALE_NAME', 'MOD_VOY_ITEM_TAVERN_TALE_DESC'], ['Sailors_Rumour', 'MOD_VOY_ITEM_SAILORS_RUMOUR_NAME', 'MOD_VOY_ITEM_SAILORS_RUMOUR_DESC']]) {
+      const it = game.items.getObjectByID(`voyage:${id}`);
+      if (it === undefined) continue;
+      it._name = getLangString(name);
+      it._customDescription = getLangString(desc);
       it._modifiedDescription = undefined;
     }
     const category = game.shop.categories.getObjectByID('voyage:Voyage');
@@ -363,6 +371,20 @@ export async function setup(ctx) {
     try {
       const cargoModel = await ctx.loadModule('src/cargo-model.mjs');
       (await ctx.loadModule('src/cargo.mjs')).install(ctx, { state, M: cargoModel, shipModel, hexes: table.hexes, dungeonIds: table.meta.dungeons ?? {}, log });
+      // The rest of phase 4: sea charts and rumours, Voyage tasks (the board's tabs), Random
+      // start. Each fails on its own: the board then simply lacks that tab.
+      const chartsModel = await ctx.loadModule('src/charts-model.mjs');
+      try {
+        (await ctx.loadModule('src/charts.mjs')).install(ctx, { state, CM: chartsModel, model, rules, terrainMod, helpLayout, hexes: table.hexes, log });
+      } catch (e) { console.error('[Voyage] sea charts and rumours failed to load; the rest runs', e); state.charts = undefined; }
+      try {
+        const tasksModel = await ctx.loadModule('src/tasks-model.mjs');
+        (await ctx.loadModule('src/tasks.mjs')).install(ctx, { state, TM: tasksModel, CM: chartsModel, M: cargoModel, shipModel, terrainMod, stranded, hexes: table.hexes, log });
+      } catch (e) { console.error('[Voyage] Voyage tasks failed to load; the rest runs', e); state.tasks = undefined; }
+      try {
+        const startModel = await ctx.loadModule('src/start-model.mjs');
+        (await ctx.loadModule('src/start.mjs')).install(ctx, { state, SM: startModel, M: cargoModel, rules, shipModel, hexes: table.hexes, log });
+      } catch (e) { console.error('[Voyage] Random start failed to load; the rest runs', e); state.startChoice = undefined; }
     } catch (e) { console.error('[Voyage] cargo runs failed to load; the rest runs', e); state.cargo = undefined; }
   }
   const markPage = () => { const s = voyageSkill(); if (s !== undefined) s.renderQueue.page = true; };

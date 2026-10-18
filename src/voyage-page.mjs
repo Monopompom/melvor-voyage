@@ -96,7 +96,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       part('plan')?.addEventListener('click', (e) => state.planner?.onClick(e));
       part('hold')?.addEventListener('click', (e) => {
         // The runs you carry sit under the hold (build .205): their board and plan buttons, and their "?".
-        if (e.target instanceof Element && e.target.closest('[data-errands-help]') !== null) { if (state.journal !== undefined) state.journal.open({ chapter: 'cargo' }); return; }
+        if (e.target instanceof Element && e.target.closest('[data-errands-help]') !== null) { if (state.journal !== undefined) state.journal.open({ chapter: state.cargo?.count?.() === 0 ? 'notices' : 'cargo' }); return; }
         state.cargo?.onPageClick(e);
         const target = e.target instanceof Element ? e.target.closest('[data-voyage-action], [data-voyage-preset]') : null;
         if (target === null) return;

@@ -299,6 +299,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     game.gp.add(gp);
     try { skill().addXP(xp); } catch (e) { log('cargo XP failed', e); }
     if (M.finished(run)) c.runs = c.runs.filter((r) => r !== run);
+    // Now and then the port's sea chart comes with the pay.
+    try { state.charts?.rollDelivery?.(run.to); } catch (e) { log('delivery chart failed', e); }
     changed();
     notify(t(M.finished(run) ? 'MOD_VOY_CARGO_DELIVERED_DONE' : 'MOD_VOY_CARGO_DELIVERED', { n: `${k}`, what: containerWord(run.c, k), gp: qty(gp), xp: qty(xp) }), 'success');
     log(`cargo ${run.id}: delivered ${k} for ${gp} GP, ${xp} XP`);
@@ -441,15 +443,40 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
   };
 
   let openPoi;
+  // The board's tabs (phase 4): Cargo, Notices (Voyage tasks, src/tasks.mjs), Sea charts (src/charts.mjs). The row
+  // shows once a second tab exists; the tab picked stays while the board is open.
+  const TABS = [
+    { id: 'cargo', key: 'MOD_VOY_BOARD_TAB_CARGO', html: (poi) => boardHtml(poi) },
+    { id: 'notices', key: 'MOD_VOY_BOARD_TAB_NOTICES', html: (poi) => state.tasks?.html(poi), on: () => state.tasks !== undefined },
+    { id: 'charts', key: 'MOD_VOY_BOARD_TAB_CHARTS', html: (poi) => state.charts?.html(poi), on: () => state.charts !== undefined },
+  ];
+  let tab = 'cargo';
+  const bodyHtml = (poi) => {
+    const tabs = TABS.filter((x) => x.on === undefined || x.on());
+    if (!tabs.some((x) => x.id === tab)) tab = 'cargo';
+    const row = tabs.length < 2 ? '' : `<div class="voyage-board-tabs" role="tablist">${tabs.map((x) =>
+      `<button type="button" role="tab" aria-selected="${x.id === tab}" class="btn btn-sm ${x.id === tab ? 'btn-info' : 'btn-outline-info'}" data-board-tab="${x.id}">${esc(t(x.key))}</button>`).join('')}</div>`;
+    let inner;
+    try { inner = tabs.find((x) => x.id === tab).html(poi) ?? ''; } catch (e) { log(`board tab ${tab} failed`, e); inner = ''; }
+    return row + inner;
+  };
   const redraw = () => {
     if (openPoi === undefined) return;
     const box = document.querySelector('.voyage-board-popup .voyage-cargo');
     if (box === null) { openPoi = undefined; return; }
-    box.innerHTML = boardHtml(openPoi);
+    box.innerHTML = bodyHtml(openPoi);
     try { state.popupDidRender?.(box.closest('.swal2-popup')); } catch {}
     try { state.tips?.apply(box); } catch {}
   };
   const onBoardClick = (e) => {
+    const el = e.target instanceof Element ? e.target.closest('[data-board-tab], [data-task], [data-chart]') : null;
+    if (el !== null && !el.disabled) {
+      if (el.dataset.boardTab !== undefined) { tab = el.dataset.boardTab; dropAsk = undefined; state.tasks?.resetAsk?.(); }
+      else if (el.dataset.task !== undefined) state.tasks?.onClick(el, openPoi);
+      else state.charts?.onClick(el, openPoi);
+      redraw();
+      return;
+    }
     const b = e.target instanceof Element ? e.target.closest('[data-cargo]') : null;
     if (b === null || b.disabled) return;
     const what = b.dataset.cargo;
@@ -463,18 +490,20 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     redraw();
   };
   /** Opens the harbour board of the port you stand at. */
-  const open = () => {
+  const open = (startTab = 'cargo') => {
     const port = portHere();
     if (port === undefined || data() === undefined) return false;
     openPoi = port.poi;
     dropAsk = undefined;
+    tab = typeof startTab === 'string' ? startTab : 'cargo';
+    try { state.tasks?.resetAsk?.(); } catch {}
     // The guide page the first time a board is opened (journal.learn is quiet when it is known already).
     try { state.journal?.learn('cargo'); } catch {}
     try {
       SwalLocale.fire({
         didRender: state.popupDidRender,
         title: esc(portName(port.poi)),
-        html: `<div class="voyage-cargo-sub text-muted">${esc(t('MOD_VOY_CARGO_BOARD'))}</div><div class="voyage-cargo text-left">${boardHtml(port.poi)}</div>`,
+        html: `<div class="voyage-cargo-sub text-muted">${esc(t('MOD_VOY_CARGO_BOARD'))}</div><div class="voyage-cargo text-left">${bodyHtml(port.poi)}</div>`,
         width: '48em',
         showConfirmButton: false,
         showCloseButton: true,
@@ -524,6 +553,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
         `<div>${t('MOD_VOY_CARGO_ERRAND', { item: `<b>${esc(item?.name ?? run.item)}</b>`, n: qty(run.n * M.PER_CONTAINER), k: `${run.n}`, what: containerWord(run.c, run.n), port: `<b>${esc(portName(run.to))}</b>` })}</div>` +
         `${line}<div class="text-muted">${esc(prog)}</div></div>${act}</div>`;
     });
+    const task = state.tasks?.errandHtml?.() ?? '';
+    if (task !== '') rows.unshift(task);
     if (rows.length === 0) rows.push(`<div class="text-muted">${esc(t('MOD_VOY_CARGO_NO_RUNS'))}</div>`);
     return rows.join('') + `<div class="voyage-cargo-foot text-muted">${esc(t('MOD_VOY_CARGO_ERRANDS_FOOT'))}</div>`;
   };
@@ -575,7 +606,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     return { ports: open.length, requests: all, goods: goods.length, top: rows.slice(0, 8) };
   };
 
-  const api = { max: M.MAX_RUNS, shares, open, panelLine, errandsHtml, onPageClick, sealOf, art, has: () => (data()?.runs.length ?? 0) > 0, count: () => data()?.runs.length ?? 0, redraw };
+  const api = { max: M.MAX_RUNS, shares, open, portHere, portName, untilNext, panelLine, errandsHtml, onPageClick, sealOf, art, has: () => (data()?.runs.length ?? 0) > 0 || state.tasks?.has?.() === true, count: () => data()?.runs.length ?? 0, redraw };
   state.cargo = api;
   return api;
 }

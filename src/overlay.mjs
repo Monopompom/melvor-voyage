@@ -33,6 +33,8 @@ export function install(ctx, { state, terrainMod, log }) {
   ctx.patch(WorldMapDisplayElement, 'getHexBgAlpha').replace(function (original, hex) {
     try {
       if (tintFor(hex) !== undefined) return OVERLAY_ALPHA;
+      // A sea chart or a rumour cleared the fog: the land shows, untinted until it is surveyed.
+      if (state.charts?.cleared(hex)) return 0;
     } catch (e) { log('overlay alpha failed open', e); }
     return original(hex);
   });
