@@ -384,8 +384,9 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     const d = dropInfo(run);
     if (dropAsk === run.id) {
       lines.push(`<div class="text-warning">${esc(d.why ?? t(d.k > 0 ? 'MOD_VOY_CARGO_DROP_SURE_SELL' : 'MOD_VOY_CARGO_DROP_SURE', { k: `${d.k}`, what: containerWord(run.c, d.k), gp: qty(d.gp) }))}</div>`);
-      if (d.why === undefined) acts.push(button('btn-danger', t('MOD_VOY_CARGO_DROP_YES'), `data-cargo="drop-yes" data-run="${esc(run.id)}"`));
+      // A pair: Keep it first, Drop it last (build .209).
       acts.push(button('btn-outline-info', t('MOD_VOY_CARGO_DROP_NO'), 'data-cargo="drop-no"'));
+      if (d.why === undefined) acts.push(button('btn-danger', t('MOD_VOY_CARGO_DROP_YES'), `data-cargo="drop-yes" data-run="${esc(run.id)}"`));
     } else {
       acts.push(button('btn-outline-danger btn-sm', t('MOD_VOY_CARGO_DROP'), `data-cargo="drop" data-run="${esc(run.id)}"`));
     }

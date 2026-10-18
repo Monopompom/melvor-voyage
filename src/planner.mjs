@@ -302,7 +302,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       `<div class="mb-1">${esc(t('MOD_VOY_PLAN_NAV_NEED', { level: `${P.NAVIGATOR.level}` }))}</div>` +
       `<div class="d-flex flex-wrap align-items-center">${costs.join('')}</div>` +
       (why === undefined
-        ? `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-plan="buy">${esc(t('MOD_VOY_PLAN_NAV_BUY'))}</button></div>`
+        ? `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-plan="buy">${esc(t('MOD_VOY_PLAN_NAV_BUY'))}</button></div>`
         : `<div class="text-warning mt-2">${esc(reason)}</div>`));
   };
 
@@ -390,7 +390,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
         `<div class="dropdown-menu overflow-y-auto" aria-labelledby="voyage-plan-arrival">${opts.map(item).join('')}</div></div>`);
     }
     const sailBtn = owned() && good ? `<button type="button" class="btn btn-success" data-voyage-plan="sail">${esc(t('MOD_VOY_PLAN_SAIL'))}</button>` : '';
-    // Green last, at the right edge like every green button on the page (build .157).
+    // A pair: right-aligned, the outline first and the green last.
     out += `<div class="voyage-plan-buttons"><button type="button" class="btn btn-outline-info" data-voyage-plan="map">${esc(t('MOD_VOY_PLAN_SHOW_MAP'))}</button>${sailBtn}</div>`;
     return out;
   };

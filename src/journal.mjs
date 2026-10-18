@@ -852,8 +852,9 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
         if (a.id === p.action) {
           const source = p.source === 'free' ? t('MOD_VOY_JOURNAL_FREE_SOURCE') : chartItem(p.source)?.name ?? '';
           html += `<div class="vj-confirm" role="group" aria-label="${esc(t('MOD_VOY_JOURNAL_PICK_TITLE'))}"><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_PICK_CONFIRM', { name: a.name, source }))}</p>`
-            + `<div class="vj-confirm-buttons"><button type="button" class="vj-btn vj-btn-go" data-vj-pick-go="1">${esc(t('MOD_VOY_JOURNAL_PICK_GO'))}</button>`
-            + `<button type="button" class="vj-btn" data-vj-pick-cancel="1">${esc(t('MOD_VOY_JOURNAL_PICK_CANCEL'))}</button></div></div>`;
+            // A pair: right-aligned, Cancel first and the main last (build .209).
+            + `<div class="vj-confirm-buttons"><button type="button" class="vj-btn" data-vj-pick-cancel="1">${esc(t('MOD_VOY_JOURNAL_PICK_CANCEL'))}</button>`
+            + `<button type="button" class="vj-btn vj-btn-go" data-vj-pick-go="1">${esc(t('MOD_VOY_JOURNAL_PICK_GO'))}</button></div></div>`;
         }
       }
     }

@@ -151,10 +151,10 @@
 .voyage-hold-row .voyage-hold-presets { display: flex; gap: 8px; }
 .voyage-hold-row .voyage-hold-go { margin-left: auto; }
 @container (max-width: 32rem) { .voyage-hold-row .voyage-hold-go { flex: 1 1 100%; margin-left: 0; } }
-/* Every green button on the page one width (build .157, the user), at the right edge of its band. */
+/* Every green button on the page one width (build .157, the user). Alone at a band's foot it is centred (hull repairs .158, the ship block's build, upgrade and buy .182, the user); in an amount row
+   it sits at the row's right (.voyage-hold-go above). */
 :root { --voyage-main-width: 13rem; }
-.voyage-hold-main { display: flex; justify-content: flex-end; padding-top: 12px; }
-.voyage-hold-main.voyage-hold-main-centre { justify-content: center; } /* hull repairs (build .158) and the ship block's build, upgrade and buy (build .182), the user */
+.voyage-hold-main { display: flex; justify-content: center; padding-top: 12px; }
 #voyage-container .voyage-hold-main .btn-success, #voyage-container .voyage-hold-go, #voyage-container .voyage-plan-buttons .btn-success { width: var(--voyage-main-width); max-width: 100%; min-height: 40px; }
 /* Two vessels (build .150): the bank's choice of hold, the brig's heading on the Ship tab, and both holds side by side. */
 .voyage-hold-pickers { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
@@ -537,7 +537,7 @@ body.vj-locked { overflow: hidden; }
 .vj-chart-chip img { width: 26px; height: 26px; object-fit: contain; }
 .vj-charts .vj-btn { align-self: flex-start; }
 .vj-confirm { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; padding: 10px 12px; border-left: 3px solid #2f6b2f; background: rgba(47, 107, 47, .08); }
-.vj-confirm-buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+.vj-confirm-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; } /* a pair, right-aligned (.209) */
 .vj-btn.vj-btn-go { background: #2f6b2f; border-color: #2f6b2f; color: #fff; }
 .vj-charted-line { border-left: 3px solid #c9a24a; padding-left: 10px; }
 .voyage-minibar-journal, .voyage-header-journal { position: relative; }
@@ -696,6 +696,7 @@ body.vj-locked { overflow: hidden; }
   .voyage-cargo-row { grid-template-columns: 44px minmax(0, 1fr); }
   .voyage-cargo-row .voyage-cargo-pay { grid-column: 2; }
   .voyage-cargo-row .voyage-cargo-act { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
+  .voyage-cargo-row .voyage-cargo-act > .btn { min-width: 8rem; } /* the list's one button width at every width (.209) */
   .voyage-errand { grid-template-columns: 36px minmax(0, 1fr); }
   .voyage-errand > .btn { grid-column: 1 / -1; justify-self: end; }
 }
@@ -732,3 +733,5 @@ body.vj-locked { overflow: hidden; }
 #voyage-here.voyage-capped { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 /* Its title row (the caret, You are here, Manage voyage) stays at the top while the rest scrolls under it (the user, build .190). */
 #voyage-here.voyage-capped .voyage-here-head { position: sticky; top: -.5rem; z-index: 2; margin: -.5rem -.5rem 4px; padding: .5rem .5rem 4px; background: inherit; border-bottom: 1px solid var(--voyage-rule); }
+/* Touch: the harbour board's buttons are 40px high too (build .209). */
+@media (pointer: coarse) { .voyage-cargo-act > .btn { min-height: 40px; } }

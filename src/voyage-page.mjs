@@ -216,7 +216,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
         section(`<div class="d-flex flex-wrap align-items-center"><span class="mr-2">${t('MOD_VOY_PAGE_BUILD_COST')}</span>${costs.join('')}</div>` +
           (why
             ? `<div class="text-warning mt-2">${esc(why)}</div>`
-            : `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="build">${t('MOD_VOY_PAGE_BUILD_BUTTON')}</button></div>` +
+            : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="build">${t('MOD_VOY_PAGE_BUILD_BUTTON')}</button></div>` +
               `<small class="d-block text-center text-muted mt-1">${t('MOD_VOY_PAGE_BUILD_HINT')}</small>`));
     }
     // The hull's wear is in Stores (build .205: what a sail costs); what you can buy is in the Shipwright row.
@@ -291,7 +291,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` +
       (blocker !== undefined
         ? `<div class="text-warning mt-2">${esc(blocker)}</div>`
-        : `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="buy">${esc(t('MOD_VOY_PAGE_BRIG_BUTTON'))}</button></div>` +
+        : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="buy">${esc(t('MOD_VOY_PAGE_BRIG_BUTTON'))}</button></div>` +
           `<small class="d-block text-center text-muted mt-1">${esc(t('MOD_VOY_PAGE_BRIG_HINT'))}</small>`));
   };
 
@@ -315,7 +315,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` +
       (blocker !== undefined
         ? `<div class="text-warning mt-2">${esc(blocker)}</div>`
-        : `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="upgrade" data-kind="${kind}">${esc(t('MOD_VOY_PAGE_UPGRADE_BUTTON', { hull: word }))}</button></div>` +
+        : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="upgrade" data-kind="${kind}">${esc(t('MOD_VOY_PAGE_UPGRADE_BUTTON', { hull: word }))}</button></div>` +
           `<small class="d-block text-center text-muted mt-1">${esc(t('MOD_VOY_PAGE_UPGRADE_HINT', { old }))}</small>`));
   };
 
@@ -392,7 +392,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     const costs = [costIcon(logs?.media ?? '', info.plan.full.logs, info.logs, t('MOD_VOY_PAGE_HULL_LOGS'), logs?.id)];
     if (pitch !== undefined) costs.push(costIcon(pitch.media, info.plan.full.pitch, info.pitch, pitch.name, pitch.id));
     const action = info.blocker === undefined
-      ? `<div class="voyage-hold-main voyage-hold-main-centre"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR', { cond: `${info.plan.to}` })}</button></div>`
+      ? `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR', { cond: `${info.plan.to}` })}</button></div>`
       : (c < 100 ? `<div class="text-warning mt-2">${esc(info.blocker)}</div>` : '');
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/hull_condition.webp')}" alt="">` +
       `<div class="flex-grow-1"><div><b>${label}</b> <span class="${c <= 0 ? 'text-danger' : c < storesModel.WORN ? 'text-warning' : ''}">${c}%</span></div>` +
