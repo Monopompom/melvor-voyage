@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultSave, loadSave, serializeSave, emptyJournal, cleanJournal, JOURNAL_GUIDES, JOURNAL_LIMITS, FREE_CHART_LEVELS, GOLBIN_GIFT } from '../src/voyage-model.mjs';
-import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, parseHex, splitLinks, linkTargetExists, chart, chartChance, freeChartsLeft, markUnread, markRead, unreadCount, CHART_ITEMS } from '../src/journal-model.mjs';
+import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, parseHex, splitLinks, linkTargetExists, chart, chartChance, freeChartsLeft, markUnread, markRead, unreadCount, CHART_ITEMS, JOURNAL_GUIDE_SECTIONS, JOURNAL_CHAPTERS, JOURNAL_WRITTEN } from '../src/journal-model.mjs';
 
 test('v6 saves get an empty journal', () => {
   const v6 = { v: 6, landHexes: 3, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 10, fuel: 1 }, kitGiven: true, hold: [], unlockNotice: [] };
@@ -186,4 +186,16 @@ test('roman folios go past xvi', async () => {
   assert.deepEqual([1, 4, 9, 14, 16, 17, 19, 20, 24, 40].map(roman), ['i', 'iv', 'ix', 'xiv', 'xvi', 'xvii', 'xix', 'xx', 'xxiv', 'xl']);
   for (let i = 1; i <= JOURNAL_CHAPTERS.length + 4; i++) assert.match(roman(i), /^[ivxl]+$/);
   assert.equal(roman(0), '0');
+});
+
+test('cargo, markets, notices and planning live in the Guide, written at their first moment', () => {
+  for (const id of ['cargo', 'markets', 'notices', 'planning']) {
+    assert.ok(!JOURNAL_CHAPTERS.includes(id), id);
+    assert.equal(JOURNAL_WRITTEN[id], undefined, id);
+  }
+  assert.deepEqual(Object.keys(JOURNAL_GUIDE_SECTIONS).sort(), ['board', 'cargo', 'market', 'planning', 'rumour']);
+  for (const id of Object.keys(JOURNAL_GUIDE_SECTIONS)) assert.ok(JOURNAL_GUIDES.includes(id), id);
+  // Every section of the old notices chapter lands on exactly one page.
+  const notices = Object.values(JOURNAL_GUIDE_SECTIONS).filter((g) => g.from === 'NOTICES').flatMap((g) => g.sections).sort();
+  assert.deepEqual(notices, ['CHARTS', 'ONE', 'RUMOURS', 'TASKS']);
 });

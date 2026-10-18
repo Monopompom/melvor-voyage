@@ -76,6 +76,10 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
 - **Markets with prices.** Each market pays well for some goods (140 to 180%) and little for others (60 to 80%);
   worked goods fetch 20 points more than raw ones. You learn a market's prices by visiting it: the bank's Sell block
   shows the price here and the best and worst you know, and the journal keeps a ledger.
+- **Into the fog.** On a hex not surveyed yet, Explore there sets off a voyage that surveys its own way: each fog hex
+  ahead is surveyed at Cartography's pace (its XP and finds as usual) before you sail in, and you may survey a hex or
+  two beside the route as well. A hex your Cartography can't survey, nor will by the time you get there, bars the trip.
+  Fog hexes are paid as you reach them.
 - **Timed travel.** Travel is the work you are doing, like a skill: a land hex takes 6 minutes on foot (longer on
   rough ground, snow and lava), a sea hex 5 minutes in the dinghy down to 2 in the galleon. Each hex is paid as you
   enter it, and Stop here on the Voyage page keeps the hexes reached. Before setting off, pick up to three things to

@@ -118,6 +118,24 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   });
 
   /** A fast-travel hop between two game hexes (the game's port network; getTravelCosts skips these). */
+  /**
+   * On a phone, how far down (screen px) the middle of the map's open part lies from the map's middle: the Here panel
+   * covers the top (its top-anchored form, src/here-panel.mjs), the screen's edge may cut the bottom. Else 0.
+   */
+  const shownMiddle = () => {
+    try {
+      if (window.matchMedia?.('(max-width: 767.98px)').matches !== true) return 0;
+      const panel = document.getElementById('voyage-here');
+      const mapEl = cartographyMap?.bottomLeftOverlay?.parentElement;
+      if (panel == null || mapEl == null || !panel.classList.contains('voyage-here-top')) return 0;
+      const p = panel.getBoundingClientRect();
+      const m = mapEl.getBoundingClientRect();
+      if (p.width === 0 || p.height === 0 || p.width < m.width / 2) return 0;
+      const top = Math.max(m.top, Math.min(p.bottom, m.bottom));
+      const bottom = Math.min(m.bottom, window.innerHeight);
+      return bottom - top < 80 ? 0 : (top + bottom) / 2 - (m.top + m.bottom) / 2;
+    } catch { return 0; }
+  };
   const isHop = (prev, next) => { try { return prev.canFastTravelTo(next) === true; } catch { return false; } };
   /**
    * True when the player has fully surveyed the hex. Travel only paths through such hexes (the game's
@@ -568,7 +586,22 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     centreOn(hex) {
       if (typeof cartographyMap === 'undefined' || cartographyMap === null) return;
       const zoom = cartographyMap.viewport?.scaled;
-      cartographyMap.animateMoveToHex(hex, Number.isFinite(zoom) ? zoom : 1);
+      const scale = Number.isFinite(zoom) ? zoom : 1;
+      // On a phone the Here panel lies across the top of the map: the hex goes to the middle of what is left under
+      // it (the phone run, build .239): the game's own animation, its centre moved by the difference.
+      const down = shownMiddle();
+      if (down !== 0) {
+        try {
+          const vp = cartographyMap.viewport;
+          const to = hex.map.getHexOrigin(hex);
+          const from = vp.center;
+          const position = { x: to.x, y: to.y - down / scale };
+          const time = Math.max(500, (1000 * Math.hypot(position.x - from.x, position.y - from.y)) / 3500);
+          vp.animate({ time, position, scale, ease: 'easeInOutSine' });
+          return;
+        } catch (e) { console.error('[Voyage] map centre failed', e); }
+      }
+      cartographyMap.animateMoveToHex(hex, scale);
     },
     /** The game hex of a vessel ('boat' by default, or 'ship') on the active map, or undefined. */
     hex: (kind = 'boat') => { const s = vessel(kind); try { return s ? game.cartography.activeMap?.getHex(new HexCoords(s.q, s.r)) : undefined; } catch { return undefined; } },

@@ -309,8 +309,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
 
   /** The ship and stores lines in one band with its own background (user feedback, build .58). */
+  // Night first (the user, build .228), then the boat, then the voyage under way (the user, build .233).
   const shipBox = () => {
-    const inner = underwayLine() + nightLine() + shipLine() + shipyardLine() + storesLine();
+    const inner = nightLine() + shipLine() + underwayLine() + shipyardLine() + storesLine();
     return inner === '' ? '' : `<div class="voyage-here-shipbox">${inner}</div>`;
   };
 

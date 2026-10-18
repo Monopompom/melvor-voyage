@@ -94,7 +94,9 @@ const cleanMode = (m) => (m != null && typeof m === 'object' ? JSON.parse(JSON.s
  * The voyage under way, or null. { walk: [{ q, r, m? }] start first (m: the path's voyageModes entry for the step into
  * that hex, ship.mjs), at (index of the hex you stand on), left (ticks of the step in progress), total (ticks of the
  * whole walk at departure), name, chain, loads (indexes where the route stops to load), began (ms), xp (Voyage XP
- * at departure), gp (GP at departure) }.
+ * at departure), gp (GP at departure), spent (ticks run so far), of (ticks of the timer in progress: the step's, or a
+ * survey's) }. A voyage into the fog (5b, fog-model.mjs) adds fog: true, side (hexes beside the route to survey) and
+ * sv (the hexes still to survey before the next step, in turn; the timer is a survey's while it has any).
  */
 export function cleanVoyage(v) {
   if (v == null || typeof v !== 'object' || !Array.isArray(v.walk) || v.walk.length < 2) return null;
@@ -117,7 +119,14 @@ export function cleanVoyage(v) {
     began: Number.isFinite(v.began) ? v.began : 0,
     xp: Number.isFinite(v.xp) ? v.xp : 0,
     gp: Number.isFinite(v.gp) ? v.gp : 0,
+    spent: isInt(v.spent) && v.spent >= 0 ? v.spent : 0,
+    of: isInt(v.of) && v.of > 0 ? v.of : (isInt(v.left) && v.left > 0 ? v.left : 1),
+    ...(v.fog === true ? { fog: true, side: isInt(v.side) && v.side >= 0 && v.side <= 3 ? v.side : 0, sv: cleanQueue(v.sv) } : {}),
   };
+}
+function cleanQueue(sv) {
+  if (!Array.isArray(sv)) return [];
+  return sv.filter((h) => h != null && isInt(h.q) && isInt(h.r)).slice(0, 64).map((h) => ({ q: h.q, r: h.r }));
 }
 
 /**
@@ -137,6 +146,10 @@ export function cleanEnding(e) {
     at: Number.isFinite(e.at) ? e.at : 0,
     how,
     started: str(e.started),
+    // Why a refused voyage stopped, when it was not the GP (build .227: a fog hex it could not survey); '' the GP.
+    why: str(e.why),
+    // Something was set for the arrival (build .227); old endings say yes, as they read before.
+    asked: e.asked !== false,
     failed: (Array.isArray(e.failed) ? e.failed : []).filter((f) => f != null && typeof f === 'object').slice(0, 3)
       .map((f) => ({ name: str(f.name), why: str(f.why) })),
     seen: e.seen === true,

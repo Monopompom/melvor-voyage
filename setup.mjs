@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-18.223';
+export const BUILD = '2026-10-19.240';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -370,6 +370,11 @@ export async function setup(ctx) {
       const clock = (await ctx.loadModule('src/voyage-clock.mjs')).install(ctx, { state, C: clockModel, storesModel, rules, terrainMod, helpLayout, log });
       const s = voyageSkill();
       if (s !== undefined) s.clock = clock;
+      // Voyages into the fog (phase 5b): the voyage surveys its own way. A failure leaves known routes only.
+      try {
+        const fogModel = await ctx.loadModule('src/fog-model.mjs');
+        (await ctx.loadModule('src/voyage-fog.mjs')).install(ctx, { state, F: fogModel, C: clockModel, log });
+      } catch (e) { console.error('[Voyage] fog voyages failed to load; known routes only', e); state.fog = undefined; }
     } catch (e) { console.error('[Voyage] the ship\'s clock failed to load; travel stays instant', e); state.clock = undefined; state.timed = () => false; }
   }
   // Markets with prices (phase 4): sale prices by market, the bank's Sell line, the journal's ledger.

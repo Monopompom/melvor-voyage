@@ -151,6 +151,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     ctx.patch(Skill, 'onLevelUp').after(function (ret, oldLevel, newLevel) {
       try {
         if (this.id !== model.SKILL_ID || journal() === undefined) return;
+        // The planning page (build .231) is written the day the planner opens.
+        if (state.planner !== undefined && oldLevel < model.PLAN_LEVEL && newLevel >= model.PLAN_LEVEL) learn('planning');
         const reached = model.FREE_CHART_LEVELS.filter((l) => oldLevel < l && newLevel >= l);
         if (reached.length === 0) return;
         notify(t('MOD_VOY_JOURNAL_CHART_FREE', { level: `${reached[reached.length - 1]}` }));
@@ -248,6 +250,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       badge();
       // The compass came with the welcome: a character that has it knows its page.
       if (state.compass?.owned?.()) jm.learn(j, 'compass', model.JOURNAL_GUIDES);
+      // The pages that took the old chapters (build .231): a board already read, the planner's level already reached.
+      // Marked New, as the pages are to this reader.
+      if (['cargo', 'notices', 'charts'].some((g) => j.guides.includes(g)) && jm.learn(j, 'board', model.JOURNAL_GUIDES)) unread(j, 'g:board', 'new');
+      if (state.planner !== undefined && (state.voyageSkill?.()?.level ?? 1) >= model.PLAN_LEVEL && jm.learn(j, 'planning', model.JOURNAL_GUIDES)) unread(j, 'g:planning', 'new');
     } catch (e) { log('journal load failed', e); }
   });
 
@@ -417,17 +423,31 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
 
   /** Adventure's chapter only where skills are bought; the "?" chapters only with the Voyage page loaded. */
   const adventure = () => { try { return game.currentGamemode?.allowSkillUnlock === true; } catch { return false; } };
-  const chapters = () => jm.JOURNAL_CHAPTERS.filter((c) => (c === 'adventure' ? adventure() : c === 'planning' ? state.planner !== undefined
+  const chapters = () => jm.JOURNAL_CHAPTERS.filter((c) => (c === 'adventure' ? adventure()
     : c === 'crafts' || jm.JOURNAL_WRITTEN[c] !== undefined || typeof state.helpSections === 'function'));
 
   /** A book-only chapter (journal-model.mjs JOURNAL_WRITTEN): its sections from en.json, plus the live parts. */
+  /** The live values the book's texts take: keys, the planner's levels and the charts' price, the sign's level. */
+  const bookVars = () => {
+    const nav = state.planner?.NAV;
+    return { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
+      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, gp: nav === undefined ? '' : numberWithCommas(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
+      signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '' };
+  };
+  /** A guide page's account under its lesson (journal-model.mjs JOURNAL_GUIDE_SECTIONS), drawn as a chapter's sections. */
+  const guideSections = (id) => {
+    const spec = jm.JOURNAL_GUIDE_SECTIONS[id];
+    if (spec === undefined) return '';
+    const vars = bookVars();
+    return spec.sections.map((sec) => {
+      const lines = t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_BODY`, vars).split('\n').filter((x) => x.trim() !== '');
+      return `<div class="vj-section"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_HEAD`))}</h3>${lines.map((l) => `<p class="vj-p">${rich(l)}</p>`).join('')}</div>`;
+    }).join('');
+  };
   const writtenBody = (id) => {
     const spec = jm.JOURNAL_WRITTEN[id];
     const key = id.toUpperCase();
-    const nav = state.planner?.NAV;
-    const vars = { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
-      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, gp: nav === undefined ? '' : numberWithCommas(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
-      signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '' };
+    const vars = bookVars();
     const line = (k) => t(k, vars).split('\n').filter((x) => x.trim() !== '');
     let html = id === 'lighthouse' ? lighthouse() : '';
     for (const sec of spec.sections) {
@@ -1238,10 +1258,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     if (view.guide === undefined) return { left, right: runningHead(t('MOD_VOY_JOURNAL_TAB_GUIDE'), '') + empty('MOD_VOY_JOURNAL_GUIDE_NONE') };
     const key = view.guide.toUpperCase();
     const [lead, ...rest] = t(`MOD_VOY_JOURNAL_GUIDE_${key}_BODY`).split('\n');
-    const points = t(`MOD_VOY_JOURNAL_GUIDE_${key}_POINTS`).split('\n').filter((x) => x.trim() !== '');
+    const points = jm.JOURNAL_GUIDE_SECTIONS[view.guide]?.points === false ? [] : t(`MOD_VOY_JOURNAL_GUIDE_${key}_POINTS`).split('\n').filter((x) => x.trim() !== '');
     const right = runningHead(t('MOD_VOY_JOURNAL_TAB_GUIDE'), '')
       + `<h2 class="vj-h1">${esc(guideTitle(view.guide))}</h2>` + dropCap(lead) + rest.map((p) => `<p class="vj-p">${rich(p)}</p>`).join('')
-      + (points.length > 0 ? `<ul class="vj-points">${points.map((p) => `<li>${rich(p)}</li>`).join('')}</ul>` : '')
+      + (points.length > 0 ? `<ul class="vj-points">${points.map((p) => `<li>${rich(p)}</li>`).join('')}</ul>` : '') + guideSections(view.guide)
       + (view.back !== null ? `<div class="vj-foot vj-foot-end"><button type="button" class="vj-btn" data-vj-back="1">${esc(t('MOD_VOY_JOURNAL_BACK'))}</button></div>` : '');
     return { left, right };
   };
@@ -1424,10 +1444,20 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       if (list !== null) { try { state.skillNames?.(list); } catch {} }
       if (e.target.id === 'vj-place-search' && isGoblinQuery(view.placeQuery)) golbinGift();
     });
-    root.addEventListener('keydown', (e) => {
+    /** Esc closes the Old Man's letter or the heat map first, then the book. */
+    const escape = () => {
       const heatEl = state.heatmap?.isOpen() ? state.heatmap.element() : undefined;
-      // Esc closes the Old Man's letter or the heat map first, then the book.
-      if (e.key === 'Escape') { e.stopPropagation(); if (giftEl !== undefined) closeLetter(); else if (heatEl !== undefined) state.heatmap.close(); else close(); return; }
+      if (giftEl !== undefined) closeLetter(); else if (heatEl !== undefined) state.heatmap.close(); else close();
+    };
+    // Esc anywhere while the book is open (the user, 18 Oct 2026), not only with the focus in it: a click on the
+    // page behind can leave the focus on the body. A popup over the book takes its own Esc first.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !view.open || root === null || root.contains(e.target)) return;
+      try { if (typeof Swal !== 'undefined' && Swal.isVisible()) return; } catch {}
+      escape();
+    });
+    root.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); escape(); return; }
       if (e.key !== 'Tab') return;
       // Keep focus in the book while it is open (a modal dialog), or in the letter or heat map over it.
       const all = [...(giftEl ?? heatEl ?? root).querySelectorAll('button, input, a[href], canvas[tabindex]')].filter((x) => x.offsetParent !== null);

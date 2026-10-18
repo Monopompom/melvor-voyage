@@ -7,11 +7,11 @@
  * 'crafts' is the rule table; the ones in JOURNAL_WRITTEN are written for the book alone (the user, 16 Oct 2026:
  * "write it all down": reading the map, tricks, settings, removing the mod, Adventure's first coins). 'lands' (build
  * .113) adds two live ledgers from the rule table: what each kind of land and each feature lets a craft do.
- * 'planning' (build .123) is Plan a voyage, shown while the planner is loaded. 'road' (build .170, the
- * user's ask) is the land upgrades and the Crossroads Sign (4.27, 4.28), with live ledgers. 'clock' (build .219) is
- * timed travel (phase 5a, 4.5).
+ * 'road' (build .170, the user's ask) is the land upgrades and the Crossroads Sign (4.27, 4.28), with live ledgers.
+ * 'clock' (build .219) is timed travel (phase 5a, 4.5). Cargo, markets, notices and planning were chapters here until
+ * build .231; they are Guide pages now (JOURNAL_GUIDE_SECTIONS), written at their first moment.
  */
-export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'cargo', 'markets', 'notices', 'travels', 'clock', 'road', 'planning', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
+export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'travels', 'clock', 'road', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
 /**
  * The Old Man's Crew pages (build .116, the user's ask): a guide to Worker Folks: Hiring in the captain's voice, shown
  * as their own tab only while that mod is loaded. Written chapters like the ones below (MOD_VOY_JOURNAL_CH_CREW_*).
@@ -49,7 +49,6 @@ export const JOURNAL_WRITTEN = {
   crew_pay: { sections: ['WAGES', 'GRACE', 'STRIKE', 'EASIER'], warn: ['STRIKE'] },
   crew_tips: { sections: ['OWN'], points: true },
   map: { sections: ['TINT', 'PANEL', 'KEYS', 'MARKS'] },
-  planning: { sections: ['WHERE', 'STOPS', 'CHARTS'] },
   lands: { sections: ['KINDS', 'FEATURES'] },
   tricks: { sections: ['STORES', 'BOAT', 'TRADE', 'NIGHT', 'WAY', 'PAGE'], points: true },
   settings: { sections: ['EASIER', 'KEYS', 'WHY'] },
@@ -57,13 +56,23 @@ export const JOURNAL_WRITTEN = {
   adventure: { sections: ['FIRST', 'NEXT'] },
   road: { sections: ['MOUNTS', 'SIGN'] },
   // The ship's clock (phase 5a, build .219).
-  clock: { sections: ['PACE', 'WAY', 'LAND', 'ASK', 'AWAY', 'OFF'] },
-  // Cargo runs (phase 4).
-  cargo: { sections: ['BOARD', 'TRADE', 'LOAD', 'DELIVER', 'DROP'] },
-  // Markets with prices (phase 4).
-  markets: { sections: ['PRICES', 'LEARN'] },
-  // Notices, sea charts and rumours (phase 4, build .212).
-  notices: { sections: ['TASKS', 'ONE', 'CHARTS', 'RUMOURS'] },
+  clock: { sections: ['PACE', 'WAY', 'LAND', 'ASK', 'FOG', 'AWAY', 'OFF'] },
+};
+
+/**
+ * Guide pages that carry a whole account under their lesson (build .231, the user: "Move not yet written entries to
+ * the Guides? We have all the pages with triggers there", then "partial merge and new guide pages"). Each section is
+ * the old chapter's, MOD_VOY_JOURNAL_CH_<from>_<SECTION>_HEAD / _BODY, so the text did not move. Each page is written
+ * when its account is first needed: cargo and board with the first harbour board opened (board also with a notice
+ * taken or a chart read, for older saves), market by the first market, rumour with the first rumour, planning at the
+ * planner's level. `points: false`: the page has no lesson points of its own.
+ */
+export const JOURNAL_GUIDE_SECTIONS = {
+  cargo: { from: 'CARGO', sections: ['BOARD', 'TRADE', 'LOAD', 'DELIVER', 'DROP'] },
+  board: { from: 'NOTICES', sections: ['TASKS', 'ONE', 'CHARTS'], points: false },
+  market: { from: 'MARKETS', sections: ['PRICES', 'LEARN'] },
+  rumour: { from: 'NOTICES', sections: ['RUMOURS'] },
+  planning: { from: 'PLANNING', sections: ['WHERE', 'STOPS', 'CHARTS'], points: false },
 };
 
 /**

@@ -649,6 +649,9 @@ body.vj-locked { overflow: hidden; }
 .voyage-plan-pick-ico { width: 24px; height: 24px; margin-right: 10px; flex: none; object-fit: contain; text-align: center; line-height: 24px; }
 .voyage-plan-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 12px; padding-top: 12px; }
 .voyage-plan-buttons .btn { min-height: 40px; min-width: 140px; }
+/* On a phone the skill's floating buttons (journal, settings, milestones) sit on the right edge over the page: the
+   page's button rows (Set off, Stop here) centre, clear of them (the phone run, build .239). */
+@media (max-width: 767.98px) { #voyage-container .voyage-plan-buttons { justify-content: center; } }
 .vj-foot-end { gap: 12px; flex-wrap: wrap; }
 
 /* The mini panel: the folded Here panel as one strip, only as wide as its content, wrapping to a
@@ -731,7 +734,7 @@ body.vj-locked { overflow: hidden; }
 .voyage-board-popup .voyage-cargo { max-height: 62vh; overflow-y: auto; padding-right: 2px; }
 /* The mod's scroll areas get a thin scrollbar in the page's colours, not the browser's white one (the user, build .205):
    light on the dark board and Here panel, ink-brown on the journal's paper. */
-.voyage-board-popup .voyage-cargo, #voyage-here.voyage-capped { scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }
+.voyage-board-popup .voyage-cargo, #voyage-here.voyage-capped, .voyage-plan-arrival .dropdown-menu { scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }
 .vj-page, .vj-page-body, .vj-spread, .vj-letter { scrollbar-width: thin; scrollbar-color: rgba(90, 60, 30, .45) transparent; }
 .voyage-cargo { display: flex; flex-direction: column; gap: 8px; font-size: .95rem; }
 .voyage-cargo-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 16px; padding: 8px 12px; border-radius: 4px; background: var(--voyage-band); }
@@ -743,6 +746,8 @@ body.vj-locked { overflow: hidden; }
 .voyage-cargo-act { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .voyage-cargo-empty { padding: 10px 12px; border-radius: 6px; background: var(--voyage-well); text-align: center; }
 .voyage-cargo-foot { text-align: center; margin-top: 6px; }
+/* Under the page's Errands the note sits left, with the text above it (the user, build .239); the board's stay centred. */
+.voyage-errands-foot { text-align: left; }
 .voyage-errand { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; margin-bottom: 8px; border-radius: 6px; background: var(--voyage-well); }
 .voyage-harbour-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 /* The harbour board's tabs: Cargo, Notices, Sea charts (build .210). */
@@ -859,11 +864,39 @@ body.vj-locked { overflow: hidden; }
 .voyage-clock-strip-land { background: var(--voyage-foot); }
 .voyage-clock-strip-sea { background: var(--voyage-sea); }
 body.darkMode .voyage-clock-strip-legs > span { color: #1b1f24; }
+/* Into the fog (5b): a fog leg is hatched grey, survey and crossing together. */
+.voyage-clock-strip-legs > span.voyage-clock-strip-fog { background: repeating-linear-gradient(135deg, #6b7380 0 6px, #4a515c 6px 12px); color: #fff; }
+body.darkMode .voyage-clock-strip-legs > span.voyage-clock-strip-fog { background: repeating-linear-gradient(135deg, #9aa3af 0 6px, #6f7783 6px 12px); color: #1b1f24; }
+.voyage-fog-sub { text-align: center; margin-bottom: 10px; }
+.voyage-fog-split { margin-top: 4px; font-size: .9rem; color: var(--voyage-label); }
+.voyage-fog-chip { background: var(--voyage-ring-bg); color: var(--voyage-label); }
+.voyage-fog-level { display: flex; align-items: flex-start; margin-top: 10px; padding: 8px 12px; border-radius: 6px; background: rgba(30, 123, 46, .1); }
+body.darkMode .voyage-fog-level { background: rgba(111, 220, 154, .12); }
+.voyage-fog-level i { margin-top: 3px; }
+/* An uncharted destination's arrival note (build .236): the fog chip's grey-blue tint, the cloud in the label colour. */
+.voyage-clock-unknown { display: flex; align-items: flex-start; gap: 10px; margin-top: 10px; padding: 8px 12px; border-radius: 6px;
+  background: rgba(70, 95, 130, .1); font-size: .95rem; line-height: 1.4; }
+body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
+.voyage-clock-unknown i { margin-top: 3px; color: var(--voyage-label); }
+/* The rule in its own grey block under the fog note (the user, build .238), the section's tile tint. */
+.voyage-clock-note-rule { display: flex; align-items: flex-start; gap: 10px; margin-top: 10px; padding: 8px 12px; border-radius: 6px; background: var(--voyage-tile); }
+.voyage-clock-note-rule i { margin-top: 3px; }
+.voyage-fog-opt { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 44px; margin: 0 0 6px;
+  padding: 8px 12px; border-radius: 6px; background: var(--voyage-tile); cursor: pointer; font-weight: 400; }
+.voyage-fog-opt input { width: 18px; height: 18px; margin: 0; accent-color: var(--voyage-pin); }
+.voyage-fog-opt-off { opacity: .55; cursor: default; }
+.voyage-fog-opt-time { white-space: nowrap; }
+.voyage-fog-btn { margin-left: 4px; }
 /* On arrival: a numbered row per pick, the chosen action's icon by its select. */
 .voyage-clock-head { display: flex; align-items: center; gap: 6px; }
 .voyage-clock-pick { display: grid; grid-template-columns: 22px 9.5rem 32px minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 6px; }
-.voyage-clock-pick label { margin: 0; color: var(--voyage-label); }
-.voyage-clock-pick select { font-size: 1rem; }
+.voyage-clock-pick-label { margin: 0; color: var(--voyage-label); }
+/* The arrival picks are the planner's dropdown (.voyage-plan-arrival), a little lower in a popup's row. */
+.voyage-clock-dd .dropdown-toggle { min-height: 40px; }
+.voyage-clock-dd .dropdown-menu { max-height: 40vh; }
+.voyage-clock-dd .dropdown-toggle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
+/* Over the popup's buttons too (Swal lifts .swal2-actions with z-index 1; build .233). */
+.voyage-swal-menus { overflow: visible; position: relative; z-index: 2; }
 .voyage-clock-pick-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%;
   border: 1px solid var(--voyage-ring); color: var(--voyage-gold); font-size: .8rem; font-weight: 700; }
 .voyage-clock-pick-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--voyage-ring-bg); }
@@ -872,7 +905,7 @@ body.darkMode .voyage-clock-strip-legs > span { color: #1b1f24; }
 @media (max-width: 575px) {
   .voyage-clock-tiles { grid-template-columns: 1fr; }
   .voyage-clock-pick { grid-template-columns: 22px 32px minmax(0, 1fr); row-gap: 2px; }
-  .voyage-clock-pick label { grid-column: 2 / -1; }
+  .voyage-clock-pick-label { grid-column: 2 / -1; }
   .voyage-clock-pick-icon { grid-column: 2; }
 }
 .voyage-clock-top + .voyage-section, .voyage-clock-tiles + .voyage-section { margin-top: 12px; }

@@ -531,7 +531,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     tab = typeof startTab === 'string' ? startTab : 'cargo';
     try { state.tasks?.resetAsk?.(); } catch {}
     // The guide page the first time a board is opened (journal.learn is quiet when it is known already).
-    try { state.journal?.learn('cargo'); } catch {}
+    try { state.journal?.learn('cargo'); state.journal?.learn('board', true); } catch {}
     try {
       SwalLocale.fire({
         didRender: state.popupDidRender,
@@ -589,7 +589,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     const task = state.tasks?.errandHtml?.() ?? '';
     if (task !== '') rows.unshift(task);
     if (rows.length === 0) rows.push(`<div class="text-muted">${esc(t('MOD_VOY_CARGO_NO_RUNS'))}</div>`);
-    return rows.join('') + `<div class="voyage-cargo-foot text-muted">${esc(t('MOD_VOY_CARGO_ERRANDS_FOOT'))}</div>`;
+    return rows.join('') + `<div class="voyage-cargo-foot voyage-errands-foot text-muted">${esc(t('MOD_VOY_CARGO_ERRANDS_FOOT'))}</div>`;
   };
   const onPageClick = (e) => {
     const b = e.target instanceof Element ? e.target.closest('[data-cargo-page]') : null;

@@ -118,7 +118,7 @@ export function defaultSave() {
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
-export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'cargo', 'ports', 'market', 'notices', 'charts', 'rumour', 'stars'];
+export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'planning', 'cargo', 'board', 'ports', 'market', 'notices', 'charts', 'rumour', 'stars'];
 /**
  * Kinds of place the journal records. `island`: a named island (ship-model ISLANDS) or the mainland, at the first hex
  * you stood on it; `port`: a port whose harbour board you used (phase 4 wrap-up).

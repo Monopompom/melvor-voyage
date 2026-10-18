@@ -98,6 +98,19 @@ test('a voyage record: kept when sound, null when not', () => {
   assert.deepEqual([d.at, d.left, d.total, d.name, d.chain, d.began], [0, 1, 1, '', [], 0]);
 });
 
+test('a fog voyage keeps its survey queue and side width', () => {
+  const walk = [{ q: 0, r: 0 }, { q: 1, r: 0 }];
+  const v = cleanVoyage({ walk, fog: true, side: 9, sv: [{ q: 1, r: 0 }, { q: 'x', r: 0 }, null], spent: 12, of: 100 });
+  assert.equal(v.fog, true);
+  assert.equal(v.side, 0, 'an unknown width reads as none');
+  assert.deepEqual(v.sv, [{ q: 1, r: 0 }]);
+  assert.deepEqual([v.spent, v.of], [12, 100]);
+  const k = cleanVoyage({ walk, sv: [{ q: 1, r: 0 }], left: 7 });
+  assert.equal(k.fog, undefined, 'a known route has no fog fields');
+  assert.equal(k.sv, undefined);
+  assert.equal(k.of, 7, 'the timer in progress defaults to what is left');
+});
+
 test('an ending is cleaned; unknown ways read as arrived', () => {
   const e = cleanEnding({ name: 'Port', hexes: 3, ms: 5, xp: 12.7, at: 99, how: 'stopped', started: 'Mining', failed: [{ name: 'a', why: 'b' }, null, 1, {}, {}, {}] });
   assert.equal(e.how, 'stopped');
@@ -107,6 +120,15 @@ test('an ending is cleaned; unknown ways read as arrived', () => {
   assert.equal(cleanEnding({ how: 'sank' }).how, 'arrived');
   assert.equal(cleanEnding(undefined), null);
   assert.equal(cleanEnding({ closed: true }).closed, true);
+});
+
+test('an ending keeps why it was refused and whether the arrival had a plan', () => {
+  const e = cleanEnding({ how: 'refused', why: '(3, 4) needs Cartography 50 to survey', asked: false });
+  assert.equal(e.why, '(3, 4) needs Cartography 50 to survey');
+  assert.equal(e.asked, false);
+  // Old endings: the GP refusal and "something was asked", as they read before.
+  assert.equal(cleanEnding({ how: 'refused' }).why, '');
+  assert.equal(cleanEnding({ how: 'arrived' }).asked, true);
 });
 
 test('ticks left: the step in progress and the steps after it', () => {
