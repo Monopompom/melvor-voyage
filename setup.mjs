@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-19.287';
+export const BUILD = '2026-10-19.290';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -179,6 +179,7 @@ export async function setup(ctx) {
     { type: 'switch', name: 'provisions', label: getLangString('MOD_VOY_SETTING_PROVISIONS'), hint: getLangString('MOD_VOY_SETTING_PROVISIONS_HINT'), default: true, onChange: onChange('provisions') },
     { type: 'switch', name: 'timedTravel', label: getLangString('MOD_VOY_SETTING_TIMED'), hint: getLangString('MOD_VOY_SETTING_TIMED_HINT'), default: true, onChange: onChange('timedTravel') },
     { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
+    { type: 'switch', name: 'weather', label: getLangString('MOD_VOY_SETTING_WEATHER'), hint: getLangString('MOD_VOY_SETTING_WEATHER_HINT'), default: true, onChange: onChange('weather') },
     { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
     { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
     { type: 'text', name: 'journalKey', label: getLangString('MOD_VOY_SETTING_JOURNAL_KEY'), hint: getLangString('MOD_VOY_SETTING_JOURNAL_KEY_HINT'), default: 'J', maxLength: 1, onChange: onChange('journalKey') },
@@ -218,6 +219,7 @@ export async function setup(ctx) {
       trade: () => flag('trade'),
       provisions: () => flag('provisions'),
       night: () => flag('night'),
+      weather: () => flag('weather'),
       timedTravel: () => flag('timedTravel'),
       centreKey: () => String(value('centreKey') ?? '').trim().toUpperCase(),
       journalKey: () => String(value('journalKey') ?? '').trim().toUpperCase(),
@@ -394,6 +396,13 @@ export async function setup(ctx) {
         const adrift = (await ctx.loadModule('src/adrift.mjs')).install(ctx, { state, A: adriftModel, C: clockModel, shipModel, terrainMod, helpLayout, log });
         if (s !== undefined) s.adrift = adrift;
       } catch (e) { console.error('[Voyage] Adrift failed to load; the old floors at sea stand', e); state.adrift = undefined; }
+      // Weather (phase 5c-1): Township's season, degrees per hex, the bands, the harvest and the winter ice. A failure
+      // leaves the year without weather.
+      try {
+        const weatherModel = await ctx.loadModule('src/weather-model.mjs');
+        const weather = (await ctx.loadModule('src/weather.mjs')).install(ctx, { state, W: weatherModel, shipModel, terrainMod, log });
+        if (s !== undefined) s.weather = weather;
+      } catch (e) { console.error('[Voyage] weather failed to load; no seasons on the map', e); state.weather = undefined; }
     } catch (e) { console.error('[Voyage] the ship\'s clock failed to load; travel stays instant', e); state.clock = undefined; state.timed = () => false; }
   }
   // Markets with prices (phase 4): sale prices by market, the bank's Sell line, the journal's ledger.
@@ -453,6 +462,7 @@ export async function setup(ctx) {
             const xpBefore = voyageSkill()?.xp ?? 0;
             const paid = voyageSkill()?.onTravelled(steps, entered);
             if (paid !== undefined) state.pace?.({ ...paid, gp: Math.max(0, gpBefore - game.gp.amount), xpBefore });
+            state.weather?.stepped?.(steps);
           }
           ship.afterMove(path);
         }
@@ -475,6 +485,8 @@ export async function setup(ctx) {
       map?.forEach((hex) => liveHexes.push({ q: hex.q, r: hex.r, isWater: hex.isWater }));
       const check = terrainMod.checkTable(table, { mapId: map?.id, hexes: liveHexes });
       state.terrain = terrainMod.createTerrain(table);
+      // The season's ice is laid before anything reads the sea (phase 5c-1).
+      state.weather?.loaded?.();
       // Where you stand counts as visited, without XP (the balance pass; a new character or one moved by an event).
       try { const here = map?.playerPosition; if (here !== undefined && !terrainMod.isCloud(state.terrain.get(here.q, here.r))) voyageSkill()?.markHere(here); } catch (e) { log('visited mark failed', e); }
       const opts = () => state.ruleOpts();

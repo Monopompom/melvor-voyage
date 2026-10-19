@@ -478,6 +478,24 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       else if (typeof cmd === 'string') ad.play(cmd);
       return { applies: ad.applies(), cause: ad.cause(), adrift: s.record.adrift, end: s.record.adriftEnd };
     },
+    /**
+     * Weather (5c-1): season() reads it; season(order) sets Township's season (0 Spring, 1 Summer, 2 Fall, 3 Winter,
+     * 4 Nightfall, 5 Eclipse, 6 Lemon, 7 Eternal Darkness) and the next tick sees it change, as a real turn would.
+     * Dev only: it writes the town's calendar.
+     */
+    season(order) {
+      const w = state.weather;
+      if (w === undefined) return 'weather not loaded';
+      if (Number.isInteger(order)) {
+        const td = game.township?.townData;
+        const next = game.township?.seasons?.allObjects?.find((x) => x.order === order);
+        if (td === undefined || next === undefined) return `no season ${order}`;
+        if (order > 3 && td.season?.order <= 3) td.previousSeason = td.season;
+        td.season = next;
+      }
+      const here = state.recordAt(state.position());
+      return { season: w.season(), here: here === undefined ? undefined : w.describe(here), frozen: w.frozenVessels().map((x) => x.kind) };
+    },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },
     state,

@@ -25,10 +25,19 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   // Phase 5a: the clock a timed voyage reads (during the offline catch-up, the hour being replayed; voyage-clock.mjs).
   const hourNow = () => { const d = new Date(state.clockNow?.() ?? Date.now()); return d.getHours() + d.getMinutes() / 60; };
   /** True at night with the "Night" setting on: light is bought from spare fuel and lit hexes pay more XP. */
-  const night = () => state.settings.night?.() !== false && S.isNight(hourNow(), shift());
+  // Nightfall, Solar Eclipse and Eternal Darkness are night all season (phase 5c-1, weather.mjs).
+  const allNight = () => state.weather?.allNight?.() === true;
+  const night = () => state.settings.night?.() !== false && (allNight() || S.isNight(hourNow(), shift()));
   const clock = (h) => `${String(h).padStart(2, '0')}:00`;
-  /** { night, until } for the panel and page: whether it is night and when it next turns ("05:00"); undefined when off. */
-  const timeOfDay = () => (state.settings.night?.() === false ? undefined : { night: S.isNight(hourNow(), shift()), until: clock(S.nextTurn(hourNow(), shift())) });
+  /**
+   * { night, until, season } for the panel and page: whether it is night and when it next turns ("05:00"); `season`
+   * true when the season keeps it night (no turn to tell). Undefined when off.
+   */
+  const timeOfDay = () => {
+    if (state.settings.night?.() === false) return undefined;
+    if (allNight()) return { night: true, until: '', season: true };
+    return { night: S.isNight(hourNow(), shift()), until: clock(S.nextTurn(hourNow(), shift())) };
+  };
   // Day turns to night with nobody clicking: redraw the panel and page when it does.
   let wasNight;
   setInterval(() => {
@@ -146,11 +155,13 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
    * takes. A loading place with nothing to load is no way out (user report, build .61: food sold to the trader next
    * to a farm in the Snowlands, and no help came).
    */
+  /** The Fall harvest (phase 5c-1): food loads a quarter better where it loads at all; `harvest` marks the lift. */
+  const harvested = (rates) => state.weather?.harvest?.(rates) ?? rates;
   const safe = (hex, food = bankFood()) => {
     const rec = recOf(hex);
     if (rec === undefined || rec.cloud === true) return false;
     if (S.isEasy(rec.t)) return true;
-    const rates = S.loadingAt(rec, state.knownNeighbours(rec));
+    const rates = harvested(S.loadingAt(rec, state.knownNeighbours(rec)));
     return rates !== undefined && rates.food > 0 && food > 0;
   };
   /** HP of food in the bank, at full worth. */
@@ -201,7 +212,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       const p = planned.plan;
       const step = planned.steps[p.at];
       const rec = recOf(path[path.length - 2 - p.at]);
-      const terrain = rec === undefined ? '' : getLangString(terrainMod.classKey(rec.t));
+      const terrain = rec === undefined ? '' : getLangString(terrainMod.recKey(rec));
       const have = stores();
       // The whole trip against the stores, and where it runs out (user report, build .58: "needs 20 HP, your stores
       // hold 160" named only the step that failed, after the stores had gone on the steps before it).
@@ -347,6 +358,14 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
             fill('MOD_VOY_STORES_PATH_LIGHT', {}, { fuel: `${fuelIcon}${esc(fuelText(p.light))}` })));
         }
       }
+      // The weather on the way (phase 5c-1): the coldest or hottest hex where a band bites, and what it does.
+      const wx = state.weather?.wayWords?.(planned.steps);
+      if (wx !== undefined) {
+        lines.push(row('<i class="fa fa-thermometer-half" aria-hidden="true"></i>', t('MOD_VOY_STORES_PATH_WX_TIP', { season: wx.season }),
+          // The degrees, a separator, the effects as icons (the user, build .290: "temperature then some fancy separator
+          // then fuel icon x1.5, clock icon x1.25"); the band's name is the degrees' tooltip.
+          `<b class="${wx.tone}"${wx.head === '' ? '' : ` title="${esc(wx.head)}"`}>${esc(wx.deg)}</b><span class="voyage-wx-sep" aria-hidden="true">◆</span>${wx.fx}`));
+      }
       // The verdict first, bold and in its colour; the numbers under it (UI review, build .86).
       let verdict;
       let cls = '';
@@ -356,7 +375,8 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       } else if (p.hungry.length > 0) { cls = 'text-warning'; verdict = t('MOD_VOY_STORES_PATH_HUNGRY', { hexes: hexes(p.hungry.length) }); }
       note.className = 'voyage-stores-note mb-1';
       note.innerHTML = (verdict === undefined ? '' : `<div class="font-w600 ${cls}">${esc(verdict)}</div>`) +
-        // The rows as one centred block: the leads in a column, each text left beside its lead (build .264).
+        // The rows as one block, left (phase 5c-1, the user's comment: they were centred): the leads in a column, each
+        // text left beside its lead (build .264).
         `<div class="voyage-stores-rows">${lines.map((l) => `<div class="voyage-stores-row ${verdict === undefined ? 'text-info' : ''}">${l.lead}<span>${l.html}</span></div>`).join('')}</div>`;
       state.tips?.apply?.(note);
     } catch (e) { log('stores note failed', e); }
@@ -367,7 +387,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   const loadingAtHex = (hex) => {
     const rec = hex === undefined ? undefined : recOf(hex);
     if (rec === undefined || state.terrain === undefined) return undefined;
-    return S.loadingAt(rec, state.knownNeighbours(rec));
+    return harvested(S.loadingAt(rec, state.knownNeighbours(rec)));
   };
   /** Loading rates where the player stands: { place, food, fuel } or undefined (wild, sea, or provisions off). */
   const loadingHere = () => loadingAtHex(state.position());

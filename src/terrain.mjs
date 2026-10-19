@@ -36,6 +36,8 @@ export const CLASS_INFO = {
 };
 /** Tint for a hex under cloud, whatever its class. */
 export const CLOUD_INFO = { label: 'Cloud', colour: 0x404040, css: '#404040' };
+/** Tint for the winter ice (phase 5c-1): sea frozen over, ground like the Snowlands but pale blue on the map. */
+export const ICE_INFO = { label: 'Ice', colour: 0xa9d6ee, css: '#a9d6ee' };
 
 /** Labels for features; the few the rules name get a colour for the lock modal. */
 export const FEATURE_INFO = Object.fromEntries(FEATURES.map((f) => [f, { label: f.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) }]));
@@ -48,6 +50,9 @@ Object.assign(FEATURE_INFO.tree, { label: 'Trees', css: '#2e8b57' });
  */
 export const classKey = (cls) => `MOD_VOY_TERRAIN_${cls}`;
 export const CLOUD_KEY = 'MOD_VOY_TERRAIN_CLOUD';
+export const ICE_KEY = 'MOD_VOY_TERRAIN_ICE';
+/** The label key of a terrain record: "Ice" for the winter ice (its class reads Snowlands), else its class. */
+export const recKey = (rec) => (rec?.ice === true ? ICE_KEY : classKey(rec?.t));
 export const featureKey = (f) => `MOD_VOY_FEATURE_${f}`;
 
 export const isSea = (rec) => rec !== undefined && SEA_CLASSES.includes(rec.t);
@@ -139,6 +144,7 @@ export function createTerrain(table) {
   // Landmasses: connected land (everything but water and shoal), numbered lazily on first use. The compass prefers
   // a target on the player's own landmass.
   let landmassOf;
+  let version = 0;
   const landmasses = () => {
     if (landmassOf !== undefined) return landmassOf;
     landmassOf = new Map();
@@ -161,15 +167,29 @@ export function createTerrain(table) {
     return landmassOf;
   };
 
+  // The weather's layer (phase 5c): records that stand in for the table's while it lasts, the winter ice
+  // (weather-model.mjs icedRecord). get, neighbours and all() read through it; the indexes (withClass, withFeature,
+  // poi, area, places) and the landmasses stay the table's, so island tiers and the places never move with the season.
+  let layer;
+  const read = (k) => (layer !== undefined && layer.has(k) ? layer.get(k) : byKey.get(k));
   const none = [];
   return {
     meta: table.meta,
     size: byKey.size,
-    get(q, r) { return byKey.get(hexKey(q, r)); },
+    get(q, r) { return read(hexKey(q, r)); },
+    /** The table's own record, under any layer. */
+    base(q, r) { return byKey.get(hexKey(q, r)); },
+    /** Puts a layer over the table: records keyed by their hex (any order), or undefined to lift it. */
+    setLayer(records) {
+      layer = records === undefined || records.length === 0 ? undefined : new Map(records.map((rec) => [hexKey(rec.q, rec.r), rec]));
+      version++;
+    },
+    /** Moves whenever the layer does, for caches built on get(). */
+    get version() { return version; },
     /** The six neighbouring records (fewer at the map edge). */
     neighbours(q, r) {
       const out = [];
-      for (const [dq, dr] of NEIGHBOURS) { const n = byKey.get(hexKey(q + dq, r + dr)); if (n !== undefined) out.push(n); }
+      for (const [dq, dr] of NEIGHBOURS) { const n = read(hexKey(q + dq, r + dr)); if (n !== undefined) out.push(n); }
       return out;
     },
     /** Tagged hexes for a game area id; empty when the area is not on the map. */
@@ -181,7 +201,7 @@ export function createTerrain(table) {
     },
     /** Landmass number of a land hex, undefined for sea. */
     landmass(q, r) { return landmasses().get(hexKey(q, r)); },
-    all() { return byKey.values(); },
+    all() { return layer === undefined ? byKey.values() : [...byKey.keys()].map(read).values(); },
     withClass(cls) { return byClass.get(cls) ?? none; },
     withFeature(f) { return byFeature.get(f) ?? none; },
     poi(name) { return byPoi.get(name); },

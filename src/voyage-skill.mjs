@@ -27,6 +27,8 @@ export function createVoyageClass({ model, log }) {
       this.clock = undefined;
       /** Set by setup: Adrift at sea (src/adrift.mjs), ticked as a passive action (the drift goes on while fishing). */
       this.adrift = undefined;
+      /** Set by setup: the weather (src/weather.mjs); its passive tick notices Township's season changing. */
+      this.weather = undefined;
     }
 
     get name() { return getLangString('SKILL_NAME_Voyage'); }
@@ -39,7 +41,10 @@ export function createVoyageClass({ model, log }) {
     // ---- the active action (a voyage under way) ---------------------------------------------------------
     activeTick() { try { this.clock?.tick(); } catch (e) { log('voyage tick failed', e); } }
     /** Every tick, online and offline, whatever runs (Game.tick's passive tickers): the drift while Adrift (5b part two). */
-    passiveTick() { try { this.adrift?.tick(); } catch (e) { log('adrift tick failed', e); } }
+    passiveTick() {
+      try { this.weather?.tick(); } catch (e) { log('weather tick failed', e); }
+      try { this.adrift?.tick(); } catch (e) { log('adrift tick failed', e); }
+    }
     get isActive() { return this.clock?.running?.() === true; }
     get activeSkills() { return this.isActive ? [this] : []; }
     /** The game stopping the action (another action after the question, a gamemode change): the voyage ends here. */

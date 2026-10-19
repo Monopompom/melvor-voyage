@@ -433,7 +433,9 @@ export function seaIndex(terrain) {
   }
   /** The stretch of open sea a hex is in, or undefined for land and cloud. */
   const waterBody = (rec) => (rec === undefined ? undefined : bodies.get(terrain.get(rec.q, rec.r) ?? rec));
-  return { islandOf, islandTier, home, waterBody };
+  /** False for a vessel standing on ground: the winter ice froze it in (phase 5c-1). It sails, hops and launches nothing. */
+  const afloat = (v) => v == null || isSea(terrain.get(v.q, v.r));
+  return { islandOf, islandTier, home, waterBody, afloat };
 }
 
 /**
@@ -680,14 +682,15 @@ export function routeSearch(o) {
     const dock = o.dockOf(node);
     if (dock === undefined) return;
     const landing = isSea(n) ? undefined : n;
-    const shipHere = (cur.mode === 'ship') || (cur.mode === 'land' && cur.s === 'h' && S0 !== null && hexDist(p, S0) <= 1);
+    // A vessel frozen in (phase 5c-1, geo.afloat) waits at its quay for the thaw.
+    const shipHere = (cur.mode === 'ship') || (cur.mode === 'land' && cur.s === 'h' && S0 !== null && hexDist(p, S0) <= 1 && geo.afloat?.(S0) !== false);
     if (shipHere && S0 !== null && canHop(p, n, at(S0, p), dock, geo)) {
       const aboard = boatAboard(cur);
       if (landing === undefined) offer(cur, node, cost, { mode: 'ship', s: 'w', b: aboard ? 'a' : cur.b, hop: 'ship' });
       else offer(cur, node, cost, { mode: 'land', s: 'l', b: aboard ? 'l' : cur.b, sAt: dock, hop: 'ship' });
       return;
     }
-    const boatHere = (cur.mode === 'boat') || (cur.mode === 'land' && cur.b === 'h' && B0 !== null && B0.aboard !== true && hexDist(p, B0) <= 1);
+    const boatHere = (cur.mode === 'boat') || (cur.mode === 'land' && cur.b === 'h' && B0 !== null && B0.aboard !== true && hexDist(p, B0) <= 1 && geo.afloat?.(B0) !== false);
     if (boatHere && B0 !== null && canHop(p, n, at(B0, p), dock, geo)) {
       if (landing === undefined) offer(cur, node, cost, { mode: 'boat', b: 'w', hop: 'boat' });
       else offer(cur, node, cost, { mode: 'land', b: 'l', hop: 'boat' });

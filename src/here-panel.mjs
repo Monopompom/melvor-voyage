@@ -14,11 +14,11 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
 
   const describe = (rec) => {
     if (rec === undefined) return { label: getLangString('MOD_VOY_PANEL_UNCHARTED'), features: [] };
-    const info = rec.cloud === true ? terrainMod.CLOUD_INFO : terrainMod.CLASS_INFO[rec.t];
+    const info = rec.cloud === true ? terrainMod.CLOUD_INFO : rec.ice === true ? terrainMod.ICE_INFO : terrainMod.CLASS_INFO[rec.t];
     const features = (rec.f ?? []).map(featureLabel);
     const label = rec.cloud === true
       ? templateLangString('MOD_VOY_PANEL_CLOUD_OVER', { cloud: getLangString(terrainMod.CLOUD_KEY), terrain: classLabel(rec.t) })
-      : classLabel(rec.t);
+      : rec.ice === true ? getLangString(terrainMod.ICE_KEY) : classLabel(rec.t);
     const places = [rec.area, rec.dungeon].filter(Boolean).map(terrainMod.areaLabel);
     return { label, features, css: info?.css, area: places.length > 0 ? places.join(', ') : undefined };
   };
@@ -353,7 +353,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const tod = api?.enabled() ? api.timeOfDay?.() : undefined;
     if (tod === undefined) return '';
     const hint = templateLangString('MOD_VOY_PANEL_NIGHT_HINT', { land: `${storesModel.LIGHT.land}`, sea: `${storesModel.LIGHT.sea}`, bonus: `${Math.round(model.STAR_XP * 100)}` });
-    const text = templateLangString(tod.night ? 'MOD_VOY_PANEL_NIGHT' : 'MOD_VOY_PANEL_DAY', { time: tod.until });
+    const text = tod.season ? getLangString('MOD_VOY_PANEL_NIGHT_SEASON') : templateLangString(tod.night ? 'MOD_VOY_PANEL_NIGHT' : 'MOD_VOY_PANEL_DAY', { time: tod.until });
     return `<div class="voyage-here-ship voyage-here-time ${tod.night ? 'text-info' : 'text-muted'}" title="${esc(hint)}"><span><i class="fa fa-${tod.night ? 'moon' : 'sun'} mr-1"></i>${esc(text)}</span></div>`;
   };
 
@@ -393,10 +393,43 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
 
   /**
+   * The weather (phase 5c-1): a block of its own that folds (the user's comment on the canvas). Open: the season's icon,
+   * the degrees here, the season and what its band does, then a vessel frozen in and when the season turns. Folded:
+   * the icon and the degrees beside the toggle.
+   */
+  const seasonImg = (s) => (s.media ? `<img class="voyage-wx-icon" src="${esc(s.media)}" alt="">` : '');
+  const weatherBlock = (rec) => {
+    const w = state.weather;
+    const s = w?.season?.();
+    const d = rec === undefined ? undefined : w?.describe?.(rec);
+    if (s === undefined || d === undefined) return '';
+    const toggle = `<button type="button" class="voyage-legend-toggle voyage-weather-toggle" aria-expanded="${weatherOpen}">` +
+      `<i class="fa fa-caret-${weatherOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_WX_PANEL_TITLE'))}</button>`;
+    const deg = `<b class="${d.tone}">${esc(d.deg)}</b>`;
+    if (!weatherOpen) return `<div class="voyage-wx"><div class="voyage-wx-head">${toggle}<span class="voyage-wx-sum" title="${esc(d.effect === '' ? s.name : `${s.name} · ${d.effect}`)}">${seasonImg(s)}${deg}</span></div></div>`;
+    const next = w.nextWords(s);
+    const frozen = (w.frozenVessels?.() ?? []).map(({ v }) => `<div class="voyage-wx-line text-info"><i class="fa fa-snowflake mr-1" aria-hidden="true"></i>${esc(templateLangString('MOD_VOY_WX_PANEL_FROZEN', { hull: state.ship?.hullName?.(v) ?? '' }))}</div>`).join('');
+    return `<div class="voyage-wx"><div class="voyage-wx-head">${toggle}</div>` +
+      `<div class="voyage-wx-row" title="${esc(getLangString('MOD_VOY_WX_PANEL_HINT'))}">${seasonImg(s)}<span>${deg} ${esc(s.name)}${d.effect === '' ? '' : ` · <span class="${d.tone || 'text-muted'}">${esc(d.head)}${d.head !== '' && d.fx !== '' ? ': ' : ''}${d.fx}</span>`}</span></div>` +
+      frozen +
+      (next === '' ? '' : `<div class="voyage-wx-line text-muted">${esc(next)}</div>`) + '</div>';
+  };
+  /** The strip's weather chip: the season's icon and the degrees, no name (the user's comment); the rest in its tooltip. */
+  const weatherChip = (rec) => {
+    const w = state.weather;
+    const s = w?.season?.();
+    const d = rec === undefined ? undefined : w?.describe?.(rec);
+    if (s === undefined || d === undefined) return undefined;
+    const next = w.nextWords(s);
+    const img = s.media ? `<img class="voyage-chip-img mr-1" src="${esc(s.media)}" alt="">` : '';
+    return chip(`${img}<span class="${d.tone}">${esc(d.deg)}</span>`, `${s.name} · ${d.deg}${d.effect === '' ? '' : ` · ${d.effect}`}.${next === '' ? '' : `\n${next}`}`);
+  };
+
+  /**
    * The mini panel: the folded panel as one short strip, as wide as its content. The terrain, then
    * chips chosen by the situation, in priority order, at most MINI_CHIPS of them besides a stranded warning.
    */
-  const MINI_CHIPS = 5;
+  const MINI_CHIPS = 6; // 5 until phase 5c-1 added the weather chip
   const chip = (inner, tip, cls = '', btn = '', attrs = '') => btn === ''
     ? `<span class="voyage-chip ${cls}" title="${esc(tip)}" aria-label="${esc(tip)}">${inner}</span>`
     : `<button type="button" class="voyage-chip voyage-chip-btn ${cls} ${btn}" title="${esc(tip)}" aria-label="${esc(tip)}"${attrs}>${inner}</button>`;
@@ -437,8 +470,13 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const tod = on ? st.timeOfDay?.() : undefined;
     if (tod?.night) {
       const hint = templateLangString('MOD_VOY_PANEL_NIGHT_HINT', { land: `${storesModel.LIGHT.land}`, sea: `${storesModel.LIGHT.sea}`, bonus: `${Math.round(model.STAR_XP * 100)}` });
-      out.push(chip(`<i class="fa fa-moon mr-1"></i>${esc(tod.until)}`, `${templateLangString('MOD_VOY_PANEL_NIGHT', { time: tod.until })}. ${hint}`, 'text-info'));
+      out.push(tod.season
+        ? chip('<i class="fa fa-moon"></i>', `${getLangString('MOD_VOY_PANEL_NIGHT_SEASON')}. ${hint}`, 'text-info')
+        : chip(`<i class="fa fa-moon mr-1"></i>${esc(tod.until)}`, `${templateLangString('MOD_VOY_PANEL_NIGHT', { time: tod.until })}. ${hint}`, 'text-info'));
     }
+    // 5. The weather here (phase 5c-1).
+    const wx = weatherChip(state.recordAt(pos));
+    if (wx !== undefined) out.push(wx);
     // 6. The planned voyage.
     const plan = state.planner?.summary?.();
     if (plan !== undefined) {
@@ -540,6 +578,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   let worksOpen = (() => { try { return localStorage.getItem(WORKS_KEY) !== '0'; } catch { return true; } })();
   let lockedOpen = (() => { try { return localStorage.getItem(LOCKED_KEY) === '1'; } catch { return false; } })();
   let legendOpen = (() => { try { return localStorage.getItem(LEGEND_KEY) === '1'; } catch { return false; } })();
+  const WEATHER_KEY = 'voyage-weather-open';
+  let weatherOpen = (() => { try { return localStorage.getItem(WEATHER_KEY) !== '0'; } catch { return true; } })();
   // The whole panel folds behind "You are here" (open by default); folded it keeps the title, the terrain line and a
   // stranded warning.
   const PANEL_KEY = 'voyage-panel-open';
@@ -562,6 +602,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   const legend = () => [
     ...Object.entries(terrainMod.CLASS_INFO).filter(([cls]) => cls !== 'water').map(([cls, info]) => ({ css: info.css, label: classLabel(cls) })),
     { css: terrainMod.CLOUD_INFO.css, label: getLangString(terrainMod.CLOUD_KEY) },
+    ...(state.weather?.season?.()?.ice ? [{ css: terrainMod.ICE_INFO.css, label: getLangString(terrainMod.ICE_KEY) }] : []),
   ]
     .map((info) => `<span class="voyage-legend-item"><span class="voyage-swatch" style="background:${info.css}"></span>${esc(info.label)}</span>`)
     .join('');
@@ -709,6 +750,12 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (e.target instanceof Element && e.target.closest('.voyage-bank-link')) {
         e.preventDefault();
         try { state.openPage(game.pages.getObjectByID('melvorD:Bank')); } catch (err) { log('bank link failed', err); }
+        return;
+      }
+      if (e.target instanceof Element && e.target.closest('.voyage-weather-toggle')) {
+        weatherOpen = !weatherOpen;
+        try { localStorage.setItem(WEATHER_KEY, weatherOpen ? '1' : '0'); } catch {}
+        render();
         return;
       }
       if (e.target instanceof Element && e.target.closest('.voyage-works-toggle')) {
@@ -870,6 +917,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         `<i class="fa fa-caret-${panelOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_YOU_ARE_HERE'))}</button>${manageLink()}</div>` +
         strandedLines(status) +
         `<div>${swatch}${esc(d.label)}<small class="text-muted">${features}${where}</small></div>` +
+        weatherBlock(rec) +
         shipBox() +
         tradeLine(status) +
         harbourLine() +

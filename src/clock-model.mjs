@@ -22,7 +22,7 @@ export const groundFactor = (cls) => (HARD.includes(cls) ? 2 : ROUGH.includes(cl
 export const seaMs = (hull) => SEA_MS[hull] ?? SEA_MS.dinghy;
 
 /**
- * Milliseconds for one step of ship.stepsOf ({ sea, cls, fastTravel, hop, vessel }). `hullOf(kind)` names the hull of
+ * Milliseconds for one step of ship.stepsOf ({ sea, cls, fastTravel, hop, vessel, wx }). `hullOf(kind)` names the hull of
  * the vessel kind ('boat' or 'ship'); `mountSpeed` the land speed (4.27). A fast-travel hop takes its straight-line
  * hexes (`hop`, or `dist` when the rules leave it vanilla) at the vessel's speed.
  */
@@ -34,7 +34,9 @@ export function stepMs(step, { hullOf = () => undefined, mountSpeed = 1 } = {}) 
   }
   if (step.sea || SEA_CLASSES.includes(step.cls)) return seaMs(hullOf(step.vessel ?? 'boat'));
   const speed = Number.isFinite(mountSpeed) && mountSpeed > 0 ? mountSpeed : 1;
-  return Math.round(LAND_MS * groundFactor(step.cls) / speed);
+  // The weather's band (phase 5c): snowdrifts in the bitter cold, resting at noon in the scorching heat.
+  const wx = Number.isFinite(step.wx?.time) && step.wx.time > 0 ? step.wx.time : 1;
+  return Math.round(LAND_MS * groundFactor(step.cls) * wx / speed);
 }
 
 /** Whole ticks for `ms`, at least one. */

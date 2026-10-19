@@ -37,9 +37,12 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
    */
   let geo;
   let geoFor;
+  let geoVersion;
   const geoNow = () => {
     if (state.terrain === undefined) return undefined;
-    if (geoFor !== state.terrain) { geo = shipModel.seaIndex(state.terrain); geoFor = state.terrain; }
+    // The winter ice (phase 5c) changes which hexes are sea: the distances to a coast are counted again.
+    const ver = state.terrain.version ?? 0;
+    if (geoFor !== state.terrain || geoVersion !== ver) { geo = shipModel.seaIndex(state.terrain); geoFor = state.terrain; geoVersion = ver; }
     return geo;
   };
   /** The vessel you are in: 'ship' on the big ship's hex, 'boat' on the small boat's, undefined ashore. */
@@ -85,7 +88,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       const g = geoNow();
       if (g === undefined) return result;
       // Fast travel between ports is sailing (3c): the hop needs the ship at this port's quay.
-      return result.filter(([n]) => (isHop(hex, n) ? shipModel.canHop(from, recOf(n), s, dockOf(n), g) : shipModel.canStep(from, recOf(n), s, g)));
+      return result.filter(([n]) => (isHop(hex, n) ? g.afloat?.(s) !== false && shipModel.canHop(from, recOf(n), s, dockOf(n), g) : shipModel.canStep(from, recOf(n), s, g)));
     } catch (e) { log('ship pathing failed; vanilla path', e); return result; }
   });
 
@@ -192,7 +195,9 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       const deep = sea && (Number.isInteger(rec.shore) ? rec.shore : 1) >= shipModel.DEEP_SHORE;
       // Where Adrift applies (5b part two) the sea's hunger floor is gone: a step out of a hex more than one from the coast.
       const adrift = sea && adriftOn && homeOf(recOf(prev), v) > 1;
-      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(adrift ? { adrift } : {}), ...(sea || hop > 0 ? { vessel: kind } : {}) });
+      // The weather on the hex entered (phase 5c, weather.mjs): its band's fuel, rations and time, Lemon's sea rations.
+      const wx = state.weather?.stepWeather?.(rec);
+      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(adrift ? { adrift } : {}), ...(sea || hop > 0 ? { vessel: kind } : {}), ...(wx !== undefined ? { wx } : {}) });
     }
     return steps;
   };
@@ -500,9 +505,10 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     const fleet = [big(), ship()].filter((v) => v != null && v.aboard !== true);
     // Fast travel between ports is sailing (3c): the hop is there only with the ship at this port's quay.
     const here = player();
-    if (here !== undefined && isHop(here, hex) && !fleet.some((v) => shipModel.canHop(recOf(here), to, v, dockOf(hex), geoNow()))) {
+    if (here !== undefined && isHop(here, hex) && !fleet.some((v) => geoNow()?.afloat?.(v) !== false && shipModel.canHop(recOf(here), to, v, dockOf(hex), geoNow()))) {
       const island = geoNow()?.islandOf(to);
       if (s === null) return t('MOD_VOY_SHIP_PATH_HOP_NO_BOAT');
+      if (fleet.length > 0 && fleet.every((v) => geoNow()?.afloat?.(v) === false)) return t('MOD_VOY_SHIP_PATH_FROZEN', { hull: hullWord(HULLS[s.hull]) });
       if (island === undefined || island.tier <= HULLS[s.hull].tier) return t('MOD_VOY_SHIP_PATH_HOP_AWAY', { hull: hullWord(HULLS[s.hull]), where: whereIs(s) });
     }
     if (s === null) {
@@ -523,6 +529,8 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     if (shipModel.isSea(to) && to.cloud !== true && bodies.length > 0 && bodies.every((b) => b !== undefined && g.waterBody(to) !== b)) {
       return t('MOD_VOY_SHIP_PATH_OTHER_WATER', { hull: name });
     }
+    // Winter ice (phase 5c-1): every vessel frozen in waits for the thaw.
+    if (shipModel.isSea(to) && fleet.length > 0 && fleet.every((v) => g?.afloat?.(v) === false)) return t('MOD_VOY_SHIP_PATH_FROZEN', { hull: name });
     if (fleet.every((v) => shipModel.beyondReach(to, v, g))) return t('MOD_VOY_SHIP_PATH_TOO_FAR', { hull: name, reach: `${hull.reach}` });
     if (!aboard()) return t('MOD_VOY_SHIP_PATH_MOORED', { hull: name, where: whereIs(s) });
     return t('MOD_VOY_SHIP_PATH_OUT_OF_REACH', { hull: name, reach: `${hull.reach}` });

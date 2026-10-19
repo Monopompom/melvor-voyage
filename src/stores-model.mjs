@@ -116,16 +116,23 @@ export function loadingAt(rec, neighbours = []) {
 export const loadAmount = (unit, qty, rate) => unit * Math.max(0, Math.floor(qty)) * Math.max(0, rate);
 
 /**
- * The cost of one step. `step` is { cls, sea, hop, free, homeward, adrift }:
+ * The cost of one step. `step` is { cls, sea, hop, free, homeward, adrift, wx }:
  *  - `hop`: a fast-travel hop sailed between ports, its straight-line length in hexes (rations at the sea rate);
  *  - `free`: the homeward rule's moves, which cost nothing;
- *  - `homeward`: a sea step closer to a coast (the hunger floor at sea, below).
+ *  - `homeward`: a sea step closer to a coast (the hunger floor at sea, below);
+ *  - `wx`: the weather on the hex (phase 5c, weather-model.mjs effectsOf): its band multiplies the fuel and adds
+ *    rations on land; in Lemon season rations at sea go further (`seaFood`, hops too).
  */
 export function stepCost(step, fmLevel) {
   if (step.free) return { food: 0, fuel: 0 };
-  if (step.hop > 0) return { food: step.hop * costOf('water').rations * RATION_HP, fuel: 0 };
+  const wx = step.wx;
+  const seaFood = Number.isFinite(wx?.seaFood) && wx.seaFood > 0 ? wx.seaFood : 1;
+  if (step.hop > 0) return { food: Math.round(step.hop * costOf('water').rations * RATION_HP * seaFood), fuel: 0 };
   const c = costOf(step.cls);
-  return { food: c.rations * RATION_HP, fuel: roundFuel(c.fuel * fuelFactor(fmLevel)) };
+  const sea = step.sea === true || SEA.includes(step.cls);
+  const rations = c.rations + (!sea && Number.isFinite(wx?.rations) ? wx.rations : 0);
+  const fuelMul = !sea && Number.isFinite(wx?.fuel) && wx.fuel >= 0 ? wx.fuel : 1;
+  return { food: Math.round(rations * RATION_HP * (sea ? seaFood : 1)), fuel: roundFuel(c.fuel * fuelMul * fuelFactor(fmLevel)) };
 }
 
 /** Total cost of a move, ignoring what the stores hold (the hex overview line). */

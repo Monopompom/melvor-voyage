@@ -100,7 +100,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   };
   let ticksMemo;
   const stepTicks = (v) => {
-    const key = `${v.walk.length}|${v.walk[0].q},${v.walk[0].r}|${hullOf('boat')}|${hullOf('ship')}|${state.land?.speed?.() ?? 1}`;
+    const key = `${v.walk.length}|${v.walk[0].q},${v.walk[0].r}|${hullOf('boat')}|${hullOf('ship')}|${state.land?.speed?.() ?? 1}|${state.weather?.key?.() ?? ''}`;
     if (ticksMemo?.v !== v || ticksMemo.key !== key) ticksMemo = { v, key, ticks: stepTicksOf(v.walk, v.tow) };
     return ticksMemo.ticks;
   };
@@ -307,7 +307,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       const poi = hex.pointOfInterest;
       if (poi !== undefined && poi.isDiscovered) return poi.name;
       const rec = state.recordAt?.(hex);
-      return rec === undefined ? at(hex) : `${getLangString(terrainMod.classKey(rec.t))} ${at(hex)}`;
+      return rec === undefined ? at(hex) : `${getLangString(terrainMod.recKey(rec))} ${at(hex)}`;
     } catch { return at(hex); }
   };
   /** GP the game charges for a path (Cartography.getTravelCosts, the mounts' cut included). */
@@ -492,7 +492,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     const sideOf = (w) => fog?.sides?.find((x) => x.width === w);
     const totalFor = (w) => info.ms + (fog === undefined ? 0 : fog.ms + (sideOf(w)?.ms ?? 0));
     const nightAt = (ms) => {
-      try { const d = new Date(ms); return state.settings.night?.() !== false && S.isNight(d.getHours() + d.getMinutes() / 60, state.settings.nightShift?.() ?? 0); } catch { return false; }
+      try { const d = new Date(ms); return state.settings.night?.() !== false && (state.weather?.allNight?.() === true || S.isNight(d.getHours() + d.getMinutes() / 60, state.settings.nightShift?.() ?? 0)); } catch { return false; }
     };
     const arriveIconAt = (ms) => (nightAt(ms) ? '<i class="fa fa-moon text-info mr-1" aria-hidden="true"></i>' : '<i class="fa fa-sun voyage-clock-sun mr-1" aria-hidden="true"></i>');
     const arriveHtml = (w) => { const ms = Date.now() + totalFor(w); return `${arriveIconAt(ms)}${esc(t('MOD_VOY_CLOCK_ARRIVE_AT', { time: clockAt(ms) }))}`; };
@@ -803,6 +803,21 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   let forcing = false;
   /** The skill's stop(): the game stops the voyage (another action after the question, a gamemode change). */
   const stop = () => { if (cur() === null) return false; end('stopped'); return true; };
+  /**
+   * The winter ice was laid or lifted (phase 5c-1, weather.mjs): a voyage whose way from here on touches one of the
+   * changed hexes (`keys`, terrain hexKeys) stops where it stands, `why` in its ending. True when it stopped.
+   */
+  const iceChanged = (keys, why) => {
+    const v = cur();
+    if (v === null) return false;
+    for (let k = v.at; k < v.walk.length; k++) {
+      if (!keys.has(terrainMod.hexKey(v.walk[k].q, v.walk[k].r))) continue;
+      log(`voyage stopped by the ice at step ${v.at}`);
+      end('refused', { why });
+      return true;
+    }
+    return false;
+  };
   /** Stop here: the voyage ends on the hex reached. A tow has none: you go where the tow goes. */
   const stopHere = () => {
     if (cur()?.tow !== undefined) { state.adrift?.refuseUnderTow?.(); return; }
@@ -958,7 +973,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       const here = map()?.playerPosition;
       const rec = state.recordAt?.(here);
       const aboard = rec !== undefined && (rec.t === 'water' || rec.t === 'shoal');
-      const where = rec === undefined ? '' : getLangString(terrainMod.classKey(rec.t));
+      const where = rec === undefined ? '' : getLangString(terrainMod.recKey(rec));
       const how = aboard ? t('MOD_VOY_CLOCK_AT_SEA', { hull: state.ship?.hullName?.(state.ship?.vessel?.(state.ship?.inVessel?.() ?? 'boat')) ?? '' }) : t('MOD_VOY_CLOCK_ON_LAND');
       const legs = [];
       // The walk in runs of land and sea, the run in progress marked.
@@ -1112,7 +1127,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     } catch (e) { log('voyage load check failed', e); }
   });
 
-  const api = { on, setOff, changeCourse, tick, stop, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog,
+  const api = { on, setOff, changeCourse, tick, stop, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog,
     /** A tow is under way (5b part two). */
     towing: () => cur()?.tow !== undefined,
     msLeft: () => { const v = cur(); return v === null ? 0 : msLeft(v); },

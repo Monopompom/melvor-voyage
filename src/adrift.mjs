@@ -83,9 +83,11 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
   const homeOf = (rec, tier) => geo()?.home(rec, tier) ?? Infinity;
   // The drift's own map (adrift-model driftIndex), one per hull tier, rebuilt with the terrain (a character load).
   let driftFor;
+  let driftVersion;
   let driftMaps = new Map();
   const driftLeft = (tier) => {
-    if (driftFor !== state.terrain) { driftFor = state.terrain; driftMaps = new Map(); }
+    // The winter ice (phase 5c-1) changes the sea: counted again when the terrain's layer does.
+    if (driftFor !== state.terrain || driftVersion !== state.terrain.version) { driftFor = state.terrain; driftVersion = state.terrain.version; driftMaps = new Map(); }
     let f = driftMaps.get(tier);
     if (f === undefined) {
       const seas = [...state.terrain.all()].filter(shipModel.isSea);
@@ -190,7 +192,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
       if (poi !== undefined && poi.isDiscovered) return poi.name;
       const rec = recOf(hex);
       const o = hex.to_oddq();
-      return `${rec === undefined ? '' : `${getLangString(terrainMod.classKey(rec.t))} `}(${o.col}, ${o.row})`;
+      return `${rec === undefined ? '' : `${getLangString(terrainMod.recKey(rec))} `}(${o.col}, ${o.row})`;
     } catch { return ''; }
   };
   /** Hexes still to drift from where you are. */
@@ -559,7 +561,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
     }
     const at = aboardAtSea();
     const rec = at?.rec;
-    const where = rec === undefined ? '' : getLangString(terrainMod.classKey(rec.t));
+    const where = rec === undefined ? '' : getLangString(terrainMod.recKey(rec));
     const left = leftHexes();
     const fishing = game.activeAction === game.fishing;
     const tow = paidTow();

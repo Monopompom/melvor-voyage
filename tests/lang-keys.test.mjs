@@ -7,6 +7,7 @@ import * as terrain from '../src/terrain.mjs';
 import * as rules from '../src/rules.mjs';
 import { JOURNAL_GUIDES } from '../src/voyage-model.mjs';
 import { RESCUES, TOW_KINDS } from '../src/adrift-model.mjs';
+import { SEASONS, BANDS } from '../src/weather-model.mjs';
 import { JOURNAL_CHAPTERS, JOURNAL_CREW, JOURNAL_WRITTEN, JOURNAL_GUIDE_SECTIONS, JOURNAL_ASIDES, JOURNAL_NOTES, CHART_ITEMS, splitLinks, linkTargetExists } from '../src/journal-model.mjs';
 
 const root = new URL('../', import.meta.url);
@@ -21,7 +22,10 @@ const localIds = Object.keys(rules.SKILL_RULES).map((id) => id.split(':').pop())
 export const FAMILIES = {
   MOD_VOY_DIR_: DIRS,
   MOD_VOY_DIR_SHORT_: DIRS,
-  MOD_VOY_TERRAIN_: [...Object.keys(terrain.CLASS_INFO), 'CLOUD'],
+  MOD_VOY_TERRAIN_: [...Object.keys(terrain.CLASS_INFO), 'CLOUD', 'ICE'],
+  MOD_VOY_WX_SEASON_: SEASONS.map((s) => s.toUpperCase()),
+  MOD_VOY_WX_BAND_: BANDS.map((b) => b.id.toUpperCase()),
+  MOD_VOY_WX_PAGE_: [...SEASONS.map((s) => s.toUpperCase()), 'LEFT', 'FROM_TOWN'],
   MOD_VOY_FEATURE_: Object.keys(terrain.FEATURE_INFO),
   MOD_VOY_RULE_NOUN_: [...localIds, 'DEFAULT'],
   MOD_VOY_COMPASS_WORD_: ['HOT', 'WARM', 'COLD', 'FREEZING'],

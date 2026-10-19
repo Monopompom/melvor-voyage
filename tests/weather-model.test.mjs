@@ -1,0 +1,204 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import {
+  SEASONS, seasonKey, tempOf, bandOf, BANDS, effectsOf, isPlain, allNight, harvestRates, nextOrder, iceOn, iceHexes,
+  icedRecord, wayAshore, NONE, LEMON_SEA_FOOD,
+} from '../src/weather-model.mjs';
+import { stepCost, planMove, RATION_HP, HEX_COST } from '../src/stores-model.mjs';
+import { stepMs, LAND_MS } from '../src/clock-model.mjs';
+import { seaIndex, canStep, isSea, shipAfterPath } from '../src/ship-model.mjs';
+import { createTerrain, CLASSES } from '../src/terrain.mjs';
+
+const loadTable = async () => JSON.parse(await readFile(new URL('../data/hex_terrain.json', import.meta.url), 'utf8'));
+const [SPRING, SUMMER, FALL, WINTER, NIGHTFALL, ECLIPSE, LEMON, DARKNESS] = [0, 1, 2, 3, 4, 5, 6, 7];
+
+test('seasons by Township order, unknown ones read as Spring', () => {
+  assert.deepEqual(SEASONS.slice(0, 4), ['spring', 'summer', 'fall', 'winter']);
+  assert.equal(seasonKey(LEMON), 'lemon');
+  assert.equal(seasonKey(99), 'spring');
+  assert.equal(seasonKey(undefined), 'spring');
+});
+
+test('degrees: the table on the canvas', () => {
+  const row = (cls) => [SPRING, SUMMER, FALL, WINTER].map((o) => tempOf(cls, o));
+  assert.deepEqual(row('snowlands'), [-8, 0, -12, -20]);
+  assert.deepEqual(row('mountain'), [-4, 4, -8, -16]);
+  assert.deepEqual(row('desert'), [28, 36, 24, 16]);
+  assert.deepEqual(row('lavalands'), [32, 40, 28, 20]);
+  assert.deepEqual(row('water'), [10, 18, 6, -2]);
+  // The rare seasons keep Spring's degrees; an unknown ground is grasslands.
+  assert.equal(tempOf('desert', NIGHTFALL), 28);
+  assert.equal(tempOf('nowhere', SPRING), tempOf('grasslands', SPRING));
+});
+
+test('bands: edges on whole degrees', () => {
+  assert.equal(bandOf(-15).id, 'bitter');
+  assert.equal(bandOf(-14).id, 'cold');
+  assert.equal(bandOf(0).id, 'cold');
+  assert.equal(bandOf(1).id, 'mild');
+  assert.equal(bandOf(19).id, 'mild');
+  assert.equal(bandOf(20).id, 'warm');
+  assert.equal(bandOf(34).id, 'warm');
+  assert.equal(bandOf(35).id, 'scorching');
+  assert.equal(BANDS.length, 5);
+});
+
+test('what bites in each season: every land class covered', () => {
+  const land = CLASSES.filter((c) => c !== 'water' && c !== 'shoal');
+  const bands = (o) => Object.fromEntries(land.map((c) => [c, effectsOf(c, o).band]));
+  const w = bands(WINTER);
+  assert.equal(w.snowlands, 'bitter');
+  assert.equal(w.mountain, 'bitter');
+  assert.equal(w.cursedlands, 'cold');
+  assert.equal(w.highlands, 'cold');
+  assert.equal(w.grasslands, 'mild');
+  const s = bands(SUMMER);
+  assert.equal(s.desert, 'scorching');
+  assert.equal(s.lavalands, 'scorching');
+  assert.equal(s.badlands, 'warm', 'a degree short of scorching');
+  assert.equal(s.grasslands, 'warm');
+  const sp = bands(SPRING);
+  assert.equal(sp.snowlands, 'cold');
+  assert.equal(sp.mountain, 'cold');
+  assert.equal(sp.beach, 'warm');
+  assert.equal(sp.grasslands, 'mild');
+  assert.equal(bands(FALL).cursedlands, 'cold');
+  // Every season of the year changes something; only Winter is bitter and only Summer scorches.
+  const touched = (o) => land.filter((c) => !isPlain(effectsOf(c, o))).length;
+  for (const o of [SPRING, SUMMER, FALL, WINTER]) assert.ok(touched(o) > 0);
+  const has = (o, id) => land.some((c) => effectsOf(c, o).band === id);
+  assert.deepEqual([SPRING, SUMMER, FALL, WINTER].map((o) => has(o, 'bitter')), [false, false, false, true]);
+  assert.deepEqual([SPRING, SUMMER, FALL, WINTER].map((o) => has(o, 'scorching')), [false, true, false, false]);
+});
+
+test('the sea pays nothing for its degrees; Lemon makes its rations go further', () => {
+  const w = effectsOf('water', WINTER);
+  assert.equal(w.t, -2);
+  assert.equal(w.fuel, 1);
+  assert.equal(w.rations, 0);
+  assert.equal(w.time, 1);
+  assert.ok(isPlain(w));
+  assert.equal(effectsOf('shoal', LEMON).seaFood, LEMON_SEA_FOOD);
+  assert.equal(effectsOf('grasslands', LEMON).seaFood, 1);
+  assert.ok(isPlain(NONE));
+});
+
+test('the bands in the stores: fuel, thirst and the Firemaking cut', () => {
+  const at = (cls, o) => ({ cls, sea: false, wx: effectsOf(cls, o) });
+  // Winter Snowlands: 2 fuel x1.5 = 3 at Firemaking 0; 2 rations as ever.
+  assert.deepEqual(stepCost(at('snowlands', WINTER), 0), { food: 2 * RATION_HP, fuel: 3 });
+  // Spring Snowlands is cold: x1.25.
+  assert.equal(stepCost(at('snowlands', SPRING), 0).fuel, 2.5);
+  // Summer Desert: thirst, a ration more; the warm fire burns less.
+  assert.deepEqual(stepCost(at('desert', SUMMER), 0), { food: 2 * RATION_HP, fuel: 0.75 });
+  // Firemaking's cut on top: level 50 is x0.75.
+  assert.equal(stepCost(at('snowlands', WINTER), 50).fuel, 2.25);
+  // No weather: the table as before.
+  assert.deepEqual(stepCost({ cls: 'snowlands', sea: false }, 0), { food: HEX_COST.snowlands.rations * RATION_HP, fuel: HEX_COST.snowlands.fuel });
+  // Lemon at sea and on a hop.
+  assert.equal(stepCost({ cls: 'water', sea: true, wx: effectsOf('water', LEMON) }, 0).food, 15);
+  assert.equal(stepCost({ hop: 4, wx: effectsOf('water', LEMON) }, 0).food, 60);
+});
+
+test('a refusal names the weather-raised need, and the hunger floor still walks easy ground', () => {
+  const steps = [{ cls: 'snowlands', sea: false, wx: effectsOf('snowlands', WINTER) }];
+  const r = planMove({ food: 100, fuel: 2.9 }, steps, { fmLevel: 0 });
+  assert.equal(r.ok, false);
+  assert.equal(r.why, 'fuel');
+  assert.equal(r.need.fuel, 3);
+  const desert = [{ cls: 'desert', sea: false, wx: effectsOf('desert', SUMMER) }];
+  const hungry = planMove({ food: 0, fuel: 0 }, desert, { fmLevel: 0 });
+  assert.equal(hungry.ok, true);
+  assert.deepEqual(hungry.hungry, [0]);
+});
+
+test('time: snowdrifts and the noon rest on land, nothing at sea', () => {
+  assert.equal(stepMs({ cls: 'snowlands', wx: effectsOf('snowlands', WINTER) }), LAND_MS * 2 * 1.25);
+  assert.equal(stepMs({ cls: 'desert', wx: effectsOf('desert', SUMMER) }), LAND_MS * 1.5 * 1.25);
+  assert.equal(stepMs({ cls: 'grasslands', wx: effectsOf('grasslands', WINTER) }), LAND_MS);
+  assert.equal(stepMs({ sea: true, cls: 'water', wx: effectsOf('water', WINTER) }, { hullOf: () => 'brig' }), 3 * 60000);
+});
+
+test('rare seasons: night all season, Lemon is not', () => {
+  assert.ok(allNight(NIGHTFALL));
+  assert.ok(allNight(ECLIPSE));
+  assert.ok(allNight(DARKNESS));
+  assert.ok(!allNight(LEMON));
+  assert.ok(!allNight(WINTER));
+});
+
+test('the Fall harvest lifts food where food loads, never the wild or fuel', () => {
+  assert.deepEqual(harvestRates({ place: 'farm', food: 0.5, fuel: 0.5 }, FALL), { place: 'farm', food: 0.75, fuel: 0.5, harvest: true });
+  assert.equal(harvestRates({ place: 'market', food: 0.75, fuel: 0.5 }, FALL).food, 1);
+  assert.equal(harvestRates({ place: 'port', food: 1, fuel: 1 }, FALL).harvest, false);
+  assert.equal(harvestRates(undefined, FALL), undefined);
+  const r = { place: 'farm', food: 0.5, fuel: 0.5 };
+  assert.equal(harvestRates(r, SUMMER), r);
+});
+
+test('the next season: the year turns, a rare season gives way to the one after the season it broke', () => {
+  assert.equal(nextOrder(SPRING), SUMMER);
+  assert.equal(nextOrder(WINTER), SPRING);
+  assert.equal(nextOrder(NIGHTFALL, FALL), WINTER);
+  assert.equal(nextOrder(LEMON, undefined), SUMMER);
+  assert.equal(nextOrder(undefined), SUMMER);
+});
+
+test('the ice on the real map: 62 hexes, Winter only, and it joins Frost Island to the mainland', async () => {
+  const table = await loadTable();
+  const terrain = createTerrain(table);
+  const ice = iceHexes(terrain.all(), (h) => terrain.neighbours(h.q, h.r));
+  assert.equal(ice.length, 62);
+  assert.ok(ice.every(isSea));
+  assert.ok(iceOn(WINTER) && !iceOn(FALL) && !iceOn(LEMON));
+  const keys = new Set(ice.map((h) => `${h.q},${h.r}`));
+  // The two sea hexes between the mainland's north-east coast and Frost Island: display (20, 24) and (21, 23).
+  assert.ok(keys.has('20,14') && keys.has('21,13'));
+  // Laid over the table: walkable from the mainland to Frost Drift Port on foot.
+  terrain.setLayer(ice.map(icedRecord));
+  assert.equal(terrain.get(20, 14).t, 'snowlands');
+  assert.equal(terrain.get(20, 14).ice, true);
+  assert.equal(terrain.get(20, 14).was, 'water');
+  assert.equal(terrain.base(20, 14).t, 'water');
+  const mainland = terrain.get(22, 12);
+  assert.ok(mainland !== undefined && !isSea(mainland));
+  assert.ok(canStep(mainland, terrain.get(21, 13), null));
+  assert.ok(canStep(terrain.get(21, 13), terrain.get(20, 14), null));
+  // The landmasses stay the table's: island tiers never move with the season.
+  assert.equal(terrain.landmass(20, 14), undefined);
+  // Lifted again.
+  const v = terrain.version;
+  terrain.setLayer(undefined);
+  assert.equal(terrain.get(20, 14).t, 'water');
+  assert.ok(terrain.version > v);
+});
+
+test('ships and the ice: no sailing in, stepping off onto it, frozen in', async () => {
+  const terrain = createTerrain(await loadTable());
+  const ice = iceHexes(terrain.all(), (h) => terrain.neighbours(h.q, h.r));
+  // An open sea hex next to the ice ring.
+  const iceKeys = new Set(ice.map((h) => `${h.q},${h.r}`));
+  const open = [...terrain.all()].find((h) => isSea(h) && !iceKeys.has(`${h.q},${h.r}`) && terrain.neighbours(h.q, h.r).some((n) => iceKeys.has(`${n.q},${n.r}`)));
+  const edge = terrain.neighbours(open.q, open.r).find((n) => iceKeys.has(`${n.q},${n.r}`));
+  terrain.setLayer(ice.map(icedRecord));
+  const geo = seaIndex(terrain);
+  const boat = { hull: 'dinghy', q: open.q, r: open.r };
+  const iced = terrain.get(edge.q, edge.r);
+  // From the sea onto the ice is stepping ashore; the boat stays where it was.
+  assert.ok(canStep(terrain.get(open.q, open.r), iced, boat, geo));
+  assert.deepEqual(shipAfterPath([terrain.get(open.q, open.r), iced], boat), boat);
+  // A boat frozen in on the ice: from its hex no sea hex may be entered.
+  const frozen = { hull: 'dinghy', q: iced.q, r: iced.r };
+  assert.equal(canStep(iced, terrain.get(open.q, open.r), frozen, geo), false);
+});
+
+test('the thaw: the shortest way ashore from the old ice', async () => {
+  const terrain = createTerrain(await loadTable());
+  const nb = (h) => terrain.neighbours(h.q, h.r);
+  const way = wayAshore(terrain.get(20, 14), nb);
+  assert.ok(way.length >= 2 && way.length <= 3);
+  assert.equal(way[0], terrain.get(20, 14));
+  assert.ok(!isSea(way[way.length - 1]));
+  assert.equal(wayAshore(terrain.get(22, 12), nb), undefined);
+});

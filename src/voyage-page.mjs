@@ -424,10 +424,28 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     const items = [];
     const tod = state.stores?.enabled() ? state.stores.timeOfDay?.() : undefined;
     if (tod !== undefined) {
-      const now = t(tod.night ? 'MOD_VOY_PANEL_NIGHT' : 'MOD_VOY_PANEL_DAY', { time: tod.until });
+      const now = tod.season ? t('MOD_VOY_PANEL_NIGHT_SEASON') : t(tod.night ? 'MOD_VOY_PANEL_NIGHT' : 'MOD_VOY_PANEL_DAY', { time: tod.until });
       items.push(`<span class="voyage-status-item ${tod.night ? 'text-info' : ''}"><i class="fa fa-${tod.night ? 'moon' : 'sun'} mr-1"></i>${esc(now)}</span>`);
     }
     return items;
+  };
+  /**
+   * The season (phase 5c-1, the canvas's board 4): the year's four seasons with this one ringed and its time left, then
+   * what it does in a sentence. A rare season names itself in the sentence. Nothing with the setting "Weather" off.
+   */
+  const seasonHtml = () => {
+    const s = state.weather?.season?.();
+    if (s === undefined) return '';
+    const year = ['spring', 'summer', 'fall', 'winter'];
+    const left = s.msLeft === undefined ? '' : ` · ${esc(t('MOD_VOY_WX_PAGE_LEFT', { time: state.clock?.duration?.(s.msLeft) ?? '' }))}`;
+    const cells = year.map((k, i) => {
+      const now = s.key === k;
+      return `<span class="voyage-season-cell${now ? ' voyage-season-now text-info' : ''}">${now && s.media ? `<img class="voyage-wx-icon mr-1" src="${esc(s.media)}" alt="">` : ''}${esc(state.weather.seasonName?.(i) ?? k)}${now ? left : ''}</span>`;
+    }).join('');
+    const rare = year.includes(s.key) ? '' : `<b class="text-info">${s.media ? `<img class="voyage-wx-icon mr-1" src="${esc(s.media)}" alt="">` : ''}${esc(s.name)}${left}:</b> `;
+    const from = s.noTown ? t('MOD_VOY_WX_NO_TOWN') : t('MOD_VOY_WX_PAGE_FROM_TOWN');
+    return `<div class="voyage-season"><div class="voyage-season-year">${cells}</div>` +
+      `<div class="voyage-season-text">${rare}${esc(t(`MOD_VOY_WX_PAGE_${s.key.toUpperCase()}`))} <span class="text-muted">${esc(from)}</span></div></div>`;
   };
   /**
    * The Travels stats (build .146): read from what the save and the map already keep, so
@@ -817,7 +835,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       try { const v = state.ship?.big?.() ?? state.ship?.boat?.(); if (ticon !== null) ticon.src = ctx.getResourceUrl(shipModel.HULLS[v?.hull ?? 'dinghy'].media); } catch {}
       travels.innerHTML =
         // One grey band, like the compass stages beside it (the user, build .146: "and grayish box").
-        section(travelHead(rec) + travelStats(rec)) +
+        section(travelHead(rec) + travelStats(rec) + seasonHtml()) +
         (s.futureRaw !== undefined ? `<div class="text-warning">${t('MOD_VOY_PAGE_FUTURE_SAVE')}</div>` : '');
     }
 

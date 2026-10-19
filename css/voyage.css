@@ -172,15 +172,26 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-store-item img { width: 32px; height: 32px; } /* 32px icons on item chips */
 .voyage-store-item small { font-size: .8rem; }
 /* the ship and stores lines share a band: a slightly lighter background between thin rules (user feedback, build .58) */
+/* The weather block of the Here panel (phase 5c-1): its own fold, under the terrain line. */
+.voyage-wx { border-top: 1px solid var(--voyage-rule); margin-top: 4px; padding-top: 2px; }
+.voyage-wx-head { display: flex; align-items: center; gap: 8px; }
+.voyage-wx-sum { display: inline-flex; align-items: center; gap: 4px; cursor: help; }
+.voyage-wx-icon { width: 20px; height: 20px; flex: none; }
+.voyage-wx-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+.voyage-wx-line { margin: 2px 0; font-size: .9rem; }
+.voyage-wx-fx { white-space: nowrap; cursor: help; }
+.voyage-wx-fx img { width: 1.1em; height: 1.1em; vertical-align: -0.2em; margin-right: 2px; }
+.voyage-wx-fx .fa { margin-right: 3px; font-size: .9em; }
+.voyage-wx-sep { display: inline-block; margin: 0 7px; font-size: .75em; vertical-align: .1em; opacity: .55; }
 .voyage-here-shipbox { background: var(--voyage-band); border-top: 1px solid var(--voyage-rule);
   border-bottom: 1px solid var(--voyage-rule); margin: 4px -8px; padding: 2px 8px; }
-.voyage-stores-note { font-size: .9rem; line-height: 1.35; padding: .2rem .75rem 0; text-align: center; }
+.voyage-stores-note { font-size: .9rem; line-height: 1.35; padding: .2rem .75rem 0; text-align: left; }
 /* The note takes a row of its own and the game's Travel button goes under it (the user, 19 Oct 2026: "Travel should be
    at the bottom"). */
 div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-stores-note { flex: 0 0 100%; }
 /* The rows (build .264, the user: "weird spacing after provisioning icon. need distinction for the 'title' icons"): one
-   centred block, the leads in a column and each text left-aligned beside its lead, so a wrapped line stays under its
+   block (left since phase 5c-1, the user: "rows read left"), the leads in a column and each text left-aligned beside its lead, so a wrapped line stays under its
    own text. A lead is the row's label, not one of its figures: a round grey badge in the label ink. */
 .voyage-stores-rows { display: inline-grid; grid-template-columns: auto auto; column-gap: 8px; row-gap: 4px;
   align-items: center; text-align: left; max-width: 100%; margin-top: 2px; }
@@ -303,6 +314,13 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-status-more > [class*="col-"] { padding: 0; max-width: none; width: auto; }
 .voyage-status-more h6 { color: inherit; font-size: 1rem; }
 .voyage-status-item { white-space: nowrap; }
+/* The season on the Voyage page (phase 5c-1): the year in four cells, this season ringed in its text colour. */
+.voyage-season { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--voyage-rule); }
+.voyage-season-year { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.voyage-season-cell { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; min-height: 32px; padding: 4px 6px;
+  border-radius: 4px; background: var(--voyage-tile); color: var(--voyage-label); font-size: .85rem; font-weight: 600; text-align: center; }
+.voyage-season-now { box-shadow: inset 0 0 0 2px currentColor; }
+.voyage-season-text { margin-top: 8px; }
 /* Phone width (the user's screenshot, build .207): the time and Show map on one line, the fold toggle on its own line
    under them, right above what it folds; three columns squeezed the time and the toggle into two-word lines. */
 @media (max-width: 767px) {

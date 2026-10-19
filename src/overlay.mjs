@@ -20,6 +20,7 @@ export function install(ctx, { state, terrainMod, log }) {
     const rec = state.terrain.get(hex.q, hex.r);
     if (rec === undefined) return undefined;
     if (rec.cloud === true) return terrainMod.CLOUD_INFO.colour;
+    if (rec.ice === true) return terrainMod.ICE_INFO.colour;
     return terrainMod.CLASS_INFO[rec.t]?.colour;
   };
 

@@ -266,7 +266,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   const land = (q, r) => {
     const rec = state.terrain?.get(q, r);
     if (rec === undefined) return '';
-    return rec.cloud === true ? t(terrainMod.CLOUD_KEY) : t(terrainMod.classKey(rec.t));
+    return rec.cloud === true ? t(terrainMod.CLOUD_KEY) : t(terrainMod.recKey(rec));
   };
   const fromHere = (h) => {
     const p = state.position();
