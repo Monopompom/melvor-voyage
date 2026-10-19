@@ -4,9 +4,10 @@ import { readFile } from 'node:fs/promises';
 import {
   SEASONS, seasonKey, tempOf, bandOf, BANDS, effectsOf, isPlain, allNight, harvestRates, nextOrder, iceOn, iceHexes,
   icedRecord, wayAshore, NONE, LEMON_SEA_FOOD, WIND_SIDES, WIND_TURN_MS, WIND_ORIGIN, WIND_FACTORS, createWind, windTurn,
-  nextWindTurnAt, headingOf, windGap, windFactor, newWindSeed, windRoll,
+  nextWindTurnAt, headingOf, windGap, windFactor, newWindSeed, windRoll, STORM_CHANCE, STORM_STEP_MS, STORM_STEPS_MIN,
+  STORM_STEPS_MAX, STORM_TIME, STORM_WEAR, SIDE_OFFSETS, stormChance, stormOfTurn, stormsAt, stormHexes, stormPush,
 } from '../src/weather-model.mjs';
-import { stepCost, planMove, RATION_HP, HEX_COST } from '../src/stores-model.mjs';
+import { stepCost, planMove, RATION_HP, HEX_COST, wearOf } from '../src/stores-model.mjs';
 import { stepMs, LAND_MS, routeTicks, SEA_MS, TICK_MS } from '../src/clock-model.mjs';
 import { seaIndex, canStep, isSea, shipAfterPath } from '../src/ship-model.mjs';
 import { createTerrain, CLASSES } from '../src/terrain.mjs';
@@ -288,4 +289,72 @@ test('wind in the schedule: each sailed step in the wind as it begins; land and 
   // A fast-travel hop takes the wind on its whole length, by its nearest side.
   const hop = [{ fastTravel: true, hop: 3, vessel: 'ship', dq: 3, dr: -1 }];
   assert.equal(routeTicks(hop, opts, 0, (s) => windFactor(5, headingOf(s.dq, s.dr), false))[0] * TICK_MS, Math.round(3 * SEA_MS.galleon * 0.7));
+});
+
+test('storms: chances by season, born on open sea, 3 to 6 hours, drifting downwind a hex each half-hour', () => {
+  assert.equal(stormChance(0), STORM_CHANCE.spring);
+  assert.equal(stormChance(3), STORM_CHANCE.winter);
+  assert.equal(stormChance(6), STORM_CHANCE.spring); // Lemon keeps Spring's
+  const sea = [{ q: 10, r: 10 }, { q: 20, r: 5 }, { q: 3, r: 30 }];
+  // Over many turns: Winter bears about 35%, Summer about 5%; each storm born inside its turn, on the list, 6-12 steps.
+  const count = (order) => {
+    let n = 0;
+    for (let k = 0; k < 4000; k++) {
+      const s = stormOfTurn(777, k, order, sea);
+      if (s === undefined) continue;
+      n += 1;
+      const start = WIND_ORIGIN + k * WIND_TURN_MS;
+      assert.ok(s.born >= start && s.born < start + WIND_TURN_MS && (s.born - start) % STORM_STEP_MS === 0);
+      assert.ok(s.steps >= STORM_STEPS_MIN && s.steps <= STORM_STEPS_MAX);
+      assert.ok(sea.some((h) => h.q === s.q && h.r === s.r));
+    }
+    return n / 4000;
+  };
+  assert.ok(Math.abs(count(3) - 0.35) < 0.03);
+  assert.ok(Math.abs(count(1) - 0.05) < 0.02);
+  // No open sea, no storm.
+  assert.equal(stormOfTurn(777, 1, 3, []), undefined);
+  // A storm drifts: with the wind steady from the NW (5) it goes SE (2) a hex each half-hour, and is gone at its end.
+  let k = 0;
+  let s;
+  while ((s = stormOfTurn(5, k, 3, sea)) === undefined) k += 1;
+  const nw = () => 5;
+  assert.deepEqual(stormsAt(5, s.born - 1, 3, sea, nw).filter((x) => x.k === k), []);
+  const first = stormsAt(5, s.born, 3, sea, nw).find((x) => x.k === k);
+  assert.equal(first.q, s.q); assert.equal(first.r, s.r); assert.equal(first.toward, 2);
+  const later = stormsAt(5, s.born + 2 * STORM_STEP_MS + 1, 3, sea, nw).find((x) => x.k === k);
+  assert.equal(later.q, s.q + 2 * SIDE_OFFSETS[2][0]); assert.equal(later.r, s.r + 2 * SIDE_OFFSETS[2][1]);
+  const ends = s.born + s.steps * STORM_STEP_MS;
+  assert.equal(stormsAt(5, ends - 1, 3, sea, nw).some((x) => x.k === k), true);
+  assert.equal(stormsAt(5, ends, 3, sea, nw).some((x) => x.k === k), false);
+  // Seven hexes: the centre and its ring, each a neighbour.
+  const hexes = stormHexes({ q: 4, r: 4 });
+  assert.equal(hexes.length, 7);
+  assert.equal(new Set(hexes.map((h) => `${h.q},${h.r}`)).size, 7);
+  // The push: about 1 in 4, the same for the same voyage and step.
+  let pushes = 0;
+  for (let i = 0; i < 4000; i++) if (stormPush(9, 1200 + (i % 7), i % 60, Math.floor(i / 60))) pushes += 1;
+  assert.ok(Math.abs(pushes / 4000 - 0.25) < 0.03);
+  assert.equal(stormPush(9, 1200, 17, 4), stormPush(9, 1200, 17, 4));
+});
+
+test('storms in the schedule and the wear: ×1.5 the time, a push adds a calm hex, ×3 the hull', () => {
+  const opts = { hullOf: (kind) => (kind === 'ship' ? 'galleon' : 'dinghy') };
+  const steps = [
+    { sea: true, cls: 'water', vessel: 'ship', dq: 1, dr: 0 },
+    { sea: true, cls: 'water', vessel: 'ship', dq: 1, dr: 0 },
+    { sea: false, cls: 'grasslands' },
+  ];
+  // The second hex is stormy when entered; then with a push.
+  const stormy = (push) => (s, ms, i) => (i === 1 ? { x: STORM_TIME, push } : undefined);
+  assert.deepEqual(routeTicks(steps, opts, 0, undefined, stormy(false)).map((n) => n * TICK_MS), [SEA_MS.galleon, SEA_MS.galleon * 1.5, LAND_MS]);
+  assert.deepEqual(routeTicks(steps, opts, 0, undefined, stormy(true)).map((n) => n * TICK_MS), [SEA_MS.galleon, SEA_MS.galleon * 2.5, LAND_MS]);
+  // The storm is asked about the moment the hex is entered: the step's start plus its time in the wind.
+  const asked = [];
+  routeTicks(steps.slice(0, 1), opts, 1000, () => 0.7, (s, ms) => { asked.push(ms); return undefined; });
+  assert.deepEqual(asked, [1000 + SEA_MS.galleon * 0.7]);
+  // Wear: ×3 on a stormy sea hex, deep water too; a hop is never stormy.
+  assert.equal(wearOf({ sea: true, storm: STORM_WEAR }), 3);
+  assert.equal(wearOf({ sea: true, deep: true, storm: STORM_WEAR }), 6);
+  assert.equal(wearOf({ fastTravel: true, hop: 2, storm: STORM_WEAR }), 2);
 });

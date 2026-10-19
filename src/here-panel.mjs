@@ -361,15 +361,20 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
 
   // The wind's "turns in" moves on between redraws; a turn redraws the panel (phase 5c-2).
   let windSeen;
+  let stormSeen;
   setInterval(() => {
     try {
       const w = state.weather?.wind?.();
       const side = w === undefined ? -1 : w.from;
       if (windSeen !== undefined && side !== windSeen) { windSeen = side; render(); return; }
       windSeen = side;
+      // The storms move each half-hour (phase 5c-3): the panel's storm line and chip follow.
+      const sk = state.weather?.stormKey?.() ?? '';
+      if (stormSeen !== undefined && sk !== stormSeen) { stormSeen = sk; render(); return; }
+      stormSeen = sk;
       if (w === undefined) return;
       const left = windLeft(w);
-      document.querySelectorAll('[data-voyage-wind="left"]').forEach((x) => { if (x.textContent !== left) x.textContent = left; });
+      document.querySelectorAll('[data-voyage-wind="left"]').forEach((x) => { if (x.dataset.left !== left) { x.dataset.left = left; x.innerHTML = windLeftHtml(w); } });
     } catch {}
   }, 15000);
 
@@ -417,10 +422,21 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   /** The wind's arrow (phase 5c-2): pointing where it blows, so the NW wind's arrow points SE. */
   const windArrow = (w) => `<i class="fa fa-long-arrow-alt-up voyage-wind-arrow" style="transform:rotate(${w.toward * 60}deg)" aria-hidden="true"></i>`;
   const windLeft = (w) => templateLangString('MOD_VOY_WX_WIND_TURNS', { time: state.clock?.duration?.(w.msLeft) ?? '' });
+  const windLeftHtml = (w) => helpLayout.withTime('MOD_VOY_WX_WIND_TURNS', { time: state.clock?.duration?.(w.msLeft) ?? '' });
   const windTip = (w) => `${templateLangString('MOD_VOY_WX_WIND_FROM', { side: w.word })}, ${windLeft(w)}.`;
   /** The wind's line in the open block: its arrow, where it comes from, when it turns. */
   const windRow = (w) => (w === undefined ? '' : `<div class="voyage-wx-row" title="${esc(getLangString('MOD_VOY_WX_WIND_HINT_SHORT'))}"><span class="voyage-wx-icon voyage-wind-box">${windArrow(w)}</span>`
-    + `<span>${esc(templateLangString('MOD_VOY_WX_WIND_FROM', { side: w.short }))} · <span class="text-muted" data-voyage-wind="left">${esc(windLeft(w))}</span></span></div>`);
+    + `<span>${esc(templateLangString('MOD_VOY_WX_WIND_FROM', { side: w.short }))} · <span class="text-muted" data-voyage-wind="left" data-left="${esc(windLeft(w))}">${windLeftHtml(w)}</span></span></div>`);
+  /**
+   * The storm nearest to you within 3 hexes (phase 5c-3), or undefined: { dist, sideWord, driftWord } from weather.mjs
+   * stormsNear. Its words: "In a storm" on a stormy hex, else "A storm 2 hexes to the north-east, drifting south-east".
+   */
+  const stormNear = () => {
+    try { const p = game.cartography?.activeMap?.playerPosition; return p === undefined ? undefined : state.weather?.stormsNear?.(p.q, p.r, 3)?.[0]; } catch { return undefined; }
+  };
+  const stormWords = (n) => (n.dist === 0 ? getLangString('MOD_VOY_STORM_HERE')
+    : templateLangString('MOD_VOY_STORM_NEAR', { hexes: templateLangString(n.dist === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n.dist}` }), side: n.sideWord, drift: n.driftWord }));
+  const stormRow = (n) => (n === undefined ? '' : `<div class="voyage-wx-row voyage-storm-row" title="${esc(getLangString('MOD_VOY_STORM_HINT'))}"><span class="voyage-wx-icon voyage-wind-box"><i class="fa fa-bolt" aria-hidden="true"></i></span><span>${esc(stormWords(n))}</span></div>`);
   const weatherBlock = (rec) => {
     const w = state.weather;
     const s = w?.season?.();
@@ -430,19 +446,20 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       `<i class="fa fa-caret-${weatherOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_WX_PANEL_TITLE'))}</button>`;
     const deg = `<b class="${d.tone}">${esc(d.deg)}</b>`;
     const wind = w.wind?.();
+    const storm = stormNear();
     if (!weatherOpen) {
-      const tip = `${d.effect === '' ? s.name : `${s.name} · ${d.effect}`}${wind === undefined ? '' : `\n${windTip(wind)}`}`;
-      const sum = `${seasonImg(s)}${deg}${wind === undefined ? '' : `<span class="voyage-wind-sum">${windArrow(wind)}${esc(wind.short)}</span>`}`;
+      const tip = `${d.effect === '' ? s.name : `${s.name} · ${d.effect}`}${wind === undefined ? '' : `\n${windTip(wind)}`}${storm === undefined ? '' : `\n${stormWords(storm)}.`}`;
+      const sum = `${seasonImg(s)}${deg}${wind === undefined ? '' : `<span class="voyage-wind-sum">${windArrow(wind)}${esc(wind.short)}</span>`}${storm === undefined ? '' : '<i class="fa fa-bolt voyage-storm-sum" aria-hidden="true"></i>'}`;
       return `<div class="voyage-wx"><div class="voyage-wx-head">${toggle}<span class="voyage-wx-sum" title="${esc(tip)}">${sum}</span></div></div>`;
     }
-    const next = w.nextWords(s);
+    const next = w.nextHtml?.(s) ?? esc(w.nextWords(s));
     const frozen = (w.frozenVessels?.() ?? []).map(({ v }) => `<div class="voyage-wx-line text-info"><i class="fa fa-snowflake mr-1" aria-hidden="true"></i>${esc(templateLangString('MOD_VOY_WX_PANEL_FROZEN', { hull: state.ship?.hullName?.(v) ?? '' }))}</div>`).join('');
     return `<div class="voyage-wx"><div class="voyage-wx-head">${toggle}</div>` +
       `<div class="voyage-wx-row" title="${esc(getLangString('MOD_VOY_WX_PANEL_HINT'))}">${seasonImg(s)}<span>${deg} ${esc(s.name)}${d.effect === '' ? '' : ` · <span class="${d.tone || 'text-muted'}">${esc(d.head)}${d.head !== '' && d.fx !== '' ? ': ' : ''}${d.fx}</span>`}</span></div>` +
       frozen +
-      (next === '' ? '' : `<div class="voyage-wx-line text-muted">${esc(next)}</div>`) +
-      // The wind last, under the season's lines (the user, build .292: "move wind to the bottom").
-      windRow(wind) + '</div>';
+      (next === '' ? '' : `<div class="voyage-wx-line text-muted">${next}</div>`) +
+      // The wind last, under the season's lines (the user, build .292: "move wind to the bottom"); a storm near under it.
+      windRow(wind) + stormRow(storm) + '</div>';
   };
   /** The strip's weather chip: the season's icon and the degrees, no name (the user's comment); the rest in its tooltip. */
   const weatherChip = (rec) => {
@@ -499,6 +516,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         out.push(chip(`<i class="fa fa-ship mr-1"></i>${c}%`, `${tip}.\n${getLangString('MOD_VOY_MINI_HULL_HINT')}`, c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : '', 'voyage-chip-link voyage-find-ship', ` data-kind="${kind}"`));
       }
     }
+    // 3b. A storm within 3 hexes (phase 5c-3, the canvas's board 4: "a storm chip only when one is within 3 hexes").
+    const near = stormNear();
+    if (near !== undefined) out.push(chip(`<i class="fa fa-bolt mr-1" aria-hidden="true"></i>${near.dist === 0 ? esc(getLangString('MOD_VOY_STORM_CHIP_HERE')) : near.dist}`, `${stormWords(near)}.\n${getLangString('MOD_VOY_STORM_HINT')}`, 'voyage-storm-chip'));
     // 4. Night only: fuel buys light then.
     const tod = on ? st.timeOfDay?.() : undefined;
     if (tod?.night) {
@@ -662,6 +682,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     ...Object.entries(terrainMod.CLASS_INFO).filter(([cls]) => cls !== 'water').map(([cls, info]) => ({ css: info.css, label: classLabel(cls) })),
     { css: terrainMod.CLOUD_INFO.css, label: getLangString(terrainMod.CLOUD_KEY) },
     ...(state.weather?.season?.()?.ice ? [{ css: terrainMod.ICE_INFO.css, label: getLangString(terrainMod.ICE_KEY) }] : []),
+    // Storms (phase 5c-3): their grey cells on the map, while any is out.
+    ...((state.weather?.stormKey?.() ?? '') !== '' ? [{ css: terrainMod.STORM_INFO.css, label: getLangString('MOD_VOY_STORM_LEGEND') }] : []),
   ]
     .map((info) => `<span class="voyage-legend-item"><span class="voyage-swatch" style="background:${info.css}"></span>${esc(info.label)}</span>`)
     .join('');
@@ -745,6 +767,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       for (const el of [...host.children].filter((c) => c.matches('.btn-group-vertical, button'))) box.append(el);
       box.style.top = top && top.parentElement === map ? `${top.offsetTop + top.offsetHeight}px` : '';
       legendBadge(box);
+      // The storms' layer (phase 5c-3, overlay.mjs) hooks the map's ticker the first time the map is up.
+      state.overlay?.drawStorms?.();
     } catch (e) { log('map controls move failed', e); }
   };
 
@@ -970,7 +994,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         `<div class="voyage-here-head"><button type="button" class="voyage-panel-toggle voyage-open-caret" data-tip-touch="off" aria-expanded="${panelOpen}" title="${esc(getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD'))}" aria-label="${esc(`${getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD')}. ${getLangString('MOD_VOY_PANEL_HOLD_TUCK')}`)}">` +
         `<i class="fa fa-caret-${panelOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_YOU_ARE_HERE'))}</button>${manageLink()}</div>` +
         // In order of what a player needs (the user, build .296: "move blocks in order of importance"): any warning,
-        // where you are, what you can do here, your vessel, stores and the hour, the weather, then what is locked. The
+        // where you are, what you can do here, the weather, what is locked, then your vessel, stores and the hour in
+        // their band at the very bottom (the user, build .303: "move that boat info block at the very bottom"). The
         // legend left the panel for a badge on the map (legendBadge).
         strandedLines(status) +
         `<div>${swatch}${esc(d.label)}<small class="text-muted">${features}${where}</small></div>` +
@@ -980,9 +1005,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         harbourLine() +
         fightLine() +
         signLine() +
-        shipBox() +
         weatherBlock(rec) +
-        lockedBlock(pos);
+        lockedBlock(pos) +
+        shipBox();
       placeUnderBar();
       alignRowButtons(true);
     } catch (e) { log('here panel failed', e); }

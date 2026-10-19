@@ -91,6 +91,8 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   };
   /** The wind's factor on a sailed step begun at `ms` (phase 5c-2, weather.mjs); undefined with the weather off. */
   const windOf = () => (state.weather?.windOn?.() === true ? state.weather.windFactor : undefined);
+  /** The storms in the schedule (phase 5c-3, weather.mjs stormStep): with Timed travel on and the weather's storms. */
+  const stormOf = () => (state.weather?.stormsOn?.() === true ? state.weather.stormStep : undefined);
   /**
    * Ticks of each step of the walk (index i: from walk[i] to walk[i + 1]), the route begun at `t0`: each sea step in
    * the wind blowing as it begins (phase 5c-2), so a voyage's schedule is fixed when it sets off.
@@ -100,7 +102,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     if (tow !== undefined) return walk.slice(1).map(() => C.ticksOf(state.adrift?.towMs?.(tow.kind) ?? 3 * 60000));
     const path = pathOf(walk, 0, walk.length - 1);
     if (path === undefined) return walk.slice(1).map(() => C.ticksOf(C.LAND_MS));
-    return C.routeTicks(stepsOf(path), timeOpts(), t0 ?? state.clockNow(), windOf());
+    return C.routeTicks(stepsOf(path), timeOpts(), t0 ?? state.clockNow(), windOf(), stormOf());
   };
   let ticksMemo;
   const stepTicks = (v) => {
@@ -323,17 +325,37 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     const steps = stepsOf(path);
     const o = timeOpts();
     // Set off now, in the winds ahead (phase 5c-2); `calm` what it would take with none, `stepMs` each step's time.
-    const ticks = C.routeTicks(steps, o, state.clockNow(), windOf());
+    const t0 = state.clockNow();
+    // The storms the route meets (phase 5c-3): each stormy sea hex with when you enter it, for "Storm ahead".
+    const storms = [];
+    const so = stormOf();
+    const watch = so === undefined ? undefined : (st, ms, i) => { const r = so(st, ms, i); if (r !== undefined) storms.push({ i, ms, push: r.push }); return r; };
+    const ticks = C.routeTicks(steps, o, t0, windOf(), watch);
     const stepMs = ticks.map((n) => n * C.TICK_MS);
     const ms = stepMs.reduce((a, b) => a + b, 0);
+    // `calm`: no wind; the storms are counted apart (the wind's saving is the wind's alone).
     const calm = C.routeTicks(steps, o, 0).reduce((a, b) => a + b, 0) * C.TICK_MS;
+    const stormMs = so === undefined ? 0 : ms - C.routeTicks(steps, o, t0, windOf()).reduce((a, b) => a + b, 0) * C.TICK_MS;
     const sea = steps.filter((s) => s.sea || s.hop > 0).length;
     let plan;
     try { plan = state.stores?.planFor?.(path); } catch (e) { log('route plan failed', e); }
-    return { hexes: steps.length, land: steps.length - sea, sea, ms, calm, stepMs, gp: gpOf(path), plan };
+    return { hexes: steps.length, land: steps.length - sea, sea, ms, calm, stepMs, gp: gpOf(path), plan, storms, stormMs };
   };
   const hexes = (n) => t(n === 1 ? 'MOD_VOY_CLOCK_HEX_ONE' : 'MOD_VOY_CLOCK_HEX_MANY', { count: `${n}` });
-  // Compact durations everywhere, "72H0M" / "5M" (the user, build .298).
+  /**
+   * "Storm ahead" in the Set off popup (phase 5c-3, the canvas's board 4): when you meet the first storm on the route,
+   * how many hexes you sail in storms, the wear and pushes, and the time they add (already in Takes).
+   */
+  const stormHtml = (info) => {
+    const list = info?.storms ?? [];
+    if (list.length === 0) return '';
+    const when = clockAt(Date.now() + Math.max(0, list[0].ms - state.clockNow()));
+    const pushes = list.filter((x) => x.push).length;
+    const vars = { time: when, hexes: hexes(list.length), extra: duration(Math.max(60000, info.stormMs ?? 0)), n: `${pushes}` };
+    return `<div class="voyage-storm-ahead"><i class="fa fa-bolt" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_STORM_AHEAD_HEAD'))}</b> `
+      + `${esc(t(pushes > 0 ? 'MOD_VOY_STORM_AHEAD_PUSH' : 'MOD_VOY_STORM_AHEAD', vars))}</span></div>`;
+  };
+  // Compact durations everywhere, "72h 0m" / "5m" (the user, build .298; lower case with a space since .301).
   const duration = (ms) => { const p = C.durationParts(ms); return p.h > 0 ? t('MOD_VOY_CLOCK_H_M', { h: `${p.h}`, m: `${p.m}` }) : t('MOD_VOY_CLOCK_M', { m: `${p.m}` }); };
   const clockAt = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
@@ -506,7 +528,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     const arriveIconAt = (ms) => (nightAt(ms) ? '<i class="fa fa-moon text-info mr-1" aria-hidden="true"></i>' : '<i class="fa fa-sun voyage-clock-sun mr-1" aria-hidden="true"></i>');
     const arriveHtml = (w) => { const ms = Date.now() + totalFor(w); return `${arriveIconAt(ms)}${esc(t('MOD_VOY_CLOCK_ARRIVE_AT', { time: clockAt(ms) }))}`; };
     // The wind's share of the time (phase 5c-2, the canvas's board 4: "the wind saves 9 min"), a minute or more.
-    const windGain = info.calm - info.ms;
+    const windGain = info.calm - (info.ms - (info.stormMs ?? 0));
     const windHtml = state.weather?.windOn?.() === true && Math.abs(windGain) >= 60000
       ? `<span class="voyage-clock-wind ${windGain > 0 ? 'text-success' : 'text-warning'}"><i class="fa fa-wind mr-1" aria-hidden="true"></i>${esc(t(windGain > 0 ? 'MOD_VOY_WX_WIND_SAVES' : 'MOD_VOY_WX_WIND_ADDS', { time: duration(Math.abs(windGain)) }))}</span>`
       : '';
@@ -551,6 +573,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       + `<div class="voyage-clock-tile">${head(img(game.gp.media, 'voyage-clock-icon voyage-clock-head-icon'), 'MOD_VOY_CLOCK_COSTS')}`
       + `<div class="voyage-clock-tile-value voyage-clock-gp">${esc(gpText)}</div>${costBits.length > 0 ? `<div class="voyage-clock-costs">${costBits.join('')}</div>` : ''}${fogCostNote}</div>`
       + '</div>'
+      + stormHtml(info)
       + fogBlock
       + `<div class="voyage-section voyage-clock-arrival"><div class="voyage-clock-head"><i class="fa fa-anchor voyage-clock-fa" aria-hidden="true"></i>${esc(t('MOD_VOY_CLOCK_ON_ARRIVAL'))}</div>`
       + select('voyage-clock-a1', 1, 'MOD_VOY_CLOCK_FIRST', defaults[0] ?? -1)
@@ -709,6 +732,9 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     // A tow's steps are free moves (no GP, stores, wear or XP) and find nothing, the last one neither (adrift.mjs).
     const towed = v.tow !== undefined;
     const putBack = finalStep && !towed ? () => {} : keepMoves();
+    // A storm on the sea hex entered (phase 5c-3): the step pays its ×3 wear (stepsOf `storm`); told after it lands.
+    let met;
+    try { met = towed ? undefined : stepsOf(path)[0]; } catch {}
     try { cart().movePlayer(path, towed); } catch (e) { log('voyage step failed', e); } finally { stepping = false; finalStep = false; state.lightHold = 0; }
     putBack();
     const now = map()?.playerPosition;
@@ -720,6 +746,12 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       // The why in the ending, so it is marked as one (red in Welcome Back, as a fog refusal's; build .233).
       end('refused', { why: t('MOD_VOY_CLOCK_WHY_UNPAID') });
       return;
+    }
+    if (met?.storm !== undefined) {
+      try {
+        const st = state.weather?.stormStep?.(met, state.clockNow());
+        state.weather?.sailedStorm?.({ wear: S.wearOf(met), push: st?.push === true && state.timed?.() === true ? st.storm.toward : undefined });
+      } catch (e) { log('storm note failed', e); }
     }
     v.at = i + 1;
     if (v.loads.includes(v.at)) loadHere();

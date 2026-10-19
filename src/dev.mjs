@@ -508,6 +508,22 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       const sk = state.voyageSkill?.();
       return { wind: w.wind(), seed: sk?.record?.wind, applies: w.windOn() };
     },
+    /**
+     * Storms (5c-3): storm() lists the storms now ({ storms: [{ k, q, r, toward, ends, cells }], near }); storm(q, r,
+     * hours) puts one down centred on axial (q, r) from now (3 h unless said), storm('here', dq, dr) as many hexes from
+     * where you stand, storm(null) takes it away. The seeded storms stay. Dev only.
+     */
+    storm(q, r, hours) {
+      const w = state.weather;
+      if (w === undefined) return 'weather not loaded';
+      const p = game.cartography?.activeMap?.playerPosition;
+      if (q === null) w.forceStorm(undefined);
+      else if (q === 'here' && p !== undefined) w.forceStorm(p.q + (r ?? 0), p.r + (hours ?? 0), 3);
+      else if (Number.isInteger(q) && Number.isInteger(r)) w.forceStorm(q, r, hours ?? 3);
+      try { state.overlay?.drawStorms?.(); } catch {}
+      const now = state.clockNow?.() ?? Date.now();
+      return { storms: w.stormsAt(now), near: p === undefined ? [] : w.stormsNear(p.q, p.r, 3), on: w.stormsOn() };
+    },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },
     state,

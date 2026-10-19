@@ -197,8 +197,11 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       const adrift = sea && adriftOn && homeOf(recOf(prev), v) > 1;
       // The weather on the hex entered (phase 5c, weather.mjs): its band's fuel, rations and time, Lemon's sea rations.
       const wx = state.weather?.stepWeather?.(rec);
-      // A sea step's axial offset (phase 5c-2): its heading meets the wind (weather-model headingOf).
-      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(adrift ? { adrift } : {}), ...(sea || hop > 0 ? { vessel: kind, dq: next.q - prev.q, dr: next.r - prev.r } : {}), ...(wx !== undefined ? { wx } : {}) });
+      // A storm on the sea hex entered now (phase 5c-3): its wear factor (stores-model wearOf).
+      const storm = sea && !fastTravel ? state.weather?.stepStorm?.(rec) : undefined;
+      // A sea step's axial offset (phase 5c-2): its heading meets the wind (weather-model headingOf); the hex entered
+      // (5c-3): the schedule asks whether a storm is on it when you get there.
+      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(adrift ? { adrift } : {}), ...(sea || hop > 0 ? { vessel: kind, dq: next.q - prev.q, dr: next.r - prev.r, q: next.q, r: next.r } : {}), ...(wx !== undefined ? { wx } : {}), ...(storm !== undefined ? { storm } : {}) });
     }
     return steps;
   };

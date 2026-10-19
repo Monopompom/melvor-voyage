@@ -47,15 +47,23 @@ export const isSailed = (step) => step != null && (step.fastTravel === true || s
  * Ticks of each step of a route begun at `t0` (ms of game time), one after another: a sailed step's time is multiplied
  * by the wind blowing as it begins (phase 5c-2; `windOf(step, ms)` its factor, 1 for none; no `windOf`, no wind). So
  * the schedule is fixed when the voyage sets off, and the Set off popup's time is exact.
+ * Storms (phase 5c-3): `stormOf(step, ms, i)` for a sailed step `i` entered at `ms` gives { x (its time factor), push }
+ * when a storm is on that hex then, else undefined; a push adds one calm sea hex of the step's vessel (sailing back).
  */
-export function routeTicks(steps, opts, t0, windOf) {
+export function routeTicks(steps, opts, t0, windOf, stormOf) {
   const out = [];
   let at = Number.isFinite(t0) ? t0 : 0;
+  let i = -1;
   for (const s of steps ?? []) {
+    i += 1;
     let ms = stepMs(s, opts);
     if (typeof windOf === 'function' && isSailed(s)) {
       const f = windOf(s, at);
       if (Number.isFinite(f) && f > 0) ms *= f;
+    }
+    if (typeof stormOf === 'function' && isSailed(s)) {
+      const st = stormOf(s, at + ms, i);
+      if (st !== undefined && Number.isFinite(st.x) && st.x > 0) ms = ms * st.x + (st.push ? seaMs((opts?.hullOf ?? (() => undefined))(s.vessel ?? 'boat')) : 0);
     }
     const ticks = ticksOf(ms);
     out.push(ticks);

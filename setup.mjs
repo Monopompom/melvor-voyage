@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-19.298';
+export const BUILD = '2026-10-19.304';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -361,7 +361,7 @@ export async function setup(ctx) {
   const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, log });
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.
   holdMod.install(ctx, { state, shipModel, helpLayout, log });
-  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, pageLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
+  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
   // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
   // popups and everything else as they were.
   state.helpSections = page?.helpSections;
@@ -375,7 +375,7 @@ export async function setup(ctx) {
   if (voyageSkillOk) {
     try {
       const planModel = await ctx.loadModule('src/plan-model.mjs');
-      (await ctx.loadModule('src/planner.mjs')).install(ctx, { state, model, planModel, storesModel, terrainMod, log });
+      (await ctx.loadModule('src/planner.mjs')).install(ctx, { state, model, planModel, storesModel, terrainMod, helpLayout, log });
     } catch (e) { console.error('[Voyage] the planner failed to load; the rest runs', e); state.planner = undefined; }
     // The ship's clock (phase 5a): travel takes time. A failure leaves phase 4's instant travel.
     try {
@@ -400,7 +400,7 @@ export async function setup(ctx) {
       // leaves the year without weather.
       try {
         const weatherModel = await ctx.loadModule('src/weather-model.mjs');
-        const weather = (await ctx.loadModule('src/weather.mjs')).install(ctx, { state, W: weatherModel, shipModel, terrainMod, log });
+        const weather = (await ctx.loadModule('src/weather.mjs')).install(ctx, { state, W: weatherModel, shipModel, terrainMod, helpLayout, log });
         if (s !== undefined) s.weather = weather;
       } catch (e) { console.error('[Voyage] weather failed to load; no seasons on the map', e); state.weather = undefined; }
     } catch (e) { console.error('[Voyage] the ship\'s clock failed to load; travel stays instant', e); state.clock = undefined; state.timed = () => false; }

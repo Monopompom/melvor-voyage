@@ -15,6 +15,13 @@ export const HELP_WIDTH = '38rem';
  */
 export const msgHtml = (lines) => '<div class="voyage-msg text-center">'
   + lines.map((l) => `<div>${l}</div>`).join('') + '</div>';
+/**
+ * A shown duration with the hourglass before it ("⌛ 7h 7m", build .301, the user: "sandclock icon and lowercase h, space,
+ * lowercase m"). `time` is plain text.
+ */
+export const timeHtml = (time) => `<span class="voyage-time"><i class="fa fa-hourglass-half" aria-hidden="true"></i>${esc(time)}</span>`;
+/** A sentence with a duration in its `${time}` ("turns in ${time}"): escaped, the time marked with the hourglass. */
+export const withTime = (key, vars) => esc(templateLangString(key, { ...vars, time: '\u0001' })).replace('\u0001', timeHtml(vars.time));
 /** The picture on top of a message popup: the action, area or coin it is about, as large as a Folk's portrait. */
 export const MSG_IMAGE = { imageWidth: 64, imageHeight: 64, imageAlt: '' };
 

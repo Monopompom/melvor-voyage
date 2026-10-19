@@ -239,3 +239,85 @@ export function windFactor(from, heading, small = false) {
   const f = WIND_FACTORS[windGap(from, heading)];
   return small ? 1 + (f - 1) * SMALL_WIND : f;
 }
+
+// ---- storms (phase 5c-3) ------------------------------------------------------------------------------------------
+// Cells you can see and sail round (the canvas's board 3, settled 19 Oct 2026): a storm is born on open sea (3 or more
+// hexes from land), seven hexes wide (a centre and its ring), and drifts with the wind a hex every 30 minutes for 3 to
+// 6 hours. Each 6-hour wind turn may bear one, more often in Fall and Winter. Seeded like the wind (the same seed, its
+// own salt) and following game time, so online and offline meet the same storms and Set off sees the ones ahead.
+// A sea hex beside a port is never stormy: a quay is shelter (the game side filters the cells).
+
+/** A storm moves a hex every 30 minutes, downwind. */
+export const STORM_STEP_MS = 30 * 60000;
+/** The chance that a 6-hour wind turn bears a storm, by season (the rare seasons keep Spring's). */
+export const STORM_CHANCE = { spring: 0.1, summer: 0.05, fall: 0.25, winter: 0.35 };
+export const stormChance = (order) => STORM_CHANCE[seasonKey(order)] ?? STORM_CHANCE.spring;
+/** A storm lasts 6 to 12 half-hours (3 to 6 hours). */
+export const STORM_STEPS_MIN = 6;
+export const STORM_STEPS_MAX = 12;
+/** Born on sea this far from land or more (the table's `shore`). */
+export const STORM_OPEN_SEA = 3;
+/** A hex entered in a storm: ×1.5 the time, ×3 the hull's wear, and 1 in 4 pushes you a hex downwind. */
+export const STORM_TIME = 1.5;
+export const STORM_WEAR = 3;
+export const STORM_PUSH = 0.25;
+/** A vessel lying at sea in a storm wears this much (%) each half-hour. */
+export const STORM_LYING_WEAR = 1;
+/** The axial offset of each side of WIND_SIDES (terrain.mjs NEIGHBOURS in that order). */
+export const SIDE_OFFSETS = [[0, -1], [1, -1], [1, 0], [0, 1], [-1, 1], [-1, 0]];
+const STORM_SALT = 0x5f0d3a1;
+const PUSH_SALT = 0x2c1b77;
+
+/**
+ * The storm wind turn `k` bears, or undefined: { k, born (ms), steps (half-hours it lasts), q, r (where it is born) }.
+ * `order`: the season; `openSea`: the hexes a storm may be born on ({ q, r }, in a fixed order).
+ */
+export function stormOfTurn(seed, k, order, openSea) {
+  if (!Array.isArray(openSea) || openSea.length === 0 || k < 0) return undefined;
+  const roll = (i) => windRoll((seed ^ STORM_SALT) | 0, k * 4 + i);
+  if (roll(0) >= stormChance(order)) return undefined;
+  const born = WIND_ORIGIN + k * WIND_TURN_MS + Math.floor(roll(1) * (WIND_TURN_MS / STORM_STEP_MS)) * STORM_STEP_MS;
+  const steps = STORM_STEPS_MIN + Math.floor(roll(2) * (STORM_STEPS_MAX - STORM_STEPS_MIN + 1));
+  const at = openSea[Math.floor(roll(3) * openSea.length) % openSea.length];
+  return { k, born, steps, q: at.q, r: at.r };
+}
+/**
+ * The storms over the sea at `ms`: [{ k, born, ends, q, r (its centre now), toward (the side it drifts to) }]. A storm
+ * born in one turn may last into the next, so the turn before is asked too. `windAt(ms)`: the side the wind blows from.
+ */
+export function stormsAt(seed, ms, order, openSea, windAt) {
+  const out = [];
+  const k = windTurn(ms);
+  for (const kk of [k - 1, k]) {
+    const s = stormPlace(stormOfTurn(seed, kk, order, openSea), ms, windAt);
+    if (s !== undefined) out.push(s);
+  }
+  return out;
+}
+/**
+ * Where a storm ({ k, born, steps, q, r }) is at `ms`, drifted downwind a hex each half-hour since it was born:
+ * { k, born, ends, q, r, toward }, or undefined before it is born and from its end.
+ */
+export function stormPlace(s, ms, windAt) {
+  if (s === undefined) return undefined;
+  const ends = s.born + s.steps * STORM_STEP_MS;
+  if (ms < s.born || ms >= ends) return undefined;
+  const moves = Math.floor((ms - s.born) / STORM_STEP_MS);
+  let { q, r } = s;
+  let toward;
+  for (let i = 0; i <= moves; i++) {
+    const from = windAt(s.born + i * STORM_STEP_MS);
+    toward = Number.isInteger(from) ? (from + 3) % 6 : undefined;
+    if (i === moves || toward === undefined) continue;
+    q += SIDE_OFFSETS[toward][0];
+    r += SIDE_OFFSETS[toward][1];
+  }
+  return { k: s.k, born: s.born, ends, q, r, toward };
+}
+/** A storm's seven hexes: its centre and the ring round it (the game keeps the sea ones not beside a port). */
+export const stormHexes = (storm) => [{ q: storm.q, r: storm.r }, ...SIDE_OFFSETS.map(([dq, dr]) => ({ q: storm.q + dq, r: storm.r + dr }))];
+/**
+ * Does storm `k` push a vessel entering hex (q, r) a hex downwind? 1 in 4 of its hexes, seeded, so the Set off popup's
+ * schedule and the step itself agree whenever they look.
+ */
+export const stormPush = (seed, k, q, r) => windRoll((seed ^ PUSH_SALT ^ Math.imul(k | 0, 0x27d4eb2d)) | 0, (q * 1024 + r + 512) | 0) < STORM_PUSH;

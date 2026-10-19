@@ -38,7 +38,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
   const recOf = (hex) => (hex == null ? undefined : state.terrain?.get?.(hex.q, hex.r));
   const keyOf = (h) => terrainMod.hexKey(h.q, h.r);
   const neighbours = (rec) => state.terrain?.neighbours?.(rec.q, rec.r) ?? [];
-  const duration = (ms) => state.clock?.duration?.(ms) ?? `${Math.round(ms / 60000)}M`;
+  const duration = (ms) => state.clock?.duration?.(ms) ?? `${Math.round(ms / 60000)}m`;
   const clockAt = (ms) => state.clock?.clockAt?.(ms) ?? '';
   const hexes = (n) => t(n === 1 ? 'MOD_VOY_CLOCK_HEX_ONE' : 'MOD_VOY_CLOCK_HEX_MANY', { count: `${n}` });
   const notify = (text, kind = 'success', media = res('icon.webp')) => {

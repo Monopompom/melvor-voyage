@@ -38,6 +38,8 @@ export const CLASS_INFO = {
 export const CLOUD_INFO = { label: 'Cloud', colour: 0x404040, css: '#404040' };
 /** Tint for the winter ice (phase 5c-1): sea frozen over, ground like the Snowlands but pale blue on the map. */
 export const ICE_INFO = { label: 'Ice', colour: 0xa9d6ee, css: '#a9d6ee' };
+/** A storm's cells on the map (phase 5c-3, overlay.mjs): a pale storm-grey wash with an amber edge and bolt. */
+export const STORM_INFO = { label: 'Storm', colour: 0xc3cbd4, css: '#c3cbd4', edge: 0xf0b43c };
 
 /** Labels for features; the few the rules name get a colour for the lock modal. */
 export const FEATURE_INFO = Object.fromEntries(FEATURES.map((f) => [f, { label: f.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) }]));

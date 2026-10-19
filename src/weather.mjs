@@ -9,7 +9,9 @@
 // ship enters, a ship caught in it waits for the thaw. The Voyage skill's passiveTick notices a season change, online
 // and offline. The setting "Weather" off: none of it.
 
-export function install(ctx, { state, W, shipModel, terrainMod, log }) {
+const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1' };
+
+export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const offlineNow = () => { try { return game._isInOnlineLoop === false; } catch { return false; } };
@@ -89,6 +91,87 @@ export function install(ctx, { state, W, shipModel, terrainMod, log }) {
     return { from, side, short: t(`MOD_VOY_DIR_SHORT_${side}`), word: t(`MOD_VOY_DIR_${side}`), toward: (from + 3) % 6, msLeft: W.nextWindTurnAt(now) - now };
   };
 
+  // ---- storms (phase 5c-3) ------------------------------------------------------------------------------------------
+  // Cells of seven hexes born on open sea, drifting with the wind a hex each half-hour for 3 to 6 hours, more often in
+  // Fall and Winter (weather-model stormsAt). Seeded with the wind's seed, so online, offline and the Set off popup
+  // agree. A sea hex beside a port is shelter, and ice is no sea. They need the setting, not Timed travel: with it off
+  // they still wear a hull (no time to lose, no push).
+  let stormGeo;
+  /** Checks only (dev.mjs voyageDev.storm): a storm put down by hand, { k: -1, born, steps, q, r }. */
+  let forcedStorm;
+  /** The open sea storms are born on and the sheltered hexes, per terrain and ice (built once each). */
+  const geo = () => {
+    const tr = state.terrain;
+    if (tr === undefined) return undefined;
+    if (stormGeo?.tr === tr && stormGeo.ice === layered) return stormGeo;
+    const all = [...tr.all()];
+    const openSea = all.filter((rec) => shipModel.isSea(rec) && rec.cloud !== true && (Number.isInteger(rec.shore) ? rec.shore : 1) >= W.STORM_OPEN_SEA).map((rec) => ({ q: rec.q, r: rec.r }));
+    const sheltered = new Set();
+    for (const rec of all) {
+      if (!terrainMod.hasFeature(rec, 'port')) continue;
+      sheltered.add(keyOf(rec));
+      for (const n of neighbours(rec)) sheltered.add(keyOf(n));
+    }
+    stormGeo = { tr, ice: layered, openSea, sheltered };
+    return stormGeo;
+  };
+  const stormsOn = () => on() && windNow() !== undefined;
+  const stormMemo = new Map();
+  /** The storms at `ms`: [{ k, q, r, toward, ends, cells: [{ q, r }] }] (cells: its sea hexes, none sheltered). */
+  const stormsAt = (ms) => {
+    if (!stormsOn()) return [];
+    const g = geo();
+    if (g === undefined) return [];
+    const epoch = Math.floor(ms / W.STORM_STEP_MS);
+    const memoKey = `${epoch}|${rawOrder()}|${g.ice}|${forced ?? ''}|${forcedStorm?.born ?? ''}`;
+    const hit = stormMemo.get(memoKey);
+    if (hit !== undefined) return hit;
+    const found = W.stormsAt(windNow().seed, ms, rawOrder(), g.openSea, windAt);
+    const mine = W.stormPlace(forcedStorm, ms, windAt);
+    if (mine !== undefined) found.push(mine);
+    const out = found.map((st) => ({
+      ...st,
+      cells: W.stormHexes(st).filter((h) => { const rec = state.terrain.get(h.q, h.r); return rec !== undefined && shipModel.isSea(rec) && !g.sheltered.has(keyOf(h)); }),
+    })).filter((st) => st.cells.length > 0);
+    if (stormMemo.size > 64) stormMemo.clear();
+    stormMemo.set(memoKey, out);
+    return out;
+  };
+  /** The storm on hex (q, r) at `ms`, or undefined. */
+  const stormAt = (q, r, ms = state.clockNow?.() ?? Date.now()) => stormsAt(ms).find((st) => st.cells.some((h) => h.q === q && h.r === r));
+  /** A sea step's storm wear factor for ship.mjs stepsOf (the hex entered now), or undefined. */
+  const stepStorm = (rec) => (rec !== undefined && shipModel.isSea(rec) && stormAt(rec.q, rec.r) !== undefined ? W.STORM_WEAR : undefined);
+  /**
+   * The schedule's storm (clock-model routeTicks `stormOf`): a sea step (`q`, `r`: the hex entered) entered at `ms` in
+   * a storm takes ×1.5 the time, and some storms push you a hex downwind (one calm hex more).
+   */
+  const stormStep = (step, ms) => {
+    if (step == null || step.fastTravel === true || step.sea !== true || !Number.isInteger(step.q)) return undefined;
+    const st = stormAt(step.q, step.r, ms);
+    if (st === undefined) return undefined;
+    return { x: W.STORM_TIME, push: W.stormPush(windNow().seed, st.k, step.q, step.r), storm: st };
+  };
+  /** The storms near (q, r) now, nearest first: [{ storm, dist }] within `reach` hexes. */
+  const stormsNear = (q, r, reach = 3) => {
+    const now = state.clockNow?.() ?? Date.now();
+    const out = [];
+    for (const st of stormsAt(now)) {
+      let best;
+      for (const h of st.cells) { const d = terrainMod.hexDistance({ q, r }, h); if (best === undefined || d < best.d) best = { d, h }; }
+      if (best === undefined || best.d > reach) continue;
+      // Words for the panel and the strip: which way it lies, which way it drifts.
+      const side = best.d === 0 ? undefined : W.headingOf(best.h.q - q, best.h.r - r);
+      out.push({ storm: st, dist: best.d, side, sideWord: sideWord(side), driftWord: sideWord(st.toward), ends: st.ends });
+    }
+    return out.sort((a, b) => a.dist - b.dist);
+  };
+  /** A key that changes when the storms move (a half-hour) or come and go: the panel redraws on it. */
+  const stormKey = () => {
+    if (!stormsOn()) return '';
+    const now = state.clockNow?.() ?? Date.now();
+    return stormsAt(now).map((st) => `${st.k}:${st.q},${st.r}`).join('|');
+  };
+
   // ---- the winter ice ------------------------------------------------------------------------------------------------
   let iceFor;
   let iceRecs = [];
@@ -156,13 +239,38 @@ export function install(ctx, { state, W, shipModel, terrainMod, log }) {
   try {
     ctx.patch(OfflineProgressElement, 'setMessages').after(function () {
       try {
-        const lines = away;
-        away = [];
+        const lines = takeAway();
         if (lines.length === 0 || this.messageContainer == null) return;
         for (const html of lines) { const h = document.createElement('h5'); h.className = 'font-w600 mb-1'; h.innerHTML = html; this.messageContainer.append(h); }
       } catch (e) { log('weather offline lines failed', e); }
     });
   } catch (e) { log('weather offline summary not patched', e); }
+  // Each catch-up tells only its own lines: a catch-up the game gave no box (no action running) leaves nothing for the
+  // next one (build .301). When there is no box, ours says what happened: a ship lying idle at sea in a storm, the season
+  // turning (the game makes its Welcome Back box only for an action).
+  try {
+    ctx.patch(Game, 'enterOfflineLoop').after(function () { away = []; stormAway = undefined; });
+    let exiting;
+    ctx.patch(Game, 'exitOfflineLoop').before(function () { exiting = this._offlineInfo; });
+    ctx.patch(Game, 'exitOfflineLoop').after(function () {
+      const info = exiting;
+      exiting = undefined;
+      try {
+        if (info == null || info.offlineProgress !== undefined) return;
+        const lines = takeAway();
+        if (lines.length === 0) return;
+        const fire = () => SwalLocale.fire({
+          title: t('MISC_STRING_3'),
+          html: helpLayout.msgHtml(lines),
+          imageUrl: ctx.getResourceUrl('assets/icon.webp'),
+          ...helpLayout.MSG_IMAGE,
+          didRender: state.popupDidRender,
+          customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
+        });
+        if (state.whenNoModal) state.whenNoModal(fire); else fire();
+      } catch (e) { log('weather away box failed', e); }
+    });
+  } catch (e) { log('weather offline loop not patched', e); }
 
   // ---- the thaw under someone on foot ---------------------------------------------------------------------------------
   /**
@@ -201,6 +309,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, log }) {
   // ---- the season changing (the Voyage skill's passiveTick) -------------------------------------------------------------
   let lastOrder;
   const learn = () => { try { state.journal?.learn?.('weather'); } catch {} };
+  const learnStorms = () => { try { state.journal?.learn?.('weather'); } catch {} };
   const onSeason = (prev, next) => {
     log(`season: ${W.seasonKey(prev)} -> ${W.seasonKey(next)}`);
     if (!on()) return;
@@ -216,8 +325,69 @@ export function install(ctx, { state, W, shipModel, terrainMod, log }) {
     if (changedIce) afterIce(next, layered && !wasIce);
     state.onSettingsChange();
   };
+  // ---- storms meeting vessels ------------------------------------------------------------------------------------------
+  // Offline, what the storms did is summed into one Welcome Back line each (sailed through, lying at sea).
+  let stormAway;
+  const awayStorm = () => (stormAway ??= { hexes: 0, wear: 0, pushes: 0, lying: {} });
+  /** What this catch-up has to tell (the season lines, then the storms'), emptied as it is read. */
+  function takeAway() {
+    const lines = away;
+    away = [];
+    const a = stormAway;
+    stormAway = undefined;
+    if (a !== undefined) {
+      const red = (x) => `<span class="text-danger">${x}</span>`;
+      if (a.hexes > 0) lines.push(`${red(esc(t('MOD_VOY_STORM_AWAY_HEAD')))}: ${esc(t(a.pushes > 0 ? 'MOD_VOY_STORM_AWAY_PUSHED' : 'MOD_VOY_STORM_AWAY', { hexes: `${a.hexes}`, wear: `${a.wear}`, pushes: `${a.pushes}` }))}`);
+      for (const [kind, w] of Object.entries(a.lying)) lines.push(`${red(esc(t('MOD_VOY_STORM_AWAY_LYING_HEAD')))}: ${esc(t('MOD_VOY_STORM_AWAY_LYING', { hull: state.ship?.hullName?.(state.ship?.vessel?.(kind)) ?? '', wear: `${w}` }))}`);
+    }
+    return lines;
+  }
+  const hullWords = (kind) => esc(state.ship?.hullName?.(state.ship?.vessel?.(kind)) ?? '');
+  const sideWord = (side) => (Number.isInteger(side) ? t(`MOD_VOY_DIR_${W.WIND_SIDES[side]}`) : '');
+  /**
+   * A voyage stepped onto a stormy sea hex (voyage-clock.mjs): `wear` it cost, `push` (a side) when it pushed you a hex
+   * downwind (the time is in the schedule already).
+   */
+  const sailedStorm = ({ wear, push }) => {
+    // A free step (towed, or wear off) with no push: nothing happened worth a line.
+    if (!(wear > 0) && push === undefined) return;
+    learnStorms();
+    if (offlineNow()) {
+      const a = awayStorm();
+      a.hexes += 1; a.wear += wear; if (push !== undefined) a.pushes += 1;
+      return;
+    }
+    const text = push !== undefined ? t('MOD_VOY_STORM_PUSHED', { wear: `${wear}`, side: sideWord(push) }) : t('MOD_VOY_STORM_SAILED', { wear: `${wear}` });
+    notify(text, ctx.getResourceUrl('assets/hull_condition.webp'));
+  };
+  let lastEpoch;
+  /** Each half-hour of game time: a vessel lying at sea in a storm (not one under way) wears STORM_LYING_WEAR %. */
+  const lyingWear = () => {
+    const now = state.clockNow?.() ?? Date.now();
+    const epoch = Math.floor(now / W.STORM_STEP_MS);
+    if (lastEpoch === undefined || epoch < lastEpoch) { lastEpoch = epoch; return; }
+    if (epoch === lastEpoch || state.ship?.enabled?.() !== true || !stormsOn()) { lastEpoch = epoch; return; }
+    const from = Math.max(lastEpoch + 1, epoch - 400);
+    lastEpoch = epoch;
+    const underWay = state.clock?.running?.() === true ? state.ship.inVessel?.() : undefined;
+    for (let e = from; e <= epoch; e++) {
+      for (const kind of ['boat', 'ship']) {
+        const v = state.ship.vessel?.(kind);
+        if (v == null || kind === underWay || (kind === 'boat' && v.aboard === true && state.ship.big?.() != null)) continue;
+        const rec = state.terrain?.get?.(v.q, v.r);
+        if (rec === undefined || !shipModel.isSea(rec) || stormAt(v.q, v.r, e * W.STORM_STEP_MS) === undefined) continue;
+        const cond = state.ship.cond?.(kind);
+        if (!(cond > 0)) continue;
+        state.ship.setCond(cond - W.STORM_LYING_WEAR, kind);
+        learnStorms();
+        if (offlineNow()) { const a = awayStorm(); a.lying[kind] = (a.lying[kind] ?? 0) + W.STORM_LYING_WEAR; }
+        else notify(t('MOD_VOY_STORM_LYING', { hull: hullWords(kind), wear: `${W.STORM_LYING_WEAR}`, cond: `${Math.max(0, cond - W.STORM_LYING_WEAR)}` }), ctx.getResourceUrl('assets/hull_condition.webp'));
+      }
+    }
+  };
   const tick = () => {
     if (state.terrain === undefined) return;
+    try { lyingWear(); } catch (e) { log('storm wear failed', e); }
     const o = rawOrder();
     if (lastOrder === undefined) { lastOrder = o; return; }
     if (o === lastOrder) return;
@@ -282,13 +452,20 @@ export function install(ctx, { state, W, shipModel, terrainMod, log }) {
     return { t: wx.t, deg: degrees(wx.t), band: wx.band, tone: tone(wx.band), sea, head, effect: fx === '' ? head : `${head}: ${fx}`, fx: fxHtml(wx) };
   };
   /** When the season turns, in words: "Spring in 1 d 6 h: the ice thaws."; with no town, that Spring stays. */
-  const nextWords = (s) => {
-    if (s.noTown) return t('MOD_VOY_WX_NO_TOWN');
-    if (s.msLeft === undefined) return '';
-    const vars = { season: s.next.name, time: state.clock?.duration?.(s.msLeft) ?? `${Math.round(s.msLeft / 3600000)}H` };
-    if (W.iceOn(s.next.order)) return t('MOD_VOY_WX_NEXT_FREEZE', vars);
-    if (W.iceOn(s.order)) return t('MOD_VOY_WX_NEXT_THAW', vars);
-    return t('MOD_VOY_WX_NEXT', vars);
+  const nextParts = (s) => {
+    if (s.noTown) return { key: 'MOD_VOY_WX_NO_TOWN' };
+    if (s.msLeft === undefined) return undefined;
+    const vars = { season: s.next.name, time: state.clock?.duration?.(s.msLeft) ?? `${Math.round(s.msLeft / 3600000)}h` };
+    if (W.iceOn(s.next.order)) return { key: 'MOD_VOY_WX_NEXT_FREEZE', vars };
+    if (W.iceOn(s.order)) return { key: 'MOD_VOY_WX_NEXT_THAW', vars };
+    return { key: 'MOD_VOY_WX_NEXT', vars };
+  };
+  const nextWords = (s) => { const p = nextParts(s); return p === undefined ? '' : t(p.key, p.vars); };
+  /** The same as HTML, its time behind the hourglass (build .301). */
+  const nextHtml = (s) => {
+    const p = nextParts(s);
+    if (p === undefined) return '';
+    return p.vars === undefined ? esc(t(p.key)) : helpLayout.withTime(p.key, p.vars);
   };
   /**
    * The way's weather for Travel Cost (stores.mjs): the coldest or hottest land hex where a band bites, or undefined:
@@ -315,14 +492,33 @@ export function install(ctx, { state, W, shipModel, terrainMod, log }) {
     on,
     describe,
     nextWords,
+    nextHtml,
     wayWords,
     degrees,
     seasonName,
     order,
     /** The memo key of anything priced or timed by the weather: '' with the setting off. */
-    key: () => (on() ? `${rawOrder()}` : ''),
+    // The storms (5c-3) move each half-hour: the half-hour is in the key, so a planned step's storm wear stays current.
+    key: () => (on() ? `${rawOrder()}|${Math.floor((state.clockNow?.() ?? Date.now()) / W.STORM_STEP_MS)}|${forcedStorm?.born ?? ''}` : ''),
     stepWeather,
     effectsAt,
+    stormsOn,
+    stormsAt,
+    stormAt,
+    stepStorm,
+    stormStep,
+    stormsNear,
+    stormKey,
+    sailedStorm,
+    /** Checks only (dev.mjs voyageDev.storm): a storm on (q, r) from now for `hours` (3 to 6), or none with undefined. */
+    forceStorm: (q, r, hours = 3) => {
+      if (!Number.isInteger(q) || !Number.isInteger(r)) { forcedStorm = undefined; stormMemo.clear(); return undefined; }
+      const now = state.clockNow?.() ?? Date.now();
+      const born = Math.floor(now / W.STORM_STEP_MS) * W.STORM_STEP_MS;
+      forcedStorm = { k: -1, born, steps: Math.max(1, Math.round(hours * 2)), q, r };
+      stormMemo.clear();
+      return forcedStorm;
+    },
     windOn,
     windFactor,
     wind,

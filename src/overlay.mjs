@@ -80,6 +80,77 @@ export function install(ctx, { state, terrainMod, log }) {
     } catch (e) { log('map marks failed', e); }
   }
 
+  // ---- storms (phase 5c-3): their cells over the hexes, on any hex (weather is seen from afar), above the marks ----
+  const STORM_ALPHA = 0.42;
+  let stormLayer;
+  /** The bolts go on top of the hexes' icons, in the upper half of each storm's centre hex. */
+  let boltLayer;
+  let stormTicker;
+  let stormDrawn;
+  function drawStorms() {
+    try {
+      if (typeof cartographyMap === 'undefined' || cartographyMap.viewport === undefined || typeof PIXI === 'undefined') return;
+      const vp = cartographyMap.viewport;
+      if (stormLayer === undefined || stormLayer.destroyed) { stormLayer = new PIXI.Graphics(); stormLayer.eventMode = 'none'; }
+      if (stormLayer.parent !== vp) {
+        const below = vp.children.indexOf(cartographyMap.hexLayer);
+        if (below >= 0) vp.addChildAt(stormLayer, below + 1); else vp.addChild(stormLayer);
+      }
+      if (boltLayer === undefined || boltLayer.destroyed) { boltLayer = new PIXI.Graphics(); boltLayer.eventMode = 'none'; }
+      if (boltLayer.parent !== vp || vp.children[vp.children.length - 1] !== boltLayer) vp.addChild(boltLayer);
+      // Checked each frame, redrawn only when the storms move, the zoom changes (the edge's width) or the map does.
+      const ticker = cartographyMap.app?.ticker;
+      if (ticker !== undefined && stormTicker !== ticker) {
+        ticker.add(() => {
+          const key = `${state.weather?.stormKey?.() ?? ''}|${cartographyMap.viewport?.scaled}|${game.cartography?.activeMap?.id}`;
+          if (key !== stormDrawn) drawStorms();
+        });
+        stormTicker = ticker;
+      }
+      const map = game.cartography?.activeMap;
+      stormDrawn = `${state.weather?.stormKey?.() ?? ''}|${vp.scaled}|${map?.id}`;
+      stormLayer.clear();
+      boltLayer.clear();
+      if (map === undefined || cartographyMap.lastDrawnMap !== map || state.weather?.stormsOn?.() !== true) return;
+      const storms = state.weather.stormsAt(state.clockNow?.() ?? Date.now());
+      if (storms.length === 0) return;
+      const points = cartographyMap.hexPolygon?.points;
+      if (points === undefined || points.length === 0) return;
+      const xs = points.filter((_, i) => i % 2 === 0);
+      const ys = points.filter((_, i) => i % 2 === 1);
+      // The polygon's points are from the hex's origin (its box's corner): the centre is the middle of the box.
+      const mid = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+      const tall = Math.max(...ys) - Math.min(...ys);
+      const info = terrainMod.STORM_INFO;
+      const edge = Math.min(4 / (vp.scaled || 1), tall * 0.05);
+      for (const st of storms) {
+        stormLayer.lineStyle({ width: edge, color: info.edge, alpha: 0.85, alignment: 0 });
+        for (const h of st.cells) {
+          const hex = map.getHex(new HexCoords(h.q, h.r));
+          if (hex === undefined) continue;
+          const o = map.getHexOrigin(hex);
+          stormLayer.beginFill(info.colour, STORM_ALPHA);
+          stormLayer.drawPolygon(points.map((v, i) => v + (i % 2 === 0 ? o.x : o.y)));
+          stormLayer.endFill();
+        }
+        // A bolt on the centre (or the first cell left when the centre is land or shelter).
+        const c = st.cells.find((h) => h.q === st.q && h.r === st.r) ?? st.cells[0];
+        const hex = map.getHex(new HexCoords(c.q, c.r));
+        if (hex === undefined) continue;
+        const o = map.getHexOrigin(hex);
+        // A bolt about a sixth of the hex tall, in its upper half, clear of the hex's own icon in the middle.
+        const k = tall * 0.09;
+        const cx = o.x + mid.x;
+        const cy = o.y + mid.y - tall * 0.3;
+        const bolt = [0.15, -1, -0.45, 0.1, 0, 0.1, -0.2, 1, 0.5, -0.15, 0.05, -0.15, 0.35, -1];
+        boltLayer.lineStyle({ width: k * 0.18, color: 0x1b1f24, alpha: 0.9, alignment: 1 });
+        boltLayer.beginFill(info.edge, 1);
+        boltLayer.drawPolygon(bolt.map((v, i) => v * k + (i % 2 === 0 ? cx : cy)));
+        boltLayer.endFill();
+      }
+    } catch (e) { log('storm layer failed', e); }
+  }
+
   /** Redraws every hex background on the currently drawn map (after a settings change), and the marks. */
   const refresh = () => {
     try {
@@ -88,7 +159,8 @@ export function install(ctx, { state, terrainMod, log }) {
       cartographyMap.updateAllHexBackgrounds(map);
     } catch (e) { log('overlay refresh failed', e); }
     drawMarks();
+    drawStorms();
   };
   state.listeners.push(refresh);
-  return { refresh };
+  return { refresh, drawStorms };
 }

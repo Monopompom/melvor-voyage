@@ -223,7 +223,9 @@ export const wearOf = (step) => {
   if (step.free) return 0;
   if (step.hop > 0) return step.hop * WEAR.near;
   if (!step.sea) return 0;
-  return step.deep ? WEAR.deep : WEAR.near;
+  // A storm on the sea hex entered (phase 5c-3): `storm` is its wear factor (weather-model STORM_WEAR, ×3).
+  const x = Number.isFinite(step.storm) && step.storm > 0 ? step.storm : 1;
+  return (step.deep ? WEAR.deep : WEAR.near) * x;
 };
 export const pathWear = (steps) => steps.reduce((sum, s) => sum + wearOf(s), 0);
 /**

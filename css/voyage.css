@@ -18,6 +18,7 @@
   --voyage-adrift: #d08a00;
   --voyage-way-fill: rgba(31, 106, 143, .16); --voyage-way-run: rgba(255, 255, 255, .7);
   --voyage-tuck: #ececec; --voyage-tuck-hover: #e0e0e0; --voyage-name-shadow: none; --voyage-locked-alpha: .65; --voyage-qty-chip: rgba(0, 0, 0, .62);
+  --voyage-storm: #8a5a00; --voyage-storm-bg: rgba(43, 51, 64, .1);
 }
 body.darkMode {
   --voyage-band: rgba(255, 255, 255, .045); --voyage-tile: rgba(255, 255, 255, .06); --voyage-well: rgba(0, 0, 0, .22);
@@ -32,6 +33,7 @@ body.darkMode {
   --voyage-adrift: #f3a712;
   --voyage-way-fill: rgba(91, 173, 226, .22); --voyage-way-run: rgba(255, 255, 255, .16);
   --voyage-tuck: #2b3038; --voyage-tuck-hover: #323843; --voyage-name-shadow: 0 0 2px rgba(0, 0, 0, .7), 0 0 1px rgba(0, 0, 0, .9); --voyage-locked-alpha: .4; --voyage-qty-chip: transparent;
+  --voyage-storm: #f0b43c; --voyage-storm-bg: rgba(240, 180, 60, .1);
 }
 body.darkMode.superDark {
   --voyage-band: rgba(255, 255, 255, .055); --voyage-tile: rgba(255, 255, 255, .07); --voyage-well: rgba(255, 255, 255, .06);
@@ -41,7 +43,7 @@ body.darkMode.superDark {
   --voyage-ring-bg: rgba(255, 255, 255, .06); --voyage-crate: rgba(255, 255, 255, .06); --voyage-crate-line: rgba(255, 255, 255, .16); --voyage-crate-shade: rgba(0, 0, 0, .8);
   --voyage-adrift: #e89b0c;
   --voyage-way-fill: rgba(91, 173, 226, .2); --voyage-way-run: rgba(255, 255, 255, .13);
-  --voyage-tuck: #000; --voyage-tuck-hover: #141414;
+  --voyage-tuck: #000; --voyage-tuck-hover: #141414; --voyage-storm-bg: rgba(240, 180, 60, .12);
 }
 /* The game's progress track inside a Voyage band takes the band's track tint; the game sets .progress
    with !important under body.darkMode, so the override carries the same theme class. */
@@ -197,6 +199,9 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-wx-sep { display: inline-block; margin: 0 7px; font-size: .75em; vertical-align: .1em; opacity: .55; }
 .voyage-here-shipbox { background: var(--voyage-band); border-top: 1px solid var(--voyage-rule);
   border-bottom: 1px solid var(--voyage-rule); margin: 4px -8px; padding: 2px 8px; }
+/* Last in the panel (build .303, the user: "move that boat info block at the very bottom"): the band runs to the
+   panel's foot, its rounded corners, no rule under it. */
+.voyage-here-shipbox:last-child { margin-bottom: -8px; border-bottom: 0; border-radius: 0 0 4px 4px; padding-bottom: 6px; }
 .voyage-stores-note { font-size: .9rem; line-height: 1.35; padding: .2rem .75rem 0; text-align: left; }
 /* The note takes a row of its own and the game's Travel button goes under it (the user, 19 Oct 2026: "Travel should be
    at the bottom"). */
@@ -341,6 +346,9 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-season-cell { flex-direction: column; }
 .voyage-season-name, .voyage-season-left { white-space: nowrap; }
 .voyage-season-left { font-size: .8rem; font-weight: 600; opacity: .9; }
+/* A shown duration (help-layout timeHtml, build .301): the hourglass, a little smaller, then "7h 7m", never split. */
+.voyage-time { white-space: nowrap; }
+.voyage-time .fa-hourglass-half { font-size: .85em; margin-right: .3em; opacity: .85; }
 /* Phone width (the user's screenshot, build .207): the time and Show map on one line, the fold toggle on its own line
    under them, right above what it folds; three columns squeezed the time and the toggle into two-word lines. */
 @media (max-width: 767px) {
@@ -1031,3 +1039,8 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 }
 .voyage-clock-top + .voyage-section, .voyage-clock-tiles + .voyage-section { margin-top: 12px; }
 .voyage-clock-wind { font-size: .9rem; font-weight: 600; white-space: nowrap; }
+/* Storms (phase 5c-3): the bolt in the storm's amber; Set off's "Storm ahead" band in a faint wash of it. */
+.voyage-storm-ahead { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 4px; background: var(--voyage-storm-bg); font-size: .9rem; }
+.voyage-storm-ahead > .fa-bolt { color: var(--voyage-storm); margin-top: 3px; }
+.voyage-storm-row .fa-bolt, .voyage-storm-sum, .voyage-storm-chip .fa-bolt { color: var(--voyage-storm); }
+.voyage-storm-sum { margin-left: 8px; }

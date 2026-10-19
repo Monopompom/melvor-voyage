@@ -13,7 +13,7 @@ const CARTOGRAPHY_PAGE = 'melvorAoD:Cartography';
 /** Candidate hexes priced by route (the nearest by straight distance first): enough to find the shortest way. */
 const CANDIDATES = 6;
 
-export function install(ctx, { state, model, planModel: P, storesModel: S, terrainMod, log }) {
+export function install(ctx, { state, model, planModel: P, storesModel: S, terrainMod, helpLayout, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const skill = () => state.voyageSkill?.();
@@ -365,7 +365,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     if (clock?.on?.() === true) {
       try {
         const ms = clock.routeInfo(plan.path).ms;
-        rows += row(t('MOD_VOY_PLAN_ROW_TIME'), `${esc(clock.duration(ms))}<span class="text-muted ml-2">${esc(t('MOD_VOY_CLOCK_ARRIVE_AT', { time: clock.clockAt(Date.now() + ms) }))}</span>`);
+        rows += row(t('MOD_VOY_PLAN_ROW_TIME'), `${helpLayout.timeHtml(clock.duration(ms))}<span class="text-muted ml-2">${esc(t('MOD_VOY_CLOCK_ARRIVE_AT', { time: clock.clockAt(Date.now() + ms) }))}</span>`);
       } catch (e) { log('plan time failed', e); }
     }
     const legs = [];
