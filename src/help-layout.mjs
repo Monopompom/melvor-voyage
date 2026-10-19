@@ -9,15 +9,43 @@ export const HELP_WIDTH = '38rem';
 
 /**
  * A message popup's body (refusals, the trader, the panel's skill tip): trusted
- * HTML lines at the body size, centred when there are one or two, left-aligned when there are more. Its one
+ * HTML lines at the body size, always centred (build .259, the user: "Adrift modal have not centered text"; it was
+ * left-aligned past two lines). Its one
  * picture goes on top through Swal's `imageUrl` (MSG_IMAGE), or a Swal icon when there is none (build .94).
  */
-export const msgHtml = (lines) => `<div class="voyage-msg ${lines.length <= 2 ? 'text-center' : 'text-left'}">`
+export const msgHtml = (lines) => '<div class="voyage-msg text-center">'
   + lines.map((l) => `<div>${l}</div>`).join('') + '</div>';
 /** The picture on top of a message popup: the action, area or coin it is about, as large as a Folk's portrait. */
 export const MSG_IMAGE = { imageWidth: 64, imageHeight: 64, imageAlt: '' };
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/**
+ * The marks a message popup's body puts on what matters (build .259, the user: "make them consistent, compare with
+ * phase 4 modals"): a name in bold, as the lock popups and the trader have it; a time bold in blue and a price bold in
+ * amber (red when you can't pay) after the GP icon, as the page's Ways out lines have them.
+ */
+export const mark = {
+  name: (s) => `<b>${esc(s)}</b>`,
+  time: (s) => `<b class="text-info">${esc(s)}</b>`,
+  gp: (media, text, short = false) => `<img class="voyage-skill-name-icon" src="${esc(media)}" alt=""><b class="${short ? 'text-danger' : 'text-warning'}">${esc(text)}</b>`,
+};
+/**
+ * A place's name in a popup title (build .262): kept on one line when it fits the popup, else broken between its words
+ * but never after "The" (skill-names.mjs fitTitle). Never cut with "…".
+ */
+export const titleName = (s) => `<span class="voyage-title-name">${esc(s)}</span>`;
+/**
+ * A lang string as one escaped HTML line, with some of its vars marked: `marks` maps a var to its HTML (from `mark`),
+ * the other vars go in as plain text. `tf` is the file's `t(key, vars)`.
+ */
+export const marked = (tf, key, vars, marks = {}) => {
+  const keys = Object.keys(marks);
+  const ph = Object.fromEntries(keys.map((k, i) => [k, `\u0000${i}\u0000`]));
+  let s = esc(tf(key, { ...vars, ...ph }));
+  keys.forEach((k) => { s = s.split(ph[k]).join(marks[k]); });
+  return s;
+};
 
 const table = ({ cols, rows }) => {
   const head = cols.map((c, i) => `<div class="voyage-help-th${i > 0 ? ' text-right' : ''}">${esc(c)}</div>`).join('');

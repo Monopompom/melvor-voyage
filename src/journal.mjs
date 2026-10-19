@@ -194,6 +194,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     } catch (e) { log('journal trade place failed', e); }
   };
   ctx.patch(Bank, 'processItemSale').after(onTrade);
+  (state.saleListeners ??= []).push(onTrade); // a sale from the hold (build .265)
   ctx.patch(Shop, 'buyItemOnClick').after(onTrade);
   // Islands reached (phase 4 wrap-up): a named island (ship-model ISLANDS) or the mainland,
   // noted at the first hex you stand on it. The mainland is the landmass of the game's own start hex, axial (15, 9).
@@ -318,6 +319,19 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   };
   const runningHead = (left, right) => `<div class="vj-running"><span>${esc(left)}</span><span>${esc(right)}</span></div>`;
   const note = (text) => `<div class="vj-note"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"></path><path d="M14 7l3 3"></path></svg><span>${rich(text)}</span></div>`;
+  /**
+   * A text's lines with the book's prose marks (journal-model.mjs proseBlocks): "- " points, "| a | b |" ledgers, "> "
+   * pencilled notes, the rest paragraphs. A ledger's column of figures is set right, as the other ledgers.
+   */
+  const FIGURE = /^(?:—|[-+−]?\d[\d.,]*(?:\s*[-–]\s*\d[\d.,]*)?\s*(?:%|×|GP|HP|min|h|hexes?|hex)?)$/;
+  const prose = (lines) => jm.proseBlocks(lines).map((b) => {
+    if (b.kind === 'points') return `<ul class="vj-points">${b.items.map((i) => `<li>${rich(i)}</li>`).join('')}</ul>`;
+    if (b.kind === 'note') return note(b.text);
+    if (b.kind === 'p') return `<p class="vj-p">${rich(b.text)}</p>`;
+    const num = b.head.map((_, i) => i > 0 && b.rows.length > 0 && b.rows.every((r) => FIGURE.test(r[i] ?? '')));
+    return `<table class="vj-ledger"><thead><tr>${b.head.map((c, i) => `<th class="${num[i] ? 'vj-num' : ''}">${rich(c)}</th>`).join('')}</tr></thead>`
+      + `<tbody>${b.rows.map((r) => `<tr>${b.head.map((_, i) => `<td class="${i === 0 ? 'vj-first' : ''}${num[i] ? ' vj-num' : ''}">${rich(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  }).join('');
   const dropCap = (text) => { const s = String(text); return `<p class="vj-p vj-lead"><span class="vj-dropcap">${esc(s.slice(0, 1))}</span>${rich(s.slice(1))}</p>`; };
   const mapButton = (kind, id) => `<button type="button" class="vj-btn" data-vj-map="${esc(kind)}" data-vj-id="${esc(id)}">`
     + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>'
@@ -441,7 +455,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const vars = bookVars();
     return spec.sections.map((sec) => {
       const lines = t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_BODY`, vars).split('\n').filter((x) => x.trim() !== '');
-      return `<div class="vj-section"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_HEAD`))}</h3>${lines.map((l) => `<p class="vj-p">${rich(l)}</p>`).join('')}</div>`;
+      return `<div class="vj-section"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_HEAD`))}</h3>${prose(lines)}</div>`;
     }).join('');
   };
   const writtenBody = (id) => {
@@ -458,7 +472,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       const lines = line(bodyKey);
       // The map key (build .171) opens the map from any page: one more line while it is set.
       if (id === 'map' && sec === 'KEYS' && vars.map !== '') lines.unshift(t('MOD_VOY_JOURNAL_CH_MAP_KEYS_OPEN', vars));
-      const body = spec.points ? `<ul class="vj-points">${lines.map((l) => `<li>${rich(l)}</li>`).join('')}</ul>` : lines.map((l) => `<p class="vj-p">${rich(l)}</p>`).join('');
+      const body = spec.points ? `<ul class="vj-points">${lines.map((l) => `<li>${rich(l)}</li>`).join('')}</ul>` : prose(lines);
       html += `<div class="vj-section${spec.warn?.includes(sec) ? ' vj-warn' : ''}"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_${sec}_HEAD`))}</h3>${body}</div>`;
       if (id === 'foreword' && sec === 'WHO') html += galleon();
       if (id === 'settings' && sec === 'EASIER') html += settingsTable();
@@ -1260,7 +1274,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const [lead, ...rest] = t(`MOD_VOY_JOURNAL_GUIDE_${key}_BODY`).split('\n');
     const points = jm.JOURNAL_GUIDE_SECTIONS[view.guide]?.points === false ? [] : t(`MOD_VOY_JOURNAL_GUIDE_${key}_POINTS`).split('\n').filter((x) => x.trim() !== '');
     const right = runningHead(t('MOD_VOY_JOURNAL_TAB_GUIDE'), '')
-      + `<h2 class="vj-h1">${esc(guideTitle(view.guide))}</h2>` + dropCap(lead) + rest.map((p) => `<p class="vj-p">${rich(p)}</p>`).join('')
+      + `<h2 class="vj-h1">${esc(guideTitle(view.guide))}</h2>` + dropCap(lead) + prose(rest)
       + (points.length > 0 ? `<ul class="vj-points">${points.map((p) => `<li>${rich(p)}</li>`).join('')}</ul>` : '') + guideSections(view.guide)
       + (view.back !== null ? `<div class="vj-foot vj-foot-end"><button type="button" class="vj-btn" data-vj-back="1">${esc(t('MOD_VOY_JOURNAL_BACK'))}</button></div>` : '');
     return { left, right };

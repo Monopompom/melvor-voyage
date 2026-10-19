@@ -15,6 +15,8 @@
   --voyage-sea: #1f6a8f; --voyage-foot: #8a4b12; --voyage-tale: #6b4a1e; --voyage-ok: #1e7b2e; --voyage-warn: #8a5a00;
   --voyage-hot: #b42318; --voyage-warm: #8a5a00; --voyage-cold: #1d5fa8; --voyage-freezing: #3a6d8f;
   --voyage-crate: rgba(0, 0, 0, .08); --voyage-crate-line: rgba(0, 0, 0, .2); --voyage-crate-shade: rgba(0, 0, 0, .18); --voyage-crate-empty: #8a6a3e;
+  --voyage-adrift: #d08a00;
+  --voyage-way-fill: rgba(31, 106, 143, .16); --voyage-way-run: rgba(255, 255, 255, .7);
   --voyage-tuck: #ececec; --voyage-tuck-hover: #e0e0e0; --voyage-name-shadow: none; --voyage-locked-alpha: .65; --voyage-qty-chip: rgba(0, 0, 0, .62);
 }
 body.darkMode {
@@ -27,6 +29,8 @@ body.darkMode {
   --voyage-sea: #8fd0ef; --voyage-foot: #e2b47a; --voyage-tale: #e6d6b0; --voyage-ok: #6fdc9a; --voyage-warn: #ffc46b;
   --voyage-hot: #ff5a3c; --voyage-warm: #ffb347; --voyage-cold: #7fc8ff; --voyage-freezing: #cfe8ff;
   --voyage-crate: rgba(0, 0, 0, .3); --voyage-crate-line: rgba(0, 0, 0, .45); --voyage-crate-shade: rgba(0, 0, 0, .6); --voyage-crate-empty: #a07a4c;
+  --voyage-adrift: #f3a712;
+  --voyage-way-fill: rgba(91, 173, 226, .22); --voyage-way-run: rgba(255, 255, 255, .16);
   --voyage-tuck: #2b3038; --voyage-tuck-hover: #323843; --voyage-name-shadow: 0 0 2px rgba(0, 0, 0, .7), 0 0 1px rgba(0, 0, 0, .9); --voyage-locked-alpha: .4; --voyage-qty-chip: transparent;
 }
 body.darkMode.superDark {
@@ -35,6 +39,8 @@ body.darkMode.superDark {
   --voyage-dot-gap: #0f0f0f; --voyage-label: #9e9e9e; --voyage-label-hover: #d0d0d0; --voyage-help: #8fa3b8;
   --voyage-dis-text: #8a8a8a; --voyage-dis-line: #4a4a4a;
   --voyage-ring-bg: rgba(255, 255, 255, .06); --voyage-crate: rgba(255, 255, 255, .06); --voyage-crate-line: rgba(255, 255, 255, .16); --voyage-crate-shade: rgba(0, 0, 0, .8);
+  --voyage-adrift: #e89b0c;
+  --voyage-way-fill: rgba(91, 173, 226, .2); --voyage-way-run: rgba(255, 255, 255, .13);
   --voyage-tuck: #000; --voyage-tuck-hover: #141414;
 }
 /* The game's progress track inside a Voyage band takes the band's track tint; the game sets .progress
@@ -59,6 +65,8 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.4); vertical-align: -1px; margin-right: 5px; }
 .voyage-legend { margin-top: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 1px 14px; font-size: .9rem; line-height: 1.6; }
 .voyage-legend-item { white-space: nowrap; }
+/* Text that moves to the next line whole (the Here panel's place and coordinates, build .286). */
+.voyage-keep { display: inline-block; max-width: 100%; }
 .voyage-skills { margin-top: 4px; }
 /* Message popups (refusals, trader, skill tip; build .94): body size, one or two lines centred, more left-aligned;
    the one picture sits on top (Swal image or icon). */
@@ -78,6 +86,9 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-compass-cold { color: var(--voyage-cold); }
 .voyage-compass-freezing { color: var(--voyage-freezing); }
 .voyage-compass-line { opacity: .9; }
+/* Popup titles break into even lines, never a word or "8)?" alone, never cut (builds .261-.262; the ties and the
+   whole-name fit are in skill-names.mjs fitTitle). */
+.voyage-ui .swal2-title { text-wrap: balance; }
 .voyage-title-icon { width: 1.4em; height: 1.4em; vertical-align: -0.3em; margin-right: 0.35em; }
 .voyage-here-place { margin-top: 1px; }
 /* row labels in the panel (Trade, Combat, Works, Locked): muted but full size (user feedback, build .44) */
@@ -164,7 +175,28 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-here-shipbox { background: var(--voyage-band); border-top: 1px solid var(--voyage-rule);
   border-bottom: 1px solid var(--voyage-rule); margin: 4px -8px; padding: 2px 8px; }
 .voyage-stores-note { font-size: .9rem; line-height: 1.35; padding: .2rem .75rem 0; text-align: center; }
+/* The note takes a row of its own and the game's Travel button goes under it (the user, 19 Oct 2026: "Travel should be
+   at the bottom"). */
+div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
+.voyage-stores-note { flex: 0 0 100%; }
+/* The rows (build .264, the user: "weird spacing after provisioning icon. need distinction for the 'title' icons"): one
+   centred block, the leads in a column and each text left-aligned beside its lead, so a wrapped line stays under its
+   own text. A lead is the row's label, not one of its figures: a round grey badge in the label ink. */
+.voyage-stores-rows { display: inline-grid; grid-template-columns: auto auto; column-gap: 8px; row-gap: 4px;
+  align-items: center; text-align: left; max-width: 100%; margin-top: 2px; }
+.voyage-stores-row { display: contents; }
+.voyage-stores-lead { display: inline-flex; align-items: center; justify-content: center; width: 1.7em; height: 1.7em;
+  border-radius: 50%; background: var(--voyage-tile); box-shadow: inset 0 0 0 1px var(--voyage-rule-soft);
+  color: var(--voyage-label); font-size: .85rem; cursor: help; }
+.voyage-stores-lead .voyage-stores-lead-img { width: 1.15em; height: 1.15em; vertical-align: 0; margin: 0; }
+.voyage-stores-lead-img, .voyage-stores-row .voyage-stores-icons img { width: 1.1em; height: 1.1em; vertical-align: -0.2em; margin-right: 2px; }
 .voyage-stores-icons { white-space: nowrap; }
+/* The game's Travel Cost block when the GP is in our rows (build .274): the title alone, centred, without its colon. */
+.voyage-cost-title { display: none; }
+.voyage-cost-own > h5 { flex: 0 0 100%; max-width: 100%; justify-content: center; }
+.voyage-cost-own > h5 lang-string { display: none; }
+.voyage-cost-own > h5 .voyage-cost-title { display: inline; }
+.voyage-cost-own > quantity-icons { display: none !important; }
 .voyage-stores-icons img { width: 20px; height: 20px; vertical-align: -4px; margin: 0 2px 0 4px; }
 .voyage-stores-icons img:first-child { margin-left: 0; }
 /* The Voyage page's notes (<small>, 80% by default) read too small (user feedback, build .67): close to body size. */
@@ -197,6 +229,12 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-hold-row .voyage-hold-presets { display: flex; gap: 8px; }
 .voyage-hold-row .voyage-hold-go { margin-left: auto; }
 @container (max-width: 32rem) { .voyage-hold-row .voyage-hold-go { flex: 1 1 100%; margin-left: 0; } }
+/* Sell ahead of the main button (the hold, build .265): the pair keeps the main button's place at the row's right;
+   in a narrow panel the pair takes the whole line, Sell at its own width and the main button the rest. */
+.voyage-hold-row .voyage-hold-gos { display: flex; gap: 8px; margin-left: auto; max-width: 100%; }
+.voyage-hold-gos .voyage-hold-go { margin-left: 0; }
+.voyage-hold-gos .voyage-hold-before { min-height: 40px; min-width: 6rem; }
+@container (max-width: 32rem) { .voyage-hold-row .voyage-hold-gos { flex: 1 1 100%; margin-left: 0; } #voyage-container .voyage-hold-gos .voyage-hold-go { flex: 1 1 auto; width: auto; } }
 /* Every green button on the page one width (build .157, the user). Alone at a band's foot it is centred (hull repairs .158, the ship block's build, upgrade and buy .182, the user); in an amount row
    it sits at the row's right (.voyage-hold-go above). */
 :root { --voyage-main-width: 13rem; }
@@ -306,6 +344,18 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 @media (hover: hover) { .voyage-panel-toggle:hover { color: var(--voyage-hover); } }
 .voyage-panel-toggle i { width: .7em; }
 .voyage-here-ship.voyage-here-time > span { flex: 0 1 auto; } /* the day/night line stays centred */
+.voyage-here-ship > .voyage-here-left { flex: 0 0 auto; white-space: nowrap; font-weight: 600; } /* the time left of a voyage, plain text colour */
+/* The travel bar (build .256): the Under way line and its chip fill as the voyage goes, a sheen running over the part
+   sailed. The fill sits under the text. */
+.voyage-way { position: relative; overflow: hidden; isolation: isolate; }
+.voyage-here-ship.voyage-way { padding: 4px 8px; border-radius: 6px; background: var(--voyage-track); }
+.voyage-way > :not(.voyage-way-fill) { position: relative; z-index: 2; }
+.voyage-way-fill { position: absolute; left: 0; top: 0; bottom: 0; z-index: 0; overflow: hidden; background: var(--voyage-way-fill); transition: width .5s linear; pointer-events: none; }
+/* The running light crosses the whole chip or line, not only its filled part (build .268, the user: "at start it still
+   feels like nothing is happening"): over the fill, under the text. */
+.voyage-way::before { content: ''; position: absolute; top: 0; bottom: 0; left: -60px; width: 60px; z-index: 1; background: linear-gradient(90deg, transparent, var(--voyage-way-run), transparent); animation: voyage-way-run 1.8s linear infinite; pointer-events: none; }
+@keyframes voyage-way-run { from { left: -60px; } to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .voyage-way::before { animation: none; display: none; } .voyage-way-fill { transition: none; } }
 
 /* build .86 UI pass ------------------------------------------------------------------------------- */
 /* Sections: related facts in one grey band inside a block (the user's rule). */
@@ -659,6 +709,16 @@ body.vj-locked { overflow: hidden; }
 .voyage-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 0 8px; border-radius: 16px; background: var(--voyage-band); white-space: nowrap; font-size: .95rem; line-height: 1.2; }
 .voyage-chip.btn { border-radius: 16px; padding: 0 10px; font-size: .95rem; }
 .voyage-chip-plain { border: 0; color: inherit; cursor: pointer; }
+/* A chip that goes where it is about (build .267): the stores to Stores, the hull to the vessel, under way to its block.
+   Its band look, a lighter band under the pointer; the stores ringed blue with a plus where you can stock up. */
+.voyage-chip-link { border: 0; color: inherit; cursor: pointer; }
+@media (hover: hover) { .voyage-chip-link:hover { background: var(--voyage-press); } }
+.voyage-chip-link:focus-visible { outline: 2px solid var(--voyage-help); }
+.voyage-chip-load { box-shadow: inset 0 0 0 1.5px var(--voyage-sea); }
+/* A word in a panel row that opens its place ("Trade: OK" opens the bank): the word as it was, underlined on hover. */
+.voyage-here-link { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+@media (hover: hover) { .voyage-here-link:hover { text-decoration: underline; } }
+.voyage-here-link:focus-visible { outline: 2px solid var(--voyage-help); border-radius: 2px; }
 .voyage-chip-skills { padding: 0 4px; gap: 0; }
 .voyage-chip-skills small { margin-left: 2px; }
 .voyage-chip-name { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
@@ -788,6 +848,12 @@ body.vj-locked { overflow: hidden; }
    The tippy box is appended to <body>, outside the mod's scale class, so sizes are in em of the tooltip's own text. */
 .voyage-tip { text-align: center; }
 .voyage-tip-line { white-space: pre-line; }
+/* Tooltip rows (build .282): the tooltip is always dark, so its compass words take the dark theme's colours. */
+.voyage-tip .voyage-tip-dim { opacity: .7; }
+.voyage-tip .voyage-compass-hot { color: #ff5a3c; }
+.voyage-tip .voyage-compass-warm { color: #ffb347; }
+.voyage-tip .voyage-compass-cold { color: #7fc8ff; }
+.voyage-tip .voyage-compass-freezing { color: #cfe8ff; }
 .voyage-tip-icon { width: 1.25em; height: 1.25em; object-fit: contain; vertical-align: middle; margin: -0.15em 0.3em 0 0; }
 
 /* The square (the user, 18 Oct 2026): press and hold the strip's caret on a touchscreen and the strip shrinks to
@@ -822,6 +888,10 @@ body.vj-locked { overflow: hidden; }
 /* The ship's clock (phase 5a, src/voyage-clock.mjs): the Under way block, its ending and the Set off popup. Colours
    from the theme tokens above; the bars are the game's own progress (themed by the game). */
 .voyage-underway-block { margin-bottom: 16px; }
+/* Adrift (5b part two): the Under way block's layout with an amber top, the game's warning colour per theme. */
+.voyage-underway-block.voyage-adrift-block { border-top-color: var(--voyage-adrift) !important; }
+.voyage-adrift-way { display: flex; align-items: flex-start; line-height: 1.5; }
+.voyage-adrift-way i { width: 1.25em; margin-right: 6px; margin-top: 4px; text-align: center; flex: none; }
 .voyage-clock-top { display: flex; align-items: center; gap: 12px; }
 .voyage-clock-pic { width: 48px; height: 48px; flex: none; }
 /* Under the title, one fact a line (build .241): the ground in bold with its map colour, then the hexes and how you go,
@@ -881,6 +951,9 @@ body.darkMode .voyage-fog-level { background: rgba(111, 220, 154, .12); }
   background: rgba(70, 95, 130, .1); font-size: .95rem; line-height: 1.4; }
 body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-clock-unknown i { margin-top: 3px; color: var(--voyage-label); }
+/* A change of course (build .258): the voyage under way, in amber, above the Set off tiles. */
+.voyage-clock-change { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; padding: 8px 12px; border-radius: 6px; background: rgba(255, 179, 71, .14); color: var(--voyage-warn); font-size: .95rem; line-height: 1.4; }
+.voyage-clock-change i { margin-top: 3px; }
 /* The rule in its own grey block under the fog note (the user, build .238), the section's tile tint. */
 .voyage-clock-note-rule { display: flex; align-items: flex-start; gap: 10px; margin-top: 10px; padding: 8px 12px; border-radius: 6px; background: var(--voyage-tile); }
 .voyage-clock-note-rule i { margin-top: 3px; }

@@ -116,7 +116,7 @@ export function loadingAt(rec, neighbours = []) {
 export const loadAmount = (unit, qty, rate) => unit * Math.max(0, Math.floor(qty)) * Math.max(0, rate);
 
 /**
- * The cost of one step. `step` is { cls, sea, hop, free, homeward }:
+ * The cost of one step. `step` is { cls, sea, hop, free, homeward, adrift }:
  *  - `hop`: a fast-travel hop sailed between ports, its straight-line length in hexes (rations at the sea rate);
  *  - `free`: the homeward rule's moves, which cost nothing;
  *  - `homeward`: a sea step closer to a coast (the hunger floor at sea, below).
@@ -180,7 +180,9 @@ export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull, hulls 
       fuel = roundFuel(Math.max(0, fuel - c.fuel));
       continue;
     }
-    const easy = !s.hop && (s.sea ? s.homeward === true : isEasy(s.cls));
+    // At sea the homeward floor walks you on hungry, except where Adrift applies (5b part two: `adrift`, the step
+    // leaves a hex more than one from the coast with the rules and timed travel on): there the drift takes you home.
+    const easy = !s.hop && (s.sea ? s.homeward === true && s.adrift !== true : isEasy(s.cls));
     if (easy) {
       // walked on what is left: the rest of the food and the fuel go, the hex gives no XP
       food = Math.max(0, food - c.food);

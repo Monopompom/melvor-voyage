@@ -90,7 +90,8 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
     // The html escapes everything but the coloured word, which goes in through a marker.
     const MARK = '\u0001';
     const html = esc(templateLangString('MOD_VOY_COMPASS_READING', { ...parts, word: MARK })).replace(MARK, wordHtml(reading.word));
-    return { text: templateLangString('MOD_VOY_COMPASS_READING', { ...parts, word: wordText(reading.word) }), html: `<span class="voyage-compass-line">${html}</span>` };
+    // `word` (build .282): the warmth word alone, for a tooltip that colours it.
+    return { text: templateLangString('MOD_VOY_COMPASS_READING', { ...parts, word: wordText(reading.word) }), word: wordText(reading.word), html: `<span class="voyage-compass-line">${html}</span>` };
   };
 
   const memo = new Map();
@@ -101,7 +102,7 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
     if (key !== memoKey) { memo.clear(); memoKey = key; }
     const k = `${skillId}@${terrainMod.hexKey(pos.q, pos.r)}`;
     if (memo.has(k)) return memo.get(k);
-    const opts = state.ruleOpts();
+    const opts = state.ruleOpts({ all: true });
     const r = readingTo(terrainMod.candidatesFor(state.terrain, rules, skillId), pos, (rec) => rules.allowedAt(skillId, rec, opts));
     memo.set(k, r);
     return r;

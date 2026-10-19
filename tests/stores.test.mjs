@@ -72,6 +72,10 @@ test('the hunger floor: easy ground is walked on empty stores, hard ground and o
   assert.equal(planMove({ food: 0, fuel: 9 }, [sea()]).why, 'food');
   // rowing for the coast on an empty stomach always works
   assert.deepEqual(planMove({ food: 0, fuel: 0 }, [sea(true), sea(true), land('beach')]).hungry, [0, 1, 2]);
+  // where Adrift applies (5b part two) the floor is gone at sea: the drift takes you home instead
+  const adrift = { ...sea(true), adrift: true };
+  assert.equal(planMove({ food: 0, fuel: 0 }, [adrift, sea(true), land('beach')]).why, 'food');
+  assert.deepEqual(planMove({ food: 0, fuel: 0 }, [sea(true), land('beach')]).hungry, [0, 1], 'next to the coast the floor stays');
 });
 
 test('always get ashore: a voyage ending at sea keeps the rations for the way back', () => {

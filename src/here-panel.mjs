@@ -36,19 +36,35 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
    * A skill icon: a button, so a tap (no hover on touch) or a click opens what the tooltip says in a popup;
    * the tooltip stays for mouse users. `inner` is the icon (and the % badge).
    */
-  const skillIcon = (skill, tip, inner, extra = '') =>
-    `<button type="button" class="voyage-skill-btn ${extra}" data-voyage-skill="${esc(skill.id)}" data-tip="${esc(tip)}" title="${esc(tip)}" aria-label="${esc(tip)}">${inner}</button>`;
+  /** A locked tooltip's first row: the skill's icon, "Fishing is locked here." in bold red (build .282). */
+  const lockedHead = (skill, name) => ({ text: templateLangString('MOD_VOY_PANEL_SKILL_LOCKED', { skill: name, hint: '' }).trim(), media: skill.media, cls: 'text-danger font-w600' });
+  /** A skill's icon button; `lines` (tips.mjs data-tip-lines, build .282) styles its tooltip row by row. */
+  const skillIcon = (skill, tip, inner, extra = '', lines) =>
+    `<button type="button" class="voyage-skill-btn ${extra}" data-voyage-skill="${esc(skill.id)}" data-tip="${esc(tip)}"${lines === undefined ? ` title="${esc(tip)}"` : ` data-tip-lines="${esc(JSON.stringify(lines))}"`} aria-label="${esc(tip)}">${inner}</button>`;
   const showSkillTip = (button) => {
     try {
       const skill = game.skills.getObjectByID(button.dataset.voyageSkill);
       SwalLocale.fire({
         didRender: state.popupDidRender,
         title: skill?.name ?? '',
-        html: helpLayout.msgHtml([esc(button.dataset.tip ?? '')]),
+        html: helpLayout.msgHtml((button.dataset.tip ?? '').split('\n').map(esc)),
         confirmButtonText: getLangString('MOD_VOY_BUTTON_OK'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       });
     } catch (e) { log('skill popup failed', e); }
+  };
+
+  /**
+   * The game page a skill is trained on, or undefined: the page whose `action` is the skill (the game's own), else one
+   * that lists it in `skills` (a mod's page, Hiring's; build .269, the user: "click on our Hiring does not open the
+   * skill page").
+   */
+  const skillPage = (id) => {
+    try {
+      const skill = game.skills.getObjectByID(id);
+      if (skill === undefined) return undefined;
+      return game.pages.find((p) => p.action === skill) ?? game.pages.find((p) => p.skills?.includes(skill) === true);
+    } catch { return undefined; }
   };
 
   /** A chip's tooltip in a popup, for touch (no hover). */
@@ -80,15 +96,39 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       let zoneNote = '';
       if (!off && rate > 0 && state.zonesOn?.() && state.zoneTable?.skills?.[id] !== undefined) {
         const here = state.zoneActionsHere(id);
-        const names = here.slice(0, 8).map((a) => a.name).join(', ') + (here.length > 8 ? ', …' : '');
-        zoneNote = ` ${here.length > 0 ? templateLangString('MOD_VOY_PANEL_ZONE_HERE', { names }) : getLangString('MOD_VOY_PANEL_ZONE_NONE')}`;
+        // Nothing here for your level: locked, not "works" (build .277, the user: "it says I can fish here … all of
+        // them are locked. fishing 11"; a river's fish start at 20). The tooltip says from which level.
+        if (here.length === 0) {
+          const later = state.zoneActionsHere(id, { later: true });
+          const first = later[0]?.level ?? 1;
+          const names = later.filter((a) => (a.level ?? 1) === first).map((a) => a.name).join(', ');
+          // The level it opens at, red under the icon as the amber "80%" in Works (build .280, the user: "show red
+          // 'lvl' as '80%'").
+          const lvl = later.length > 0 ? `<small class="text-danger">${esc(templateLangString('MOD_VOY_PANEL_ZONE_LVL', { level: `${first}` }))}</small>` : '';
+          // Styled as the other locked tooltips (build .282): the verdict, then from which level.
+          const lines = [lockedHead(skill, name), later.length > 0 ? templateLangString('MOD_VOY_PANEL_ZONE_FROM', { level: `${first}`, names }) : getLangString('MOD_VOY_PANEL_ZONE_NONE_HERE')];
+          locked.push(skillIcon(skill, later.length > 0
+            ? templateLangString('MOD_VOY_PANEL_ZONE_LATER', { skill: name, level: `${first}`, names })
+            : templateLangString('MOD_VOY_PANEL_ZONE_NEVER', { skill: name }), `<img class="skill-icon-xs voyage-skill-locked" src="${skill.media}" alt="">${lvl}`, lvl === '' ? '' : 'voyage-skill-rate', lines));
+          continue;
+        }
+        zoneNote = here.slice(0, 8).map((a) => a.name).join(', ') + (here.length > 8 ? ', …' : '');
       }
-      if (rate >= 1) { works.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKILL_WORKS', { skill: name }) + zoneNote, `<img class="skill-icon-xs" src="${skill.media}" alt="">`)); continue; }
-      if (rate > 0) { works.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKILL_WORKS_AT', { skill: name, percent: `${Math.round(rate * 100)}` }) + zoneNote, `<img class="skill-icon-xs" src="${skill.media}" alt=""><small class="text-warning">${Math.round(rate * 100)}%</small>`, 'voyage-skill-rate')); continue; }
-      // Tooltip in sentences: "Fishing: locked. Needs water. Nearest known: 1 hex SW." The compass reading only
+      // One sentence each (build .279, the user: "Thieving: works here Here: Man." read badly): "Thieving works here:
+      // Man.", "Woodcutting works here at 80%: Normal Tree, Oak Tree."
+      const pct = `${Math.round(rate * 100)}`;
+      const worksTip = (full) => (zoneNote === ''
+        ? templateLangString(full ? 'MOD_VOY_PANEL_SKILL_WORKS' : 'MOD_VOY_PANEL_SKILL_WORKS_AT', { skill: name, percent: pct })
+        : templateLangString(full ? 'MOD_VOY_PANEL_SKILL_WORKS_LIST' : 'MOD_VOY_PANEL_SKILL_WORKS_AT_LIST', { skill: name, percent: pct, names: zoneNote }));
+      if (rate >= 1) { works.push(skillIcon(skill, worksTip(true), `<img class="skill-icon-xs" src="${skill.media}" alt="">`)); continue; }
+      if (rate > 0) { works.push(skillIcon(skill, worksTip(false), `<img class="skill-icon-xs" src="${skill.media}" alt=""><small class="text-warning">${pct}%</small>`, 'voyage-skill-rate')); continue; }
+      // Tooltip in sentences: "Fishing is locked here. Needs water. Nearest known: 1 hex SW." The compass reading only
       // shows when no place is known; a known one already gives distance and direction.
       const noun = getLangString(rules.ruleNounKey(id));
       const sentences = [templateLangString('MOD_VOY_PANEL_NEEDS', { noun })];
+      // The tooltip's rows, styled (build .282, the user: "needs styling"): locked in red with the skill's icon, the
+      // need plain, none known dimmed, the compass with its icon and its warmth word in colour.
+      const lines = [lockedHead(skill, name), sentences[0]];
       const near = state.nearestFor(id, pos);
       if (near !== undefined) {
         const dir = getLangString(`MOD_VOY_DIR_SHORT_${terrainMod.directionLabel(pos, near.hex)}`);
@@ -101,13 +141,21 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         sentences.push(n !== undefined
           ? templateLangString('MOD_VOY_PANEL_NEAREST_KNOWN_AT', { hexes, dir, place: n })
           : templateLangString('MOD_VOY_PANEL_NEAREST_KNOWN', { hexes, dir }));
+        lines.push({ text: sentences[sentences.length - 1], cls: 'text-info' });
       } else {
         sentences.push(getLangString('MOD_VOY_PANEL_NONE_KNOWN'));
-        const reading = state.compass?.describe(state.compass?.readingFor(id, pos));
-        if (reading !== undefined) sentences.push(reading.text);
+        lines.push({ text: sentences[sentences.length - 1], cls: 'voyage-tip-dim' });
+        const reading = state.compass?.readingFor(id, pos);
+        const said = state.compass?.describe(reading);
+        if (said !== undefined) {
+          sentences.push(said.text);
+          lines.push({ text: said.text, item: 'voyage:Wayfinder_Compass', mark: said.word === undefined ? undefined : { text: said.word, cls: `voyage-compass-${reading.word}` } });
+        }
       }
-      const hint = sentences.join(' ');
-      locked.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKILL_LOCKED', { skill: name, hint }), `<img class="skill-icon-xs voyage-skill-locked" src="${skill.media}" alt="">`));
+      // A row each (build .281, the user: "break that tooltip text onto 3 rows", "or even 4"): locked, what it needs,
+      // the nearest known (or none known), the compass. The tooltip keeps line breaks (tips.mjs, pre-line).
+      const hint = sentences.join('\n');
+      locked.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKILL_LOCKED', { skill: name, hint }), `<img class="skill-icon-xs voyage-skill-locked" src="${skill.media}" alt="">`, '', lines));
     }
     // Zoned skills without a terrain rule (Astrology): works where one of your constellations shows, else locked.
     for (const id of off ? [] : state.zonedUngated?.() ?? []) {
@@ -116,9 +164,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const here = state.zoneActionsHere(id);
       if (here.length > 0) {
         const names = here.slice(0, 8).map((a) => a.name).join(', ') + (here.length > 8 ? ', …' : '');
-        works.push(skillIcon(skill, `${templateLangString('MOD_VOY_PANEL_SKILL_WORKS', { skill: skill.name })} ${templateLangString('MOD_VOY_PANEL_ZONE_HERE', { names })}`, `<img class="skill-icon-xs" src="${skill.media}" alt="">`));
+        works.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKILL_WORKS_LIST', { skill: skill.name, names }), `<img class="skill-icon-xs" src="${skill.media}" alt="">`));
       } else {
-        locked.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKY_NONE', { skill: skill.name }), `<img class="skill-icon-xs voyage-skill-locked" src="${skill.media}" alt="">`));
+        locked.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKY_NONE', { skill: skill.name }), `<img class="skill-icon-xs voyage-skill-locked" src="${skill.media}" alt="">`, '', [lockedHead(skill, skill.name), getLangString('MOD_VOY_PANEL_SKY_NONE_ROW')]));
       }
     }
     return { works, locked, off };
@@ -156,15 +204,21 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     try { return state.trader?.status(); } catch (e) { log('trader status failed', e); return undefined; }
   };
   // Built like the other panel rows (text, then its button; the buttons agree, alignRowButtons), build .86.
-  const strandedRow = (text, hint, cls) =>
-    `<div class="voyage-here-ship voyage-here-stranded" title="${esc(hint)}"><span class="text-warning"><i class="fa fa-exclamation-triangle mr-1"></i>${esc(text)}</span>` +
-    `<button type="button" class="btn btn-sm btn-warning voyage-row-btn ${cls}">${esc(getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'))}</button></div>`;
+  const strandedRow = (text, hint, cls, button = getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'), icon = 'exclamation-triangle') =>
+    `<div class="voyage-here-ship voyage-here-stranded" title="${esc(hint)}"><span class="text-warning"><i class="fa fa-${icon} mr-1"></i>${esc(text)}</span>` +
+    `<button type="button" class="btn btn-sm btn-warning voyage-row-btn ${cls}">${esc(button)}</button></div>`;
   /**
    * Stranded rows, right under "You are here" (user feedback, build .60): out of GP with the road out unaffordable
    * (Adventure starts with every skill locked), and the stores short of any way to easier ground or a place to load.
    * Each is a row of its own with a button, even where trade works or is not gated (a small link was easy to miss).
    */
   const strandedLines = (status) => {
+    // Adrift at sea (5b part two) first, in the same amber row; the trader's rows stay ashore. Under it, what still works.
+    const adrift = state.adrift?.chip?.();
+    if (adrift !== undefined) {
+      return strandedRow(adrift.row, adrift.tip, 'voyage-adrift-link', getLangString('MOD_VOY_ADRIFT_PANEL_BUTTON'), 'water')
+        + `<div class="voyage-here-ship text-muted"><span><i class="fa fa-fish mr-1"></i>${esc(getLangString('MOD_VOY_ADRIFT_PANEL_ONLY'))}</span></div>`;
+    }
     let out = status === 'stranded' ? strandedRow(getLangString('MOD_VOY_PANEL_STRANDED'), getLangString('MOD_VOY_PANEL_STRANDED_HINT'), 'voyage-trader-link') : '';
     try {
       const api = state.stores;
@@ -184,7 +238,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     if (!state.active() || !state.settings.trade()) return '';
     // "Trade: OK" / "Trade: not here", laid out like the "Combat:" and "Works:" rows (label muted, same size as the value).
     const label = `<span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_TRADE_LABEL'))}</span> `;
-    if (!state.tradeLocked?.()) return `<div class="voyage-here-place">${label}<span class="text-success">${esc(getLangString('MOD_VOY_PANEL_TRADE_OK'))}</span></div>`;
+    // "OK" opens the bank, where the selling is (build .267).
+    if (!state.tradeLocked?.()) return `<div class="voyage-here-place">${label}<button type="button" class="voyage-here-link voyage-bank-link text-success" title="${esc(getLangString('MOD_VOY_PANEL_TRADE_OK_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_TRADE_OK'))}</button></div>`;
     const trader = status === 'here' ? ` <span class="text-warning" title="${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'))}">· ${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE'))}</span>` : '';
     return `<div class="voyage-here-place">${label}<span class="text-danger" title="${esc(getLangString('MOD_VOY_PANEL_NO_TRADE_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_NO_TRADE'))}</span>${trader}</div>`;
   };
@@ -239,7 +294,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const name = sh.hullName?.(v) ?? getLangString('MOD_VOY_SHIP_BOAT');
       // Hull condition (3d), only once it is worn: amber below 50%, red when worn through.
       const c = sh.cond?.(kind) ?? 100;
-      const hull = c >= 100 ? '' : ` <span class="${c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : 'text-muted'}">(${esc(templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` }))})</span>`;
+      const hull = c >= 100 ? '' : ` <span class="voyage-keep ${c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : 'text-muted'}">(${esc(templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` }))})</span>`;
       if (sh.inVessel() === kind) return `<div class="voyage-here-ship text-info"><span><i class="fa fa-ship mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_ABOARD', { hull: name }))}${hull}</span></div>`;
       return `<div class="voyage-here-ship"><span><i class="fa fa-anchor mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_MOORED', { hull: name, where: sh.whereIs(v, true) }))}${hull}</span>` +
         `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-find-ship" data-kind="${kind}">${esc(getLangString('MOD_VOY_PANEL_SHOW_SHIP'))}</button></div>`;
@@ -303,9 +358,31 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
 
   /** Under way (phase 5a): where to and the time left, as of the hex entered last. */
+  const wayFill = (way) => `<span class="voyage-way-fill" data-voyage-way="fill" style="width:${(way.frac * 100).toFixed(1)}%" aria-hidden="true"></span>`;
+  // The bars and times move twice a second while under way, between the panel's own redraws.
+  setInterval(() => {
+    try {
+      const fills = document.querySelectorAll('[data-voyage-way="fill"]');
+      if (fills.length === 0) return;
+      const way = state.clock?.chip?.();
+      if (way === undefined) return;
+      const w = `${(way.frac * 100).toFixed(1)}%`;
+      fills.forEach((f) => { if (f.style.width !== w) f.style.width = w; });
+      const left = templateLangString('MOD_VOY_PANEL_UNDERWAY_LEFT', { left: way.text });
+      document.querySelectorAll('[data-voyage-way="left"]').forEach((x) => { if (x.textContent !== left) x.textContent = left; });
+      document.querySelectorAll('[data-voyage-way="chip"]').forEach((x) => { if (x.textContent !== way.text) x.textContent = way.text; });
+    } catch {}
+  }, 500);
   const underwayLine = () => {
     const way = state.clock?.chip?.();
-    return way === undefined ? '' : `<div class="voyage-here-ship text-info"><span><i class="fa fa-route mr-1"></i>${esc(way.tip)}</span></div>`;
+    if (way === undefined) return '';
+    // Where to in blue, the time left in the plain text colour on the right, as the stores line's values (the user,
+    // build .246: "show in diff color").
+    const to = templateLangString(way.tow ? 'MOD_VOY_PANEL_TOW_TO' : 'MOD_VOY_PANEL_UNDERWAY_TO', { name: way.name ?? '' });
+    // A travel bar (the user, 19 Oct 2026: "a horizontal fill bar with running overlay"): the line fills as the voyage
+    // goes; wayFill moves it between redraws.
+    return `<div class="voyage-here-ship voyage-way" title="${esc(way.tip)}">${wayFill(way)}<span class="text-info"><i class="fa fa-${way.tow ? 'anchor' : 'route'} mr-1"></i>${esc(to)}</span>`
+      + `<span class="voyage-here-left" data-voyage-way="left">${esc(templateLangString('MOD_VOY_PANEL_UNDERWAY_LEFT', { left: way.text }))}</span></div>`;
   };
 
   /** The ship and stores lines in one band with its own background (user feedback, build .58). */
@@ -320,21 +397,28 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
    * chips chosen by the situation, in priority order, at most MINI_CHIPS of them besides a stranded warning.
    */
   const MINI_CHIPS = 5;
-  const chip = (inner, tip, cls = '', btn = '') => btn === ''
+  const chip = (inner, tip, cls = '', btn = '', attrs = '') => btn === ''
     ? `<span class="voyage-chip ${cls}" title="${esc(tip)}" aria-label="${esc(tip)}">${inner}</span>`
-    : `<button type="button" class="voyage-chip voyage-chip-btn ${cls} ${btn}" title="${esc(tip)}" aria-label="${esc(tip)}">${inner}</button>`;
+    : `<button type="button" class="voyage-chip voyage-chip-btn ${cls} ${btn}" title="${esc(tip)}" aria-label="${esc(tip)}"${attrs}>${inner}</button>`;
   const miniChips = (pos, status) => {
     const out = [];
     const st = state.stores;
     const on = st?.enabled?.() === true;
     // 1b. Under way (phase 5a): the time left, as of the hex entered last.
     const way = state.clock?.chip?.();
-    if (way !== undefined) out.push(chip(`<i class="fa fa-route mr-1"></i>${esc(way.text)}`, way.tip, 'text-info'));
-    // 2. Stores, coloured like the panel's line.
+    // Each chip's tap hint is a row of its own in the tooltip (build .283, the user: "Tap to open - move on separate row").
+    // The strip's chips go where they are about (build .267, the user: "maybe every skill icon can open respective
+    // skill page?"): under way to its block on the Voyage page, the stores to Stores, the hull to the vessel.
+    if (way !== undefined) out.push(chip(`${wayFill(way)}<i class="fa fa-${way.tow ? 'anchor' : 'route'} mr-1"></i><span data-voyage-way="chip">${esc(way.text)}</span>`, `${way.tip}\n${getLangString('MOD_VOY_MINI_WAY_HINT')}`, 'text-info voyage-way', 'voyage-chip-link voyage-way-link'));
+    // 2. Stores, coloured like the panel's line: Stock up itself where you can stock up (the user: "move Stock up
+    // button onto the Stores stats"), ringed blue with a plus then.
     const have = on ? st.stores() : undefined;
     if (have !== undefined) {
       const low = have.food <= 0 || have.fuel <= 0 ? 'text-danger' : have.food < storesModel.LOW.food || have.fuel < storesModel.LOW.fuel ? 'text-warning' : '';
-      out.push(chip(st.icons(have.food, have.fuel), st.amounts(have.food, have.fuel), low));
+      const cap = st.capacity();
+      const load = st.loadingHere() !== undefined && (have.food < cap.food || have.fuel < cap.fuel);
+      out.push(chip(st.icons(have.food, have.fuel, false) + (load ? '<i class="fa fa-plus-circle text-info ml-1" aria-hidden="true"></i>' : ''),
+        `${st.amounts(have.food, have.fuel)}.\n${getLangString(load ? 'MOD_VOY_MINI_LOAD_HINT' : 'MOD_VOY_MINI_STORES_HINT')}`, `${low}${load ? ' voyage-chip-load' : ''}`, 'voyage-chip-link voyage-load-link'));
     }
     // 3. Hull, once worn.
     const sh = state.ship;
@@ -343,8 +427,10 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const kind = sh.big?.() != null && (sh.cond?.('ship') ?? 100) < (sh.cond?.('boat') ?? 100) ? 'ship' : 'boat';
       const c = sh.cond?.(kind) ?? 100;
       if (c < 100) {
-        const tip = `${sh.hullName?.(sh.vessel(kind)) ?? getLangString('MOD_VOY_SHIP_BOAT')}: ${templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` })}`;
-        out.push(chip(`<i class="fa fa-ship mr-1"></i>${c}%`, tip, c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : ''));
+        // The name starts the tooltip, so it takes a capital (build .270, the user: "ship name - capitalize").
+        const named = sh.hullName?.(sh.vessel(kind)) ?? getLangString('MOD_VOY_SHIP_BOAT');
+        const tip = `${named.charAt(0).toUpperCase()}${named.slice(1)}: ${templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` })}`;
+        out.push(chip(`<i class="fa fa-ship mr-1"></i>${c}%`, `${tip}.\n${getLangString('MOD_VOY_MINI_HULL_HINT')}`, c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : '', 'voyage-chip-link voyage-find-ship', ` data-kind="${kind}"`));
       }
     }
     // 4. Night only: fuel buys light then.
@@ -352,11 +438,6 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     if (tod?.night) {
       const hint = templateLangString('MOD_VOY_PANEL_NIGHT_HINT', { land: `${storesModel.LIGHT.land}`, sea: `${storesModel.LIGHT.sea}`, bonus: `${Math.round(model.STAR_XP * 100)}` });
       out.push(chip(`<i class="fa fa-moon mr-1"></i>${esc(tod.until)}`, `${templateLangString('MOD_VOY_PANEL_NIGHT', { time: tod.until })}. ${hint}`, 'text-info'));
-    }
-    // 5. Load, on a place to load with room in the stores.
-    if (have !== undefined && st.loadingHere() !== undefined) {
-      const cap = st.capacity();
-      if (have.food < cap.food || have.fuel < cap.fuel) out.push(chip(esc(getLangString('MOD_VOY_PANEL_STORES_LOAD')), getLangString('MOD_VOY_MINI_LOAD_HINT'), 'btn btn-sm btn-outline-info', 'voyage-manage-link'));
     }
     // 6. The planned voyage.
     const plan = state.planner?.summary?.();
@@ -368,19 +449,36 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const icon = plan.media ? `<img class="voyage-chip-img" src="${esc(plan.media)}" alt="">` : '';
       out.push(chip(`<i class="fa fa-route mr-1"></i>${icon}<span class="voyage-chip-name">${esc(plan.name)}</span>${dist}`, tip, 'btn btn-sm btn-outline-info', 'voyage-mini-plan'));
     }
-    // 7. What works here: four icons, then +N.
+    // 7. What works here: four icons, then +N. Combat first when an area is in reach (build .278, the user: "we need
+    // some indication that combat available at the place"): the Combat icon, its areas in the tooltip, a tap opens the
+    // first as the panel's Combat button does. In the skills chip, so the chip limit never drops it.
     const { works, off } = skillLists(pos);
     if (!off) {
+      let fight = '';
+      try {
+        const areas = state.settings.combat() ? state.combatHere?.() ?? [] : [];
+        if (areas.length > 0) {
+          // Several in reach: the tap unfolds the panel, its Combat row has a button each (build .280, the user's pick).
+          const one = areas.length === 1;
+          const tip = `${templateLangString('MOD_VOY_MINI_COMBAT', { areas: areas.map((a) => a.name).join(', ') })}\n${getLangString(one ? 'MOD_VOY_MINI_COMBAT_HINT' : 'MOD_VOY_MINI_COMBAT_PICK')}`;
+          const media = game.pages.getObjectByID('melvorD:Combat')?.media ?? '';
+          fight = `<button type="button" class="voyage-skill-btn voyage-fight-chip"${one ? ` data-area="${esc(areas[0].id)}"` : ''} title="${esc(tip)}" aria-label="${esc(tip)}"><img class="skill-icon-xs" src="${esc(media)}" alt=""></button>`;
+        }
+      } catch (e) { log('combat chip failed', e); }
       out.push(works.length === 0
-        ? chip(`<span class="text-danger">${esc(getLangString('MOD_VOY_MINI_WORKS_NONE'))}</span>`, getLangString('MOD_VOY_PANEL_WORKS_NONE'))
-        : `<span class="voyage-chip voyage-chip-skills">${works.slice(0, 4).join('')}${works.length > 4 ? `<small class="text-muted">+${works.length - 4}</small>` : ''}</span>`);
+        // The Combat icon beside the "nothing" chip, not in it: one tooltip each (build .283).
+        ? `${fight === '' ? '' : `<span class="voyage-chip voyage-chip-skills">${fight}</span>`}${chip(`<span class="text-danger">${esc(getLangString('MOD_VOY_MINI_WORKS_NONE'))}</span>`, getLangString('MOD_VOY_PANEL_WORKS_NONE'))}`
+        : `<span class="voyage-chip voyage-chip-skills">${fight}${works.slice(0, 4).join('')}${works.length > 4 ? `<small class="text-muted">+${works.length - 4}</small>` : ''}</span>`);
     }
     return out.slice(0, MINI_CHIPS);
   };
   /** The stranded or hungry warning, or the wandering trader on your hex: the strip's first chips, and beside the phone square. */
   const warnChips = (status) => {
     const warn = [];
-    if (status === 'stranded') warn.push(chip(`<i class="fa fa-exclamation-triangle mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'))}`, getLangString('MOD_VOY_PANEL_STRANDED_HINT'), 'btn btn-sm btn-warning', 'voyage-trader-link'));
+    // Adrift (5b part two): the amber slot, first; the trader's warnings stay ashore.
+    const adrift = state.adrift?.chip?.();
+    if (adrift !== undefined) warn.push(chip(`<i class="fa fa-water mr-1"></i>${esc(adrift.text)}`, adrift.tip, 'btn btn-sm btn-warning', 'voyage-adrift-link'));
+    else if (status === 'stranded') warn.push(chip(`<i class="fa fa-exclamation-triangle mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'))}`, getLangString('MOD_VOY_PANEL_STRANDED_HINT'), 'btn btn-sm btn-warning', 'voyage-trader-link'));
     else {
       try { if (state.stores?.enabled() && state.stores.rescue() !== undefined) warn.push(chip(`<i class="fa fa-exclamation-triangle mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'))}`, getLangString('MOD_VOY_PANEL_HUNGRY_HINT'), 'btn btn-sm btn-warning', 'voyage-rescue-link')); } catch {}
     }
@@ -430,7 +528,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     // The caret is its own button (the user, 18 Oct 2026): a tap unfolds, a press and hold on a touchscreen shrinks the
     // strip to the square. The terrain name unfolds too and keeps its tooltip.
     return `<div class="voyage-mini-row"><button type="button" class="voyage-panel-toggle voyage-mini-caret" data-tip-touch="off" aria-expanded="false" aria-label="${esc(`${unfold}. ${hold}`)}"><i class="fa fa-caret-right"></i></button>` +
-      `<button type="button" class="voyage-panel-toggle voyage-mini-toggle" aria-expanded="false" title="${esc(`${tip}. ${unfold}`)}" aria-label="${esc(`${tip}. ${unfold}`)}">` +
+      `<button type="button" class="voyage-panel-toggle voyage-mini-toggle" aria-expanded="false" title="${esc(`${tip}.\n${unfold}`)}" aria-label="${esc(`${tip}. ${unfold}`)}">` +
       `${swatch}${esc(d.label)}</button>${warn.join('')}${miniChips(pos, status).join('')}</div>`;
   };
 
@@ -582,6 +680,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (e.target instanceof Element && e.target.closest('.voyage-trader-link')) { e.preventDefault(); state.trader?.offer(); }
       if (e.target instanceof Element && e.target.closest('.voyage-harbour-link')) { e.preventDefault(); state.cargo?.open(); }
       if (e.target instanceof Element && e.target.closest('.voyage-rescue-link')) { e.preventDefault(); state.stores?.offer(); }
+      if (e.target instanceof Element && e.target.closest('.voyage-adrift-link')) { e.preventDefault(); state.adrift?.explain(); }
       if (e.target instanceof Element && e.target.closest('.voyage-sign-place')) { e.preventDefault(); state.land?.place(); render(); return; }
       if (e.target instanceof Element && e.target.closest('.voyage-sign-pickup')) { e.preventDefault(); state.land?.pickup(); render(); return; }
       if (e.target instanceof Element && e.target.closest('.voyage-locked-toggle')) {
@@ -590,8 +689,28 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         render();
         return;
       }
-      const skillBtn = e.target instanceof Element ? e.target.closest('.voyage-skill-btn') : null;
-      if (skillBtn !== null) { showSkillTip(skillBtn); return; }
+      // A skill icon opens the skill's page (build .267, the user); what it finds here is its tooltip (press and hold
+      // on touch). A skill with no page of its own keeps the popup.
+      const skillBtn = e.target instanceof Element ? e.target.closest('.voyage-skill-btn:not(.voyage-fight-chip)') : null;
+      if (skillBtn !== null) {
+        const page = skillPage(skillBtn.dataset.voyageSkill);
+        if (page !== undefined) state.openPage(page); else showSkillTip(skillBtn);
+        return;
+      }
+      if (e.target instanceof Element && e.target.closest('.voyage-way-link')) {
+        e.preventDefault();
+        try {
+          state.openPage(game.pages.getObjectByID('voyage:Voyage'));
+          state.pageLayout?.unfold('underway-block');
+          setTimeout(() => document.querySelector('#voyage-container [data-voyage="underway-block"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 100);
+        } catch (err) { log('Under way link failed', err); }
+        return;
+      }
+      if (e.target instanceof Element && e.target.closest('.voyage-bank-link')) {
+        e.preventDefault();
+        try { state.openPage(game.pages.getObjectByID('melvorD:Bank')); } catch (err) { log('bank link failed', err); }
+        return;
+      }
       if (e.target instanceof Element && e.target.closest('.voyage-works-toggle')) {
         worksOpen = !worksOpen;
         try { localStorage.setItem(WORKS_KEY, worksOpen ? '1' : '0'); } catch {}
@@ -623,7 +742,14 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         e.preventDefault();
         try { const hex = state.ship?.hex(findShip.dataset.kind ?? 'boat'); if (hex !== undefined) state.ship.centreOn(hex); } catch (err) { log('find ship failed', err); }
       }
-      const fight = e.target instanceof Element ? e.target.closest('.voyage-fight-link') : null;
+      const fight = e.target instanceof Element ? e.target.closest('.voyage-fight-link, .voyage-fight-chip') : null;
+      if (fight !== null && fight.dataset.area === undefined) {
+        e.preventDefault();
+        panelOpen = true;
+        try { localStorage.setItem(PANEL_KEY, '1'); } catch {}
+        render();
+        return;
+      }
       if (fight !== null) {
         e.preventDefault();
         try { openArea(fight.dataset.area); } catch (err) { log('Combat link failed', err); }
@@ -641,6 +767,17 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
           state.openPage(game.pages.getObjectByID('voyage:Voyage'));
           setTimeout(() => document.querySelector('#voyage-container [data-voyage-action="upgrade"]')?.scrollIntoView({ block: 'center' }), 100);
         } catch (err) { log('shipyard link failed', err); }
+        return;
+      }
+      // Stock up (the open panel's stores row and the strip's chip; build .266, the user: "open skill page and scroll
+      // to block"): the Voyage page at its Stores block, opened if it was folded.
+      if (e.target instanceof Element && e.target.closest('.voyage-load-link')) {
+        e.preventDefault();
+        try {
+          state.openPage(game.pages.getObjectByID('voyage:Voyage'));
+          state.pageLayout?.unfold('stores-block');
+          setTimeout(() => document.querySelector('#voyage-container [data-voyage="stores-block"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 100);
+        } catch (err) { log('Stock up link failed', err); }
         return;
       }
       if (e.target instanceof Element && e.target.closest('.voyage-manage-link')) {
@@ -712,7 +849,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const d = describe(rec);
       const poi = poiNameOf(pos);
       const place = [poi ? esc(poi) : undefined, d.area ? esc(d.area) : undefined].filter(Boolean).join(', ');
-      const where = `${place ? ` · ${place}` : ''} ${coordsOf(pos)}`;
+      // The place's name and its coordinates move to the next line as one, never split (build .286, the user: "if name +
+      // cords don't fit in line it goes on next line as whole"); a name wider than the panel still wraps inside.
+      const where = `${place ? ' · ' : ' '}<span class="voyage-keep">${place ? `${place} ` : ''}${coordsOf(pos)}</span>`;
       const swatch = d.css ? `<span class="voyage-swatch" style="background:${d.css}"></span>` : '';
       const features = d.features.length > 0 ? ` · ${esc(d.features.join(', '))}` : '';
       const mode = state.mode === 'relaxed' ? `<div><small class="text-warning">${esc(getLangString('MOD_VOY_PANEL_TABLE_MISMATCH'))}</small></div>` : '';
@@ -768,6 +907,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   });
 
   ctx.patch(Cartography, 'onPageVisible').after(() => { setTimeout(render, 0); });
+  // A level gained can open a zoned skill here (build .280): Works and Locked follow at once.
+  ctx.patch(Skill, 'onLevelUp').after(function () { try { if (state.zoneTable?.skills?.[this.id] !== undefined) setTimeout(render, 0); } catch {} });
   ctx.onCharacterLoaded(() => {
     try { game.cartography?.on('travel', () => setTimeout(render, 0)); } catch (e) { log('travel hook failed', e); }
   });

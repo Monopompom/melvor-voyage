@@ -6,6 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import * as terrain from '../src/terrain.mjs';
 import * as rules from '../src/rules.mjs';
 import { JOURNAL_GUIDES } from '../src/voyage-model.mjs';
+import { RESCUES, TOW_KINDS } from '../src/adrift-model.mjs';
 import { JOURNAL_CHAPTERS, JOURNAL_CREW, JOURNAL_WRITTEN, JOURNAL_GUIDE_SECTIONS, JOURNAL_ASIDES, JOURNAL_NOTES, CHART_ITEMS, splitLinks, linkTargetExists } from '../src/journal-model.mjs';
 
 const root = new URL('../', import.meta.url);
@@ -56,6 +57,11 @@ export const FAMILIES = {
   // Rumours (src/charts.mjs): the tales by kind, and the bank's Read line
   MOD_VOY_RUMOUR_TALE_: ['TAVERN', 'SAILOR'].flatMap((k) => [1, 2, 3, 4].map((n) => `${k}_${n}`)),
   MOD_VOY_RUMOUR_READ_: ['TAVERN', 'SAILOR', 'TITLE'],
+  // Adrift (5b part two, src/adrift.mjs): why, the sea folk's popups and lines, who tows, what ended it
+  MOD_VOY_ADRIFT_WHY_: ['FOOD', 'GP', 'HULL'],
+  MOD_VOY_ADRIFT_RESCUE_: RESCUES.flatMap((r) => ['TITLE', 'BODY', 'OFFLINE'].map((x) => `${r.id.toUpperCase()}_${x}`)),
+  MOD_VOY_ADRIFT_TOW_BY_: TOW_KINDS.map((k) => k.toUpperCase()),
+  MOD_VOY_ADRIFT_ENDED_BY_: ['KRAKEN', 'NOODLE'],
   MOD_VOY_RULE_LABEL_: localIds.filter((id, i) => rules.ruleLabelKey(Object.keys(rules.SKILL_RULES)[i]) !== undefined),
 };
 

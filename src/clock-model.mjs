@@ -96,7 +96,9 @@ const cleanMode = (m) => (m != null && typeof m === 'object' ? JSON.parse(JSON.s
  * whole walk at departure), name, chain, loads (indexes where the route stops to load), began (ms), xp (Voyage XP
  * at departure), gp (GP at departure), spent (ticks run so far), of (ticks of the timer in progress: the step's, or a
  * survey's) }. A voyage into the fog (5b, fog-model.mjs) adds fog: true, side (hexes beside the route to survey) and
- * sv (the hexes still to survey before the next step, in turn; the timer is a survey's while it has any).
+ * sv (the hexes still to survey before the next step, in turn; the timer is a survey's while it has any). A tow
+ * (5b part two, adrift-model.mjs) adds tow: { kind (TOW_KINDS), port (the port's poi id), find (the port is found on
+ * docking: the message in a bottle), gp (what was paid) }: free steps, no Stop here, nothing found on the way.
  */
 export function cleanVoyage(v) {
   if (v == null || typeof v !== 'object' || !Array.isArray(v.walk) || v.walk.length < 2) return null;
@@ -122,7 +124,14 @@ export function cleanVoyage(v) {
     spent: isInt(v.spent) && v.spent >= 0 ? v.spent : 0,
     of: isInt(v.of) && v.of > 0 ? v.of : (isInt(v.left) && v.left > 0 ? v.left : 1),
     ...(v.fog === true ? { fog: true, side: isInt(v.side) && v.side >= 0 && v.side <= 3 ? v.side : 0, sv: cleanQueue(v.sv) } : {}),
+    ...(cleanTow(v.tow) === undefined ? {} : { tow: cleanTow(v.tow) }),
   };
+}
+/** What may tow you (adrift-model.mjs TOW_KINDS; modules here can't import each other). */
+export const TOW_KINDS = ['pay', 'fisherman', 'bottle', 'pushy'];
+function cleanTow(t) {
+  if (t == null || typeof t !== 'object' || !TOW_KINDS.includes(t.kind)) return undefined;
+  return { kind: t.kind, port: typeof t.port === 'string' ? t.port.slice(0, 200) : '', find: t.find === true, gp: Number.isFinite(t.gp) && t.gp > 0 ? Math.floor(t.gp) : 0 };
 }
 function cleanQueue(sv) {
   if (!Array.isArray(sv)) return [];
@@ -131,12 +140,13 @@ function cleanQueue(sv) {
 
 /**
  * The last voyage's ending, for the Voyage page and the offline summary, or null: { name, hexes, ms, xp, at (ms of
- * arrival or stop), how: 'arrived' | 'stopped' | 'refused', started (label of what started, '' none), failed: [labels
+ * arrival or stop), how: 'arrived' | 'stopped' | 'refused' | 'adrift' (5b part two: the next hex could not be paid
+ * out at sea; `why` 'food', 'gp' or 'hull'), tow (the kind of tow it was, '' none), started (label of what started, '' none), failed: [labels
  * that could not start, with their reason], seen (the offline summary told it), closed (dismissed on the page) }.
  */
 export function cleanEnding(e) {
   if (e == null || typeof e !== 'object') return null;
-  const how = ['arrived', 'stopped', 'refused'].includes(e.how) ? e.how : 'arrived';
+  const how = ['arrived', 'stopped', 'refused', 'adrift'].includes(e.how) ? e.how : 'arrived';
   const str = (s) => (typeof s === 'string' ? s.slice(0, 300) : '');
   return {
     name: str(e.name),
@@ -145,6 +155,7 @@ export function cleanEnding(e) {
     xp: Number.isFinite(e.xp) && e.xp >= 0 ? Math.floor(e.xp) : 0,
     at: Number.isFinite(e.at) ? e.at : 0,
     how,
+    tow: TOW_KINDS.includes(e.tow) ? e.tow : '',
     started: str(e.started),
     // Why a refused voyage stopped, when it was not the GP (build .227: a fog hex it could not survey); '' the GP.
     why: str(e.why),
@@ -163,4 +174,43 @@ export function ticksLeft(v, stepTicks) {
   let n = v.left;
   for (let i = v.at + 1; i < v.walk.length - 1; i++) n += stepTicks[i] ?? 0;
   return n;
+}
+
+// ---- the route line on the map (build .272) ------------------------------------------------------------------------
+/** A running voyage's walk split at the hex you are on: `behind` (walked, drawn dim) and `ahead`; both hold walk[at]. */
+export function routeParts(v) {
+  if (v == null || !Array.isArray(v.walk) || v.walk.length < 2) return null;
+  const at = Math.min(Math.max(0, Math.trunc(v.at) || 0), v.walk.length - 1);
+  const pt = ({ q, r }) => ({ q, r });
+  return { behind: v.walk.slice(0, at + 1).map(pt), ahead: v.walk.slice(at).map(pt) };
+}
+
+/** Length of a polyline of { x, y } points. */
+export function polyLength(pts) {
+  let n = 0;
+  for (let i = 1; i < (pts?.length ?? 0); i++) n += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  return n;
+}
+
+/** The piece of a polyline from distance `a` to `b` along it (clamped to its ends), as points; [] when empty. */
+export function polySlice(pts, a, b) {
+  const len = polyLength(pts);
+  const from = Math.max(0, Math.min(a, len));
+  const to = Math.max(0, Math.min(b, len));
+  if (!(to > from)) return [];
+  const out = [];
+  let walked = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i - 1];
+    const q = pts[i];
+    const seg = Math.hypot(q.x - p.x, q.y - p.y);
+    const at = (d) => ({ x: p.x + (q.x - p.x) * ((d - walked) / seg), y: p.y + (q.y - p.y) * ((d - walked) / seg) });
+    if (seg > 0 && walked + seg >= from && walked <= to) {
+      if (out.length === 0) out.push(at(Math.max(from, walked)));
+      out.push(at(Math.min(to, walked + seg)));
+    }
+    walked += seg;
+    if (walked >= to) break;
+  }
+  return out;
 }

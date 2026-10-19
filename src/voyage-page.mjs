@@ -107,6 +107,10 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
           const item = game.items.getObjectByID(holdPicked[kind] ?? '');
           const n = typed(`take-${kind}`);
           if (item !== undefined && n > 0 && state.hold?.take(item, n, kind) > 0) { delete amounts[`take-${kind}`]; render(); }
+        } else if (target.dataset.voyageAction === 'sell') {
+          const item = game.items.getObjectByID(holdPicked[kind] ?? '');
+          const n = typed(`take-${kind}`);
+          if (item !== undefined && n > 0) state.hold?.sell(item, n, kind, () => { delete amounts[`take-${kind}`]; render(); });
         }
       });
       part('stores')?.addEventListener('click', (e) => {
@@ -185,11 +189,16 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
    * An action block, one row (the user, build .157): the amount box and its blue presets on the left, the
    * green main button on the right. Too narrow for one line, the button drops under them and fills the line.
    */
-  const actionBlock = ({ action, amount = action, itemId, max, value, presets, main }) =>
+  /** `before`: a second action ahead of the main one ({ action, label, cls }), as the hold's red Sell (build .265). */
+  const actionBlock = ({ action, amount = action, itemId, max, value, presets, main, before }) =>
     '<div class="voyage-action"><div class="voyage-hold-row">' +
     `<input type="number" min="1" max="${max}" value="${value}" inputmode="numeric" class="form-control voyage-hold-qty" data-voyage-amount="${amount}" data-item="${esc(itemId)}" aria-label="${esc(t('MOD_VOY_PAGE_AMOUNT'))}">` +
     `<div class="voyage-hold-presets">${presets.filter((p) => p.n > 0).map((p) => `<button type="button" class="btn btn-sm btn-info" data-voyage-preset="${p.n}">${esc(p.label)}</button>`).join('')}</div>` +
-    `<button type="button" class="btn btn-success voyage-hold-go" data-voyage-action="${action}">${esc(main)}</button></div></div>`;
+    (before === undefined
+      ? `<button type="button" class="btn btn-success voyage-hold-go" data-voyage-action="${action}">${esc(main)}</button>`
+      : `<div class="voyage-hold-gos"><button type="button" class="btn ${before.cls} voyage-hold-before" data-voyage-action="${before.action}">${esc(before.label)}</button>` +
+        `<button type="button" class="btn btn-success voyage-hold-go" data-voyage-action="${action}">${esc(main)}</button></div>`) +
+    '</div></div>';
   /** Item chips (bank-style), the picked one filled blue; the name is in a line under them for touch. */
   const chips = (items, pickedId, action, title) =>
     `<div class="voyage-store-items">${items.map((x) => `<button type="button" class="btn btn-sm voyage-store-item ${x.item.id === pickedId ? 'btn-info' : 'btn-outline-info'}" ` +
@@ -373,6 +382,8 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       action: 'take', amount: `take-${kind}`, itemId: sel.item.id, max: sel.qty, value: amountFor(`take-${kind}`, sel.item.id, sel.qty, sel.qty),
       presets: [{ n: sel.qty - 1, label: t('MOD_VOY_HOLD_ALL_BUT_ONE') }, { n: sel.qty, label: t('MOD_VOY_PAGE_STORES_LOAD_ALL') }],
       main: t('MOD_VOY_HOLD_TAKE'),
+      // Sell from the hold (build .265): red as the bank's Sell; where no trade is, the bank's own refusal says why.
+      before: { action: 'sell', label: t('MOD_VOY_HOLD_SELL'), cls: 'btn-danger' },
     });
     return html;
   };

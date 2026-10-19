@@ -58,6 +58,16 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   // ---- steps and their times ---------------------------------------------------------------------------------------
   const hullOf = (kind) => (kind === 'ship' ? state.ship?.big?.() : state.ship?.boat?.())?.hull;
   const timeOpts = () => ({ hullOf, mountSpeed: state.land?.speed?.() ?? 1 });
+  /** A message popup's picture during a voyage (build .259): what carries you now, the hull at sea, the mount on land. */
+  const herePicture = () => {
+    const res = (file) => ctx.getResourceUrl(`assets/${file}`);
+    try {
+      const rec = state.recordAt?.(map()?.playerPosition);
+      if (rec !== undefined && (rec.t === 'water' || rec.t === 'shoal')) return res(`hull_${hullOf(state.ship?.inVessel?.() === 'ship' ? 'ship' : 'boat') ?? 'dinghy'}.webp`);
+      return state.land?.mediaOf?.(state.land.mount()) ?? res('marker_traveller_figure.webp');
+    } catch { return res('icon.webp'); }
+  };
+  const { mark, marked } = helpLayout;
   /** The game path (destination first) of walk[from..to], with the ship's modes for each step. */
   const pathOf = (walk, from, to) => {
     const path = [];
@@ -80,7 +90,9 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     return steps;
   };
   /** Ticks of each step of the walk (index i: from walk[i] to walk[i + 1]). */
-  const stepTicksOf = (walk) => {
+  const stepTicksOf = (walk, tow) => {
+    // A tow (5b part two) sails at the towing ship's pace, every hex alike.
+    if (tow !== undefined) return walk.slice(1).map(() => C.ticksOf(state.adrift?.towMs?.(tow.kind) ?? 3 * 60000));
     const path = pathOf(walk, 0, walk.length - 1);
     if (path === undefined) return walk.slice(1).map(() => C.ticksOf(C.LAND_MS));
     const o = timeOpts();
@@ -89,7 +101,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   let ticksMemo;
   const stepTicks = (v) => {
     const key = `${v.walk.length}|${v.walk[0].q},${v.walk[0].r}|${hullOf('boat')}|${hullOf('ship')}|${state.land?.speed?.() ?? 1}`;
-    if (ticksMemo?.v !== v || ticksMemo.key !== key) ticksMemo = { v, key, ticks: stepTicksOf(v.walk) };
+    if (ticksMemo?.v !== v || ticksMemo.key !== key) ticksMemo = { v, key, ticks: stepTicksOf(v.walk, v.tow) };
     return ticksMemo.ticks;
   };
   /** Ticks still to go: the timer in progress, the steps after it and, in the fog, the surveys still to make. */
@@ -319,10 +331,13 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   /**
    * Starts a voyage along `path` (game order, destination first): { path, name, chain, loads (walk indexes where the
    * route loads the stores), departLoad }. Stops what is running (the game's own idle check). True when under way.
+   * `tow` (5b part two, adrift.mjs): { kind, port, find, gp }, a tow out of Adrift; nothing else sets off while Adrift
+   * or under tow.
    */
-  const setOff = ({ path, name, chain = [], loads = [], fog }) => {
+  const setOff = ({ path, name, chain = [], loads = [], fog, tow }) => {
     const s = skill();
     if (!on() || s === undefined || !Array.isArray(path) || path.length < 2) return false;
+    if (tow === undefined && (cur()?.tow !== undefined || state.adrift?.isAdrift?.())) return false;
     const walk = [];
     const modes = path.voyageModes;
     for (let k = 0; k < path.length; k++) {
@@ -332,9 +347,9 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     }
     const fogged = fog !== undefined && state.fog !== undefined;
     const v = C.cleanVoyage({ walk, at: 0, left: 1, total: 1, name, chain, loads, began: state.clockNow(), xp: s.xp, gp: game.gp.amount,
-      ...(fogged ? { fog: true, side: fog.side ?? 0, sv: [] } : {}) });
+      ...(fogged ? { fog: true, side: fog.side ?? 0, sv: [] } : {}), ...(tow !== undefined ? { tow } : {}) });
     if (v === null) return false;
-    const ticks = stepTicksOf(v.walk);
+    const ticks = stepTicksOf(v.walk, v.tow);
     v.left = ticks[0] ?? 1;
     if (fogged) {
       // A voyage into the fog surveys first (5b): the first timer is a survey's while there is one to make.
@@ -354,7 +369,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     game.activeAction = s;
     game.renderQueue.activeSkills = true;
     try { game.scheduleSave(); } catch {}
-    log(`set off for ${name}: ${v.walk.length - 1} hexes, ${Math.round(v.total * C.TICK_MS / 60000)} min, chain ${v.chain.map((c) => c.k).join(',') || 'none'}${fogged ? `, into the fog (side ${v.side})` : ''}`);
+    log(`set off for ${name}: ${v.walk.length - 1} hexes, ${Math.round(v.total * C.TICK_MS / 60000)} min, chain ${v.chain.map((c) => c.k).join(',') || 'none'}${fogged ? `, into the fog (side ${v.side})` : ''}${v.tow ? `, towed (${v.tow.kind})` : ''}`);
     changed();
     return true;
   };
@@ -369,7 +384,43 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
    * The Set off popup for the map's Travel: time, costs, the arrival choices; Set off starts the voyage. `fog` (5b) is
    * state.fog.estimate of a route through the fog: the surveys' time, the level check and the hexes beside.
    */
+  // ---- changing course (the user, 19 Oct 2026: Set off while under way dropped the voyage without a word) ----------
+  /** The voyage under way, when `dest` is not its own end: { v, band } to warn with; 'same' when it is. */
+  const courseOf = (dest) => {
+    const v = cur();
+    if (v === null || dest === undefined) return undefined;
+    const end = v.walk[v.walk.length - 1];
+    if (end.q === dest.q && end.r === dest.r) return 'same';
+    const here = map()?.playerPosition;
+    const line = marked(t, 'MOD_VOY_CLOCK_CHANGE_WARN', {}, { was: mark.name(v.name), left: mark.time(duration(msLeft(v))), at: mark.name(here === undefined ? '' : at(here)) });
+    const band = `<div class="voyage-clock-change"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i><span>${line}</span></div>`;
+    return { v, band, line };
+  };
+  const alreadyThere = () => { const v = cur(); notify(t('MOD_VOY_CLOCK_ALREADY', { name: v?.name ?? '', left: duration(v === null ? 0 : msLeft(v)) }), 'info'); };
+  /**
+   * Runs `go` at once when no voyage is under way; otherwise asks first (a short popup: the band, Change course,
+   * Cancel keeps the voyage). The planner's Set off comes here; the map's Travel has the whole Set off popup.
+   */
+  const changeCourse = (dest, name, go) => {
+    const c = courseOf(dest);
+    if (c === undefined) { go(); return; }
+    if (c === 'same') { alreadyThere(); return; }
+    // A message popup like the others (build .259): what carries you on top, the line centred, the main button first.
+    SwalLocale.fire({
+      title: marked(t, 'MOD_VOY_CLOCK_CHANGE_TITLE', {}, { name: helpLayout.titleName(name) }),
+      html: helpLayout.msgHtml([c.line]),
+      imageUrl: herePicture(),
+      ...helpLayout.MSG_IMAGE,
+      showCancelButton: true,
+      confirmButtonText: t('MOD_VOY_CLOCK_CHANGE_BTN'),
+      cancelButtonText: t('MOD_VOY_CLOCK_CANCEL'),
+      didRender: state.popupDidRender,
+      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
+    }).then((r) => { if (r.isConfirmed && cur() === c.v) go(); });
+  };
   const confirmSetOff = (path, original, fog) => {
+    const course = courseOf(path[0]);
+    if (course === 'same') { alreadyThere(); return; }
     const info = routeInfo(path);
     const pl = info.plan?.plan;
     if (fog !== undefined) {
@@ -475,6 +526,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     const gpText = fog === undefined ? `${num(info.gp)} GP` : t('MOD_VOY_FOG_GP', { gp: num(info.gp) });
     const fogCostNote = fog === undefined ? '' : `<div class="voyage-clock-costs text-muted">${esc(t('MOD_VOY_FOG_COST_NOTE'))}</div>`;
     const html = '<div class="voyage-clock-setoff text-left">'
+      + (course === undefined ? '' : course.band)
       + fogTop
       // Takes on its own row first, then Hexes and Costs side by side (the user, 18 Oct 2026).
       + '<div class="voyage-clock-tiles">'
@@ -505,14 +557,13 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       } else picture = state.land?.mediaOf?.(state.land.mount()) ?? res('marker_traveller_figure.webp');
     } catch { picture = res('icon.webp'); }
     SwalLocale.fire({
-      title: t('MOD_VOY_CLOCK_SETOFF_TITLE', { name }),
+      title: marked(t, course === undefined ? 'MOD_VOY_CLOCK_SETOFF_TITLE' : 'MOD_VOY_CLOCK_CHANGE_TITLE', {}, { name: helpLayout.titleName(name) }),
       imageUrl: picture,
       ...helpLayout.MSG_IMAGE,
       html,
       width: helpLayout.HELP_WIDTH,
       showCancelButton: true,
-      reverseButtons: true,
-      confirmButtonText: t('MOD_VOY_CLOCK_SETOFF'),
+      confirmButtonText: t(course === undefined ? 'MOD_VOY_CLOCK_SETOFF' : 'MOD_VOY_CLOCK_CHANGE_BTN'),
       cancelButtonText: t('MOD_VOY_CLOCK_CANCEL'),
       didRender: state.popupDidRender,
       didOpen: (el) => {
@@ -574,11 +625,11 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
         title: t('MOD_VOY_FOG_CANT_TITLE'),
         // "brings you to N at most" only when the surveys before it give levels (the user saw "1 at most" at level 1).
         // The first fog hex of the route has no fog before it to give levels (build .233).
-        html: helpLayout.msgHtml([esc(t(c.reach > c.have ? 'MOD_VOY_FOG_CANT_LEVEL' : c.first ? 'MOD_VOY_FOG_CANT_LEVEL_FIRST' : 'MOD_VOY_FOG_CANT_LEVEL_NOW', { n: `${c.at}`, at: hex === undefined ? '' : at(hex), level: `${c.need}`, have: `${c.have}`, reach: `${c.reach}` }))]),
-        imageUrl: ctx.getResourceUrl('assets/icon.webp'),
-        ...helpLayout.MSG_IMAGE,
+        // A refusal that names a skill: the warning sign on top, not the skill's picture.
+        html: helpLayout.msgHtml([marked(t, c.reach > c.have ? 'MOD_VOY_FOG_CANT_LEVEL' : c.first ? 'MOD_VOY_FOG_CANT_LEVEL_FIRST' : 'MOD_VOY_FOG_CANT_LEVEL_NOW',
+          { n: `${c.at}`, have: `${c.have}`, reach: `${c.reach}` }, { at: mark.name(hex === undefined ? '' : at(hex)), level: `<b class="text-danger">${c.need}</b>` })]),
+        icon: 'warning',
         showCancelButton: hex !== undefined,
-        reverseButtons: true,
         confirmButtonText: t('MOD_VOY_FOG_OK'),
         cancelButtonText: t('MOD_VOY_FOG_SHOW_HEX'),
         didRender: state.popupDidRender,
@@ -641,12 +692,21 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     stepping = true;
     finalStep = i + 1 >= v.walk.length - 1;
     state.lightHold = holdAfter(v, i);
-    const putBack = finalStep ? () => {} : keepMoves();
-    try { cart().movePlayer(path, false); } catch (e) { log('voyage step failed', e); } finally { stepping = false; finalStep = false; state.lightHold = 0; }
+    // A tow's steps are free moves (no GP, stores, wear or XP) and find nothing, the last one neither (adrift.mjs).
+    const towed = v.tow !== undefined;
+    const putBack = finalStep && !towed ? () => {} : keepMoves();
+    try { cart().movePlayer(path, towed); } catch (e) { log('voyage step failed', e); } finally { stepping = false; finalStep = false; state.lightHold = 0; }
     putBack();
     const now = map()?.playerPosition;
-    // The why in the ending, so it is marked as one (red in Welcome Back, as a fog refusal's; build .233).
-    if (now !== path[0]) { log(`voyage refused at step ${i + 1}`); end('refused', { why: t('MOD_VOY_CLOCK_WHY_UNPAID') }); return; }
+    if (now !== path[0]) {
+      log(`voyage refused at step ${i + 1}`);
+      // Out at sea, a step that can't be paid leaves you Adrift (5b part two): the ending says so, the drift begins.
+      const why = towed ? undefined : state.adrift?.cause?.();
+      if (why !== undefined) { const name = v.name; end('adrift', { why, quiet: true }); state.adrift.begin(why, name); return; }
+      // The why in the ending, so it is marked as one (red in Welcome Back, as a fog refusal's; build .233).
+      end('refused', { why: t('MOD_VOY_CLOCK_WHY_UNPAID') });
+      return;
+    }
     v.at = i + 1;
     if (v.loads.includes(v.at)) loadHere();
     if (v.at >= v.walk.length - 1) { arrive(v); return; }
@@ -712,7 +772,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     setVoyage(null);
     setEnding(e);
     clearAction();
-    if (how !== 'arrived' && !offlineNow() && !quiet) {
+    if (how !== 'arrived' && how !== 'adrift' && !offlineNow() && !quiet) {
       const pos = map()?.playerPosition;
       notify(t(how === 'refused' ? 'MOD_VOY_CLOCK_REFUSED_AT' : 'MOD_VOY_CLOCK_STOPPED_AT', { at: pos === undefined ? '' : nameOfHex(pos) }), how === 'refused' ? 'danger' : 'success');
     }
@@ -721,8 +781,16 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   };
   const arrive = (v) => {
     const chain = v.chain;
-    const e = end('arrived');
+    const tow = v.tow;
+    const e = end('arrived', tow === undefined ? {} : { tow: tow.kind });
     if (e == null) return;
+    if (tow !== undefined) {
+      try { state.adrift?.onDocked?.(tow); } catch (err) { log('docking failed', err); }
+      if (!offlineNow()) notify(t('MOD_VOY_ADRIFT_TOW_DOCKED', { name: e.name }));
+      log(`towed to ${e.name} (${tow.kind})`);
+      changed();
+      return;
+    }
     const r = chain.length > 0 ? runChain(chain) : { started: '', failed: [] };
     e.started = r.started;
     e.failed = r.failed.slice(0, 3);
@@ -735,8 +803,26 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   let forcing = false;
   /** The skill's stop(): the game stops the voyage (another action after the question, a gamemode change). */
   const stop = () => { if (cur() === null) return false; end('stopped'); return true; };
-  /** Stop here: the voyage ends on the hex reached. */
-  const stopHere = () => { forcing = true; try { end('stopped'); } finally { forcing = false; } };
+  /** Stop here: the voyage ends on the hex reached. A tow has none: you go where the tow goes. */
+  const stopHere = () => {
+    if (cur()?.tow !== undefined) { state.adrift?.refuseUnderTow?.(); return; }
+    forcing = true; try { end('stopped'); } finally { forcing = false; }
+  };
+  /** A tow docks at once (timed travel turned off under tow): one free move to the quay. */
+  const dockNow = (v) => {
+    const here = map()?.playerPosition;
+    const last = v.walk[v.walk.length - 1];
+    const dest = hexAt(last.q, last.r);
+    if (here !== undefined && dest !== undefined && here !== dest) {
+      stepping = true;
+      const putBack = keepMoves();
+      try { cart().movePlayer([dest, here], true); } catch (e) { log('tow docking failed', e); } finally { stepping = false; }
+      putBack();
+    }
+    v.at = Math.max(v.at, v.walk.length - 2);
+    v.left = 0;
+    arrive(v);
+  };
 
   // ---- asking first ------------------------------------------------------------------------------------------------
   let retryCall;
@@ -757,16 +843,15 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     if (v === null) return;
     const retry = retryCall ?? (typeof GatheringSkill !== 'undefined' && action instanceof GatheringSkill && action.id !== CARTOGRAPHY_ID ? () => action.start() : undefined);
     const what = action === game.combat ? t('MOD_VOY_CLOCK_ASK_COMBAT') : action?.name ?? t('MOD_VOY_CLOCK_ASK_THAT');
-    const lines = [t('MOD_VOY_CLOCK_ASK_BODY', { time: duration(msLeft(v)), name: v.name, what })];
+    const lines = [marked(t, 'MOD_VOY_CLOCK_ASK_BODY', { what }, { time: mark.time(duration(msLeft(v))), name: mark.name(v.name) })];
     // The voyage sails on while you read: a start asked on one hex is not tried on the next (its zone may differ).
     const askedAt = map()?.playerPosition;
     SwalLocale.fire({
       title: t('MOD_VOY_CLOCK_ASK_TITLE'),
-      html: helpLayout.msgHtml(lines.map((l) => esc(l))),
-      imageUrl: ctx.getResourceUrl('assets/icon.webp'),
+      html: helpLayout.msgHtml(lines),
+      imageUrl: herePicture(),
       ...helpLayout.MSG_IMAGE,
       showCancelButton: true,
-      reverseButtons: true,
       confirmButtonText: retry !== undefined ? t('MOD_VOY_CLOCK_ASK_GO', { what }) : t('MOD_VOY_CLOCK_STOP_HERE'),
       cancelButtonText: t('MOD_VOY_CLOCK_KEEP'),
       didRender: state.popupDidRender,
@@ -783,6 +868,8 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       const s = skill();
       if (forcing || s === undefined || action === s || this.activeAction !== s || cur() === null || this.isGolbinRaid) return original(action);
       if (typeof action?.id === 'string' && state.skillLockedHere?.(action.id)) return original(action);
+      // Under tow (5b part two) nothing else starts: no Stop here, you go where the tow goes.
+      if (cur()?.tow !== undefined) { if (!offlineNow()) state.adrift?.refuseUnderTow?.(); return true; }
       if (offlineNow()) { stopHere(); return original(action); }
       ask(action);
       return true;
@@ -794,6 +881,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     try {
       const path = this.activeMap?.selectedHexPath;
       if (!on() || this.game.isGolbinRaid || !Array.isArray(path) || path.length < 2 || stepping) return original();
+      if (cur()?.tow !== undefined) { state.adrift?.refuseUnderTow?.(); return; }
       confirmSetOff(path, () => original());
     } catch (e) { log('timed travel failed; instant', e); return original(); }
   });
@@ -807,6 +895,8 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       if (!on() || this.game.isGolbinRaid || m === undefined || this.poiModalsQueued > 0 || poi === undefined) return original();
       const path = m.computePath(m.playerPosition, poi.hex);
       if (path === undefined || path.length < 2) return original();
+      // Under way, Travel Now is a change of course: the question first, never silently.
+      if (cur() !== null) { confirmSetOff(path, () => original()); return true; }
       const info = routeInfo(path);
       if ((info.plan?.plan !== undefined && !info.plan.plan.ok) || info.gp > this.game.gp.amount) return original();
       const now = doingNow();
@@ -824,22 +914,26 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   const pos = (s) => `<span class="text-success">${esc(s)}</span>`;
   const neg = (s) => `<span class="text-danger">${esc(s)}</span>`;
   const icon = () => { const m = skill()?.media; return m ? `<img class="skill-icon-xs mr-1" src="${esc(m)}" alt="">` : ''; };
-  const offlineMessages = () => {
+  // `endingOnly`: Adrift asks for the ending's line when the catch-up began on another action (a tow that a rescue set
+  // off and that docked while you were away, adrift.mjs); never the under-way line, which only the voyage gives.
+  const offlineMessages = ({ endingOnly = false } = {}) => {
     const out = [];
     try {
       const e = ending();
       const v = cur();
       const from = game._offlineInfo?.startTime ?? 0;
       if (e !== null && !e.seen && e.at >= from - 1000) {
-        out.push(icon() + t(e.how === 'arrived' ? 'MOD_VOY_CLOCK_OFFLINE_ARRIVED' : e.how !== 'refused' ? 'MOD_VOY_CLOCK_OFFLINE_STOPPED' : e.why !== '' ? 'MOD_VOY_CLOCK_OFFLINE_REFUSED_WHY' : 'MOD_VOY_CLOCK_OFFLINE_REFUSED',
-          { name: esc(e.name), time: esc(clockAt(e.at)), hexes: pos(hexes(e.hexes)), took: pos(duration(e.ms)), why: neg(e.why) }));
+        // A tow docked or a voyage left Adrift (5b part two) have their own line; Adrift's own lines follow (adrift.mjs).
+        const key = e.tow !== '' ? 'MOD_VOY_ADRIFT_OFFLINE_TOWED' : e.how === 'adrift' ? 'MOD_VOY_ADRIFT_OFFLINE_VOYAGE' : e.how === 'arrived' ? 'MOD_VOY_CLOCK_OFFLINE_ARRIVED' : e.how !== 'refused' ? 'MOD_VOY_CLOCK_OFFLINE_STOPPED' : e.why !== '' ? 'MOD_VOY_CLOCK_OFFLINE_REFUSED_WHY' : 'MOD_VOY_CLOCK_OFFLINE_REFUSED';
+        const why = e.how === 'adrift' ? t(`MOD_VOY_ADRIFT_WHY_${e.why.toUpperCase() || 'FOOD'}`) : e.why;
+        out.push(icon() + t(key, { name: esc(e.name), time: esc(clockAt(e.at)), hexes: pos(hexes(e.hexes)), took: pos(duration(e.ms)), why: neg(why), by: esc(e.tow === '' ? '' : t(`MOD_VOY_ADRIFT_TOW_BY_${e.tow.toUpperCase()}`)) }));
         for (const f of e.failed) out.push(`<span class="text-warning">${esc(t('MOD_VOY_CLOCK_COULD_NOT', { name: f.name, why: f.why }))}</span>`);
         if (e.started !== '') out.push(`<span class="text-success">${esc(t('MOD_VOY_CLOCK_OFFLINE_STARTED', { what: e.started, time: clockAt(e.at) }))}</span>`);
-        else if (e.how === 'arrived' && e.asked) out.push(`<span class="text-warning">${esc(t('MOD_VOY_CLOCK_OFFLINE_IDLE'))}</span>`);
+        else if (e.tow !== '' || e.how === 'adrift') { /* nothing was set for the arrival */ } else if (e.how === 'arrived' && e.asked) out.push(`<span class="text-warning">${esc(t('MOD_VOY_CLOCK_OFFLINE_IDLE'))}</span>`);
         else if (e.how === 'arrived') out.push(`<span class="font-w400">${esc(t('MOD_VOY_CLOCK_OFFLINE_WAITED'))}</span>`);
         setEnding({ ...e, seen: true });
-      } else if (v !== null) {
-        out.push(icon() + t('MOD_VOY_CLOCK_OFFLINE_UNDERWAY', { at: pos(`${v.at}`), of: esc(`${v.walk.length - 1}`), time: pos(duration(msLeft(v))), name: esc(v.name) }));
+      } else if (v !== null && !endingOnly) {
+        out.push(icon() + t(v.tow !== undefined ? 'MOD_VOY_ADRIFT_OFFLINE_TOWING' : 'MOD_VOY_CLOCK_OFFLINE_UNDERWAY', { at: pos(`${v.at}`), of: esc(`${v.walk.length - 1}`), time: pos(duration(msLeft(v))), name: esc(v.name) }));
       }
     } catch (err) { log('offline note failed', err); }
     return out;
@@ -885,37 +979,48 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
           + `<span>${esc(t(sea ? 'MOD_VOY_CLOCK_LEG_SEA' : 'MOD_VOY_CLOCK_LEG_LAND', { hexes: hexes(j - i) }))}</span><span class="text-muted">${esc(duration(ms))}</span></div>`);
         i = j;
       }
+      // Under tow (5b part two): who tows you, no arrival picks and no Stop here.
+      const tow = v.tow;
+      const towFact = tow === undefined ? '' : `<div class="text-info"><i class="fa fa-fw fa-anchor" aria-hidden="true"></i>${esc(t(`MOD_VOY_ADRIFT_TOW_BY_${tow.kind.toUpperCase()}`))}</div>`;
       const chain = v.chain.length === 0 ? `<div>${esc(t('MOD_VOY_CLOCK_DO_NOTHING'))}</div>`
         : `<div><b>${esc(labelOf(v.chain[0]))}</b></div>${v.chain.length > 1 ? `<div class="text-muted">${esc(t('MOD_VOY_CLOCK_THEN', { list: v.chain.slice(1).map(labelOf).join(' · ') }))}</div>` : ''}`;
       return `<div class="voyage-clock-top"><img class="voyage-clock-pic" src="${ctx.getResourceUrl('assets/icon.webp')}" alt="">`
-        + `<div><h5 class="font-w600 mb-0">${esc(t('MOD_VOY_CLOCK_UNDERWAY', { name: v.name }))}</h5>`
+        + `<div><h5 class="font-w600 mb-0">${esc(t(tow === undefined ? 'MOD_VOY_CLOCK_UNDERWAY' : 'MOD_VOY_ADRIFT_TOW_UNDERWAY', { name: v.name }))}</h5>`
         // One per line under the title: the ground (its map colour), the hexes behind you, how you go (the user,
         // build .241; icons as the panel on the map's).
         + '<div class="voyage-clock-facts">'
         + (where ? `<div class="voyage-clock-ground"><span class="voyage-swatch" style="background:${terrainMod.CLASS_INFO[rec.t]?.css ?? 'transparent'}"></span>${esc(where)}</div>` : '')
         + `<div class="text-muted"><i class="fa fa-fw fa-route" aria-hidden="true"></i>${esc(t('MOD_VOY_CLOCK_HEX_OF', { at: `${v.at}`, of: `${v.walk.length - 1}` }))}</div>`
-        + `<div class="${aboard ? 'text-info' : 'text-muted'}"><i class="fa fa-fw fa-${aboard ? 'ship' : 'walking'}" aria-hidden="true"></i>${esc(how)}</div></div></div></div>`
+        + `<div class="${aboard ? 'text-info' : 'text-muted'}"><i class="fa fa-fw fa-${aboard ? 'ship' : 'walking'}" aria-hidden="true"></i>${esc(how)}</div>${towFact}</div></div></div>`
         + '<div class="voyage-section voyage-clock-bars">'
         + `<div class="voyage-clock-bar-row"><span data-voyage-clock="hex-label">${esc(t('MOD_VOY_CLOCK_THIS_HEX'))}</span><span class="text-muted" data-voyage-clock="hex-time"></span></div>`
         + '<div class="progress voyage-clock-bar"><div class="progress-bar bg-info" data-voyage-clock="hex-bar"></div></div>'
         + `<div class="voyage-clock-bar-row"><span>${esc(t('MOD_VOY_CLOCK_THE_VOYAGE'))}</span><span data-voyage-clock="left"></span></div>`
         + '<div class="progress voyage-clock-bar"><div class="progress-bar bg-success" data-voyage-clock="bar"></div></div></div>'
         + `<div class="voyage-section">${legs.join('')}</div>`
-        + `<div class="voyage-section"><div class="voyage-clock-head">${esc(t('MOD_VOY_CLOCK_ON_ARRIVAL'))}</div>${chain}</div>`
+        + (tow === undefined
+          ? `<div class="voyage-section"><div class="voyage-clock-head">${esc(t('MOD_VOY_CLOCK_ON_ARRIVAL'))}</div>${chain}</div>`
+          : `<div class="voyage-section"><div class="voyage-clock-head">${esc(t('MOD_VOY_ADRIFT_ON_DOCKING'))}</div><div>${esc(t(tow.find ? 'MOD_VOY_ADRIFT_DOCK_FIND' : 'MOD_VOY_ADRIFT_DOCK'))}</div></div>`)
         + '<div class="voyage-plan-buttons">'
         + `<button type="button" class="btn btn-outline-info" data-voyage-clock-do="map">${esc(t('MOD_VOY_PAGE_SHOW_MAP'))}</button>`
-        + `<button type="button" class="btn btn-outline-danger" data-voyage-clock-do="stop">${esc(t('MOD_VOY_CLOCK_STOP_HERE'))}</button></div>`
-        + (v.at > 0 ? `<div class="text-muted voyage-clock-note text-right">${esc(t('MOD_VOY_CLOCK_STOP_NOTE', { hexes: hexes(v.at) }))}</div>` : '');
+        + (tow === undefined ? `<button type="button" class="btn btn-outline-danger" data-voyage-clock-do="stop">${esc(t('MOD_VOY_CLOCK_STOP_HERE'))}</button>` : '') + '</div>'
+        + (tow !== undefined ? `<div class="text-muted voyage-clock-note text-right">${esc(t('MOD_VOY_ADRIFT_TOW_NOTE'))}</div>`
+          : v.at > 0 ? `<div class="text-muted voyage-clock-note text-right">${esc(t('MOD_VOY_CLOCK_STOP_NOTE', { hexes: hexes(v.at) }))}</div>` : '');
     }
+    // Adrift (5b part two): its own block, or the note of how the last spell ended.
+    const adrift = state.adrift?.blockHtml?.() ?? '';
+    if (state.adrift?.isAdrift?.()) return adrift;
     const e = ending();
-    if (e === null || e.closed) return '';
-    const lines = [t(e.how === 'arrived' ? 'MOD_VOY_CLOCK_ENDED_ARRIVED' : e.how !== 'refused' ? 'MOD_VOY_CLOCK_ENDED_STOPPED' : e.why !== '' ? 'MOD_VOY_CLOCK_ENDED_REFUSED_WHY' : 'MOD_VOY_CLOCK_ENDED_REFUSED', { name: e.name, time: clockAt(e.at), hexes: hexes(e.hexes), took: duration(e.ms), why: e.why })];
+    if (e === null || e.closed) return adrift;
+    const key = e.tow !== '' ? 'MOD_VOY_ADRIFT_ENDED_TOWED' : e.how === 'adrift' ? 'MOD_VOY_ADRIFT_ENDED_VOYAGE' : e.how === 'arrived' ? 'MOD_VOY_CLOCK_ENDED_ARRIVED' : e.how !== 'refused' ? 'MOD_VOY_CLOCK_ENDED_STOPPED' : e.why !== '' ? 'MOD_VOY_CLOCK_ENDED_REFUSED_WHY' : 'MOD_VOY_CLOCK_ENDED_REFUSED';
+    const why = e.how === 'adrift' ? t(`MOD_VOY_ADRIFT_WHY_${e.why.toUpperCase() || 'FOOD'}`) : e.why;
+    const lines = [t(key, { name: e.name, time: clockAt(e.at), hexes: hexes(e.hexes), took: duration(e.ms), why, by: e.tow === '' ? '' : t(`MOD_VOY_ADRIFT_TOW_BY_${e.tow.toUpperCase()}`) })];
     let html = `<div>${esc(lines[0])}</div>`;
     if (e.xp > 0) html += `<div class="text-success">${esc(t('MOD_VOY_CLOCK_OFFLINE_XP', { xp: num(e.xp) }))}</div>`;
     for (const f of e.failed) html += `<div class="text-warning">${esc(t('MOD_VOY_CLOCK_COULD_NOT', { name: f.name, why: f.why }))}</div>`;
     if (e.started !== '') html += `<div>${esc(t('MOD_VOY_CLOCK_ENDED_STARTED', { what: e.started }))}</div>`;
     return `<div class="voyage-clock-ended"><div class="voyage-clock-ended-text">${html}</div>`
-      + `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-clock-do="close">${esc(t('MOD_VOY_CLOCK_CLOSE'))}</button></div>`;
+      + `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-clock-do="close">${esc(t('MOD_VOY_CLOCK_CLOSE'))}</button></div>` + adrift;
   };
   /**
    * On a phone the status block (compass, land, travels) stacks to a screen or more, so the Under way block sits
@@ -938,16 +1043,18 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     if (el === null) return;
     const v = cur();
     const e = ending();
-    const sig = v === null ? `e|${e?.at}|${e?.closed}` : `v|${v.at}|${v.walk.length}|${v.chain.length}|${v.fog === true}`;
+    const sig = v === null ? `e|${e?.at}|${e?.closed}|${state.adrift?.sig?.() ?? ''}` : `v|${v.at}|${v.walk.length}|${v.chain.length}|${v.fog === true}|${v.tow?.kind ?? ''}`;
     if (sig !== blockSig) {
       blockSig = sig;
       const html = on() || v !== null ? blockHtml() : '';
       el.innerHTML = html;
       wrapEl()?.classList.toggle('d-none', html === '');
+      // Adrift's block wears amber at the top (5b part two); the rest the Voyage gold.
+      wrapEl()?.classList.toggle('voyage-adrift-block', v === null && state.adrift?.isAdrift?.() === true);
       place();
       state.tips?.apply?.(el);
     }
-    if (v === null) return;
+    if (v === null) { state.adrift?.renderBars?.(el); return; }
     const stepAll = v.of > 0 ? v.of : 1;
     const left = msLeft(v);
     const set = (k, f) => { const x = el.querySelector(`[data-voyage-clock="${k}"]`); if (x !== null) f(x); };
@@ -976,16 +1083,24 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       if (dest !== undefined) setTimeout(() => { try { state.ship?.centreOn?.(dest); } catch (e) { log('map centre failed', e); } }, 100);
     }
   });
-  /** The Here panel's chip while under way: { text, tip } or undefined. */
+  /** The Here panel's chip while under way: { text, tip, tow, name, frac } or undefined. */
   const chip = () => {
     const v = cur();
     if (v === null) return undefined;
-    const left = duration(msLeft(v));
-    return { text: left, tip: t('MOD_VOY_CLOCK_CHIP', { left, name: v.name }) };
+    const ms = msLeft(v);
+    const left = duration(ms);
+    // How much of the voyage is behind you, as the page's bar has it (the Here panel's travel bar, build .256).
+    const frac = Math.min(1, Math.max(0, v.spent / (Math.max(v.total, v.spent + ms / C.TICK_MS) || 1)));
+    return { text: left, tip: t(v.tow !== undefined ? 'MOD_VOY_ADRIFT_TOW_CHIP' : 'MOD_VOY_CLOCK_CHIP', { left, name: v.name }), tow: v.tow !== undefined, name: v.name, frac };
   };
 
   // A setting turned off mid-voyage ends it where it stands; a save loaded off its route too.
-  state.listeners.push(() => { if (cur() !== null && !on() && usable()) end('stopped'); });
+  // A tow docks at once instead (5b part two: "Timed travel off: a tow under way docks at once").
+  state.listeners.push(() => {
+    const v = cur();
+    if (v === null || on() || !usable()) return;
+    if (v.tow !== undefined && state.settings.timedTravel?.() === false) dockNow(v); else end('stopped');
+  });
   ctx.onCharacterLoaded(() => {
     try {
       const v = cur();
@@ -997,7 +1112,12 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     } catch (e) { log('voyage load check failed', e); }
   });
 
-  const api = { on, setOff, tick, stop, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog };
+  const api = { on, setOff, changeCourse, tick, stop, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog,
+    /** A tow is under way (5b part two). */
+    towing: () => cur()?.tow !== undefined,
+    msLeft: () => { const v = cur(); return v === null ? 0 : msLeft(v); },
+    // The map's route line (route-line.mjs, build .272): the walk split at the hex you are on, or null.
+    route: () => C.routeParts(cur()) };
   state.clock = api;
   return api;
 }

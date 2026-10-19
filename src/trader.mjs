@@ -150,6 +150,8 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
   const verdict = () => {
     const pos = state.position();
     if (pos === undefined) return { stranded: false, reason: 'no position' };
+    // Adrift at sea (5b part two) has its own ways out; the trader stays ashore.
+    if (state.adrift?.isAdrift?.() === true) return { stranded: false, reason: 'adrift' };
     const tradeLocked = state.tradeLocked?.() === true;
     const canSell = sellableItem();
     // Cheap exit for the common case: trade works here and there is something to sell.
@@ -303,12 +305,15 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
     try { return present() ? Math.floor(price * HALF) : undefined; } catch { return undefined; }
   });
   ctx.patch(Bank, 'processItemSale').after(() => { checkLeave(); });
+  (state.saleListeners ??= []).push(checkLeave); // a sale from the hold (build .265)
   ctx.patch(WorldMap, 'setPlayerPosition').after(() => { checkLeave(); });
   state.listeners.push(checkLeave);
 
   state.trader = {
     present,
     offer,
+    /** His portrait, for the provisions rescue popup (stores.mjs; the same face on every popup he is in, build .259). */
+    art,
     /** For the panel: 'here' while he is here, 'stranded' when an offer would be made, undefined otherwise. */
     status() {
       if (present()) return 'here';

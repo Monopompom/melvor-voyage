@@ -1,9 +1,10 @@
 // The ship's clock (src/clock-model.mjs, phase 5a).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { TOW_KINDS as ADRIFT_TOWS } from '../src/adrift-model.mjs';
 import {
   TICK_MS, LAND_MS, SEA_MS, groundFactor, seaMs, stepMs, ticksOf, routeMs, durationParts, clockText, clockNow,
-  cleanChoice, sameChoice, cleanChain, cleanVoyage, cleanEnding, ticksLeft,
+  cleanChoice, sameChoice, cleanChain, cleanVoyage, cleanEnding, ticksLeft, TOW_KINDS,
 } from '../src/clock-model.mjs';
 
 const MIN = 60000;
@@ -136,4 +137,16 @@ test('ticks left: the step in progress and the steps after it', () => {
   assert.equal(ticksLeft(v, [100, 200, 300]), 305);
   assert.equal(ticksLeft({ ...v, at: 2 }, [100, 200, 300]), 5);
   assert.equal(ticksLeft(null, []), 0);
+});
+
+test('a tow (5b part two): kept on the voyage, junk dropped; the adrift ending and the tow kind on an ending', () => {
+  assert.deepEqual(TOW_KINDS, ADRIFT_TOWS, 'the same kinds as adrift-model');
+  const walk = [{ q: 0, r: 0 }, { q: 1, r: 0 }];
+  assert.deepEqual(cleanVoyage({ walk, tow: { kind: 'bottle', port: 'BustlingPort', find: true, gp: 0 } }).tow, { kind: 'bottle', port: 'BustlingPort', find: true, gp: 0 });
+  assert.deepEqual(cleanVoyage({ walk, tow: { kind: 'pay', port: 'X', gp: 12.6 } }).tow, { kind: 'pay', port: 'X', find: false, gp: 12 });
+  assert.equal(cleanVoyage({ walk, tow: { kind: 'kraken' } }).tow, undefined, 'the kraken does not tow');
+  assert.equal('tow' in cleanVoyage({ walk }), false);
+  assert.equal(cleanEnding({ how: 'adrift', why: 'food' }).how, 'adrift');
+  assert.equal(cleanEnding({ how: 'arrived', tow: 'pushy' }).tow, 'pushy');
+  assert.equal(cleanEnding({ how: 'arrived', tow: 'whale' }).tow, '');
 });

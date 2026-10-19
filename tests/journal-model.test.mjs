@@ -6,7 +6,7 @@ import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, parse
 test('v6 saves get an empty journal', () => {
   const v6 = { v: 6, landHexes: 3, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 10, fuel: 1 }, kitGiven: true, hold: [], unlockNotice: [] };
   const { save, report } = loadSave(JSON.stringify(v6));
-  assert.deepEqual(report.applied, [6, 7, 8, 9, 10, 11, 12, 13, 14]);
+  assert.deepEqual(report.applied, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   assert.deepEqual(save.journal, emptyJournal());
   assert.equal(save.landHexes, 3);
 });
@@ -111,7 +111,7 @@ test('crosslinks: split into text and links, targets checked', () => {
 test('v7 saves get charting and unread marks, the rest kept', () => {
   const v7 = { v: 7, landHexes: 1, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [], unlockNotice: [], journal: { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'] } };
   const { save, report } = loadSave(JSON.stringify(v7));
-  assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13, 14]);
+  assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13, 14, 15]);
   assert.deepEqual(save.journal, { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'], charted: [], freeUsed: 0, unread: {}, golbin: false, ports: {} });
 });
 
@@ -198,4 +198,23 @@ test('cargo, markets, notices and planning live in the Guide, written at their f
   // Every section of the old notices chapter lands on exactly one page.
   const notices = Object.values(JOURNAL_GUIDE_SECTIONS).filter((g) => g.from === 'NOTICES').flatMap((g) => g.sections).sort();
   assert.deepEqual(notices, ['CHARTS', 'ONE', 'RUMOURS', 'TASKS']);
+});
+
+test('prose marks: points, ledgers and notes among paragraphs', async () => {
+  const { proseBlocks } = await import('../src/journal-model.mjs');
+  assert.deepEqual(proseBlocks(['Lead.', '- one', '- two', '| Kind | Pays |', '| Fish | 140 |', '| Ore | 60 |', '> A note.', '', 'After.']), [
+    { kind: 'p', text: 'Lead.' },
+    { kind: 'points', items: ['one', 'two'] },
+    { kind: 'table', head: ['Kind', 'Pays'], rows: [['Fish', '140'], ['Ore', '60']] },
+    { kind: 'note', text: 'A note.' },
+    { kind: 'p', text: 'After.' },
+  ]);
+  assert.deepEqual(proseBlocks(['A - B is not a point', 'x | y']), [{ kind: 'p', text: 'A - B is not a point' }, { kind: 'p', text: 'x | y' }]);
+  assert.deepEqual(proseBlocks(undefined), []);
+});
+
+test('prose marks: a crosslink in a ledger cell keeps its bar', async () => {
+  const { proseBlocks } = await import('../src/journal-model.mjs');
+  const [t] = proseBlocks(['| Setting | What it does |', "| Timed travel off | Instant again ([[ch:clock|The ship's clock]]) |"]);
+  assert.deepEqual(t.rows, [['Timed travel off', "Instant again ([[ch:clock|The ship's clock]])"]]);
 });

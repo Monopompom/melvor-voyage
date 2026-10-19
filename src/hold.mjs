@@ -7,7 +7,7 @@
 //
 // The items are in the mod's save data: removing the mod loses them, which the "?" and the README say.
 
-export function install(ctx, { state, shipModel, log }) {
+export function install(ctx, { state, shipModel, helpLayout, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const skill = () => state.voyageSkill?.();
@@ -74,6 +74,59 @@ export function install(ctx, { state, shipModel, log }) {
     return taken;
   };
   /**
+   * Sells up to `qty` of an item straight from the hold (build .265, the user: "so I can sell from the boat"). The
+   * bank's Sell rules hold: the same trade gate (the market here, the trader at half price, else the refusal with
+   * the nearest market), the same price (Bank.getItemSalePrice, so the market's rate), the game's sale confirmation
+   * when that setting is on, and the same statistics. `done` runs once the sale has gone through.
+   */
+  const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-danger m-1', cancelButton: 'btn btn-outline-info m-1' };
+  const sellItem = (item, qty, kind = defaultKind(), done = undefined) => {
+    const why = blocker(kind);
+    if (why !== undefined) { notifyPlayer(skill(), why, 'danger'); return; }
+    const aboard = hold(kind).find((e) => e.id === item.id && e.cargo === undefined)?.qty ?? 0;
+    const n = Math.min(Math.floor(qty), aboard);
+    if (!(n > 0)) { notifyPlayer(skill(), t('MOD_VOY_HOLD_AMOUNT'), 'danger'); return; }
+    try {
+      if (!game.tutorial.complete && game.tutorial.bannedItemSales.has(item)) { notifyPlayer(skill(), getLangString('MENU_TEXT_ITEM_SALE_LOCKED'), 'danger'); return; }
+    } catch {}
+    const sell = () => {
+      const { hold: next, taken } = shipModel.takeOut(hold(kind), item.id, n);
+      if (taken <= 0 || blocker(kind) !== undefined) return;
+      const currency = item.sellsFor.currency;
+      const price = game.bank.getItemSalePrice(item, taken);
+      write(kind, next);
+      currency.add(price);
+      try {
+        game.stats.General.add(GeneralStats.TotalItemsSold, taken);
+        game.stats.Items.add(item, ItemStats.TimesSold, taken);
+        if (currency === game.gp) game.stats.Items.add(item, ItemStats.GpFromSale, price);
+      } catch (e) { log('hold sale stats failed', e); }
+      (state.saleListeners ?? []).forEach((f) => { try { f(); } catch (e) { log('sale listener failed', e); } });
+      if (price === 0 && currency === game.gp && item.sellsFor.quantity > 0) state.market?.soldForNothing?.(item, taken);
+      log(`sold ${taken} ${item.id} from the ${kind}'s hold for ${price}`);
+      done?.();
+    };
+    const confirmThenSell = () => {
+      if (!game.settings.showSaleConfirmations) { sell(); return; }
+      // The game's sale popup, in our message look: the item on top, the price amber after its coin.
+      const { mark, msgHtml, MSG_IMAGE } = helpLayout;
+      const currency = item.sellsFor.currency;
+      const price = game.bank.getItemSalePrice(item, n);
+      SwalLocale.fire({
+        didRender: state.popupDidRender,
+        customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
+        title: getLangString('BANK_STRING_23'),
+        html: msgHtml([`${esc(numberWithCommas(n))} × ${mark.name(item.name)}`, mark.gp(currency.media, currency.formatAmount(numberWithCommas(price)))]),
+        imageUrl: item.media,
+        ...MSG_IMAGE,
+        showCancelButton: true,
+        confirmButtonText: getLangString('BANK_STRING_22'),
+        cancelButtonText: t('MOD_VOY_HOLD_SELL_NOT_NOW'),
+      }).then((r) => { if (r.value) sell(); });
+    };
+    state.guardTrade !== undefined ? state.guardTrade('sell', confirmThenSell) : confirmThenSell();
+  };
+  /**
    * The hold for the page: [{ item, qty, entry }] for items the game knows (an expansion switched off keeps its
    * entries). Packed cargo (phase 4) has `entry.cargo`: a sealed sack or crate, one a slot.
    */
@@ -100,8 +153,27 @@ export function install(ctx, { state, shipModel, log }) {
   };
   /** The hold the bank stows into when two are open (build .150), picked in the block's header. */
   let stowKind;
+  // The bank draws the block when you pick an item; a vessel built, moved or boarded since redraws it (the user, 19 Oct
+  // 2026: "I had logs selected, then built a boat. And there were no Stow block until I clicked Logs again").
+  // Walking redraws it only when the holds in reach change, so a Sell amount being typed is not reset every hex.
+  let shown; // { menu, item, reach } the block was last drawn for
+  let hooked = false;
+  const reachNow = () => { try { return usable() ? kinds().filter(reachable).join() : ''; } catch { return ''; } };
+  const redraw = (onlyIfReachChanged = false) => setTimeout(() => {
+    try {
+      const bi = shown === undefined ? undefined : game.bank.items.get(shown.item);
+      if (bi === undefined || bi.quantity <= 0 || !shown.menu.isConnected) return;
+      if (onlyIfReachChanged === true && reachNow() === shown.reach) return;
+      shown.menu.setItem(bi, game.bank);
+    } catch (e) { log('stow redraw failed', e); }
+  }, 0);
+  ctx.patch(WorldMap, 'setPlayerPosition').after(function () {
+    try { if (game.cartography?.activeMap === this) redraw(true); } catch {}
+  });
   ctx.patch(BankSelectedItemMenuElement, 'setItem').after(function (_r, bankItem) {
     try {
+      if (bankItem?.item !== undefined) shown = { menu: this, item: bankItem.item, reach: reachNow() };
+      if (!hooked && state.ship?.onChange !== undefined) { hooked = true; state.ship.onChange(() => redraw()); }
       let box = this.querySelector('.voyage-hold-stow');
       const open = usable() ? kinds().filter(reachable) : [];
       const kind = open.includes(stowKind) ? stowKind : (open[0] ?? defaultKind());
@@ -182,7 +254,7 @@ export function install(ctx, { state, shipModel, log }) {
     } catch (e) { log('hold stow block failed', e); }
   });
 
-  const api = { hold, slots, contents, blocker, stow: stowItem, take: takeItem, kinds, reachable, defaultKind, hullName };
+  const api = { hold, slots, contents, blocker, stow: stowItem, take: takeItem, sell: sellItem, kinds, reachable, defaultKind, hullName };
   state.hold = api;
   return api;
 }

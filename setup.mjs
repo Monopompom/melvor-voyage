@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-19.243';
+export const BUILD = '2026-10-19.287';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -235,10 +235,21 @@ export async function setup(ctx) {
     active() {
       try { return this.mode === 'strict' && this.settings.rules() && !game.isGolbinRaid && game.tutorial?.complete !== false; } catch { return false; }
     },
-    /** Options for rules.rateAt: the strictness and a neighbour lookup for grace. */
-    ruleOpts() {
+    /**
+     * Options for rules.rateAt: the strictness and a neighbour lookup for grace. Grace comes only from a neighbour you
+     * know (surveyed, or known to the mod by a visit, chart or rumour): you can't work by a town you have not found
+     * (the user, 19 Oct 2026). `all`: every neighbour, for what a hex offers once known (the compass, the Random start).
+     */
+    ruleOpts({ all = false } = {}) {
       const terrain = this.terrain;
-      return { strictness: this.settings.strictness(), neighbours: terrain ? (rec) => terrain.neighbours(rec.q, rec.r) : undefined };
+      return { strictness: this.settings.strictness(), neighbours: terrain ? (rec) => (all ? terrain.neighbours(rec.q, rec.r) : this.knownNeighbours(rec)) : undefined };
+    },
+    /** The neighbours of a record that you know (grace: trade, combat, loading, the market next door). */
+    knownNeighbours(rec) {
+      if (rec === undefined || this.terrain === undefined) return [];
+      const k = this.knowledge;
+      const all = this.terrain.neighbours(rec.q, rec.r);
+      return k === undefined ? all : all.filter((n) => k.isKnown(n));
     },
     /** The player's hex on the active map, or undefined. Never cached: position is read live. */
     position() {
@@ -347,7 +358,7 @@ export async function setup(ctx) {
   // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
   const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, log });
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.
-  holdMod.install(ctx, { state, shipModel, log });
+  holdMod.install(ctx, { state, shipModel, helpLayout, log });
   const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, pageLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
   // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
   // popups and everything else as they were.
@@ -370,11 +381,19 @@ export async function setup(ctx) {
       const clock = (await ctx.loadModule('src/voyage-clock.mjs')).install(ctx, { state, C: clockModel, storesModel, rules, terrainMod, helpLayout, log });
       const s = voyageSkill();
       if (s !== undefined) s.clock = clock;
+      // The route line on the map (build .272): what is left to sail, a light running along it, the walked part dim.
+      try { (await ctx.loadModule('src/route-line.mjs')).install(ctx, { state, C: clockModel, log }); } catch (e) { log('route line failed to load', e); }
       // Voyages into the fog (phase 5b): the voyage surveys its own way. A failure leaves known routes only.
       try {
         const fogModel = await ctx.loadModule('src/fog-model.mjs');
         (await ctx.loadModule('src/voyage-fog.mjs')).install(ctx, { state, F: fogModel, C: clockModel, log });
       } catch (e) { console.error('[Voyage] fog voyages failed to load; known routes only', e); state.fog = undefined; }
+      // Adrift at sea (phase 5b part two): the drift, tows and the sea folk. A failure leaves phase 4's floors at sea.
+      try {
+        const adriftModel = await ctx.loadModule('src/adrift-model.mjs');
+        const adrift = (await ctx.loadModule('src/adrift.mjs')).install(ctx, { state, A: adriftModel, C: clockModel, shipModel, terrainMod, helpLayout, log });
+        if (s !== undefined) s.adrift = adrift;
+      } catch (e) { console.error('[Voyage] Adrift failed to load; the old floors at sea stand', e); state.adrift = undefined; }
     } catch (e) { console.error('[Voyage] the ship\'s clock failed to load; travel stays instant', e); state.clock = undefined; state.timed = () => false; }
   }
   // Markets with prices (phase 4): sale prices by market, the bank's Sell line, the journal's ledger.
@@ -460,7 +479,7 @@ export async function setup(ctx) {
       try { const here = map?.playerPosition; if (here !== undefined && !terrainMod.isCloud(state.terrain.get(here.q, here.r))) voyageSkill()?.markHere(here); } catch (e) { log('visited mark failed', e); }
       const opts = () => state.ruleOpts();
       state.nearestFor = terrainMod.createNearestFinder(state.terrain, rules, state.knowledge, opts);
-      state.anyNearestFor = terrainMod.createNearestFinder(state.terrain, rules, undefined, opts);
+      state.anyNearestFor = terrainMod.createNearestFinder(state.terrain, rules, undefined, () => state.ruleOpts({ all: true }));
       state.mode = check.ok ? 'strict' : 'relaxed';
       state.reasons = check.reasons;
       log(`table ${table.meta.builtAt} (${table.meta.hexCount} hexes, hash ${table.meta.waterHash}): ${state.mode}`, check.reasons);

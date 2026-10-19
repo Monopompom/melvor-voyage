@@ -7,7 +7,7 @@
 // item's icon before the name, as on the page. An item icon carries `data-tip-item="<item id>"`: its tooltip is the
 // icon, then its title text (which starts with the name, e.g. "Normal Logs: 1 fuel each") or the item's name. A cost
 // that is not an item (GP, a currency) carries `data-tip-media="<icon url>"` for the same look. No other pictures.
-// `data-tip-lines` (build .167, the user): a JSON list of lines, each a string or `{ text, cls, item, media }`, one
+// `data-tip-lines` (build .167, the user): a JSON list of lines, each a string or `{ text, cls, item, media, mark }`, one
 // line each; `cls` colours it (a buff in the game's green), `item` (an item id) or `media` puts an icon before it.
 // Everything is built as DOM nodes, never as HTML from strings.
 
@@ -30,12 +30,20 @@ export function install(ctx, { log }) {
     img.alt = '';
     return img;
   };
-  /** One line: an optional icon, then the text (line breaks kept, a list of buffs one per line). */
-  const line = (text, media, cls) => {
+  /**
+   * One line: an optional icon, then the text (line breaks kept, a list of buffs one per line). `mark` ({ text, cls },
+   * build .282) colours one word of it, the compass's "Freezing".
+   */
+  const line = (text, media, cls, mark) => {
     const row = document.createElement('div');
     row.className = `voyage-tip-line${cls ? ` ${cls}` : ''}`;
     if (media) row.append(icon(media));
-    row.append(document.createTextNode(text));
+    const at = mark?.text ? text.indexOf(mark.text) : -1;
+    if (at < 0) { row.append(document.createTextNode(text)); return row; }
+    const word = document.createElement('b');
+    word.className = mark.cls ?? '';
+    word.textContent = mark.text;
+    row.append(document.createTextNode(text.slice(0, at)), word, document.createTextNode(text.slice(at + mark.text.length)));
     return row;
   };
   const body = (text, media) => { const div = box(); div.append(line(text, media)); return div; };
@@ -48,7 +56,7 @@ export function install(ctx, { log }) {
     for (const l of lines) {
       if (typeof l === 'string') { div.append(line(l)); continue; }
       const item = itemOf(l?.item);
-      div.append(line(l?.text ?? item?.name ?? '', l?.media ?? item?.media, l?.cls));
+      div.append(line(l?.text ?? item?.name ?? '', l?.media ?? item?.media, l?.cls, l?.mark));
     }
     return div;
   };
@@ -80,7 +88,8 @@ export function install(ctx, { log }) {
       const lines = linesOf(el);
       if (lines !== undefined) {
         el.removeAttribute('title');
-        if (el._tippy === undefined) { try { make(el, linesBody(lines)); el.dataset.tipShown = el.dataset.tipLines; } catch (e) { log('tooltip failed', e); } }
+        // A little wider than tippy's 350px, so a compass row fits on one line (build .282).
+        if (el._tippy === undefined) { try { make(el, linesBody(lines), { maxWidth: 400 }); el.dataset.tipShown = el.dataset.tipLines; } catch (e) { log('tooltip failed', e); } }
         else if (el.dataset.tipShown !== el.dataset.tipLines) { el._tippy.setContent(linesBody(lines)); el.dataset.tipShown = el.dataset.tipLines; }
         continue;
       }

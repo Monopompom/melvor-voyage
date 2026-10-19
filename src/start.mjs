@@ -30,7 +30,7 @@ export function install(ctx, { state, SM, M, rules, shipModel, hexes, log }) {
   })();
   /** Something to gather on the hex or next to it, under the Strict rules. */
   const gathers = (rec) => {
-    const opts = { ...state.ruleOpts(), strictness: 'strict' };
+    const opts = { ...state.ruleOpts({ all: true }), strictness: 'strict' };
     const around = [rec, ...state.terrain.neighbours(rec.q, rec.r)].filter((x) => x !== undefined && x.cloud !== true);
     return GATHER_SKILLS.some((id) => around.some((x) => rules.allowedAt(id, x, opts)));
   };

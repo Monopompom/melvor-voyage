@@ -79,7 +79,7 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
     if (own !== undefined) return byId.get(own);
     const rec = state.recordAt(pos);
     if (rec === undefined) return undefined;
-    const n = state.terrain.neighbours(rec.q, rec.r).map((x) => hexMarket.get(`${x.q},${x.r}`)).filter(Boolean).sort();
+    const n = state.knownNeighbours(rec).map((x) => hexMarket.get(`${x.q},${x.r}`)).filter(Boolean).sort();
     return n.length > 0 ? byId.get(n[0]) : undefined;
   };
   /** A noted place whose point of interest is still undiscovered stays out, as in the journal's list. */
@@ -119,6 +119,30 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
     } catch { return undefined; }
   });
 
+  // ---- sold for nothing (build .276) ----------------------------------------------------------------------------------
+  // A sale under 1 GP pays 0 and the item still goes (the user: "Sold for nothing", chosen over a 1 GP floor and over
+  // refusing). The game's GP notice for 0 has no number, so a 0 notice is dropped and ours says what happened.
+  ctx.patch(Currency, 'queueNotification').replace(function (original, amount) {
+    if (amount === 0) return undefined;
+    return original(amount);
+  });
+  /** Our notice for a sale that paid nothing (the bank's here, the hold's from hold.mjs). */
+  const soldForNothing = (item, qty) => {
+    try {
+      const what = `${numberWithCommas(qty)} × ${item.name}`;
+      // A count of 0 hides the notice's "+1" (the game hides a 0).
+      game.notifications.createInfoNotification('voyage:nothing', t('MOD_VOY_MARKET_NOTHING', { what }), item.media, 0);
+    } catch (e) { log('sold for nothing notice failed', e); }
+  };
+  ctx.patch(Bank, 'processItemSale').before(function (item, quantity) {
+    try {
+      const have = this.items.get(item)?.quantity ?? 0;
+      const n = Math.min(have, quantity);
+      if (n > 0 && item.sellsFor?.currency === game.gp && item.sellsFor.quantity > 0 && this.getItemSalePrice(item, n) === 0) soldForNothing(item, n);
+    } catch (e) { log('sale check failed', e); }
+    return undefined;
+  });
+
   // ---- the bank's Sell block --------------------------------------------------------------------------------------
   const CAT_KEYS = {
     fish: ['MOD_VOY_MARKET_CAT_FISH', 'MOD_VOY_MARKET_CAT_FISH_DONE'],
@@ -133,7 +157,11 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
     ash: ['MOD_VOY_MARKET_CAT_ASH'],
   };
   const catName = (c, done) => t(CAT_KEYS[c][done && CAT_KEYS[c].length > 1 ? 1 : 0]);
-  const pctHtml = (p) => `<span class="${p > 100 ? 'text-success' : p < 100 ? 'text-warning' : ''} font-w600">${p}%</span>`;
+  /** Low, usual, high: amber below the usual price, plain at it, green above (a percent and the price it gives). */
+  const tone = (p) => (p > 100 ? 'text-success' : p < 100 ? 'text-warning' : '');
+  const pctHtml = (p) => `<span class="${tone(p)} font-w600">${p}%</span>`;
+  /** A price after the GP icon, bold (build .263, the user: "GP icon and color", the price here low/mid/high). */
+  const gpHtml = (n, cls = '') => `<img class="voyage-skill-name-icon" src="${esc(game.gp.media)}" alt=""><b class="${cls}">${numberWithCommas(n)}</b>`;
   /** The market the selected item's Sell block was drawn for ('' for none); a move to another redraws it. */
   let shownAt;
   ctx.patch(BankSelectedItemMenuElement, 'setItem').after(function (_r, bankItem) {
@@ -154,9 +182,10 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
       const goods = catName(c[0], c[1]);
       if (m !== undefined) {
         const p = percent(m, item);
-        const each = MM.marketPrice(item.sellsFor.quantity, p);
+        const each = MM.eachPrice(item.sellsFor.quantity, p);
         parts.push(`<div>${t(p === 100 ? 'MOD_VOY_MARKET_HERE_USUAL' : p > 100 ? 'MOD_VOY_MARKET_HERE_DEAR' : 'MOD_VOY_MARKET_HERE_CHEAP', { pct: pctHtml(p), market: `<b>${esc(name(m.id))}</b>`, goods: esc(goods.toLowerCase()) })}</div>`);
-        if (p !== 100) parts.push(`<div class="text-muted">${esc(t('MOD_VOY_MARKET_EACH', { gp: numberWithCommas(each), was: numberWithCommas(item.sellsFor.quantity) }))}</div>`);
+        // The price here coloured as its percent; the usual price plain, the one it is weighed against.
+        if (p !== 100) parts.push(`<div>${esc(t('MOD_VOY_MARKET_EACH', { gp: '\u0000', was: '\u0001' })).replace('\u0000', gpHtml(each, tone(p))).replace('\u0001', gpHtml(item.sellsFor.quantity))}</div>`);
       }
       const bw = MM.bestAndWorst(known(), c[0], c[1]);
       if (bw !== undefined) {
@@ -191,7 +220,7 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
     return rows.sort((a, b) => b.percent - a.percent || (a.name < b.name ? -1 : 1));
   };
 
-  const api = { enabled, here, known, marketAt, name, listOf, categoryOf, percent, total: () => markets.length };
+  const api = { enabled, here, known, marketAt, name, listOf, categoryOf, percent, soldForNothing, total: () => markets.length };
   state.market = api;
   return api;
 }

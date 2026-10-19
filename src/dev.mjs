@@ -462,6 +462,22 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
      * boards from this character's real goods, posted as the game would but not saved. Returns each good's share.
      */
     boardShares(seasons = 10) { return state.cargo?.shares?.(seasons) ?? 'cargo runs not loaded'; },
+    /**
+     * Adrift (5b part two): adrift() reads the state; adrift('food' | 'gp' | 'hull') makes you adrift here (aboard at
+     * sea, more than one hex out); adrift('drift') runs the next hex of drift now; adrift('clear') ends it; adrift(
+     * 'kraken' | 'fisherman' | 'bottle' | 'noodle' | 'pushy') plays that rescue now; adrift('tow') the paid tow's price.
+     */
+    adrift(cmd) {
+      const ad = state.adrift;
+      const s = state.voyageSkill?.();
+      if (ad === undefined || s === undefined) return 'Adrift not loaded';
+      if (['food', 'gp', 'hull'].includes(cmd)) { if (s.record.adrift == null) ad.begin(cmd, ''); }
+      else if (cmd === 'drift') { if (s.record.adrift != null) s.record.adrift.left = 1; }
+      else if (cmd === 'clear') ad.finish('clear');
+      else if (cmd === 'tow') { const tow = ad.paidTow(); return tow === undefined ? 'no known port' : { port: tow.port.poi, hexes: tow.hexes, gp: tow.gp, min: tow.ms / 60000 }; }
+      else if (typeof cmd === 'string') ad.play(cmd);
+      return { applies: ad.applies(), cause: ad.cause(), adrift: s.record.adrift, end: s.record.adriftEnd };
+    },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },
     state,
@@ -485,7 +501,7 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       paceWrite(all);
     } catch (e) { log('pace counter failed', e); }
   };
-  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), landLadder(length), voyage(level), level(skill, level), ship(), giveShip(false?), giveBrig(false?), brigMaterials(), galleonMaterials(), galleon(hull?), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond, kind), pitch(n, logs), pace(reset?)');
+  log('voyageDev ready: watchdog(), reveal(radius, force), revealAll(force), teleport(col, row) in display coords, here(), nearest(skillId), saveCheck(), stranded(), broke(), townshipTrader(), landLadder(length), voyage(level), level(skill, level), ship(), giveShip(false?), giveBrig(false?), brigMaterials(), galleonMaterials(), galleon(hull?), shipMaterials(), resetShipCheck(), stores(food, fuel), resetKit(), hull(cond, kind), pitch(n, logs), pace(reset?), adrift(cmd?)');
 }
 
 /**

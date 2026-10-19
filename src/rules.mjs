@@ -148,16 +148,20 @@ const hexDistance = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.
  * Combat placement: the area (combat area, slayer area, dungeon, stronghold, abyss depth) may be entered from its
  * tagged hex or one hex away. `places` is the list of tagged hexes for the area id (terrain.placesFor); an
  * empty list means the area is not on the map and stays allowed anywhere (fail open), flagged `unplaced`.
+ * `isKnown(hex)`: a tagged hex one away counts only once you know it (grace from a known hex; the hex you stand on
+ * always counts). `nearest` is the nearest tagged hex, known or not, for the refusal's hint.
  */
-export function combatAllowedAt(places, pos) {
+export function combatAllowedAt(places, pos, isKnown = () => true) {
   if (places.length === 0) return { allowed: true, unplaced: true };
   if (pos === undefined) return { allowed: true, unplaced: false };
   let best;
+  let allowed = false;
   for (const h of places) {
     const d = hexDistance(pos, h);
     if (best === undefined || d < best.distance) best = { hex: h, distance: d };
+    if (d === 0 || (d <= PLACE_GRACE && isKnown(h))) allowed = true;
   }
-  return { allowed: best.distance <= PLACE_GRACE, unplaced: false, nearest: best };
+  return { allowed, unplaced: false, nearest: best };
 }
 
 export const isTradePlace = (rec) => rec !== undefined && Array.isArray(rec.f) && rec.f.some((f) => TRADE_FEATURES.includes(f));

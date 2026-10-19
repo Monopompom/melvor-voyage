@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CATEGORIES, DEAR, CHEAP, marketOf, marketsOf, pricesOf, percentFor, marketPrice, bestAndWorst } from '../src/market-model.mjs';
+import { CATEGORIES, DEAR, CHEAP, marketOf, marketsOf, pricesOf, percentFor, marketPrice, eachPrice, bestAndWorst } from '../src/market-model.mjs';
 import { isTradePlace } from '../src/rules.mjs';
 
 const table = JSON.parse(readFileSync(new URL('../data/hex_terrain.json', import.meta.url), 'utf8'));
@@ -43,7 +43,7 @@ test('processed goods fetch 20 more, unlisted goods 100', () => {
   assert.equal(percentFor(p, 'ash', true), 160); // ash has no worked goods
   assert.equal(percentFor(p, 'ore', true), 100);
   assert.equal(marketPrice(130, 140), 182);
-  assert.equal(marketPrice(1, 75), 0);
+  assert.equal(marketPrice(1, 75), 0); // sold for nothing (build .276)
 });
 
 test('best and worst known market', () => {
@@ -51,4 +51,14 @@ test('best and worst known market', () => {
   assert.deepEqual(bestAndWorst(known, 'fish', false), { best: { id: 'A', percent: 160 }, worst: { id: 'B', percent: 60 } });
   assert.equal(bestAndWorst(known, 'ore', false), undefined);
   assert.equal(bestAndWorst([], 'fish', false), undefined);
+});
+
+test('one item\'s price shows its fraction; the sale floors the sum', () => {
+  assert.equal(eachPrice(1, 60), 0.6);
+  assert.equal(eachPrice(3, 125), 3.75);
+  assert.equal(eachPrice(10, 60), 6);
+  assert.equal(eachPrice(7, 133), 9.31);
+  assert.equal(marketPrice(1 * 10, 60), 6, 'ten at 0.6 pay 6');
+  assert.equal(marketPrice(1, 60), 0, 'one at 0.6 is sold for nothing');
+  assert.equal(marketPrice(0, 60), 0, 'nothing for what has no price');
 });

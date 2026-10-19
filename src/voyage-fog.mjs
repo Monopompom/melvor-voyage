@@ -229,7 +229,11 @@ export function install(ctx, { state, F, C, log }) {
       if (!on() || game.isGolbinRaid) return;
       const path = routeTo(hex);
       if (path === undefined) {
-        try { game.notifications.createErrorNotification('voyage:fog', t('MOD_VOY_FOG_NO_WAY', { at: at(hex) })); } catch {}
+        // Sea under the fog with no boat of your own: say that, not the blanket "no way" (the user, 19 Oct 2026: "is that
+        // because i don't have boat yet?").
+        const rec = state.terrain?.get(hex.q, hex.r);
+        const noBoat = rec !== undefined && (rec.t === 'water' || rec.t === 'shoal') && state.ship?.boat?.() == null && state.ship?.big?.() == null;
+        try { game.notifications.createErrorNotification('voyage:fog', noBoat ? t('MOD_VOY_FOG_NO_BOAT', { at: at(hex) }) : t('MOD_VOY_FOG_NO_WAY', { at: at(hex) })); } catch {}
         return;
       }
       state.clock?.confirmFog?.(path, estimate(path));

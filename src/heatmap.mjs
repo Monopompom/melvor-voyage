@@ -54,7 +54,7 @@ export function zoomAt(view, sx, sy, factor, min, max) {
 }
 
 const GLOW_PX = 24; // glow image pixels per world unit
-const GLOW_RADIUS = 2.4; // world units round each find
+const GLOW_RADIUS = 1.5; // world units round each find (2.4 until build .250: one find washed over two rings, the user)
 const ZOOM_MAX = 10; // times the whole-map scale
 
 export function install(ctx, { state, terrainMod, log }) {
@@ -75,7 +75,7 @@ export function install(ctx, { state, terrainMod, log }) {
       const x = (c.x - b.minX) * GLOW_PX;
       const y = (c.y - b.minY) * GLOW_PX;
       const rad = g.createRadialGradient(x, y, 0, x, y, GLOW_RADIUS * GLOW_PX);
-      rad.addColorStop(0, 'rgba(0,0,0,0.55)');
+      rad.addColorStop(0, 'rgba(0,0,0,0.5)');
       rad.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = rad;
       g.fillRect(x - GLOW_RADIUS * GLOW_PX, y - GLOW_RADIUS * GLOW_PX, 2 * GLOW_RADIUS * GLOW_PX, 2 * GLOW_RADIUS * GLOW_PX);
@@ -86,9 +86,9 @@ export function install(ctx, { state, terrainMod, log }) {
     const p = pal.getContext('2d');
     const lin = p.createLinearGradient(0, 0, 256, 0);
     lin.addColorStop(0, 'rgba(255,225,80,0)');
-    lin.addColorStop(0.25, 'rgba(255,205,60,0.5)');
-    lin.addColorStop(0.6, 'rgba(255,120,20,0.72)');
-    lin.addColorStop(1, 'rgba(190,20,10,0.85)');
+    lin.addColorStop(0.25, 'rgba(255,205,60,0.32)');
+    lin.addColorStop(0.6, 'rgba(255,120,20,0.6)');
+    lin.addColorStop(1, 'rgba(190,20,10,0.8)');
     p.fillStyle = lin;
     p.fillRect(0, 0, 256, 1);
     const colours = p.getImageData(0, 0, 256, 1).data;

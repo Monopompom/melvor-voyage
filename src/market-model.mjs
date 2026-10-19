@@ -86,7 +86,14 @@ export function percentFor(prices, cat, processed) {
 }
 
 /** A sale price at a market: the game's price times the percent, rounded down. */
+// It can be 0: one crop at 60% is sold for nothing (build .276, the user chose it over a 1 GP floor: "Sold for
+// nothing", the item goes). market.mjs then gives its own notice in place of the game's empty GP one.
 export const marketPrice = (price, percent) => Math.floor((price * percent) / 100);
+/**
+ * One item's price at a market, to the hundredth, for the bank's line (build .276, the user: "can we show here 0.x -
+ * cause just zero is strange"). A sale floors the whole sum (`marketPrice` of the total), so ten at 0.6 pay 6 GP, one nothing.
+ */
+export const eachPrice = (price, percent) => Math.round(price * percent) / 100;
 
 /**
  * The best and the worst market known for goods of `cat`: { best: { id, percent }, worst } among `known`

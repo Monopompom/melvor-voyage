@@ -308,3 +308,28 @@ export function markRead(journal, key) {
 }
 /** How many unread keys start with `prefix` ('a:', 'p:', 'g:'), or all of them. */
 export const unreadCount = (journal, prefix = '') => Object.keys(journal.unread).filter((k) => k.startsWith(prefix)).length;
+
+/**
+ * The book's prose marks (the user, 19 Oct 2026: "Plain text is hard to read ... design those as well"): a text's lines
+ * as blocks, so a long account reads like the pages with ledgers. A line "- x" is a point (consecutive points one
+ * list), rows "| a | b |" one ledger (the first row its heads), "> x" a pencilled note; any other line a paragraph.
+ * Returns [{ kind: 'p' | 'note', text } | { kind: 'points', items } | { kind: 'table', head, rows }].
+ */
+export function proseBlocks(lines) {
+  const out = [];
+  // A cell may hold a crosslink, [[ch:clock|The ship's clock]]: its bar is not a column.
+  const cells = (l) => l.trim().replace(/^\|/, '').replace(/\|$/, '').split(/\|(?![^[]*\]\])/).map((c) => c.trim());
+  for (const raw of lines ?? []) {
+    const line = String(raw);
+    if (line.trim() === '') continue;
+    const last = out[out.length - 1];
+    if (/^\s*- /.test(line)) {
+      const item = line.replace(/^\s*- /, '');
+      if (last?.kind === 'points') last.items.push(item); else out.push({ kind: 'points', items: [item] });
+    } else if (/^\s*\|.*\|\s*$/.test(line)) {
+      if (last?.kind === 'table') last.rows.push(cells(line)); else out.push({ kind: 'table', head: cells(line), rows: [] });
+    } else if (/^\s*> /.test(line)) out.push({ kind: 'note', text: line.replace(/^\s*> /, '') });
+    else out.push({ kind: 'p', text: line });
+  }
+  return out;
+}

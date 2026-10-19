@@ -168,12 +168,14 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
    * straight-line length while the ship rules make it sailing; with the rules off a hop stays vanilla (free). `free`
    * also marks the homeward rule's moves. `homeward`: a sea step closer to a coast. `deep`: 3+ hexes from land (hull
    * wear, 3d). `vessel` ('boat' or 'ship', build .150): what a sea step or hop is sailed in, from the path's
-   * `voyageModes` (the small boat for a path without them); its reach, wear and condition apply.
+   * `voyageModes` (the small boat for a path without them); its reach, wear and condition apply. `adrift` (5b part
+   * two): a sea step out of a hex where Adrift applies, so the hunger floor does not (stores-model planMove).
    */
   const stepsOf = (path) => {
     const modes = path.voyageModes;
     const g = geoNow();
     const sailing = enabled();
+    const adriftOn = state.adrift?.applies?.() === true;
     const steps = [];
     for (let i = path.length - 2; i >= 0; i--) {
       const next = path[i];
@@ -188,7 +190,9 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       const free = (fastTravel && hop === 0) || shipModel.isFreeStep(rec, v, g);
       const homeward = sea && homeOf(rec, v) < homeOf(recOf(prev), v);
       const deep = sea && (Number.isInteger(rec.shore) ? rec.shore : 1) >= shipModel.DEEP_SHORE;
-      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(sea || hop > 0 ? { vessel: kind } : {}) });
+      // Where Adrift applies (5b part two) the sea's hunger floor is gone: a step out of a hex more than one from the coast.
+      const adrift = sea && adriftOn && homeOf(recOf(prev), v) > 1;
+      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(adrift ? { adrift } : {}), ...(sea || hop > 0 ? { vessel: kind } : {}) });
     }
     return steps;
   };

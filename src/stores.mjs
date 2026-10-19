@@ -59,7 +59,8 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   const hexes = (n) => t(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });
   const amounts = (food, fuel) => t('MOD_VOY_STORES_AMOUNTS', { food: hp(food), fuel: fuelText(fuel) });
   /** The same with the ration and fuel art (page and panel), titled with the words. */
-  const icons = (food, fuel) => `<span class="voyage-stores-icons" title="${esc(amounts(food, fuel))}">` +
+  // `tip` false (build .283): inside something with its own tooltip (the Here strip's stores chip), so only one shows.
+  const icons = (food, fuel, tip = true) => `<span class="voyage-stores-icons"${tip ? ` title="${esc(amounts(food, fuel))}"` : ''}>` +
     `<img src="${ctx.getResourceUrl('assets/ration.webp')}">${hp(food)} HP <img src="${ctx.getResourceUrl('assets/fuel.webp')}">${fuelText(fuel)}</span>`;
 
   // ---- planning a move -----------------------------------------------------------------------------------------
@@ -149,7 +150,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     const rec = recOf(hex);
     if (rec === undefined || rec.cloud === true) return false;
     if (S.isEasy(rec.t)) return true;
-    const rates = S.loadingAt(rec, state.terrain?.neighbours(rec.q, rec.r) ?? []);
+    const rates = S.loadingAt(rec, state.knownNeighbours(rec));
     return rates !== undefined && rates.food > 0 && food > 0;
   };
   /** HP of food in the bank, at full worth. */
@@ -164,6 +165,8 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   const rescue = () => {
     const pos = state.position();
     if (pos === undefined || !enabled()) return undefined;
+    // Out at sea, where Adrift applies (5b part two), the drift takes you home: no sea crossing on his road.
+    if (state.adrift?.here?.() === true) return undefined;
     const have = stores();
     const food = bankFood();
     const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}`;
@@ -193,6 +196,8 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   /** The refusal, from movePlayer. When the stores can't reach safe ground at all, the trader offers his share too. */
   const refuse = (planned, path) => {
     try {
+      // A voyage's step at sea that leaves you Adrift: the Adrift popup says it (5b part two).
+      if (state.clock?.stepping?.() && state.adrift?.cause?.() !== undefined) return;
       const p = planned.plan;
       const step = planned.steps[p.at];
       const rec = recOf(path[path.length - 2 - p.at]);
@@ -203,25 +208,28 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       const total = S.pathCost(planned.steps, fmLevel());
       const along = hexes(p.at + 1);
       const lines = [];
+      // Message popup marks (build .259): the names and the amounts bold, what you are short of in red.
+      const b = (x) => `<b>${x}</b>`;
+      const red = (x) => `<b class="text-danger">${x}</b>`;
       // The hull (3d): the fix is a repair, not food, so no trader and no loading hint.
       if (HULL_WHY.includes(p.why)) {
-        const hull = state.ship?.hullName?.(state.ship.vessel(p.vessel ?? 'boat')) ?? t('MOD_VOY_SHIP_BOAT');
-        if (p.why === 'deep') lines.push(t('MOD_VOY_STORES_REFUSE_DEEP', { hull, cond: `${p.cond}`, worn: `${S.WORN}` }));
-        else if (p.why === 'hullAshore') lines.push(t('MOD_VOY_STORES_REFUSE_HULL_ASHORE', { hull, need: `${p.reserve}`, cond: `${p.cond}` }));
-        else lines.push(t('MOD_VOY_STORES_REFUSE_HULL', { hull, cond: `${p.cond}`, need: `${p.need}`, hexes: along }));
+        const hull = b(state.ship?.hullName?.(state.ship.vessel(p.vessel ?? 'boat')) ?? t('MOD_VOY_SHIP_BOAT'));
+        if (p.why === 'deep') lines.push(t('MOD_VOY_STORES_REFUSE_DEEP', { hull, cond: red(p.cond), worn: b(S.WORN) }));
+        else if (p.why === 'hullAshore') lines.push(t('MOD_VOY_STORES_REFUSE_HULL_ASHORE', { hull, need: b(p.reserve), cond: red(p.cond) }));
+        else lines.push(t('MOD_VOY_STORES_REFUSE_HULL', { hull, cond: red(p.cond), need: b(p.need), hexes: along }));
         lines.push(t('MOD_VOY_STORES_REFUSE_HULL_HINT'));
-        swal({ title: t('MOD_VOY_STORES_REFUSE_HULL_TITLE'), html: body(lines), icon: 'warning', confirmButtonText: t('MOD_VOY_BUTTON_OK') });
+        swal({ title: t('MOD_VOY_STORES_REFUSE_HULL_TITLE'), html: body(lines), imageUrl: ctx.getResourceUrl('assets/hull_condition.webp'), ...helpLayout.MSG_IMAGE, confirmButtonText: t('MOD_VOY_BUTTON_OK') });
         return;
       }
-      if (p.why === 'ashore') lines.push(t('MOD_VOY_STORES_REFUSE_ASHORE', { trip: hp(total.food), left: hp(Math.max(0, have.food - total.food)), need: hp(p.reserve), have: hp(have.food) }));
-      else if (step?.hop > 0) lines.push(t('MOD_VOY_STORES_REFUSE_HOP', { hexes: `${step.hop}`, need: hp(p.need.food), have: hp(have.food) }));
-      else if (p.why === 'food') lines.push(t('MOD_VOY_STORES_REFUSE_FOOD', { terrain, need: hp(total.food), have: hp(have.food), hexes: along }));
-      else lines.push(t('MOD_VOY_STORES_REFUSE_FUEL', { terrain, need: fuelText(total.fuel), have: fuelText(have.fuel), hexes: along }));
+      if (p.why === 'ashore') lines.push(t('MOD_VOY_STORES_REFUSE_ASHORE', { trip: b(hp(total.food)), left: red(hp(Math.max(0, have.food - total.food))), need: b(hp(p.reserve)), have: b(hp(have.food)) }));
+      else if (step?.hop > 0) lines.push(t('MOD_VOY_STORES_REFUSE_HOP', { hexes: `${step.hop}`, need: b(hp(p.need.food)), have: red(hp(have.food)) }));
+      else if (p.why === 'food') lines.push(t('MOD_VOY_STORES_REFUSE_FOOD', { terrain: b(terrain), need: b(hp(total.food)), have: red(hp(have.food)), hexes: along }));
+      else lines.push(t('MOD_VOY_STORES_REFUSE_FUEL', { terrain: b(terrain), need: b(fuelText(total.fuel)), have: red(fuelText(have.fuel)), hexes: along }));
       const help = rescue();
       if (help === undefined) {
         // At sea, walking on empty stores is no way out (3c check, 16 Oct 2026).
         lines.push(t(p.why === 'ashore' ? 'MOD_VOY_STORES_REFUSE_HINT_SEA' : 'MOD_VOY_STORES_REFUSE_HINT'));
-        swal({ title: t('MOD_VOY_STORES_REFUSE_TITLE'), html: body(lines), icon: 'warning', confirmButtonText: t('MOD_VOY_BUTTON_OK') });
+        swal({ title: t('MOD_VOY_STORES_REFUSE_TITLE'), html: body(lines), imageUrl: ctx.getResourceUrl('assets/ship_stores.webp'), ...helpLayout.MSG_IMAGE, confirmButtonText: t('MOD_VOY_BUTTON_OK') });
         return;
       }
       offerRescue(help, lines);
@@ -235,7 +243,9 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   const offerRescue = (help, lines) => {
     lines.push(t('MOD_VOY_STORES_RESCUE', { hexes: hexes(help.steps), dir: t(`MOD_VOY_DIR_${help.dir}`) }));
     swal({
-      title: t('MOD_VOY_TRADER_TITLE'), html: body(lines), icon: 'question', showCancelButton: true,
+      // The trader's own portrait, as in his stranded popup (trader.mjs; build .259, it was the "?" sign).
+      title: t('MOD_VOY_TRADER_TITLE'), html: body(lines), showCancelButton: true,
+      ...(state.trader?.art !== undefined ? { imageUrl: state.trader.art(), ...helpLayout.MSG_IMAGE, imageWidth: 112, imageHeight: 112 } : { icon: 'question' }),
       confirmButtonText: t('MOD_VOY_STORES_RESCUE_BUTTON'), cancelButtonText: t('MOD_VOY_TRADER_BUTTON_NOT_NOW'),
     }).then((r) => {
       if (!r.isConfirmed) return;
@@ -262,29 +272,80 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       let note = this.querySelector('.voyage-stores-note');
       const path = hex?.map?.selectedHexPath;
       const planned = hex !== undefined && !hex.isPlayerHere && path !== undefined ? planFor(path) : undefined;
-      if (planned === undefined) { note?.classList.add('d-none'); return; }
+      // The game's "Travel Cost:" block (build .274, the user: "change title to Travel Cost. Centered. And move GP price
+      // into our row"): the title alone and centred over our rows, the GP the first of them. Put back as the game drew
+      // it when our rows are not shown, or when the trip costs more than GP (the game's icons then keep every cost).
+      const own = (on) => {
+        const box = this.travelCost;
+        if (box === undefined) return;
+        box.classList.toggle('voyage-cost-own', on);
+        let title = box.querySelector('.voyage-cost-title');
+        if (on && title === null) {
+          title = document.createElement('span');
+          title.className = 'voyage-cost-title';
+          box.querySelector('h5')?.append(title);
+        }
+        if (title !== null) title.textContent = t('MOD_VOY_STORES_PATH_TITLE');
+      };
+      if (planned === undefined) { note?.classList.add('d-none'); own(false); return; }
       if (note === null) {
         note = document.createElement('div');
         note.className = 'voyage-stores-note mb-1';
         this.travelBtn?.before(note);
       }
       const cost = S.pathCost(planned.steps, fmLevel());
-      const have = stores();
       const p = planned.plan;
-      let html = t('MOD_VOY_STORES_PATH_COST', { cost: amounts(cost.food, cost.fuel), have: amounts(have.food, have.fuel) });
-      // Each vessel's own wear (two vessels, build .150: named when there are two).
+      // One line each: provisions, each hull's wear, the night (the user, 19 Oct 2026: "put each on new line").
+      // One row each, its first words an icon with them as its tooltip (the user, 19 Oct 2026: "put each on new line";
+      // "replace first words with icons/tooltips, this will shorten each row").
+      const row = (lead, tip, html) => ({ lead: `<span class="voyage-stores-lead" title="${esc(tip)}">${lead}</span>`, html });
+      const fuelIcon = `<img class="voyage-stores-lead-img" src="${ctx.getResourceUrl('assets/fuel.webp')}" alt="">`;
+      const fill = (key, vars, html) => Object.entries(html).reduce((out, [k, v]) => out.replace(`\u0000${k}\u0000`, v),
+        esc(t(key, { ...vars, ...Object.fromEntries(Object.keys(html).map((k) => [k, `\u0000${k}\u0000`])) })));
+      // Only what the trip takes (build .270, the user: "we will drop current stats altogether, show only what it
+      // takes"): the stores and the hull now are in the Here panel.
+      // Each in a row of its own behind its round icon (build .274, the user: "styled in circle GP icon and then price
+      // number with green if player have enough gold and red if not"; "and style fire icon in circle as well").
+      const lines = [];
+      let gpOnly = false;
+      try {
+        const costs = game.cartography.getTravelCosts(path);
+        const cur = costs.getCurrencyQuantityArray();
+        gpOnly = costs._items.size === 0 && cur.every((c) => c.currency === game.gp);
+        const gp = cur.find((c) => c.currency === game.gp)?.quantity ?? 0;
+        if (gpOnly && gp > 0) {
+          const enough = game.gp.amount >= gp;
+          lines.push(row(`<img class="voyage-stores-lead-img" src="${game.gp.media}" alt="">`,
+            t('MOD_VOY_STORES_PATH_GP_TIP', { have: numberWithCommas(Math.floor(game.gp.amount)) }),
+            `<span class="${enough ? 'text-success' : 'text-danger'}">${esc(numberWithCommas(gp))}</span>`));
+        }
+      } catch (e) { log('travel GP row failed', e); }
+      own(gpOnly);
+      // A row only when the trip takes some (build .275, the user: "hide if there are 0s.. no point to show them").
+      if (Math.floor(cost.food) > 0) {
+        lines.push(row(`<img class="voyage-stores-lead-img" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt="">`, t('MOD_VOY_STORES_PATH_COST_TIP'),
+          `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}">${esc(hp(cost.food))} HP</span>`));
+      }
+      if (cost.fuel >= 0.005) lines.push(row(fuelIcon, t('MOD_VOY_STORES_PATH_FUEL_TIP'), esc(fuelText(cost.fuel))));
+      // Each vessel's own wear (two vessels, build .150: named in the tooltip when there are two).
       const two = state.ship?.big?.() != null;
       for (const kind of ['boat', 'ship']) {
         const wear = S.pathWear(planned.steps.filter((x) => (x.vessel ?? 'boat') === kind));
         const hull = hullOf(path[0], kind, endKind(planned.steps));
         if (hull === undefined || wear <= 0) continue;
-        const line = t('MOD_VOY_STORES_PATH_WEAR', { wear: `${wear}`, cond: `${hull.cond}` });
-        html += ` ${two ? `${esc(t(shipModel.hullNameKey(state.ship.vessel(kind).hull)))}: ` : ''}${line}`;
+        const tip = two ? t('MOD_VOY_STORES_PATH_WEAR_OF', { hull: t(shipModel.hullNameKey(state.ship.vessel(kind).hull)) }) : t('MOD_VOY_STORES_PATH_WEAR_TIP');
+        lines.push(row('<i class="fa fa-ship" aria-hidden="true"></i>', tip, esc(t('MOD_VOY_STORES_PATH_WEAR', { wear: `${wear}` }))));
       }
       // Night (3e): what the light takes from the spare fuel, and how many hexes it covers.
       if (p.ok && p.lit !== undefined) {
         const could = S.lightable(planned.steps, p);
-        if (could > 0) html += ` ${t('MOD_VOY_STORES_PATH_LIGHT', { fuel: fuelText(p.light), lit: `${p.lit.length}`, hexes: `${could}`, bonus: `${Math.round(model.STAR_XP * 100)}` })}`;
+        const bonus = `${Math.round(model.STAR_XP * 100)}`;
+        if (could > 0) {
+          lines.push(row('<i class="fa fa-moon" aria-hidden="true"></i>', t('MOD_VOY_STORES_PATH_LIGHT_TIP', { bonus }),
+            // Only the fuel the light takes (build .271, the user: "show only 0.74 lights, drop everything else"); the
+            // tooltip says what light gives.
+            fill('MOD_VOY_STORES_PATH_LIGHT', {}, { fuel: `${fuelIcon}${esc(fuelText(p.light))}` })));
+        }
       }
       // The verdict first, bold and in its colour; the numbers under it (UI review, build .86).
       let verdict;
@@ -295,7 +356,9 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       } else if (p.hungry.length > 0) { cls = 'text-warning'; verdict = t('MOD_VOY_STORES_PATH_HUNGRY', { hexes: hexes(p.hungry.length) }); }
       note.className = 'voyage-stores-note mb-1';
       note.innerHTML = (verdict === undefined ? '' : `<div class="font-w600 ${cls}">${esc(verdict)}</div>`) +
-        `<div class="${verdict === undefined ? 'text-info' : ''}">${esc(html)}</div>`;
+        // The rows as one centred block: the leads in a column, each text left beside its lead (build .264).
+        `<div class="voyage-stores-rows">${lines.map((l) => `<div class="voyage-stores-row ${verdict === undefined ? 'text-info' : ''}">${l.lead}<span>${l.html}</span></div>`).join('')}</div>`;
+      state.tips?.apply?.(note);
     } catch (e) { log('stores note failed', e); }
   });
 
@@ -304,7 +367,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   const loadingAtHex = (hex) => {
     const rec = hex === undefined ? undefined : recOf(hex);
     if (rec === undefined || state.terrain === undefined) return undefined;
-    return S.loadingAt(rec, state.terrain.neighbours(rec.q, rec.r));
+    return S.loadingAt(rec, state.knownNeighbours(rec));
   };
   /** Loading rates where the player stands: { place, food, fuel } or undefined (wild, sea, or provisions off). */
   const loadingHere = () => loadingAtHex(state.position());

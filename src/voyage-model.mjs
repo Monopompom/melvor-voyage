@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -112,13 +112,15 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * (v14) is the start chosen on the first load: '' not asked yet, 'game' or 'random'.
  * `voyage` (save v15, phase 5a) is the timed voyage under way, or null; `ending` the last voyage's
  * end for the page and the offline summary, or null. clock-model.mjs cleanVoyage and cleanEnding check them in depth.
+ * `adrift` (save v16, phase 5b part two) is the spell adrift at sea, or null; `adriftEnd` how the last
+ * one ended, for the page's note, or null. adrift-model.mjs cleanAdrift and cleanAdriftEnd check them in depth.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
-export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'planning', 'cargo', 'board', 'ports', 'market', 'notices', 'charts', 'rumour', 'stars'];
+export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'compass', 'stranded', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'planning', 'cargo', 'board', 'ports', 'market', 'notices', 'charts', 'rumour', 'stars', 'adrift'];
 /**
  * Kinds of place the journal records. `island`: a named island (ship-model ISLANDS) or the mainland, at the first hex
  * you stood on it; `port`: a port whose harbour board you used (phase 4 wrap-up).
@@ -188,6 +190,8 @@ export const MIGRATIONS = {
   13: (rec) => ({ ...rec, v: 14, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: 'game' }),
   // phase 5a, the clock: no voyage under way, none ended
   14: (rec) => ({ ...rec, v: 15, voyage: null, ending: null }),
+  // phase 5b part two: not adrift, never was
+  15: (rec) => ({ ...rec, v: 16, adrift: null, adriftEnd: null }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -323,6 +327,8 @@ function clean(rec) {
     start: START_CHOICES.includes(rec.start) ? rec.start : 'game',
     voyage: plainObject(rec.voyage),
     ending: plainObject(rec.ending),
+    adrift: plainObject(rec.adrift),
+    adriftEnd: plainObject(rec.adriftEnd),
   };
 }
 /** An object kept for its own model to check (clock-model.mjs), or null. */

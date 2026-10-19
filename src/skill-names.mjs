@@ -75,8 +75,79 @@ export function skillNames(root) {
   } catch (e) { console.warn('[Voyage] skill names failed', e); }
 }
 
+const NBSP = '\u00a0';
+// Popup titles that wrap (builds .261-.262; the user: "I certainly don't want '…' cause it may cut destination", then
+// "is that grammatically correct to break the name"). No ellipsis: the title wraps, its lines balanced by the CSS, and
+// these ties choose where it may break. Each is pure, for the tests; fitTitle applies them and undoes any that would
+// push the title past the popup's edge (a phone's line holds about 17 letters of a 30 px title).
+/** A hex's coordinates never split: "(2, 8)" stays whole. */
+export const tieCoords = (text) => String(text).replace(/\((-?\d+), (-?\d+)\)/g, `($1,${NBSP}$2)`);
+/** An article never ends a line: "The", "A" and "An" stay with the word after them. */
+export const tieArticles = (text) => String(text).replace(/(^|[\s\u00a0])(The|the|A|An|an) (?=\S)/g, `$1$2${NBSP}`);
+/** The last word keeps the one before it, so a title never ends on a word alone ("8)?", "Port?"). */
+export const tieLast = (text) => {
+  const s = String(text);
+  const at = s.trimEnd().lastIndexOf(' ');
+  return at <= 0 || s.slice(0, at).trim() === '' ? s : `${s.slice(0, at)}${NBSP}${s.slice(at + 1)}`;
+};
+/** All three on a plain title. */
+export const tieTitle = (text) => tieLast(tieArticles(tieCoords(text)));
+/** The class a place's name carries in a title (`titleName` in help-layout.mjs): kept on one line when it fits. */
+export const TITLE_NAME = 'voyage-title-name';
+
+const fitTitle = (title, tries = 0) => {
+  try {
+    if (!title) return;
+    // Measured once the popup is laid out (didRender can come before it shows).
+    if (title.clientWidth === 0) { if (tries < 20) requestAnimationFrame(() => fitTitle(title, tries + 1)); return; }
+    // Swal's title breaks inside a word when it must (overflow-wrap), so nothing ever overflows it: measured with that
+    // off, a tie too wide for the line shows as an overflow and is undone ("A Friendly Fisherma" / "n" otherwise).
+    const wrap = [title.style.overflowWrap, title.style.wordBreak];
+    title.style.overflowWrap = 'normal';
+    title.style.wordBreak = 'normal';
+    // Measured on the text's own boxes against the content edges: the title's padding hides an overflow from
+    // scrollWidth (a tied "A Friendly Fisherman" ran 20 px into it and passed).
+    const fits = () => {
+      const box = title.getBoundingClientRect();
+      const cs = getComputedStyle(title);
+      const left = box.left + parseFloat(cs.paddingLeft) - 1;
+      const right = box.right - parseFloat(cs.paddingRight) + 1;
+      const range = document.createRange();
+      range.selectNodeContents(title);
+      return [...range.getClientRects()].every((r) => r.width === 0 || (r.left >= left && r.right <= right));
+    };
+    const texts = () => {
+      const walker = document.createTreeWalker(title, NodeFilter.SHOW_TEXT);
+      const out = [];
+      for (let n = walker.nextNode(); n !== null; n = walker.nextNode()) out.push(n);
+      return out;
+    };
+    /** Applies `fn` to the text nodes; undoes it when the title no longer fits. */
+    const step = (nodes, fn) => {
+      const before = nodes.map((n) => n.nodeValue);
+      nodes.forEach((n) => { const v = fn(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; });
+      if (!fits()) nodes.forEach((n, i) => { n.nodeValue = before[i]; });
+    };
+    step(texts(), tieCoords);
+    step(texts(), tieArticles);
+    title.querySelectorAll(`.${TITLE_NAME}`).forEach((el) => {
+      // The "?" after a name goes with it: the end of a no-wrap span is a place to break ("Port" / "?" alone). Merged
+      // into the name's text, so the last-word tie below sees "Outpost?" whole (as its own node it saw only "?").
+      const next = el.nextSibling;
+      const mark = next?.nodeType === 3 ? next.nodeValue.match(/^[?!.,:;]+/) : null;
+      if (mark !== null) { el.append(mark[0]); el.normalize(); next.nodeValue = next.nodeValue.slice(mark[0].length); }
+      el.style.whiteSpace = 'nowrap';
+      if (!fits()) el.style.whiteSpace = '';
+    });
+    const all = texts().filter((n) => n.nodeValue.trim() !== '');
+    if (all.length > 0) step([all[all.length - 1]], tieLast);
+    [title.style.overflowWrap, title.style.wordBreak] = wrap;
+  } catch (e) { console.warn('[Voyage] title ties failed', e); }
+};
+
 /** For every Swal we open: `didRender: state.popupDidRender`. */
 export const didRender = (popup) => {
   skillNames(popup?.querySelector('.swal2-title'));
+  fitTitle(popup?.querySelector('.swal2-title'));
   skillNames(popup?.querySelector('.swal2-html-container'));
 };

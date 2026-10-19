@@ -230,6 +230,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     const st = state.stores;
     for (const x of st.loadable()) { try { st.load(x.item, x.qty); } catch (e) { log('plan loading failed', e); } }
   };
+  let confirmedCourse = false;
   const sail = () => {
     const plan = compute();
     if (plan?.path === undefined || !plan.split.ok || !owned() || !(plan.costs?.checkIfOwned() ?? true)) return;
@@ -239,6 +240,11 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     // Timed travel (phase 5a): the whole route becomes one voyage, loading at the planned stops, the pick started on
     // arrival, then what you were doing (voyage-clock.mjs).
     const clock = state.clock;
+    // Under way, Set off asks first (a change of course), and the same destination is refused with a notice.
+    if (clock?.on?.() === true && clock.running?.() && !confirmedCourse) {
+      clock.changeCourse(plan.path[0], name, () => { confirmedCourse = true; try { sail(); } finally { confirmedCourse = false; } });
+      return;
+    }
     if (clock?.on?.() === true) {
       const chain = [pickChoice(), clock.doingNow()].filter((c) => c !== undefined);
       const loads = plan.split.legs.filter((leg) => leg.load !== undefined).map((leg) => leg.to);

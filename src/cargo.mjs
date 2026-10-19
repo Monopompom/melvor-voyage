@@ -535,7 +535,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     try {
       SwalLocale.fire({
         didRender: state.popupDidRender,
-        title: esc(portName(port.poi)),
+        title: `<span class="voyage-title-name">${esc(portName(port.poi))}</span>`, // one line when it fits (skill-names.mjs)
         html: `<div class="voyage-cargo-sub text-muted">${esc(t('MOD_VOY_CARGO_BOARD'))}</div><div class="voyage-cargo text-left">${bodyHtml(port.poi)}</div>`,
         width: '48em',
         showConfirmButton: false,

@@ -109,6 +109,16 @@ test('combat placement: on the tagged hex or one away; unplaced areas fail open'
   assert.equal(combatAllowedAt(places, { q: 19, r: 1 }).allowed, true);
 });
 
+test('combat grace: an area one hex away counts only once you know its hex (the user, 19 Oct 2026)', () => {
+  const places = [{ q: 10, r: 10 }];
+  const unknown = () => false;
+  assert.equal(combatAllowedAt(places, { q: 11, r: 9 }, unknown).allowed, false);
+  assert.deepEqual(combatAllowedAt(places, { q: 11, r: 9 }, unknown).nearest, { hex: places[0], distance: 1 }, 'the hint still names it');
+  assert.equal(combatAllowedAt(places, { q: 10, r: 10 }, unknown).allowed, true, 'standing on it always counts');
+  assert.equal(combatAllowedAt(places, { q: 11, r: 9 }, (h) => h.q === 10).allowed, true);
+  assert.equal(combatAllowedAt([], { q: 0, r: 0 }, unknown).unplaced, true, 'unplaced areas still fail open');
+});
+
 test('trade gate: on a town, port or market hex or next to one', () => {
   assert.deepEqual(TRADE_FEATURES, ['city', 'capital', 'port', 'market']);
   assert.ok(tradeAllowedAt(undefined));

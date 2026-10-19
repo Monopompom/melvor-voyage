@@ -301,6 +301,20 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     }
   };
 
+  /** Why a zoned skill has nothing for you on this hex ('' when something fits, or it is not zoned): the panel's words. */
+  const levelLockTip = (id) => {
+    try {
+      if (!zonesOn() || state.zoneTable?.skills?.[id] === undefined || state.zoneActionsHere(id).length > 0) return '';
+      const skill = game.skills.getObjectByID(id);
+      const key = rules.ruleLabelKey(id);
+      const name = key !== undefined ? getLangString(key) : skill?.name ?? id;
+      if (state.zonedUngated?.()?.includes(id)) return templateLangString('MOD_VOY_PANEL_SKY_NONE', { skill: name });
+      const later = state.zoneActionsHere(id, { later: true });
+      if (later.length === 0) return templateLangString('MOD_VOY_PANEL_ZONE_NEVER', { skill: name });
+      const first = later[0].level ?? 1;
+      return templateLangString('MOD_VOY_PANEL_ZONE_LATER', { skill: name, level: `${first}`, names: later.filter((a) => (a.level ?? 1) === first).map((a) => a.name).join(', ') });
+    } catch { return ''; }
+  };
   // Sidebar: a gated skill that is locked here is dimmed in the Non-Combat list (hover shows why).
   const dimSidebar = () => {
     try {
@@ -310,10 +324,14 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
         if (cat.id === 'Combat') continue;
         for (const item of cat.items()) {
           const id = item.id;
-          if (!rules.isGated(id) || !item.rootEl) continue;
-          const locked = lockedHere(id) !== undefined;
-          item.rootEl.classList.toggle('voyage-dim', locked);
-          const tip = locked ? templateLangString('MOD_VOY_GATE_SIDEBAR_LOCKED', { need: need(id).text }) : '';
+          const zonedOnly = state.zonedUngated?.()?.includes(id) === true;
+          if ((!rules.isGated(id) && !zonedOnly) || !item.rootEl) continue;
+          const locked = !zonedOnly && lockedHere(id) !== undefined;
+          // As the Here panel (build .280, the user: "menu bar skill is drawn as active"): a zoned skill with nothing
+          // here for your level is locked too, its tooltip the panel's ("Fishing is locked here until level 20: …").
+          const zoneTip = locked ? '' : levelLockTip(id);
+          item.rootEl.classList.toggle('voyage-dim', locked || zoneTip !== '');
+          const tip = locked ? templateLangString('MOD_VOY_GATE_SIDEBAR_LOCKED', { need: need(id).text }) : zoneTip;
           // Melvor's tooltip, to the right of the sidebar (build .161).
           if (state.tips !== undefined) state.tips.set(item.rootEl, tip, { placement: 'right' }); else item.rootEl.title = tip;
         }
@@ -331,7 +349,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     for (const [id, zone] of Object.entries(s.actions ?? {})) zoneIndex.set(id, { skillId, zone });
   }
   const zonesOn = () => zones !== undefined && on() && state.settings.zones();
-  const nbOf = (rec) => state.terrain.neighbours(rec.q, rec.r);
+  const nbOf = (rec) => state.terrain.neighbours(rec.q, rec.r); // zone terms read the land around (geography), not grace
   /** The zone takes the hex, or (a grace hex) one of the full-rate neighbours that lift it (src/zones.mjs). */
   const allowsHere = (z, rec) => zones.zoneAllowsWithGrace(z.zone, rec, nbOf, rules.graceFrom(z.skillId, rec, state.ruleOpts()));
   /** undefined when the action may run here (or zones are off); otherwise { pos, rec, skillId, zone }. */
@@ -496,7 +514,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
    * The zoned actions of a skill that work on the player's hex, at or below the skill's level, for the panel tooltip.
    * Empty when zones are off or the skill is not zoned.
    */
-  state.zoneActionsHere = (skillId) => {
+  // `later` (build .277): the ones whose water or ground this is but whose level you have not reached, lowest first
+  // (the Here panel: "From level 20: Raw Trout", the user found Fishing "works" on a river at Fishing 11).
+  state.zoneActionsHere = (skillId, { later = false } = {}) => {
     try {
       if (!zonesOn()) return [];
       const table = state.zoneTable?.skills?.[skillId]?.actions;
@@ -505,9 +525,10 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       const out = [];
       for (const id of Object.keys(table)) {
         const action = skill.actions?.getObjectByID(id);
-        if (action === undefined || (action.level ?? 1) > skill.level || (action.abyssalLevel ?? 0) > 0) continue;
+        if (action === undefined || ((action.level ?? 1) > skill.level) !== later || (action.abyssalLevel ?? 0) > 0) continue;
         if (zoneLocked(action) === undefined) out.push(action);
       }
+      if (later) out.sort((a, b) => (a.level ?? 1) - (b.level ?? 1));
       return out;
     } catch (e) { log('zone actions failed', e); return []; }
   };
@@ -519,12 +540,14 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
 
   // ---------------------------------------------------------------------------------------------------- combat
   const warnedUnplaced = new Set();
+  /** An area's hex next to you counts only once you know it (grace from a known hex, setup.mjs ruleOpts). */
+  const knownPlace = (h) => state.knowledge?.isKnown(state.terrain.get(h.q, h.r) ?? h) ?? true;
   /** undefined when the area may be fought from here; otherwise the position and the nearest tagged hex. */
   const combatLocked = (area) => {
     if (!on() || !state.settings.combat() || area === undefined || typeof area.id !== 'string') return undefined;
     try { if (!game.tutorial.complete) return undefined; } catch {}
     const pos = state.position();
-    const res = rules.combatAllowedAt(state.terrain.placesFor(area.id), pos);
+    const res = rules.combatAllowedAt(state.terrain.placesFor(area.id), pos, knownPlace);
     if (res.unplaced) {
       if (!warnedUnplaced.has(area.id)) { warnedUnplaced.add(area.id); log(`area ${area.id} is not placed on the map: allowed anywhere`); }
       return undefined;
@@ -544,7 +567,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     game.combatAreas.forEach((area) => {
       if (area === game.unknownCombatArea || typeof area.id !== 'string') return;
       const places = state.terrain.placesFor(area.id);
-      if (places.length === 0 || !rules.combatAllowedAt(places, pos).allowed) return;
+      if (places.length === 0 || !rules.combatAllowedAt(places, pos, knownPlace).allowed) return;
       try { if (!game.checkRequirements(area.entryRequirements ?? [])) return; } catch {}
       out.push(area);
     });
@@ -565,7 +588,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     }
     log(`refused combat in ${area.id} at (${pos?.q},${pos?.r})`);
     const monster = clickedMonster?.area === area ? clickedMonster.monster : undefined;
-    modal(templateLangString('MOD_VOY_GATE_AREA_TITLE', { name }), area.media, lines, { guide: 'combat', plan: () => state.planner?.forArea(area, monster) });
+    modal(helpLayout.marked(templateLangString, 'MOD_VOY_GATE_AREA_TITLE', {}, { name: helpLayout.titleName(name) }), area.media, lines, { guide: 'combat', plan: () => state.planner?.forArea(area, monster) });
   };
   // The monster a click picked, so a planned voyage's "On arrival" starts on it (build .123).
   let clickedMonster;
@@ -585,7 +608,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     const pos = state.position();
     const rec = state.recordAt(pos);
     if (rec === undefined) return undefined;
-    if (rules.tradeAllowedAt(rec, state.terrain.neighbours(rec.q, rec.r))) return undefined;
+    if (rules.tradeAllowedAt(rec, state.knownNeighbours(rec))) return undefined;
     return { pos, rec };
   };
   const tradeCandidates = () => {
@@ -608,21 +631,23 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     log(`refused trade (${what}) at (${pos?.q},${pos?.r})`);
     modal(getLangString('MOD_VOY_GATE_TRADE_TITLE'), undefined, lines, { guide: 'trade' });
   };
+  /** Runs a trade (`run`) if it may happen here; else the trader's offer or the refusal (none when `quiet`). */
+  const guardTrade = (what, run, quiet = false) => {
+    try {
+      const locked = tradeLocked();
+      if (locked !== undefined) {
+        // Selling while stranded: the wandering trader (src/trader.mjs) buys at half price.
+        if (what === 'sell' && state.trader?.present()) return run();
+        if (what === 'sell' && !quiet && state.trader?.offer(run)) return undefined;
+        if (!quiet) showNoTrade(what, locked);
+        return undefined;
+      }
+    } catch (e) { console.error('[Voyage] trade gate failed open', e); }
+    return run();
+  };
   const tradeGate = (cls, method, what, quiet = false) => {
     if (typeof cls !== 'function' || typeof cls.prototype?.[method] !== 'function') { console.warn(`[Voyage] trade entry ${method} not found`); return; }
-    ctx.patch(cls, method).replace(function (original, ...args) {
-      try {
-        const locked = tradeLocked();
-        if (locked !== undefined) {
-          // Selling while stranded: the wandering trader (src/trader.mjs) buys at half price.
-          if (what === 'sell' && state.trader?.present()) return original(...args);
-          if (what === 'sell' && !quiet && state.trader?.offer(() => original(...args))) return undefined;
-          if (!quiet) showNoTrade(what, locked);
-          return undefined;
-        }
-      } catch (e) { console.error('[Voyage] trade gate failed open', e); }
-      return original(...args);
-    });
+    ctx.patch(cls, method).replace(function (original, ...args) { return guardTrade(what, () => original(...args), quiet); });
   };
   tradeGate(Bank, 'sellItemOnClick', 'sell');
   tradeGate(Bank, 'sellUnlockedItemsOnClick', 'sell');
@@ -640,6 +665,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     return original(purchase, ...rest);
   });
   state.tradeLocked = () => tradeLocked() !== undefined;
+  /** The hold's Sell (build .265) goes through the bank's own gate: the same trader, the same refusal. */
+  state.guardTrade = (what, run) => guardTrade(what, run);
   /** True when the area cannot be fought from the player's hex (the trader's GP-source check reads it). */
   state.combatLocked = (area) => combatLocked(area) !== undefined;
   state.combatHere = () => { try { return combatHere(); } catch (e) { log('combat here failed', e); return []; } };
@@ -715,6 +742,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   });
   // Deferred: settings handlers run inside the loader's onChange, before it stores the value.
   state.listeners.push(() => setTimeout(() => stopWhatDoesNotFit('rules'), 0), refreshRates, dimSidebar);
+  // A level gained can open a zoned skill here (build .280): the sidebar follows at once.
+  ctx.patch(Skill, 'onLevelUp').after(function () { try { if (state.zoneTable?.skills?.[this.id] !== undefined) setTimeout(dimSidebar, 0); } catch {} });
   ctx.onInterfaceReady(() => setTimeout(() => { stopWhatDoesNotFit('load'); dimSidebar(); }, 0));
   // The gates switch on when the tutorial ends (state.active). The entry gates read that live, but the sidebar and
   // the skill pages only redraw on a move or a settings change, so finishing the tutorial must trigger one.
