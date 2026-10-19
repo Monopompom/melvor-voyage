@@ -5,7 +5,7 @@
 // colour class), { html, cls } (trusted markup from en.json: bold names, coloured words) or { table: { cols, rows } },
 // where a row is { cells: [label, ...values], cls?: [one class per value], icon? }.
 
-export const HELP_WIDTH = '38rem';
+export const HELP_WIDTH = 'min(38rem, 96vw)'; // on a phone the same 96vw as every message popup (.308, C2-23)
 
 /**
  * A message popup's body (refusals, the trader, the panel's skill tip): trusted
@@ -72,8 +72,9 @@ const item = (it) => {
 
 /** The popup body: wrap it in nothing else; it carries `voyage-help-body`. A "?" help popup reads left like a page;
  *  a notice built with the same bands (the welcome, the dinghy notice, a rumour or chart read) passes `notice: true`
- *  and reads centred like every other message popup (build .307). Its
- *  tables stay left so their columns line up. */
+ *  and reads centred like every other message popup (build .307), with its
+ *  picture on top through MSG_IMAGE like them, not in the title (build .310, scan C-07). Its tables stay left so their
+ *  columns line up. */
 export const helpHtml = (sections, { notice = false } = {}) => `<div class="${notice ? 'text-center voyage-help-body voyage-help-notice' : 'text-left voyage-help-body'}">` + sections.map((s) =>
-  `<div class="voyage-section voyage-help-section${s.warn ? ' voyage-help-warn border-warning' : ''}">`
+  `<div class="voyage-section voyage-help-section${s.warn ? ' voyage-help-warn' : ''}">`
   + `${s.head ? `<div class="voyage-help-head">${esc(s.head)}</div>` : ''}${s.body.map(item).join('')}</div>`).join('') + '</div>';

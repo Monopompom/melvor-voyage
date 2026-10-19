@@ -83,7 +83,7 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
   const html = (poi) => {
     const list = CM.chartsAt(poi, seaMap, neighbours);
     const gp = game.gp.amount;
-    let out = `<div class="voyage-cargo-bar"><span>${esc(t('MOD_VOY_CHARTS_INTRO'))}</span><span>${esc(t('MOD_VOY_CHARTS_HAVE'))} ${icon(game.gp.media)}<b>${qty(gp)}</b></span></div>`;
+    let out = `<div class="voyage-cargo-bar"><span>${esc(t('MOD_VOY_CHARTS_INTRO'))}</span><span>${esc(t('MOD_VOY_CHARTS_HAVE'))} ${icon(game.gp.media)}<b>${qty(gp)}</b> GP</span></div>`;
     if (list.length === 0) return `${out}<div class="voyage-cargo-empty">${esc(t('MOD_VOY_CHARTS_NONE_HERE'))}</div>`;
     for (const sea of list) {
       const fog = fogOf(sea);
@@ -100,7 +100,7 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
         lines.push(`<div>${esc(where)} · ${esc(t(fog.length === 1 ? 'MOD_VOY_CHARTS_FOG_ONE' : 'MOD_VOY_CHARTS_FOG', { n: `${fog.length}` }))}</div>`);
         const short = gp < price;
         if (short) lines.push(`<div class="text-warning">${esc(t('MOD_VOY_CHARTS_SHORT'))}</div>`);
-        pay = `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}<b>${qty(price)}</b> GP</div></div>`;
+        pay = `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}<b class="${short ? 'text-danger' : ''}">${qty(price)}</b> GP</div></div>`; // red when you cannot pay (.308, B-17)
         act = button('btn-success', t('MOD_VOY_CHARTS_BUY'), `data-chart="buy" data-sea="${esc(sea)}"`, short ? t('MOD_VOY_CHARTS_SHORT') : undefined);
       }
       out += `<div class="voyage-cargo-row">${art}<div class="voyage-cargo-mid">${lines.join('')}</div>${pay}<div class="voyage-cargo-act">${act}</div></div>`;
@@ -227,10 +227,11 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
       const charted = state.journal?.chartAny?.();
       if (charted === undefined) { notify(t('MOD_VOY_RUMOUR_NOTHING'), 'info'); return false; }
       game.bank.removeItemQuantity(item, 1, false);
-      sections = [{ body: [
-        { html: `<i>${esc(t('MOD_VOY_RUMOUR_TALE_ZONE'))}</i>`, cls: 'voyage-rumour-tale' },
-        { html: t('MOD_VOY_RUMOUR_ZONE', { name: `<b>${esc(charted.name)}</b>`, n: `${charted.count}` }) },
-      ] }];
+      // The tale and the result on their own bands, as the fog-clearing read (.308, A2-35).
+      sections = [
+        { body: [{ html: `<i>${esc(t('MOD_VOY_RUMOUR_TALE_ZONE'))}</i>`, cls: 'voyage-rumour-tale' }] },
+        { body: [{ html: t('MOD_VOY_RUMOUR_ZONE', { name: `<b>${esc(charted.name)}</b>`, n: `${charted.count}` }) }] },
+      ];
       log(`rumour read: charted ${charted.id}`);
     }
     tellCache.at = 0;
@@ -243,7 +244,8 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
     try {
       SwalLocale.fire({
         didRender: state.popupDidRender,
-        title: `<img class="voyage-title-icon" src="${item.media}" alt="">${esc(item.name)}`,
+        title: esc(item.name),
+        imageUrl: item.media, ...helpLayout.MSG_IMAGE, // the picture on top (.310, scan C-07)
         width: helpLayout.HELP_WIDTH,
         html: helpLayout.helpHtml(sections, { notice: true }),
         // No Show on map: it zoomed onto the ring, and so onto the place (the user, 18 Oct 2026: "I don't wanna help

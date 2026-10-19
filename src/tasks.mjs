@@ -295,7 +295,15 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
       : t('MOD_VOY_TASK_GOT', { got: qty(TM.progressOf(cur, found(cur.item))), n: qty(cur.n) });
     return `<div class="voyage-errand">${art(cur).replace('voyage-cargo-art', 'voyage-cargo-art voyage-cargo-art-sm')}<div class="voyage-cargo-mid"><div>${what(cur)}</div><div class="text-muted">${esc(status)}</div></div></div>`;
   };
-  const api = { html, onClick, errandHtml, resetAsk: () => { dropAsk = false; }, has: () => data()?.cur != null };
+  /** The notice taken, in plain words for the Here panel's harbour line (.309, scan B-29). */
+  const errandWords = () => {
+    const cur = data()?.cur;
+    if (cur == null) return '';
+    if (cur.k === 'reach') return t('MOD_VOY_TASK_REACH');
+    const item = game.items.getObjectByID(cur.item);
+    return t('MOD_VOY_TASK_BRING', { n: qty(cur.n), item: item?.name ?? cur.item, port: portName(cur.to) });
+  };
+  const api = { html, onClick, errandHtml, errandWords, resetAsk: () => { dropAsk = false; }, has: () => data()?.cur != null };
   state.tasks = api;
   return api;
 }

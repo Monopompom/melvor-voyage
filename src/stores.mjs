@@ -70,7 +70,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   /** The same with the ration and fuel art (page and panel), titled with the words. */
   // `tip` false (build .283): inside something with its own tooltip (the Here strip's stores chip), so only one shows.
   const icons = (food, fuel, tip = true) => `<span class="voyage-stores-icons"${tip ? ` title="${esc(amounts(food, fuel))}"` : ''}>` +
-    `<img src="${ctx.getResourceUrl('assets/ration.webp')}">${hp(food)} HP <img src="${ctx.getResourceUrl('assets/fuel.webp')}">${fuelText(fuel)}</span>`;
+    `<img src="${ctx.getResourceUrl('assets/ration.webp')}">${t('MOD_VOY_UNIT_HP', { n: hp(food) })} <img src="${ctx.getResourceUrl('assets/fuel.webp')}">${t('MOD_VOY_UNIT_FUEL', { n: fuelText(fuel) })}</span>`; // both units (.308, A-11/B-20)
 
   // ---- planning a move -----------------------------------------------------------------------------------------
   /** The vessel a move ends in: the last step's (build .150, two vessels), else the small boat. */
@@ -252,10 +252,11 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
    * GP and items are paid as usual when you have them; when you don't, he lets it go (the GP floor).
    */
   const offerRescue = (help, lines) => {
+    if (lines.length === 0) lines.push(t('MOD_VOY_PANEL_HUNGRY_HINT')); // from the panel: what is wrong first (.308, B-45)
     lines.push(t('MOD_VOY_STORES_RESCUE', { hexes: hexes(help.steps), dir: t(`MOD_VOY_DIR_${help.dir}`) }));
     swal({
       // The trader's own portrait, as in his stranded popup (trader.mjs; build .259, it was the "?" sign).
-      title: t('MOD_VOY_TRADER_TITLE'), html: body(lines), showCancelButton: true,
+      title: t('MOD_VOY_STORES_RESCUE_TITLE'), html: body(lines), showCancelButton: true, width: '36em', // as the trader's popup (.308, B-43/B-44)
       ...(state.trader?.art !== undefined ? { imageUrl: state.trader.art(), ...helpLayout.MSG_IMAGE, imageWidth: 112, imageHeight: 112 } : { icon: 'question' }),
       confirmButtonText: t('MOD_VOY_STORES_RESCUE_BUTTON'), cancelButtonText: t('MOD_VOY_TRADER_BUTTON_NOT_NOW'),
     }).then((r) => {

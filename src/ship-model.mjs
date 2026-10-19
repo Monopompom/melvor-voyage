@@ -21,7 +21,7 @@ export const HULLS = {
   },
   brig: {
     id: 'brig', tier: 3, name: 'Brig', media: 'assets/hull_brig.webp', reach: 5,
-    blurb: 'A two-masted sailing ship. It sails up to 5 hexes from land, under cloud too, and ties up only at ports. Your small boat rides aboard and rows you ashore anywhere else.',
+    blurb: 'A two-masted sailing ship. She sails up to 5 hexes from land, under cloud too, and ties up only at ports. Your small boat rides aboard and rows you ashore anywhere else.',
   },
   galleon: {
     id: 'galleon', tier: 4, name: 'Galleon', media: 'assets/hull_galleon.webp', reach: Infinity,

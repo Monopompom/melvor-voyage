@@ -475,11 +475,16 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     const pickIcon = (i) => (opts[i]?.media ? `<img src="${esc(opts[i].media)}" alt="">` : NOTHING_ICON);
     const pickLabel = (i) => (i >= 0 && opts[i] !== undefined ? opts[i].label : t('MOD_VOY_CLOCK_DO_NOTHING'));
     const pickFace = (i) => `${opts[i]?.media ? `<img class="voyage-plan-pick-ico" src="${esc(opts[i].media)}" alt="">` : '<i class="fa fa-pause-circle voyage-plan-pick-ico" aria-hidden="true"></i>'}<span>${esc(pickLabel(i))}</span>`;
-    const select = (id, n, labelKey, pick) => `<div class="voyage-clock-pick"><span class="voyage-clock-pick-num" aria-hidden="true">${n}</span>`
+    // With nothing to pick (an uncharted place) the row says so in words: no dropdown with one choice (.308, scan B-69).
+    // Nothing to pick there: one line in the band, not three numbered rows of the same words squeezed into the icon
+    // column (the user, 19 Oct 2026: the words broke one letter a line). No inputs: an absent pick reads as -1.
+    const select = (id, n, labelKey, pick) => (opts.length === 0
+      ? (n === 1 ? `<div class="voyage-clock-pick-none text-muted"><span class="voyage-clock-pick-icon">${NOTHING_ICON}</span><span>${esc(t('MOD_VOY_CLOCK_DO_NOTHING'))}</span></div>` : '')
+      : `<div class="voyage-clock-pick"><span class="voyage-clock-pick-num" aria-hidden="true">${n}</span>`
       + `<span class="voyage-clock-pick-label" id="${id}-label">${esc(t(labelKey))}</span><span class="voyage-clock-pick-icon" data-voyage-pick-icon="${id}">${pickIcon(pick)}</span>`
       + `<div class="dropdown voyage-plan-arrival voyage-clock-dd"><input type="hidden" id="${id}" value="${pick}">`
       + `<button type="button" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-labelledby="${id}-label" data-voyage-dd="${id}"><span>${esc(pickLabel(pick))}</span></button>`
-      + `<div class="dropdown-menu overflow-y-auto">${[-1, ...opts.keys()].map((i) => `<a class="dropdown-item pointer-enabled${i === pick ? ' active' : ''}" role="button" data-voyage-dd-for="${id}" data-pick="${i}">${pickFace(i)}</a>`).join('')}</div></div></div>`;
+      + `<div class="dropdown-menu overflow-y-auto">${[-1, ...opts.keys()].map((i) => `<a class="dropdown-item pointer-enabled${i === pick ? ' active' : ''}" role="button" data-voyage-dd-for="${id}" data-pick="${i}">${pickFace(i)}</a>`).join('')}</div></div></div>`);
     // The defaults: what you were doing, if it works there, then the first
     // crafts there. A fight only when it is what you were doing (build .233: with nothing running, a battle camp's
     // first two fights were picked, and a Combat 10 character landed in one and died).
@@ -495,8 +500,9 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     const res = (file) => ctx.getResourceUrl(`assets/${file}`);
     const costBits = [];
     if (pl?.spent !== undefined && fog === undefined) {
-      costBits.push(`<span class="voyage-clock-cost">${img(res('ration.webp'))}${esc(t('MOD_VOY_CLOCK_COST_FOOD', { food: num(pl.spent.food) }))}</span>`);
-      costBits.push(`<span class="voyage-clock-cost">${img(res('fuel.webp'))}${esc(t('MOD_VOY_CLOCK_COST_FUEL', { fuel: `${Math.round(pl.spent.fuel * 10) / 10}` }))}</span>`);
+      // The page's units: food in HP, fuel as the Stores block writes it (.309, scan C-18/A2-26).
+      costBits.push(`<span class="voyage-clock-cost">${img(res('ration.webp'))}${esc(t('MOD_VOY_UNIT_HP', { n: num(pl.spent.food) }))}</span>`);
+      costBits.push(`<span class="voyage-clock-cost">${img(res('fuel.webp'))}${esc(t('MOD_VOY_UNIT_FUEL', { n: state.stores?.fuelText?.(pl.spent.fuel) ?? `${Math.round(pl.spent.fuel * 10) / 10}` }))}</span>`);
     }
     if (wear > 0 && fog === undefined) costBits.push(`<span class="voyage-clock-cost">${img(res('hull_condition.webp'))}${esc(t('MOD_VOY_CLOCK_COST_WEAR', { pct: `${Math.round(wear)}` }))}</span>`);
     // The route as a strip: land and sea legs in their colours, as long as they take (the user, 18 Oct 2026: "spice it up").
@@ -559,7 +565,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
         + `<div class="voyage-section voyage-fog-side"><div class="voyage-clock-head"><i class="fa fa-binoculars voyage-clock-fa" aria-hidden="true"></i>${esc(t('MOD_VOY_FOG_SIDE_HEAD'))}</div>${opts.join('')}</div>`;
     }
     const fogChip = fog !== undefined && fog.fog > 0 ? `<span class="voyage-travel-chip voyage-fog-chip"><i class="fa fa-cloud mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_FOG_N_FOG', { n: `${fog.fog}` }))}</span>` : '';
-    const gpText = fog === undefined ? `${num(info.gp)} GP` : t('MOD_VOY_FOG_GP', { gp: num(info.gp) });
+    const gpText = fog === undefined ? num(info.gp) : t('MOD_VOY_FOG_GP', { gp: num(info.gp) }); // the coin is the tile's icon, as the planner's (.309, scan A2-26)
     const fogCostNote = fog === undefined ? '' : `<div class="voyage-clock-costs text-muted">${esc(t('MOD_VOY_FOG_COST_NOTE'))}</div>`;
     const html = '<div class="voyage-clock-setoff text-left">'
       + (course === undefined ? '' : course.band)
@@ -658,15 +664,20 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     const c = fog?.check;
     if (c !== undefined && !c.ok) {
       const hex = c.hex;
+      // The hex is where you are going (not one on the way), and "Show the hex" would point at the hex already
+      // selected behind the popup (.308, scan B-67).
+      const dest = Array.isArray(path) && c.at === path.length - 1;
+      let selected = false;
+      try { selected = hex !== undefined && (map()?.selectedHex === hex || hex.map?.selectedHex === hex); } catch {}
       SwalLocale.fire({
         title: t('MOD_VOY_FOG_CANT_TITLE'),
         // "brings you to N at most" only when the surveys before it give levels (the user saw "1 at most" at level 1).
         // The first fog hex of the route has no fog before it to give levels (build .233).
         // A refusal that names a skill: the warning sign on top, not the skill's picture.
-        html: helpLayout.msgHtml([marked(t, c.reach > c.have ? 'MOD_VOY_FOG_CANT_LEVEL' : c.first ? 'MOD_VOY_FOG_CANT_LEVEL_FIRST' : 'MOD_VOY_FOG_CANT_LEVEL_NOW',
+        html: helpLayout.msgHtml([marked(t, dest ? 'MOD_VOY_FOG_CANT_LEVEL_DEST' : c.reach > c.have ? 'MOD_VOY_FOG_CANT_LEVEL' : c.first ? 'MOD_VOY_FOG_CANT_LEVEL_FIRST' : 'MOD_VOY_FOG_CANT_LEVEL_NOW',
           { n: `${c.at}`, have: `${c.have}`, reach: `${c.reach}` }, { at: mark.name(hex === undefined ? '' : at(hex)), level: `<b class="text-danger">${c.need}</b>` })]),
         icon: 'warning',
-        showCancelButton: hex !== undefined,
+        showCancelButton: hex !== undefined && !selected,
         confirmButtonText: t('MOD_VOY_FOG_OK'),
         cancelButtonText: t('MOD_VOY_FOG_SHOW_HEX'),
         didRender: state.popupDidRender,
@@ -987,14 +998,15 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
         // A tow docked or a voyage left Adrift (5b part two) have their own line; Adrift's own lines follow (adrift.mjs).
         const key = e.tow !== '' ? 'MOD_VOY_ADRIFT_OFFLINE_TOWED' : e.how === 'adrift' ? 'MOD_VOY_ADRIFT_OFFLINE_VOYAGE' : e.how === 'arrived' ? 'MOD_VOY_CLOCK_OFFLINE_ARRIVED' : e.how !== 'refused' ? 'MOD_VOY_CLOCK_OFFLINE_STOPPED' : e.why !== '' ? 'MOD_VOY_CLOCK_OFFLINE_REFUSED_WHY' : 'MOD_VOY_CLOCK_OFFLINE_REFUSED';
         const why = e.how === 'adrift' ? t(`MOD_VOY_ADRIFT_WHY_${e.why.toUpperCase() || 'FOOD'}`) : e.why;
-        out.push(icon() + t(key, { name: esc(e.name), time: esc(clockAt(e.at)), hexes: pos(hexes(e.hexes)), took: pos(duration(e.ms)), why: neg(why), by: esc(e.tow === '' ? '' : t(`MOD_VOY_ADRIFT_TOW_BY_${e.tow.toUpperCase()}`)) }));
+        // Green only for a gain: hexes above 0; a time is neither (.308, scan C-28). The hourglass as everywhere (A2-32).
+        out.push(icon() + t(key, { name: esc(e.name), time: esc(clockAt(e.at)), hexes: e.hexes > 0 ? pos(hexes(e.hexes)) : esc(hexes(e.hexes)), took: helpLayout.timeHtml(duration(e.ms)), why: neg(why), by: esc(e.tow === '' ? '' : t(`MOD_VOY_ADRIFT_TOW_BY_${e.tow.toUpperCase()}`)) }));
         for (const f of e.failed) out.push(`<span class="text-warning">${esc(t('MOD_VOY_CLOCK_COULD_NOT', { name: f.name, why: f.why }))}</span>`);
         if (e.started !== '') out.push(`<span class="text-success">${esc(t('MOD_VOY_CLOCK_OFFLINE_STARTED', { what: e.started, time: clockAt(e.at) }))}</span>`);
         else if (e.tow !== '' || e.how === 'adrift') { /* nothing was set for the arrival */ } else if (e.how === 'arrived' && e.asked) out.push(`<span class="text-warning">${esc(t('MOD_VOY_CLOCK_OFFLINE_IDLE'))}</span>`);
         else if (e.how === 'arrived') out.push(`<span class="font-w400">${esc(t('MOD_VOY_CLOCK_OFFLINE_WAITED'))}</span>`);
         setEnding({ ...e, seen: true });
       } else if (v !== null && !endingOnly) {
-        out.push(icon() + t(v.tow !== undefined ? 'MOD_VOY_ADRIFT_OFFLINE_TOWING' : 'MOD_VOY_CLOCK_OFFLINE_UNDERWAY', { at: pos(`${v.at}`), of: esc(`${v.walk.length - 1}`), time: pos(duration(msLeft(v))), name: esc(v.name) }));
+        out.push(icon() + t(v.tow !== undefined ? 'MOD_VOY_ADRIFT_OFFLINE_TOWING' : 'MOD_VOY_CLOCK_OFFLINE_UNDERWAY', { at: v.at > 0 ? pos(`${v.at}`) : esc(`${v.at}`), of: esc(`${v.walk.length - 1}`), time: helpLayout.timeHtml(duration(msLeft(v))), name: esc(v.name) }));
       }
     } catch (err) { log('offline note failed', err); }
     return out;
@@ -1071,8 +1083,14 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     // Adrift (5b part two): its own block, or the note of how the last spell ended.
     const adrift = state.adrift?.blockHtml?.() ?? '';
     if (state.adrift?.isAdrift?.()) return adrift;
+    // Stranded ashore: the page that manages travel says so, with the map (.309, scan A2-30); the panel has the rest.
+    let stranded = '';
+    try {
+      if (state.trader?.status?.() === 'stranded') stranded = `<div class="voyage-section voyage-clock-stranded"><span class="text-warning"><i class="fa fa-exclamation-triangle mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_CLOCK_STRANDED'))}</span>` +
+        `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn" data-voyage-clock-do="map">${esc(t('MOD_VOY_PAGE_SHOW_MAP'))}</button></div>`;
+    } catch (err) { log('stranded line failed', err); }
     const e = ending();
-    if (e === null || e.closed) return adrift;
+    if (e === null || e.closed) return stranded + adrift;
     const key = e.tow !== '' ? 'MOD_VOY_ADRIFT_ENDED_TOWED' : e.how === 'adrift' ? 'MOD_VOY_ADRIFT_ENDED_VOYAGE' : e.how === 'arrived' ? 'MOD_VOY_CLOCK_ENDED_ARRIVED' : e.how !== 'refused' ? 'MOD_VOY_CLOCK_ENDED_STOPPED' : e.why !== '' ? 'MOD_VOY_CLOCK_ENDED_REFUSED_WHY' : 'MOD_VOY_CLOCK_ENDED_REFUSED';
     const why = e.how === 'adrift' ? t(`MOD_VOY_ADRIFT_WHY_${e.why.toUpperCase() || 'FOOD'}`) : e.why;
     const lines = [t(key, { name: e.name, time: clockAt(e.at), hexes: hexes(e.hexes), took: duration(e.ms), why, by: e.tow === '' ? '' : t(`MOD_VOY_ADRIFT_TOW_BY_${e.tow.toUpperCase()}`) })];
@@ -1081,7 +1099,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     for (const f of e.failed) html += `<div class="text-warning">${esc(t('MOD_VOY_CLOCK_COULD_NOT', { name: f.name, why: f.why }))}</div>`;
     if (e.started !== '') html += `<div>${esc(t('MOD_VOY_CLOCK_ENDED_STARTED', { what: e.started }))}</div>`;
     return `<div class="voyage-clock-ended"><div class="voyage-clock-ended-text">${html}</div>`
-      + `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-clock-do="close">${esc(t('MOD_VOY_CLOCK_CLOSE'))}</button></div>` + adrift;
+      + `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-clock-do="close">${esc(t('MOD_VOY_CLOCK_CLOSE'))}</button></div>` + stranded + adrift;
   };
   /**
    * On a phone the status block (compass, land, travels) stacks to a screen or more, so the Under way block sits
@@ -1104,7 +1122,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     if (el === null) return;
     const v = cur();
     const e = ending();
-    const sig = v === null ? `e|${e?.at}|${e?.closed}|${state.adrift?.sig?.() ?? ''}` : `v|${v.at}|${v.walk.length}|${v.chain.length}|${v.fog === true}|${v.tow?.kind ?? ''}`;
+    const sig = v === null ? `e|${e?.at}|${e?.closed}|${state.adrift?.sig?.() ?? ''}|${state.trader?.status?.() ?? ''}` : `v|${v.at}|${v.walk.length}|${v.chain.length}|${v.fog === true}|${v.tow?.kind ?? ''}`;
     if (sig !== blockSig) {
       blockSig = sig;
       const html = on() || v !== null ? blockHtml() : '';
@@ -1127,9 +1145,10 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       if (x.textContent !== text) x.textContent = text;
     });
     set('hex-bar', (x) => { x.style.width = pct(1 - v.left / stepAll); x.classList.toggle('bg-warning', surveying !== undefined); x.classList.toggle('bg-info', surveying === undefined); });
-    set('hex-time', (x) => { x.textContent = t('MOD_VOY_CLOCK_OF_TIME', { done: C.clockText((stepAll - v.left) * C.TICK_MS), all: C.clockText(stepAll * C.TICK_MS) }); });
+    // Written only on change (.308: 1,400 DOM writes in 30 s for a dozen real changes, scan C-17); the hourglass as everywhere (A2-16).
+    set('hex-time', (x) => { const h = helpLayout.timeHtml(t('MOD_VOY_CLOCK_OF_TIME', { done: C.clockText((stepAll - v.left) * C.TICK_MS), all: C.clockText(stepAll * C.TICK_MS) })); if (x.innerHTML !== h) x.innerHTML = h; });
     set('bar', (x) => { const all = Math.max(v.total, v.spent + left / C.TICK_MS) || 1; x.style.width = pct(v.spent / all); });
-    set('left', (x) => { x.textContent = t('MOD_VOY_CLOCK_LEFT', { time: clockAt(Date.now() + left), left: duration(left) }); });
+    set('left', (x) => { const h = esc(t('MOD_VOY_CLOCK_LEFT', { time: clockAt(Date.now() + left), left: '\u0001' })).replace('\u0001', helpLayout.timeHtml(duration(left))); if (x.innerHTML !== h) x.innerHTML = h; });
   };
   document.addEventListener('click', (ev) => {
     const b = ev.target instanceof Element ? ev.target.closest('[data-voyage-clock-do]') : null;

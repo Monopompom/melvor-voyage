@@ -206,9 +206,29 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     try { return state.trader?.status(); } catch (e) { log('trader status failed', e); return undefined; }
   };
   // Built like the other panel rows (text, then its button; the buttons agree, alignRowButtons), build .86.
-  const strandedRow = (text, hint, cls, button = getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'), icon = 'exclamation-triangle') =>
+  const strandedRow = (text, hint, cls, button = getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'), icon = 'exclamation-triangle', note = hint) =>
     `<div class="voyage-here-ship voyage-here-stranded" title="${esc(hint)}"><span class="text-warning"><i class="fa fa-${icon} mr-1"></i>${esc(text)}</span>` +
-    `<button type="button" class="btn btn-sm btn-warning voyage-row-btn ${cls}">${esc(button)}</button></div>`;
+    `<button type="button" class="btn btn-sm btn-warning voyage-row-btn ${cls}">${esc(button)}</button></div>` +
+    // The reason in sight, not tooltip-only (.309, scan B-02); a stranded row adds the road's cost and what you have (B-28).
+    (note === '' ? '' : `<div class="voyage-here-note text-muted">${esc(note)}</div>`);
+  const strandedNote = () => {
+    let out = getLangString('MOD_VOY_PANEL_STRANDED_HINT');
+    try {
+      const v = state.trader?.verdict?.();
+      const cost = v?.road?.gp;
+      if (Number.isFinite(cost)) out += ` ${templateLangString('MOD_VOY_PANEL_STRANDED_ROAD', { cost: numberWithCommas(Math.round(cost)), have: numberWithCommas(game.gp.amount) })}`;
+    } catch (e) { log('stranded road failed', e); }
+    return out;
+  };
+  /** The level this sea's fish start at when yours is under it, else undefined (resource zones on). */
+  const fishingLevelHere = () => {
+    try {
+      if (!state.zonesOn?.()) return undefined;
+      if (state.zoneActionsHere('melvorD:Fishing').length > 0) return undefined;
+      const first = state.zoneActionsHere('melvorD:Fishing', { later: true })[0]?.level;
+      return Number.isFinite(first) && first > (game.fishing?.level ?? 0) ? first : undefined;
+    } catch { return undefined; }
+  };
   /**
    * Stranded rows, right under "You are here" (user feedback, build .60): out of GP with the road out unaffordable
    * (Adventure starts with every skill locked), and the stores short of any way to easier ground or a place to load.
@@ -219,9 +239,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const adrift = state.adrift?.chip?.();
     if (adrift !== undefined) {
       return strandedRow(adrift.row, adrift.tip, 'voyage-adrift-link', getLangString('MOD_VOY_ADRIFT_PANEL_BUTTON'), 'water')
-        + `<div class="voyage-here-ship text-muted"><span><i class="fa fa-fish mr-1"></i>${esc(getLangString('MOD_VOY_ADRIFT_PANEL_ONLY'))}</span></div>`;
+        + `<div class="voyage-here-ship text-muted"><span><i class="fa fa-fish mr-1"></i>${esc(fishingLevelHere() === undefined ? getLangString('MOD_VOY_ADRIFT_PANEL_ONLY') : templateLangString('MOD_VOY_ADRIFT_PANEL_ONLY_LEVEL', { level: `${fishingLevelHere()}` }))}</span></div>`; // the level this sea's fish start at, when yours is under it (.309, scan B-48)
     }
-    let out = status === 'stranded' ? strandedRow(getLangString('MOD_VOY_PANEL_STRANDED'), getLangString('MOD_VOY_PANEL_STRANDED_HINT'), 'voyage-trader-link') : '';
+    let out = status === 'stranded' ? strandedRow(getLangString('MOD_VOY_PANEL_STRANDED'), getLangString('MOD_VOY_PANEL_STRANDED_HINT'), 'voyage-trader-link', undefined, undefined, strandedNote()) : '';
     try {
       const api = state.stores;
       if (api?.enabled() && api.rescue() !== undefined) {
@@ -235,6 +255,14 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   const harbourLine = () => {
     try { return state.cargo?.panelLine() ?? ''; } catch (e) { log('harbour line failed', e); return ''; }
   };
+  /** The planned voyage as a row: the strip's chip had it, the open panel did not (.309, scan B-30). */
+  const planLine = () => {
+    const plan = state.planner?.summary?.();
+    if (plan === undefined) return '';
+    const hexes = plan.distance === undefined ? '?' : templateLangString(plan.distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${plan.distance}` });
+    return `<div class="voyage-here-place voyage-harbour-line"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_PLAN_LABEL'))}</span> ${esc(templateLangString('MOD_VOY_PANEL_PLAN_AWAY', { name: plan.name, hexes }))}</span>` +
+      `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-mini-plan">${esc(getLangString('MOD_VOY_PANEL_PLAN_BUTTON'))}</button></div>`;
+  };
   /** Trade status on its own line under the terrain line; empty while trade is not gated. */
   const tradeLine = (status) => {
     if (!state.active() || !state.settings.trade()) return '';
@@ -243,7 +271,11 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     // "OK" opens the bank, where the selling is (build .267).
     if (!state.tradeLocked?.()) return `<div class="voyage-here-place">${label}<button type="button" class="voyage-here-link voyage-bank-link text-success" title="${esc(getLangString('MOD_VOY_PANEL_TRADE_OK_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_TRADE_OK'))}</button></div>`;
     const trader = status === 'here' ? ` <span class="text-warning" title="${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'))}">· ${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE'))}</span>` : '';
-    return `<div class="voyage-here-place">${label}<span class="text-danger" title="${esc(getLangString('MOD_VOY_PANEL_NO_TRADE_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_NO_TRADE'))}</span>${trader}</div>`;
+    // With a trader here the row says so, not "not here" beside "is here" (.308, scan B-36).
+    // The tooltip on the row as the Combat row's (.309, scan B-21); "not here" says where trade is in its tooltip, not
+    // on a line under the row (.310, the user: "remove text under Trade and Combat").
+    if (status === 'here') return `<div class="voyage-here-place" title="${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'))}">${label}<span class="text-warning">${esc(getLangString('MOD_VOY_PANEL_TRADE_TRADER'))}</span></div>`;
+    return `<div class="voyage-here-place" title="${esc(getLangString('MOD_VOY_PANEL_NO_TRADE_HINT'))}">${label}<span class="text-danger">${esc(getLangString('MOD_VOY_PANEL_NO_TRADE'))}</span>${trader}</div>`;
   };
 
   /** "Combat: Golbin Village, …" or "Combat: not here": the areas combat works in from this hex (empty while combat is not gated). */
@@ -253,7 +285,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const names = areas.length > 0
       ? `<span class="voyage-fight-links">${areas.map((a) => `<button type="button" class="btn btn-sm btn-outline-info voyage-fight-link" data-area="${esc(a.id)}">${esc(a.name)}</button>`).join('')}</span>`
       : `<span class="text-danger">${esc(getLangString('MOD_VOY_PANEL_COMBAT_NONE'))}</span>`;
-    return `<div class="voyage-here-place" title="${esc(getLangString('MOD_VOY_PANEL_COMBAT_HINT'))}"><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_COMBAT_LABEL'))}</span> ${names}</div>`;
+    if (areas.length === 0) return `<div class="voyage-here-place" title="${esc(getLangString('MOD_VOY_PANEL_COMBAT_NONE_HINT'))}"><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_COMBAT_LABEL'))}</span> ${names}</div>`; // where to look, in the tooltip (.309 C-11; under the row no more, .310, the user)
+    return `<div class="voyage-here-place" title="${esc(getLangString('MOD_VOY_PANEL_COMBAT_HINT'))}"><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_COMBAT_LABEL'))}</span> ${names}</div>`; // (.308, B-26/C-12)
   };
 
   /**
@@ -457,7 +490,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return `<div class="voyage-wx"><div class="voyage-wx-head">${toggle}</div>` +
       `<div class="voyage-wx-row" title="${esc(getLangString('MOD_VOY_WX_PANEL_HINT'))}">${seasonImg(s)}<span>${deg} ${esc(s.name)}${d.effect === '' ? '' : ` · <span class="${d.tone || 'text-muted'}">${esc(d.head)}${d.head !== '' && d.fx !== '' ? ': ' : ''}${d.fx}</span>`}</span></div>` +
       frozen +
-      (next === '' ? '' : `<div class="voyage-wx-line text-muted">${next}</div>`) +
+      // The coming season's icon before its line, as the season's own line and the wind's have theirs (the user, 19 Oct 2026).
+      (next === '' ? '' : `<div class="voyage-wx-line voyage-wx-next text-muted">${s.noTown ? '' : seasonImg(s.next)}<span>${next}</span></div>`) +
       // The wind last, under the season's lines (the user, build .292: "move wind to the bottom"); a storm near under it.
       windRow(wind) + stormRow(storm) + '</div>';
   };
@@ -472,7 +506,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     // The wind rides in the same chip (phase 5c-2): its arrow and side, so the strip keeps its chip count.
     const wind = w.wind?.();
     const windBit = wind === undefined ? '' : `<span class="voyage-wind-sum">${windArrow(wind)}${esc(wind.short)}</span>`;
-    return chip(`${img}<span class="${d.tone}">${esc(d.deg)}</span>${windBit}`, `${s.name} · ${d.deg}${d.effect === '' ? '' : ` · ${d.effect}`}.${wind === undefined ? '' : `\n${windTip(wind)}`}${next === '' ? '' : `\n${next}`}`);
+    // A button like the other chips: a tap reads the weather in a popup (.308, scan B-11).
+    return chip(`${img}<span class="${d.tone}">${esc(d.deg)}</span>${windBit}`, `${s.name} · ${d.deg}${d.effect === '' ? '' : ` · ${d.effect}`}.${wind === undefined ? '' : `\n${windTip(wind)}`}${next === '' ? '' : `\n${next}`}`, 'voyage-chip-plain', 'voyage-chip-tip');
   };
 
   /**
@@ -507,7 +542,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const sh = state.ship;
     if (sh?.boat?.() != null && sh.enabled()) {
       // The more worn of your vessels (build .150: the big ship has its own hull).
-      const kind = sh.big?.() != null && (sh.cond?.('ship') ?? 100) < (sh.cond?.('boat') ?? 100) ? 'ship' : 'boat';
+      const cs = sh.cond?.('ship') ?? 100;
+      const cb = sh.cond?.('boat') ?? 100;
+      const kind = sh.big?.() != null && (cs < cb || (cs === cb && sh.inVessel?.() === 'ship')) ? 'ship' : 'boat'; // a tie goes to the vessel you are aboard (.309, scan B-39)
       const c = sh.cond?.(kind) ?? 100;
       if (c < 100) {
         // The name starts the tooltip, so it takes a capital (build .270, the user: "ship name - capitalize").
@@ -518,14 +555,15 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     }
     // 3b. A storm within 3 hexes (phase 5c-3, the canvas's board 4: "a storm chip only when one is within 3 hexes").
     const near = stormNear();
-    if (near !== undefined) out.push(chip(`<i class="fa fa-bolt mr-1" aria-hidden="true"></i>${near.dist === 0 ? esc(getLangString('MOD_VOY_STORM_CHIP_HERE')) : near.dist}`, `${stormWords(near)}.\n${getLangString('MOD_VOY_STORM_HINT')}`, 'voyage-storm-chip'));
+    // A button like the other chips (.308, B-11), the distance with its unit (B-38).
+    if (near !== undefined) out.push(chip(`<i class="fa fa-bolt mr-1" aria-hidden="true"></i>${near.dist === 0 ? esc(getLangString('MOD_VOY_STORM_CHIP_HERE')) : esc(templateLangString(near.dist === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${near.dist}` }))}`, `${stormWords(near)}.\n${getLangString('MOD_VOY_STORM_HINT')}`, 'voyage-storm-chip voyage-chip-plain', 'voyage-chip-tip'));
     // 4. Night only: fuel buys light then.
     const tod = on ? st.timeOfDay?.() : undefined;
     if (tod?.night) {
       const hint = templateLangString('MOD_VOY_PANEL_NIGHT_HINT', { land: `${storesModel.LIGHT.land}`, sea: `${storesModel.LIGHT.sea}`, bonus: `${Math.round(model.STAR_XP * 100)}` });
       out.push(tod.season
-        ? chip('<i class="fa fa-moon"></i>', `${getLangString('MOD_VOY_PANEL_NIGHT_SEASON')}. ${hint}`, 'text-info')
-        : chip(`<i class="fa fa-moon mr-1"></i>${esc(tod.until)}`, `${templateLangString('MOD_VOY_PANEL_NIGHT', { time: tod.until })}. ${hint}`, 'text-info'));
+        ? chip('<i class="fa fa-moon"></i>', `${getLangString('MOD_VOY_PANEL_NIGHT_SEASON')}. ${hint}`, 'text-info voyage-chip-plain', 'voyage-chip-tip') // a 32px button; a tap reads the rules (.308, B-54)
+        : chip(`<i class="fa fa-moon mr-1"></i>${esc(tod.until)}`, `${templateLangString('MOD_VOY_PANEL_NIGHT', { time: tod.until })}. ${hint}`, 'text-info voyage-chip-plain', 'voyage-chip-tip'));
     }
     // 5. The weather here (phase 5c-1).
     const wx = weatherChip(state.recordAt(pos));
@@ -571,7 +609,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     if (adrift !== undefined) warn.push(chip(`<i class="fa fa-water mr-1"></i>${esc(adrift.text)}`, adrift.tip, 'btn btn-sm btn-warning', 'voyage-adrift-link'));
     else if (status === 'stranded') warn.push(chip(`<i class="fa fa-exclamation-triangle mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'))}`, getLangString('MOD_VOY_PANEL_STRANDED_HINT'), 'btn btn-sm btn-warning', 'voyage-trader-link'));
     else {
-      try { if (state.stores?.enabled() && state.stores.rescue() !== undefined) warn.push(chip(`<i class="fa fa-exclamation-triangle mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_STRANDED_BUTTON'))}`, getLangString('MOD_VOY_PANEL_HUNGRY_HINT'), 'btn btn-sm btn-warning', 'voyage-rescue-link')); } catch {}
+      try { if (state.stores?.enabled() && state.stores.rescue() !== undefined) warn.push(chip(`<i class="fa fa-exclamation-triangle mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_HUNGRY_BUTTON'))}`, getLangString('MOD_VOY_PANEL_HUNGRY_HINT'), 'btn btn-sm btn-warning', 'voyage-rescue-link')); } catch {}
     }
     // The wandering trader on your hex: he comes with being stranded, so he stands with its warning (seen on .123:
     // as the last chip he fell off a full strip).
@@ -679,7 +717,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
 
   const legend = () => [
-    ...Object.entries(terrainMod.CLASS_INFO).filter(([cls]) => cls !== 'water').map(([cls, info]) => ({ css: info.css, label: classLabel(cls) })),
+    ...Object.entries(terrainMod.CLASS_INFO).map(([cls, info]) => ({ css: info.css, label: classLabel(cls) })),
     { css: terrainMod.CLOUD_INFO.css, label: getLangString(terrainMod.CLOUD_KEY) },
     ...(state.weather?.season?.()?.ice ? [{ css: terrainMod.ICE_INFO.css, label: getLangString(terrainMod.ICE_KEY) }] : []),
     // Storms (phase 5c-3): their grey cells on the map, while any is out.
@@ -717,18 +755,29 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
    * it ran to the bottom of a 375 x 667 screen). Measured from the map's visible height, again on every resize.
    */
   const CAP = 0.55;
+  /**
+   * At every other width the panel stops at the map's bottom edge (.308: at 768–1280 it ran 100–350px past the map
+   * and the page scrolled, scan B-03/B-42/B-56), or at the top of the game's hex overview when that card is up in
+   * the same corner (it drew over the panel's lower half, scan B-04). It scrolls inside only when it has to.
+   */
   const capHeight = () => {
     try {
       const panel = document.getElementById(PANEL_ID);
       if (!panel) return;
       const map = typeof cartographyMap !== 'undefined' ? cartographyMap?.bottomLeftOverlay?.parentElement : undefined;
-      const on = panel.classList.contains('voyage-here-top') && !panel.classList.contains('voyage-mini') && !panel.classList.contains('voyage-tucked') && phone() && map != null;
-      panel.classList.toggle('voyage-capped', on);
-      if (!on) { panel.style.maxHeight = ''; return; }
+      const on = panel.classList.contains('voyage-here-top') && !panel.classList.contains('voyage-mini') && !panel.classList.contains('voyage-tucked') && map != null;
+      if (!on) { panel.classList.remove('voyage-capped'); panel.style.maxHeight = ''; return; }
       const m = map.getBoundingClientRect();
-      const bottom = Math.min(m.bottom, window.innerHeight);
-      const limit = m.top + (bottom - m.top) * CAP - panel.getBoundingClientRect().top;
+      let bottom = Math.min(m.bottom, window.innerHeight);
+      const p = panel.getBoundingClientRect();
+      if (!phone()) {
+        const card = cartographyMap?.bottomLeftOverlay;
+        const c = card?.getBoundingClientRect();
+        if (c !== undefined && c.height > 0 && c.width > 0 && c.left < p.right && c.right > p.left) bottom = Math.min(bottom, c.top);
+      }
+      const limit = phone() ? m.top + (bottom - m.top) * CAP - p.top : bottom - 12 - p.top;
       panel.style.maxHeight = `${Math.max(160, Math.round(limit))}px`;
+      panel.classList.toggle('voyage-capped', phone() || panel.scrollHeight > panel.clientHeight + 1);
     } catch (e) { log('panel height failed', e); }
   };
 
@@ -738,9 +787,16 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const panel = document.getElementById(PANEL_ID);
       if (!panel || !panel.classList.contains('voyage-here-top')) return;
       panel.style.right = '';
-      const p = panel.getBoundingClientRect();
+      panel.style.width = '';
+      let p = panel.getBoundingClientRect();
       const lefts = [...document.querySelectorAll('.voyage-map-controls > *')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0).map((r) => r.left);
       const left = Math.min(...lefts);
+      // At 576 to 767 the search bar shares its row with the game's buttons and is under 200px wide; the open panel
+      // took that width. It takes the room the map gives, up to its usual 480 (.309, scan B-58).
+      if (Number.isFinite(left) && panelOpen && !panel.classList.contains('voyage-mini') && p.width > 0 && p.width < 300) {
+        const room = Math.floor(left - 4 - p.left);
+        if (room > p.width) { panel.style.width = `${Math.min(480, room)}px`; p = panel.getBoundingClientRect(); }
+      }
       if (Number.isFinite(left) && p.width > 0 && p.right > left - 4) panel.style.right = `${Math.ceil(p.right - left + 4)}px`;
     } catch (e) { log('panel gutter failed', e); }
   };
@@ -881,7 +937,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       }
       if (e.target instanceof Element && e.target.closest('.voyage-mini-plan')) { e.preventDefault(); state.planner?.reopen?.(); return; }
       const tipChip = e.target instanceof Element ? e.target.closest('.voyage-chip-tip') : null;
-      if (tipChip !== null) { showTip(tipChip.getAttribute('title') ?? ''); return; }
+      // tips.apply moves `title` to `data-tip-text` (.308: the chip opened an empty popup, scan B-01).
+      if (tipChip !== null) { showTip(tipChip.dataset.tipText ?? tipChip.getAttribute('title') ?? ''); return; }
       if (e.target instanceof Element && e.target.closest('.voyage-journal-link')) {
         e.preventDefault();
         state.journal?.open();
@@ -973,10 +1030,12 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const rec = state.recordAt(pos);
       const d = describe(rec);
       const poi = poiNameOf(pos);
-      const place = [poi ? esc(poi) : undefined, d.area ? esc(d.area) : undefined].filter(Boolean).join(', ');
+      // A dungeon's POI and area share a name: once (.308, scan B-52).
+      const place = [...new Set([poi ? esc(poi) : undefined, d.area ? esc(d.area) : undefined].filter(Boolean))].join(', ');
       // The place's name and its coordinates move to the next line as one, never split (build .286, the user: "if name +
       // cords don't fit in line it goes on next line as whole"); a name wider than the panel still wraps inside.
-      const where = `${place ? ' · ' : ' '}<span class="voyage-keep">${place ? `${place} ` : ''}${coordsOf(pos)}</span>`;
+      // The name in the body's ink; the terrain's features and the coordinates stay muted (.309, scan B-31).
+      const where = place ? ` · <span class="voyage-keep">${place} <small class="text-muted">${coordsOf(pos)}</small></span>` : ` <small class="text-muted"><span class="voyage-keep">${coordsOf(pos)}</span></small>`;
       const swatch = d.css ? `<span class="voyage-swatch" style="background:${d.css}"></span>` : '';
       const features = d.features.length > 0 ? ` · ${esc(d.features.join(', '))}` : '';
       const mode = state.mode === 'relaxed' ? `<div><small class="text-warning">${esc(getLangString('MOD_VOY_PANEL_TABLE_MISMATCH'))}</small></div>` : '';
@@ -998,11 +1057,12 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         // their band at the very bottom (the user, build .303: "move that boat info block at the very bottom"). The
         // legend left the panel for a badge on the map (legendBadge).
         strandedLines(status) +
-        `<div>${swatch}${esc(d.label)}<small class="text-muted">${features}${where}</small></div>` +
+        `<div>${swatch}${esc(d.label)}<small class="text-muted">${features}</small>${where}</div>` +
         mode +
         `<div class="voyage-skills">${worksRows(pos)}</div>` +
         tradeLine(status) +
         harbourLine() +
+        planLine() +
         fightLine() +
         signLine() +
         weatherBlock(rec) +

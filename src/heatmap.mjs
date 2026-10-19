@@ -159,8 +159,9 @@ export function install(ctx, { state, terrainMod, log }) {
     g.lineWidth = 2.5 * px;
     g.strokeStyle = '#ffd34d';
     for (const f of m.found) { path(f.q, f.r); g.stroke(); }
-    g.fillStyle = 'rgba(70,130,230,0.55)';
-    g.strokeStyle = '#2b5fb8';
+    // Misses in a neutral grey with a dark rim: blue read as shallow sea next to water (.308, scan C2-20).
+    g.fillStyle = 'rgba(150,150,150,0.55)';
+    g.strokeStyle = '#4a4a4a';
     g.lineWidth = 2 * px;
     for (const f of m.missed) { path(f.q, f.r); g.fill(); g.stroke(); }
     // You: a ring with a dark edge, readable on any colour.

@@ -175,7 +175,8 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
       if (journal !== undefined) sections.push({ head: getLangString('MOD_VOY_JOURNAL_TITLE'), body: [getLangString('MOD_VOY_WELCOME_JOURNAL'), { html: getLangString('MOD_VOY_WELCOME_JOURNAL_WHERE') }] });
       SwalLocale.fire({
         didRender: state.popupDidRender,
-        title: `<img class="voyage-title-icon" src="${it.media}" alt="">${getLangString('MOD_VOY_COMPASS_WELCOME_TITLE')}`,
+        title: getLangString('MOD_VOY_COMPASS_WELCOME_TITLE'),
+        imageUrl: it.media, ...helpLayout.MSG_IMAGE, // the picture on top, as every message popup (.310, scan C-07)
         width: helpLayout.HELP_WIDTH,
         html: helpLayout.helpHtml(sections, { notice: true }),
         confirmButtonText: getLangString('MOD_VOY_BUTTON_GOT_IT'),

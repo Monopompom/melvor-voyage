@@ -187,6 +187,8 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
         // The price here coloured as its percent; the usual price plain, the one it is weighed against.
         if (p !== 100) parts.push(`<div>${esc(t('MOD_VOY_MARKET_EACH', { gp: '\u0000', was: '\u0001' })).replace('\u0000', gpHtml(each, tone(p))).replace('\u0001', gpHtml(item.sellsFor.quantity))}</div>`);
       }
+      // At the wandering trader the bank says why the price is half (.308, scan B-65).
+      try { if (m === undefined && state.trader?.present?.() === true) parts.push(`<div>${esc(t('MOD_VOY_MARKET_TRADER'))}</div>`); } catch {}
       const bw = MM.bestAndWorst(known(), c[0], c[1]);
       if (bw !== undefined) {
         parts.push(`<div>${t('MOD_VOY_MARKET_BEST', { market: `<b>${esc(name(bw.best.id))}</b>`, pct: pctHtml(bw.best.percent) })}</div>`);

@@ -28,7 +28,8 @@ export function install(ctx, { container, L, t, tips, log }) {
     const folded = layout.folded.includes(id);
     b.classList.toggle('voyage-folded', folded);
     btn.setAttribute('aria-expanded', `${!folded}`);
-    const label = t(folded ? 'MOD_VOY_PAGE_UNFOLD' : 'MOD_VOY_PAGE_FOLD');
+    const name = b.querySelector('.voyage-block-head h5, .voyage-block-head h6')?.querySelector('lang-string, span')?.textContent.trim() ?? '';
+    const label = name === '' ? t(folded ? 'MOD_VOY_PAGE_UNFOLD' : 'MOD_VOY_PAGE_FOLD') : t(folded ? 'MOD_VOY_PAGE_UNFOLD_OF' : 'MOD_VOY_PAGE_FOLD_OF', { name }); // the block's name (.308, A-17)
     btn.setAttribute('aria-label', label);
     if (tips !== undefined) tips.set(btn, label); else btn.title = label;
     btn.querySelector('i')?.classList.replace(folded ? 'fa-caret-down' : 'fa-caret-right', folded ? 'fa-caret-right' : 'fa-caret-down');
@@ -73,7 +74,7 @@ export function install(ctx, { container, L, t, tips, log }) {
       foot.innerHTML = `<button type="button" class="btn btn-sm btn-outline-info">${esc(t('MOD_VOY_PAGE_RESET_LAYOUT'))}</button>`;
       const btn = foot.firstChild;
       if (tips !== undefined) tips.set(btn, t('MOD_VOY_PAGE_RESET_LAYOUT_HINT')); else btn.title = t('MOD_VOY_PAGE_RESET_LAYOUT_HINT');
-      btn.onclick = () => { layout = L.clean(null); place(); L.BLOCKS.forEach(showFold); write(); };
+      btn.onclick = () => { layout = L.clean(null); place(); L.BLOCKS.forEach(showFold); write(); try { document.querySelector('#voyage-container .voyage-block-fold')?.focus({ preventScroll: true }); } catch {} }; // (.308, A2-31)
     }
   };
 

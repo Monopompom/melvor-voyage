@@ -259,7 +259,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   /** Why the dinghy can't be built right now, or undefined. */
   const buildBlocker = () => {
     if (ship() !== null) return t('MOD_VOY_SHIP_BLOCK_HAS_SHIP');
-    if (!state.active()) return t('MOD_VOY_SHIP_BLOCK_RULES_OFF');
+    if (!state.active()) return t(game.tutorial?.complete === false ? 'MOD_VOY_PAGE_TUTORIAL' : 'MOD_VOY_SHIP_BLOCK_RULES_OFF'); // the tutorial, not a setting (.308, C-01)
     if (launchSpot() === undefined) return t('MOD_VOY_SHIP_BLOCK_NOT_COAST');
     if (!buildCosts().checkIfOwned()) return t('MOD_VOY_SHIP_BLOCK_NO_MATERIALS');
     return undefined;
@@ -292,7 +292,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     const p = player();
     const word = hullWord(HULLS[s.hull]);
     let blocker;
-    if (!state.active()) blocker = t('MOD_VOY_SHIP_BLOCK_RULES_OFF');
+    if (!state.active()) blocker = t(game.tutorial?.complete === false ? 'MOD_VOY_PAGE_TUTORIAL' : 'MOD_VOY_SHIP_BLOCK_RULES_OFF');
     else {
       const why = shipModel.upgradeBlocker(s, u, { level: skill()?.level ?? 1, atPort: atPort(), playerRec: p === undefined ? undefined : recOf(p), owned: costsOf(u).checkIfOwned() });
       if (why === 'level') blocker = t('MOD_VOY_UPGRADE_BLOCK_LEVEL', { level: `${u.level}` });
@@ -333,7 +333,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     const port = portHex();
     const quay = port === undefined ? undefined : dockOf(port);
     let blocker;
-    if (!state.active()) blocker = t('MOD_VOY_SHIP_BLOCK_RULES_OFF');
+    if (!state.active()) blocker = t(game.tutorial?.complete === false ? 'MOD_VOY_PAGE_TUTORIAL' : 'MOD_VOY_SHIP_BLOCK_RULES_OFF');
     else {
       const why = shipModel.buyBlocker(spec, { ship: big(), level: skill()?.level ?? 1, atPort: atPort() && port !== undefined, quay, owned: costsOf(spec).checkIfOwned() });
       if (why === 'level') blocker = t('MOD_VOY_UPGRADE_BLOCK_LEVEL', { level: `${spec.level}` });
@@ -420,7 +420,8 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     try {
       SwalLocale.fire({
         didRender: state.popupDidRender,
-        title: `<img class="voyage-title-icon" src="${ctx.getResourceUrl(HULLS.dinghy.media)}" alt="">${t('MOD_VOY_SHIP_NOTICE_TITLE')}`,
+        title: t('MOD_VOY_SHIP_NOTICE_TITLE'),
+        imageUrl: ctx.getResourceUrl(HULLS.dinghy.media), ...helpLayout.MSG_IMAGE, // the picture on top (.310, scan C-07)
         width: helpLayout.HELP_WIDTH,
         html: helpLayout.helpHtml(sections, { notice: true }),
         confirmButtonText: t('MOD_VOY_BUTTON_GOT_IT'),

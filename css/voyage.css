@@ -14,6 +14,7 @@
   --voyage-gold: #7a5c0e; --voyage-ring: rgba(122, 92, 14, .55); --voyage-ring-bg: rgba(0, 0, 0, .06); --voyage-pin: #7a5c0e;
   --voyage-sea: #1f6a8f; --voyage-foot: #8a4b12; --voyage-tale: #6b4a1e; --voyage-ok: #1e7b2e; --voyage-warn: #8a5a00;
   --voyage-hot: #b42318; --voyage-warm: #8a5a00; --voyage-cold: #1d5fa8; --voyage-freezing: #3a6d8f;
+  --voyage-ok-tint: rgba(30, 123, 46, .1); --voyage-warn-tint: rgba(138, 90, 0, .12); --voyage-foot-tint: rgba(138, 75, 18, .12); --voyage-sea-tint: rgba(31, 106, 143, .12); --voyage-swatch-line: rgba(0, 0, 0, .4); /* .308: tints as tokens (scan A-26) */
   --voyage-crate: rgba(0, 0, 0, .08); --voyage-crate-line: rgba(0, 0, 0, .2); --voyage-crate-shade: rgba(0, 0, 0, .18); --voyage-crate-empty: #8a6a3e;
   --voyage-adrift: #d08a00;
   --voyage-way-fill: rgba(31, 106, 143, .16); --voyage-way-run: rgba(255, 255, 255, .7);
@@ -28,7 +29,8 @@ body.darkMode {
   --voyage-dis-text: #8a949e; --voyage-dis-line: #5c6873;
   --voyage-gold: #e8c766; --voyage-ring: rgba(232, 199, 102, .7); --voyage-ring-bg: rgba(0, 0, 0, .28); --voyage-pin: #d4a548;
   --voyage-sea: #8fd0ef; --voyage-foot: #e2b47a; --voyage-tale: #e6d6b0; --voyage-ok: #6fdc9a; --voyage-warn: #ffc46b;
-  --voyage-hot: #ff5a3c; --voyage-warm: #ffb347; --voyage-cold: #7fc8ff; --voyage-freezing: #cfe8ff;
+  --voyage-hot: #ff8c70; --voyage-warm: #ffb347; --voyage-cold: #7fc8ff; --voyage-freezing: #cfe8ff; /* hot 4.8:1 on the band (.308, C2-05) */
+  --voyage-ok-tint: rgba(70, 195, 123, .16); --voyage-warn-tint: rgba(255, 179, 71, .16); --voyage-foot-tint: rgba(214, 160, 92, .16); --voyage-sea-tint: rgba(95, 179, 217, .16); --voyage-swatch-line: rgba(255, 255, 255, .45);
   --voyage-crate: rgba(0, 0, 0, .3); --voyage-crate-line: rgba(0, 0, 0, .45); --voyage-crate-shade: rgba(0, 0, 0, .6); --voyage-crate-empty: #a07a4c;
   --voyage-adrift: #f3a712;
   --voyage-way-fill: rgba(91, 173, 226, .22); --voyage-way-run: rgba(255, 255, 255, .16);
@@ -64,7 +66,7 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-map-controls { position: absolute; right: 0; top: 62px; display: flex; flex-direction: column; align-items: flex-end; }
 /* Day or night, centred on top of the ship and stores band. */
 .voyage-here-ship.voyage-here-time { justify-content: center; }
-.voyage-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.4); vertical-align: -1px; margin-right: 5px; }
+.voyage-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--voyage-swatch-line); /* seen on a dark card too (.308, B-61) */ vertical-align: -1px; margin-right: 5px; }
 .voyage-legend { margin-top: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 1px 14px; font-size: .9rem; line-height: 1.6; }
 .voyage-legend-item { white-space: nowrap; }
 /* Text that moves to the next line whole (the Here panel's place and coordinates, build .286). */
@@ -81,8 +83,9 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-skillrow { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-top: 2px; }
 .voyage-skillrow img.skill-icon-xs { width: 20px; height: 20px; }
 .voyage-skill-locked { opacity: var(--voyage-locked-alpha); filter: grayscale(1); outline: 1px solid rgba(220, 53, 69, .6); border-radius: 50%; }
+body.darkMode.superDark .voyage-skill-locked { opacity: .6; filter: grayscale(.6); } /* black line-art icons were lost on black (.308, B-15) */
 .voyage-skill-rate { position: relative; display: inline-flex; align-items: flex-end; }
-#voyage-here .voyage-skill-rate small, .voyage-skill-rate small { font-size: .8rem; margin-left: 1px; } /* icon counts 0.8rem minimum; colour from text-warning */
+#voyage-here .voyage-skill-rate small, .voyage-skill-rate small { font-size: .9rem; margin-left: 1px; } /* a rate or a level is text, not an icon count: .9rem (.308, B-08/B-46) */
 .voyage-compass-hot { color: var(--voyage-hot); }
 .voyage-compass-warm { color: var(--voyage-warm); }
 .voyage-compass-cold { color: var(--voyage-cold); }
@@ -91,10 +94,13 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 /* Popup titles break into even lines, never a word or "8)?" alone, never cut (builds .261-.262; the ties and the
    whole-name fit are in skill-names.mjs fitTitle). */
 .voyage-ui .swal2-title { text-wrap: balance; }
-.voyage-title-icon { width: 1.4em; height: 1.4em; vertical-align: -0.3em; margin-right: 0.35em; }
 .voyage-here-place { margin-top: 1px; }
 /* row labels in the panel (Trade, Combat, Works, Locked): muted but full size (user feedback, build .44) */
 #voyage-here { font-size: 1rem; line-height: 1.45; }
+/* Light: the game's text-muted (#6c757d) is 4.3:1 on our bands; the label ink is 6:1 (.308, A2-06/B-13/B-64). */
+body:not(.darkMode) #voyage-container .text-muted, body:not(.darkMode) #voyage-here .text-muted, body:not(.darkMode) .voyage-ui .text-muted { color: var(--voyage-label) !important; }
+body:not(.darkMode) .voyage-store-item.btn-outline-info { color: var(--voyage-sea); border-color: var(--voyage-sea); }
+body:not(.darkMode) .voyage-store-item.btn-info { background: var(--voyage-sea); border-color: var(--voyage-sea); } /* chip digits 4.5:1 in Light (.308, A2-07) */
 .voyage-here-label { color: var(--voyage-label); font-weight: 600; margin-right: 2px; }
 
 /* settings: the Strictness dropdown sits under its two-line hint, lined up with the label */
@@ -110,8 +116,8 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-status-more [data-voyage="compass"] > .voyage-section, .voyage-status-more [data-voyage="travels"] > .voyage-section { flex: 1; display: flex; flex-direction: column; }
 .voyage-compass-note { margin-top: auto; padding-top: 1em; }
 /* The Compass in the Travels look (build .157): status chips, stage rows with their level on the right. */
-.voyage-chip-ok { background: rgba(70, 195, 123, .16); color: var(--voyage-ok); }
-.voyage-chip-warn { background: rgba(255, 179, 71, .16); color: var(--voyage-warn); }
+.voyage-chip-ok { background: var(--voyage-ok-tint); color: var(--voyage-ok); }
+.voyage-chip-warn { background: var(--voyage-warn-tint); color: var(--voyage-warn); }
 .voyage-chip-next { background: var(--voyage-tile); color: var(--voyage-label-hover); }
 .voyage-stat-locked .voyage-stat-label { color: var(--voyage-label); }
 .voyage-stat-locked .voyage-stat-fa { color: var(--voyage-label); opacity: .7; }
@@ -121,8 +127,8 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-travel-label { font-weight: 600; }
 .voyage-travel-split { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .voyage-travel-chip { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 12px; font-size: .9rem; font-weight: 600; }
-.voyage-travel-foot { background: rgba(214, 160, 92, .16); color: var(--voyage-foot); }
-.voyage-travel-sail { background: rgba(95, 179, 217, .16); color: var(--voyage-sea); }
+.voyage-travel-foot { background: var(--voyage-foot-tint); color: var(--voyage-foot); }
+.voyage-travel-sail { background: var(--voyage-sea-tint); color: var(--voyage-sea); }
 .voyage-stats { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--voyage-rule); }
 .voyage-stat { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; column-gap: 12px; }
 .voyage-stat + .voyage-stat { margin-top: 6px; }
@@ -142,17 +148,19 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-hull { padding-top: 8px; border-top: 1px solid var(--voyage-rule-soft); }
 .voyage-hull-bar { height: 8px; margin-top: 4px; } /* the full band width beside the icon (build .159, the user) */
 .voyage-path-note { font-size: .9rem; line-height: 1.35; padding: .4rem .75rem 0; text-align: center; }
-.voyage-overview { font-size: .9rem; }
+.voyage-overview { font-size: .9rem; padding: 0 8px; } /* inset as the game's rows (.308, B-63) */
 
 /* phase 3b: the boat line in the "You are here" panel, right under the location line */
 .voyage-here-ship { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0; }
+.voyage-here-ship + .voyage-here-ship, .voyage-here-place + .voyage-here-ship, .voyage-here-ship + .voyage-here-place { margin-top: 6px; } /* buttons in neighbouring rows 6px apart (.308, B-07) */
 .voyage-here-ship .btn { font-size: .9rem; padding: .2rem .6rem; white-space: nowrap; }
 .voyage-here-stranded { margin: 4px 0; font-weight: 600; } /* a panel row like the others (build .86) */
 /* The legend badge on the map, under the zoom and centre buttons (here-panel.mjs legendBadge, build .296). The card
    opens to its left, out of flow, so the panel's gutter (clearOfControls) measures only the button. */
 .voyage-legend-badge { position: relative; }
 .voyage-legend-btn { width: 40px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
-.voyage-legend-card { position: absolute; top: 0; right: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(19rem, calc(100vw - 80px)); box-shadow: 0 2px 8px rgba(0, 0, 0, .35); }
+.voyage-legend-card { position: absolute; top: 0; right: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(19rem, calc(100vw - 80px)); max-height: min(60vh, 480px); overflow-y: auto; scrollbar-width: thin; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); } /* never past the map's bottom (.308, B-59) */
+@media (max-width: 575.98px) { .voyage-legend-card { top: calc(100% + 6px); right: 0; } } /* under the badge, not over the panel (.308, B-57) */
 .voyage-legend-card-title { color: var(--voyage-label); font-weight: 600; }
 .voyage-legend-card .voyage-legend { margin-top: 2px; grid-template-columns: repeat(2, max-content); }
 /* Locked here, at the panel's foot under a rule (build .296). */
@@ -178,6 +186,7 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-store-well::-webkit-scrollbar { display: none; }
 .voyage-store-well-empty { display: flex; align-items: center; justify-content: center; text-align: center; color: var(--voyage-label); padding: 12px; }
 @media (max-width: 575.98px) { .voyage-store-cols { grid-template-columns: 1fr; } }
+@container (max-width: 28rem) { .voyage-store-cols { grid-template-columns: 1fr; } } /* the block's width, not the window's (.308, A-28) */
 .voyage-store-item { display: inline-flex; align-items: center; gap: 4px; padding: .2rem .45rem; min-height: 40px; }
 .voyage-store-item img { width: 32px; height: 32px; } /* 32px icons on item chips */
 .voyage-store-item small { font-size: .8rem; }
@@ -189,6 +198,7 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-wx-icon { width: 20px; height: 20px; flex: none; }
 .voyage-wx-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
 .voyage-wx-line { margin: 2px 0; font-size: .9rem; }
+.voyage-wx-next { display: flex; align-items: center; gap: 6px; }
 /* A square box: rotated, the narrow arrow would reach over the side beside it (the user, build .294: "arrow too close"). */
 .voyage-wind-arrow { display: inline-block; width: 1em; text-align: center; transition: transform .3s; }
 .voyage-wind-box { display: inline-flex; align-items: center; justify-content: center; font-size: 1.05rem; }
@@ -234,12 +244,15 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-help { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; padding: 0 .35rem; margin-left: .2rem;
   color: var(--voyage-help); background: none; border: 0; font-size: 1.1rem; line-height: 1; vertical-align: middle; } /* 32px target */
 .voyage-help:focus { color: var(--voyage-hover); box-shadow: none; }
+.voyage-help:focus-visible, #voyage-container .btn:focus-visible, #voyage-here .btn:focus-visible, .voyage-ui .btn:focus-visible, .voyage-chip-btn:focus-visible { outline: 2px solid var(--voyage-help) !important; outline-offset: 2px; } /* a ring the keyboard can see (.308, C-22/C2-12) */
 @media (hover: hover) { .voyage-help:hover { color: var(--voyage-hover); } }
 /* Help popups (build .87): one grey band per idea, a heading, short paragraphs, tables for numbers. */
+.voyage-ui .swal2-html-container { font-size: 1rem; line-height: 1.5; max-height: calc(100vh - 14rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; } /* one body size (.308, C-08/B-68); a long popup scrolls inside, its buttons stay on screen (A2-23/C2-03) */
 .voyage-help-body .voyage-help-head { color: var(--voyage-label); font-weight: 600; margin-bottom: 4px; }
 .voyage-help-body .voyage-help-p { margin: 0; }
 .voyage-help-body .voyage-help-p + .voyage-help-p, .voyage-help-body .voyage-help-table + .voyage-help-p, .voyage-help-body .voyage-help-p + .voyage-help-table { margin-top: 6px; }
-.voyage-help-body .voyage-help-warn { border-left: 3px solid; } /* an amber edge: read this before you lose something */
+.voyage-help-body .voyage-help-warn { border-left: 3px solid var(--voyage-warn); }
+.voyage-help-body .voyage-help-warn .voyage-help-head { color: var(--voyage-warn); } /* the band's edge and heading in the theme's amber (.308, C-20) */ /* an amber edge: read this before you lose something */
 .voyage-help-notice .voyage-help-table { text-align: left; } /* a notice's bands read centred like every message popup (build .307); its tables keep their columns */
 .voyage-help-table { display: grid; grid-template-columns: minmax(0, 1fr) repeat(var(--voyage-help-cols, 1), auto); column-gap: 12px; }
 .voyage-help-th { color: var(--voyage-label); font-size: .9rem; padding-bottom: 2px; border-bottom: 1px solid var(--voyage-rule); }
@@ -272,7 +285,12 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 /* Two vessels (build .150): the bank's choice of hold, the brig's heading on the Ship tab, and both holds side by side. */
 .voyage-hold-pickers { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
 .voyage-hold-pickers .btn { min-height: 40px; min-width: 96px; font-size: .9rem; }
-.voyage-big-head { font-weight: 600; margin: 12px 0 8px; }
+.voyage-big-head { font-weight: 600; margin: 12px 0 8px; display: flex; align-items: center; } /* the Ship block's one sub-heading look, with its icon (.309, A-19/A2-10) */
+.voyage-title-fa { margin-right: 8px; font-size: .9em; color: var(--voyage-label); }
+.voyage-empty { text-align: center; } /* the one empty-state form: on a band, centred, muted (.309, A-21) */
+.voyage-hold-fold { display: inline-flex; align-items: center; min-height: 32px; margin-top: 6px; padding: 0 8px; border: 0; background: none; color: var(--voyage-label); font-size: .9rem; } /* the folded empty slots (.309, A-16) */
+.voyage-here-note { font-size: .9rem; line-height: 1.35; margin: -2px 0 4px; } /* a row's reason in sight, under it (.309, B-02/C-11) */
+.voyage-clock-stranded { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; } /* (.309, A2-30) */
 /* The Shipwright row (build .205): the hulls and charts you can buy, folded under the vessels. */
 .voyage-shipwright { margin-top: 8px; border-radius: 6px; background: var(--voyage-band); }
 .voyage-shipwright-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; border: 0; background: none; color: inherit; text-align: left; }
@@ -286,8 +304,8 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
    (wood, as "on foot" in Travels) and the big ship sea blue (as "under sail"), so the two never read as one list. */
 .voyage-hold-part { border-radius: 6px; padding: 12px; border-left: 3px solid transparent; }
 .voyage-hold-part + .voyage-hold-part { margin-top: 12px; }
-.voyage-hold-part[data-hold-kind="boat"] { background: rgba(214, 160, 92, .08); border-left-color: rgba(214, 160, 92, .65); }
-.voyage-hold-part[data-hold-kind="ship"] { background: rgba(95, 179, 217, .08); border-left-color: rgba(95, 179, 217, .65); }
+.voyage-hold-part[data-hold-kind="boat"] { background: var(--voyage-foot-tint); border-left-color: var(--voyage-foot); }
+.voyage-hold-part[data-hold-kind="ship"] { background: var(--voyage-sea-tint); border-left-color: var(--voyage-sea); }
 .voyage-hold-part[data-hold-kind="boat"] .voyage-hold-part-head > span:first-child { color: var(--voyage-foot); }
 .voyage-hold-part[data-hold-kind="ship"] .voyage-hold-part-head > span:first-child { color: var(--voyage-sea); }
 .voyage-hold-part-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; margin-bottom: 8px; }
@@ -323,6 +341,8 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-sign-ring img { height: 80%; }
 .voyage-sign-off .voyage-land-ring { opacity: .55; }
 .voyage-land-name { font-weight: 600; color: var(--voyage-gold); text-align: center; line-height: 1.2; }
+/* "Land" over the mount's name: the tile is how you go on land, not where you are (.310, scan A-07). */
+.voyage-land-kicker { display: block; font-weight: 400; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; }
 .voyage-land-face { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 /* The sign's "find it on the map" button, in the square's top right corner. */
 .voyage-sign-locate { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; padding: 0; color: var(--voyage-gold); background: var(--voyage-ring-bg);
@@ -330,7 +350,7 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 @media (hover: hover) { .voyage-sign-locate:hover { color: var(--voyage-hover); border-color: var(--voyage-hover); } }
 .voyage-sign-locate:focus-visible { color: var(--voyage-hover); }
 .voyage-status-more > [class*="col-"] { padding: 0; max-width: none; width: auto; }
-.voyage-status-more h6 { color: inherit; font-size: 1rem; }
+.voyage-status-more h5 { color: inherit; } /* .308: h5 like the other block titles (A-27) */
 .voyage-status-item { white-space: nowrap; }
 /* The season on the Voyage page (phase 5c-1): the year in four cells, this season ringed in its text colour. */
 .voyage-season { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--voyage-rule); }
@@ -339,14 +359,14 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-season-row .voyage-season { margin-top: 0; padding-top: 0; border-top: 0; }
 .voyage-season-year { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
 .voyage-season-cell { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; min-height: 32px; padding: 4px 6px;
-  border-radius: 4px; background: var(--voyage-tile); color: var(--voyage-label); font-size: .85rem; font-weight: 600; text-align: center; }
+  border-radius: 4px; background: var(--voyage-tile); color: var(--voyage-label); font-size: .9rem; font-weight: 600; text-align: center; } /* .9rem floor (.308, A-01) */
 .voyage-season-now { box-shadow: inset 0 0 0 2px currentColor; }
 .voyage-season-text { margin-top: 8px; }
 .voyage-season-mid { text-align: center; }
 /* The ringed cell: the name on one line, the time left under it (build .296, no wrap mid-phrase at phone width). */
 .voyage-season-cell { flex-direction: column; }
 .voyage-season-name, .voyage-season-left { white-space: nowrap; }
-.voyage-season-left { font-size: .8rem; font-weight: 600; opacity: .9; }
+.voyage-season-left { font-size: .9rem; font-weight: 600; opacity: .9; }
 /* A shown duration (help-layout timeHtml, build .301): the hourglass, a little smaller, then "7h 7m", never split. */
 .voyage-time { white-space: nowrap; }
 .voyage-time .fa-hourglass-half { font-size: .85em; margin-right: .3em; opacity: .85; }
@@ -433,7 +453,7 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-skillrow { gap: 2px; }
 /* Combat areas in the panel: small chips that open the area (were inline text links). */
 .voyage-fight-links { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
-.voyage-fight-link { min-height: 32px; }
+.voyage-fight-link { min-height: 32px; font-size: .9rem; } /* as the panel's btn-sm (.308, B-23) */
 /* Touch screens: main buttons and toggles at least 40px high. */
 @media (pointer: coarse) {
   .voyage-legend-toggle, .voyage-panel-toggle, #voyage-here .btn, #voyage-here .voyage-here-link, .voyage-fight-link, .voyage-help, .voyage-row > .btn { min-height: 40px; }
@@ -461,7 +481,7 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
    2026): parchment pages in a leather frame, ink serif text, ledger tables, bookmark tabs. Its own palette, not the
    game's: colour classes inside it are darkened to read on paper. Fonts: assets/fonts (SIL OFL), loaded by journal.mjs. */
 .vj-backdrop { position: fixed; inset: 0; z-index: 1055; background: rgba(10, 12, 16, .72); display: flex; align-items: center; justify-content: center; padding: 16px; }
-body.vj-locked { overflow: hidden; }
+body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide relayout on open or close (.309, C2-15) */
 .vj-book {
   --vj-paper: #f1e4c6; --vj-ink: #2b2118; --vj-red: #7a2a1c; --vj-faint: #6b5a44; --vj-blue: #2c3e5c; --vj-leather: #4a2c1a; --vj-rule: rgba(122, 42, 28, .25);
   width: min(1200px, 100%); height: min(780px, 100%); box-sizing: border-box; background: var(--vj-leather); border-radius: 14px; padding: 18px 0 18px 18px;
@@ -473,7 +493,7 @@ body.vj-locked { overflow: hidden; }
 .vj-page { background: var(--vj-paper); padding: 30px 40px 22px 44px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0; font-size: 18px; line-height: 1.45; }
 .vj-left { box-shadow: inset -26px 0 30px -22px rgba(60, 35, 10, .45); }
 .vj-right { padding: 30px 44px 22px 40px; box-shadow: inset 26px 0 30px -22px rgba(60, 35, 10, .45); }
-.vj-running { font-family: 'Voyage Fell', Georgia, serif; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--vj-faint); display: flex; justify-content: space-between; gap: 12px; }
+.vj-running { font-family: 'Voyage Fell', Georgia, serif; font-size: .9rem; letter-spacing: .14em; text-transform: uppercase; color: var(--vj-faint); display: flex; justify-content: space-between; gap: 12px; }
 .vj-running span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 /* A long chapter title wraps under itself instead of being cut (phase 4 wrap-up); the book's title keeps its line. */
 .vj-running:not(:has(span:last-child:empty)) span:first-child { flex-shrink: 0; }
@@ -513,11 +533,14 @@ body.vj-locked { overflow: hidden; }
 .vj-bill .vj-ledger td:nth-child(2), .vj-bill .vj-ledger th:nth-child(2) { width: 1%; white-space: nowrap; }
 .vj-bill-rebuilt { font-style: italic; }
 .vj-bill .vj-ledger td { vertical-align: top; }
-.vj-costs { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+/* A price in a table cell: one item a line (the user, 19 Oct 2026: "every required item on a new line"); in a sentence
+   ("Price: …", the sign) the items run on. */
+.vj-costs { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.vj-p.vj-costs { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .vj-cost { display: inline-flex; align-items: center; gap: 4px; }
 .vj-cost img { width: 20px; height: 20px; object-fit: contain; }
 .vj-key { font-weight: 700; font-family: ui-monospace, Menlo, monospace; }
-.vj-yes { display: block; color: #2f6b34; font-weight: 600; font-size: 14px; }
+.vj-yes { display: block; color: #2f6b34; font-weight: 600; font-size: .9rem; }
 .vj-ledger td .vj-yes { white-space: nowrap; }
 .vj-buffs { display: flex; flex-direction: column; gap: 2px; }
 .vj-sign-here { display: flex; align-items: center; gap: 8px; }
@@ -528,7 +551,7 @@ body.vj-locked { overflow: hidden; }
 .vj-note svg { flex: none; margin-top: 2px; color: var(--vj-red); }
 /* "Did you know?" (build .127): a slip pasted into the page, blue ink, a little askew. */
 .vj-aside { margin: 6px 4px 4px; padding: 12px 16px 10px; background: #f7eed6; border: 1px dashed rgba(44, 62, 92, .45); border-radius: 2px; transform: rotate(-0.6deg); box-shadow: 0 2px 6px rgba(43, 33, 24, .18); color: var(--vj-blue); }
-.vj-aside-label { font-family: 'Voyage Fell', Georgia, serif; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--vj-red); }
+.vj-aside-label { font-family: 'Voyage Fell', Georgia, serif; font-size: .9rem; letter-spacing: .14em; text-transform: uppercase; color: var(--vj-red); }
 .vj-aside-head { font-family: 'Voyage Fell', Georgia, serif; font-size: 20px; line-height: 1.2; margin: 2px 0 6px; }
 .vj-aside-p { margin: 0 0 6px; font-size: 17px; line-height: 1.45; font-style: italic; }
 .vj-aside-p:last-child { margin-bottom: 0; }
@@ -542,7 +565,8 @@ body.vj-locked { overflow: hidden; }
 .vj-manifest { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 6px 12px; box-sizing: border-box;
   font-family: 'Voyage Fell', Georgia, serif !important; font-size: 16px; letter-spacing: .06em; color: var(--vj-red); background: transparent;
   border: 1px solid rgba(122, 42, 28, .35); border-radius: 3px; cursor: pointer; }
-.vj-manifest:hover, .vj-manifest:focus-visible { color: #4f1a10; border-color: rgba(122, 42, 28, .7); background: rgba(122, 42, 28, .06); }
+.vj-manifest:focus-visible { color: #4f1a10; border-color: rgba(122, 42, 28, .7); background: rgba(122, 42, 28, .06); }
+@media (hover: hover) { .vj-manifest:hover { color: #4f1a10; border-color: rgba(122, 42, 28, .7); background: rgba(122, 42, 28, .06); } } /* .308: hover only where there is one (C-21) */
 /* The first spread (build .179): the Old Man's chart (assets/chart.webp, pencil on transparent) and the Manifest. */
 .vj-page.vj-chart-page { padding: 26px 30px 22px 34px; }
 .vj-chart { flex: 1 1 auto; min-height: 0; margin: 0; display: flex; align-items: center; justify-content: center; }
@@ -550,10 +574,11 @@ body.vj-locked { overflow: hidden; }
 .vj-manifest-head { font-family: 'Voyage Fell', Georgia, serif; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--vj-faint);
   padding: 4px 0 3px; border-bottom: 3px double var(--vj-red); }
 .vj-mrows { display: flex; flex-direction: column; font-size: 16.5px; line-height: 1.25; margin-top: -6px; }
-.vj-mrow { display: flex; align-items: baseline; gap: 6px; min-height: 26px; padding: 2px 0; border: 0; background: none; color: var(--vj-ink); text-align: left; cursor: pointer; width: 100%; }
+.vj-mrow { display: flex; align-items: baseline; gap: 6px; min-height: 32px; padding: 4px 0; /* 32px rows at every width (.308, C2-01) */ border: 0; background: none; color: var(--vj-ink); text-align: left; cursor: pointer; width: 100%; }
 .vj-mrow-dots { flex: 1; border-bottom: 1px dotted var(--vj-faint); margin: 0 2px 4px; }
 .vj-mrow .vj-folio { font-size: 15px; }
-.vj-mrow:hover .vj-mrow-title, .vj-mrow:focus-visible .vj-mrow-title { color: #4f1a10; text-decoration: underline dotted; text-underline-offset: 3px; }
+.vj-mrow:focus-visible .vj-mrow-title { color: #4f1a10; text-decoration: underline dotted; text-underline-offset: 3px; }
+@media (hover: hover) { .vj-mrow:hover .vj-mrow-title { color: #4f1a10; text-decoration: underline dotted; text-underline-offset: 3px; } } /* .308: hover only where there is one (C-21) */
 .vj-manifest-rest { font-size: 15px; line-height: 1.35; font-style: italic; color: var(--vj-faint); margin: 2px 0 0; }
 /* How it works: the text scrolls in .vj-page-body and the foot (folio, page turn) stays at the bottom of the page. */
 .vj-page.vj-pinned { overflow: hidden; padding-bottom: 10px; }
@@ -572,12 +597,14 @@ body.vj-locked { overflow: hidden; }
 .vj-pinned > .vj-foot { margin-top: 0; flex: none; border-top: 1px solid var(--vj-rule); }
 .vj-turn { border: 0; background: none; color: var(--vj-red); font-family: 'Voyage Fell', Georgia, serif !important; font-size: 18px; min-height: 44px; padding: 8px 4px; cursor: pointer; }
 .vj-one-only { display: none !important; } /* the phone's one-page book only (see the 899px block) */
-.vj-turn:hover, .vj-turn:focus-visible { color: #4f1a10; text-decoration: underline; }
+.vj-turn:focus-visible { color: #4f1a10; text-decoration: underline; }
+@media (hover: hover) { .vj-turn:hover { color: #4f1a10; text-decoration: underline; } } /* .308: hover only where there is one (C-21) */
 .vj-btn { min-height: 44px; padding: 8px 18px; border: 2px solid var(--vj-blue); border-radius: 4px; background: transparent; color: var(--vj-blue); font-size: 18px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-.vj-btn:hover, .vj-btn:focus-visible { background: rgba(44, 62, 92, .1); }
+.vj-btn:focus-visible { background: rgba(44, 62, 92, .1); }
+@media (hover: hover) { .vj-btn:hover { background: rgba(44, 62, 92, .1); } } /* .308: hover only where there is one (C-21) */
 .vj-group { font-family: 'Voyage Fell', Georgia, serif; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--vj-faint); padding: 6px 0 2px; }
 .vj-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 6px 12px; border: 1px solid transparent; border-bottom-color: var(--vj-rule); border-radius: 4px; background: transparent; color: var(--vj-ink); text-align: left; cursor: pointer; }
-.vj-row:hover { background: rgba(122, 42, 28, .06); }
+@media (hover: hover) { .vj-row:hover { background: rgba(122, 42, 28, .06); } } /* .308: hover only where there is one (C-21) */
 .vj-row.vj-on { border-color: var(--vj-red); background: rgba(122, 42, 28, .1); }
 .vj-row-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .vj-row-name img, .vj-entry-head img { width: 28px; height: 28px; object-fit: contain; }
@@ -590,7 +617,8 @@ body.vj-locked { overflow: hidden; }
 .vj-entry-head { display: flex; align-items: center; gap: 14px; }
 /* The heat map (src/heatmap.mjs): its button by an entry's name, then the fullscreen map over the book. */
 .vj-heat-btn { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--vj-blue); border-radius: 50%; background: transparent; color: var(--vj-blue); cursor: pointer; }
-.vj-heat-btn:hover, .vj-heat-btn:focus-visible { background: rgba(44, 62, 92, .12); }
+.vj-heat-btn:focus-visible { background: rgba(44, 62, 92, .12); }
+@media (hover: hover) { .vj-heat-btn:hover { background: rgba(44, 62, 92, .12); } } /* .308: hover only where there is one (C-21) */
 .vj-heat { position: fixed; inset: 0; z-index: 2; display: flex; flex-direction: column; background: #1d140d; color: #f1e4c6; font-family: 'Voyage Garamond', 'EB Garamond', Georgia, serif; }
 .vj-heat-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 10px 16px; background: #4a2c1a; border-bottom: 2px solid #e8c27a; }
 .vj-heat-title { display: flex; align-items: center; gap: 10px; font-family: 'Voyage Fell', Georgia, serif; font-size: 24px; }
@@ -600,12 +628,13 @@ body.vj-locked { overflow: hidden; }
 .vj-heat-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 17px; }
 .vj-heat-key { display: inline-block; width: 16px; height: 16px; margin-right: 7px; vertical-align: -3px; border-radius: 3px; }
 .vj-heat-hot { background: radial-gradient(circle, #be140a, #ff7814 55%, rgba(255, 205, 60, .6)); border: 2px solid #ffd34d; }
-.vj-heat-cold { background: rgba(70, 130, 230, .55); border: 2px solid #2b5fb8; }
+.vj-heat-cold { background: rgba(150, 150, 150, .55); border: 2px solid #4a4a4a; } /* grey, not sea blue (.308, C2-20) */
 .vj-heat-charted { background: repeating-linear-gradient(-45deg, rgba(255, 226, 150, .9) 0 2px, rgba(255, 226, 150, .16) 2px 5px); border: 2px solid rgba(255, 226, 150, .95); }
 .vj-heat-me { border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px #1d140d; }
 .vj-heat-tools { margin-left: auto; display: flex; gap: 8px; }
 .vj-heat-tool { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid #8fb3e8; border-radius: 4px; background: transparent; color: #f1e4c6; cursor: pointer; }
-.vj-heat-tool:hover, .vj-heat-tool:focus-visible { background: rgba(143, 179, 232, .18); }
+.vj-heat-tool:focus-visible { background: rgba(143, 179, 232, .18); }
+@media (hover: hover) { .vj-heat-tool:hover { background: rgba(143, 179, 232, .18); } } /* .308: hover only where there is one (C-21) */
 .vj-heat-canvas { flex: 1; min-height: 0; width: 100%; display: block; touch-action: none; cursor: grab; outline: none; }
 .vj-heat-canvas:focus-visible { box-shadow: inset 0 0 0 3px #e8c27a; }
 .vj-heat-canvas.vj-heat-grab { cursor: grabbing; }
@@ -625,13 +654,15 @@ body.vj-locked { overflow: hidden; }
 .vj-link { display: inline; border: 0; background: none; padding: 0; margin: 0; color: var(--vj-red); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; text-align: left; }
 /* A link kept with its brackets (journal.mjs rich). */
 .vj-nobr { white-space: nowrap; }
-.vj-link:hover, .vj-link:focus-visible { color: #4f1a10; text-decoration-style: solid; }
+.vj-link:focus-visible { color: #4f1a10; text-decoration-style: solid; }
+@media (hover: hover) { .vj-link:hover { color: #4f1a10; text-decoration-style: solid; } } /* .308: hover only where there is one (C-21) */
 .vj-page:focus { outline: none; }
 .vj-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(43, 33, 24, .5); margin-right: 8px; vertical-align: -2px; }
 .vj-points { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
 .vj-tabs { width: 64px; flex: none; display: flex; flex-direction: column; gap: 6px; padding-top: 74px; position: relative; }
 .vj-close { position: absolute; top: -6px; left: 14px; width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(230, 200, 150, .5); background: transparent; color: #e8d6b0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.vj-close:hover, .vj-close:focus-visible { background: rgba(230, 200, 150, .15); }
+.vj-close:focus-visible { background: rgba(230, 200, 150, .15); }
+@media (hover: hover) { .vj-close:hover { background: rgba(230, 200, 150, .15); } } /* .308: hover only where there is one (C-21) */
 .vj-tab { position: relative; writing-mode: vertical-rl; width: 48px; display: flex; align-items: center; gap: 6px; padding: 14px 12px; border: 0; border-radius: 0 6px 6px 0; color: #fbf3e2; font-family: 'Voyage Fell', Georgia, serif !important; font-size: 17px; text-align: left; cursor: pointer; }
 .vj-tab-how { background: #5c4630; } .vj-tab-resources { background: #7a2a1c; } .vj-tab-places { background: #2c3e5c; } .vj-tab-guide { background: #3d5a3a; }
 .vj-tab.vj-tab-on { background: var(--vj-paper); color: var(--vj-red); width: 52px; margin-left: -4px; }
@@ -644,6 +675,13 @@ body.vj-locked { overflow: hidden; }
 #voyage-journal .vj-page .text-info { color: #2c3e5c !important; }
 #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 .vj-page b, .vj-page strong { font-weight: 600; }
+/* A short window (under 768px high) cannot fit five named side tabs: icons only, the name as the tooltip (.308, C2-04). */
+@media (min-width: 992px) and (max-height: 767.98px) {
+  .vj-tabs { padding-top: 60px; }
+  .vj-tab { padding: 12px; min-height: 48px; }
+  .vj-tab-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .vj-tab-icon { transform: none; width: 22px; height: 22px; }
+}
 /* Phone and narrow windows: one column that scrolls as a whole, bookmarks along the top. The game's own width (below 992px the sidebar is an overlay); build .305 moved it here from 899px, and journal.mjs narrow() matches it. */
 @media (max-width: 991.98px) {
   .vj-backdrop { padding: 0; }
@@ -659,6 +697,7 @@ body.vj-locked { overflow: hidden; }
   /* The page shown fills the book to its bottom edge, a short one too, and grows past it to scroll (the user, build .192);
      its foot (Turn the page) sits at the bottom of the paper. */
   .vj-spread > .vj-page { flex: 1 0 auto; }
+  .vj-spread > .vj-page.vj-chart-page { order: 1; } /* the Manifest before the drawing in one column (.308, C2-25) */
   /* Pages stack and scroll as one column here; the desktop min-height: 0 squeezed them to the screen and their contents ran over each other. */
   .vj-page, .vj-page-body, .vj-chart { min-height: auto; flex-shrink: 0; }
   .vj-page { overflow: visible; padding: 20px 16px; box-shadow: none; }
@@ -680,18 +719,19 @@ body.vj-locked { overflow: hidden; }
   .vj-mrow { min-height: 36px; }
 }
 /* Ways in: the lock popups' footer link, the minibar and header buttons, the map panel's book next to Manage voyage. */
-.voyage-journal-footer { display: inline-flex; align-items: center; gap: 8px; font-size: 1rem; }
+.voyage-journal-footer { display: inline-flex; align-items: center; gap: 8px; font-size: 1rem; color: var(--voyage-cold); } /* 4.5:1 in every theme (.308, C2-06) */
 .voyage-journal-footer img { width: 24px; height: 24px; }
 .voyage-journal-link { flex: 0 0 auto !important; width: 40px; padding: .15rem; border: 1px solid #e8c27a; background: #4a2c1a; line-height: 1; }
 .voyage-journal-link img { width: 24px; height: 24px; }
-.voyage-journal-link:hover, .voyage-journal-link:focus-visible { background: #5c3a22; }
+.voyage-journal-link:focus-visible { background: #5c3a22; }
+@media (hover: hover) { .voyage-journal-link:hover { background: #5c3a22; } } /* .308: hover only where there is one (C-21) */
 .voyage-stacked .voyage-here-head > .voyage-manage-link:not(:last-child) { flex-basis: calc(100% - 48px); }
 
 /* Build .116: unread marks, charts to use, the chart picker. */
 .vj-unread { margin-left: 8px; padding: 1px 8px; border-radius: 10px; background: var(--vj-red); color: #fbf3e2; font-size: 15px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
 .vj-tab-dot { position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; border-radius: 50%; background: #e5483b; box-shadow: 0 0 0 2px #fbf3e2; pointer-events: none; }
 .vj-readall { margin-top: -10px; }
-.vj-linkbtn { border: 0; background: none; padding: 0; min-height: 44px; color: var(--vj-blue); font-size: 16px; text-decoration: underline; cursor: pointer; }
+.vj-linkbtn { border: 0; background: none; padding: 0; min-height: 44px; color: var(--vj-red); font-size: 16px; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; } /* as .vj-link (.308, C-29) */
 .vj-charts { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--vj-rule); border-radius: 4px; background: rgba(122, 42, 28, .06); }
 .vj-charts-head { font-family: 'Voyage Fell', Georgia, serif; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--vj-red); }
 .vj-charts-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 24px; }
@@ -730,6 +770,10 @@ body.vj-locked { overflow: hidden; }
 .vj-gift-foot .btn { min-height: 44px; font-size: 1rem; padding: 8px 22px; }
 @keyframes vj-letter-in { from { opacity: 0; transform: translateY(24px) rotate(-3deg) scale(.96); } to { opacity: 1; transform: rotate(-0.8deg); } }
 @media (prefers-reduced-motion: reduce) { .vj-letter { animation: none; } }
+/* The page a "?" landed on: a gold edge inside the page that fades (.310, scan C-16). Outline, not box-shadow: the gutter shade keeps its shadow. */
+.vj-landed { animation: vj-landed 1.4s ease-out both; }
+@keyframes vj-landed { 0% { outline: 3px solid var(--voyage-gold); outline-offset: -3px; } 100% { outline: 3px solid transparent; outline-offset: -3px; } }
+@media (prefers-reduced-motion: reduce) { .vj-landed { animation: none; outline: 3px solid var(--voyage-gold); outline-offset: -3px; } }
 @media (max-width: 575.98px) { .vj-letter { padding: 20px 18px 16px; font-size: 16px; transform: none; } }
 /* Plan a voyage (build .119): the planner block on the Voyage page. Sail! green, the rest blue outline. */
 .voyage-plan-icon { width: 32px; height: 32px; object-fit: contain; }
@@ -751,7 +795,8 @@ body.vj-locked { overflow: hidden; }
 .voyage-plan-arrival .dropdown-item { display: flex; align-items: center; min-height: 40px; white-space: normal; }
 /* A choice the game would refuse (build .130): the name greyed, the reason in amber under it, not pickable. */
 .voyage-plan-arrival .voyage-plan-refused { flex-direction: column; align-items: flex-start; cursor: default; padding-top: 6px; padding-bottom: 6px; }
-.voyage-plan-arrival .voyage-plan-refused:hover, .voyage-plan-arrival .voyage-plan-refused:focus { background: transparent; }
+.voyage-plan-arrival .voyage-plan-refused:focus { background: transparent; }
+@media (hover: hover) { .voyage-plan-arrival .voyage-plan-refused:hover { background: transparent; } } /* .308: hover only where there is one (C-21) */
 .voyage-plan-refused-name { display: flex; align-items: center; opacity: .55; }
 .voyage-plan-refused-why { font-size: .9rem; padding-left: 34px; }
 .voyage-plan-refused-why img { width: 18px; height: 18px; }
@@ -804,7 +849,7 @@ body.vj-locked { overflow: hidden; }
 .voyage-block-head { display: flex; align-items: center; gap: 8px; min-height: 32px; margin-bottom: 8px; }
 .voyage-block-head > h5 { margin-right: auto; }
 .voyage-block-head:has(.voyage-block-grip) { cursor: grab; }
-.voyage-block-fold { background: none; border: 0; padding: 0; min-width: 24px; min-height: 32px; margin-left: -4px; color: var(--voyage-label); font-size: 1.1rem; cursor: pointer; }
+.voyage-block-fold { background: none; border: 0; padding: 0; min-width: 32px; min-height: 32px; /* 32px target at mouse widths too (.308, A-04) */ margin-left: -4px; color: var(--voyage-label); font-size: 1.1rem; cursor: pointer; }
 .voyage-block-fold i { width: .7em; }
 .voyage-block-grip { color: var(--voyage-label); font-size: 1rem; padding: 0 2px; }
 @media (hover: hover) { .voyage-block-fold:hover, .voyage-block-head:hover .voyage-block-grip { color: var(--voyage-label-hover); } }
@@ -828,7 +873,7 @@ body.vj-locked { overflow: hidden; }
 .voyage-crate-full { cursor: pointer; }
 .voyage-crate-full .voyage-crate-art { opacity: .5; }
 .voyage-crate-full img { position: relative; width: 58%; height: 58%; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .6)); }
-.voyage-crate-full:hover { border-color: rgba(84, 166, 232, .6); }
+@media (hover: hover) { .voyage-crate-full:hover { border-color: rgba(84, 166, 232, .6); } } /* .308: hover only where there is one (C-21) */
 .voyage-crate-picked { border-color: #54a6e8; box-shadow: inset 0 3px 7px var(--voyage-crate-shade), 0 0 0 2px #54a6e8; }
 .voyage-crate-qty { position: absolute; right: 2px; bottom: 3px; padding: 0 4px; border-radius: 4px; background: var(--voyage-qty-chip); font-size: .9rem; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000; } /* a dark chip on Light's pale crates, none on the dark themes */
 
@@ -847,7 +892,7 @@ body.vj-locked { overflow: hidden; }
 .voyage-cargo-sub { margin: 0 0 .75rem; }
 /* The screen's width on a phone; the rows scroll inside, the title and the × stay in reach. */
 .voyage-board-popup { max-width: 96vw; }
-.voyage-board-popup .voyage-cargo { max-height: 62vh; overflow-y: auto; padding-right: 2px; }
+.voyage-board-popup .voyage-cargo { max-height: 62vh; min-height: min(62vh, 26rem); overflow-y: auto; padding-right: 2px; } /* a steady height, so the tab bar stays put on a switch (.309, B-25) */
 /* The mod's scroll areas get a thin scrollbar in the page's colours, not the browser's white one (the user, build .205):
    light on the dark board and Here panel, ink-brown on the journal's paper. */
 .voyage-board-popup .voyage-cargo, #voyage-here.voyage-capped, .voyage-plan-arrival .dropdown-menu { scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }
@@ -859,17 +904,27 @@ body.vj-locked { overflow: hidden; }
 .voyage-cargo-here { border-color: #2c8550; }
 .voyage-cargo-mid { min-width: 0; }
 .voyage-cargo-pay { line-height: 1.5; }
-.voyage-cargo-act { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.voyage-cargo-act { display: flex; flex-direction: column; flex-wrap: wrap; gap: 6px; align-items: stretch; }
+.voyage-cargo-act > .btn { min-height: 38px; } /* Drop as tall as Take (.308, B-18) */
+.voyage-cargo-ask { flex: 1 1 100%; } /* the question right above Keep it / Drop it (.308, B-70) */
+.voyage-cargo { container-type: inline-size; }
+@container (max-width: 600px) { /* the board's own width, not the window's (.308, B-62) */
+  .voyage-cargo-row { grid-template-columns: 44px minmax(0, 1fr); }
+  .voyage-cargo-row .voyage-cargo-pay { grid-column: 2; }
+  .voyage-cargo-row .voyage-cargo-act { grid-column: 1 / -1; flex-direction: row; }
+  .voyage-cargo-row .voyage-cargo-act > .btn { flex: 1 1 0; min-width: 0; }
+}
 .voyage-cargo-empty { padding: 10px 12px; border-radius: 6px; background: var(--voyage-well); text-align: center; }
 .voyage-cargo-foot { text-align: center; margin-top: 6px; }
 /* Under the page's Errands the note sits left, with the text above it (the user, build .239); the board's stay centred. */
 .voyage-errands-foot { text-align: left; }
 .voyage-errand { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; margin-bottom: 8px; border-radius: 6px; background: var(--voyage-well); }
-.voyage-harbour-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.voyage-harbour-line { display: flex; flex-direction: column; align-items: stretch; gap: 6px; } /* the note on its line, the board button full width under it like Manage voyage (.308, the user) */
+.voyage-harbour-link { white-space: nowrap; width: 100%; }
 /* The harbour board's tabs: Cargo, Notices, Sea charts (build .210). */
 /* Padded inside the board's scroll box, which would clip the buttons' top border at some zooms (the user, 18 Oct 2026). */
 .voyage-board-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding-top: 4px; margin-bottom: 2px; }
-.voyage-board-tabs > .btn { min-width: 7rem; }
+.voyage-board-tabs > .btn { min-width: 7rem; min-height: 32px; } /* (.308, B-19) */
 /* A phone: the three tabs share one row instead of wrapping one under. */
 @media (max-width: 575.98px) { .voyage-board-tabs { flex-wrap: nowrap; } .voyage-board-tabs > .btn { min-width: 0; flex: 1 1 0; max-width: 8rem; padding-left: .4rem; padding-right: .4rem; white-space: nowrap; } }
 /* Notices: your task's place pin and its progress. */
@@ -926,7 +981,7 @@ body.vj-locked { overflow: hidden; }
 .voyage-tuck-warn { background: #f0b43c; } .voyage-tuck-bad { background: #e5483b; }
 .voyage-mini-caret, .voyage-open-caret, .voyage-tuck { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* The strip's caret, its own button: plain on a wide screen; on touch a bigger round grey button, the one to hold. */
-.voyage-mini-caret { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; }
+.voyage-mini-caret { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; } /* (.308, B-10) */
 .voyage-mini-caret i { width: auto !important; }
 @media (pointer: coarse) {
   .voyage-mini-caret { width: 38px; height: 38px; min-height: 38px; border-radius: 50%; background: var(--voyage-press); font-size: 1.3rem; }
@@ -1026,14 +1081,15 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-clock-head { display: flex; align-items: center; gap: 6px; }
 .voyage-clock-pick { display: grid; grid-template-columns: 22px 9.5rem 32px minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 6px; }
 .voyage-clock-pick-label { margin: 0; color: var(--voyage-label); }
+.voyage-clock-pick-none { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 /* The arrival picks are the planner's dropdown (.voyage-plan-arrival), a little lower in a popup's row. */
 .voyage-clock-dd .dropdown-toggle { min-height: 40px; }
 .voyage-clock-dd .dropdown-menu { max-height: 40vh; }
 .voyage-clock-dd .dropdown-toggle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
 /* Over the popup's buttons too (Swal lifts .swal2-actions with z-index 1; build .233). */
 .voyage-swal-menus { overflow: visible; position: relative; z-index: 2; }
-.voyage-clock-pick-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%;
-  border: 1px solid var(--voyage-ring); color: var(--voyage-gold); font-size: .8rem; font-weight: 700; }
+.voyage-clock-pick-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+  border: 1px solid var(--voyage-ring); color: var(--voyage-gold); font-size: .9rem; font-weight: 700; } /* (.308, C-26) */
 .voyage-clock-pick-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--voyage-ring-bg); }
 .voyage-clock-pick-icon img { width: 24px; height: 24px; object-fit: contain; }
 .voyage-clock-pick-icon i { color: var(--voyage-label); font-size: 1.1rem; }

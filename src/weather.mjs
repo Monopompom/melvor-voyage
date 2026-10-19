@@ -430,7 +430,8 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
   const fxHtml = (wx) => fxParts(wx).map((f) => {
     const img = (file) => `<img src="${escHtml(ctx.getResourceUrl(`assets/${file}`))}" alt="">`;
     const icon = f.icon === 'fuel' ? img('fuel.webp') : f.icon === 'time' ? '<i class="fa fa-clock" aria-hidden="true"></i>' : img('ration.webp');
-    return `<span class="voyage-wx-fx" title="${escHtml(f.words)}">${icon}${escHtml(f.x)}</span>`;
+    const gain = f.x.startsWith('\u00d7') && Number(f.x.slice(1)) < 1; // a smaller multiplier is a gain: green (.309, scan B-14)
+    return `<span class="voyage-wx-fx${gain ? ' text-success' : ''}" title="${escHtml(f.words)}">${icon}${escHtml(f.x)}</span>`;
   }).join(', ');
   const degrees = (n) => `${n < 0 ? '\u2212' : ''}${Math.abs(n)}\u00b0`;
   /** The text colour of a band: blue for the cold ones, amber for scorching (Melvor's own theme classes). */

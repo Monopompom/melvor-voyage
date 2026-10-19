@@ -73,7 +73,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       return hex(c);
     }
     const lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
-    const mix = lum < 110 ? 0.45 : lum < 160 ? 0.25 : 0;
+    const mix = lum < 110 ? 0.55 : lum < 160 ? 0.4 : lum < 200 ? 0.2 : 0; // 4.5:1 on the dark modal for every map colour (.308, C2-05)
     return hex(rgb.map((v) => v + (255 - v) * mix));
   };
   const coloured = (label, css) => ({ text: label, html: `<b style="color:${textColour(css)}">${esc(label)}</b>` });
@@ -105,7 +105,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     const terms = rules.ruleTerms(skillId);
     if (terms.land) return coloured(ruleNoun(skillId));
     const parts = [...terms.classes.map(biome), ...terms.features.map(feature), ...terms.pois.map(placeName), ...terms.areas.map(placeName)];
-    return parts.length === 0 ? coloured(ruleNoun(skillId)) : join(parts);
+    // No more than three in a sentence (.308, scan C-14/C2-08): the rest is a count, the journal's Guide has the list.
+    return parts.length === 0 ? coloured(ruleNoun(skillId)) : parts.length <= 3 ? join(parts) : `${join(parts.slice(0, 3))}${templateLangString('MOD_VOY_GATE_NEEDS_MORE', { n: `${parts.length - 3}` })}`;
   };
   /** Where the player is: biome, or "Cloud" when the hex is under cloud. */
   const here = (rec) => (rec.cloud === true ? coloured(getLangString(terrainMod.CLOUD_KEY), terrainMod.CLOUD_INFO.css) : biome(rec.t));
@@ -122,7 +123,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const whereIs = (pos, hex, distance) => {
     const dir = getLangString(`MOD_VOY_DIR_SHORT_${terrainMod.directionLabel(pos, hex)}`);
     const name = hex.poi ? poiName(hex) : hex.area ? terrainMod.areaLabel(hex.area) : undefined;
-    const place = name === undefined ? '' : templateLangString('MOD_VOY_GATE_WHERE_PLACE', { name });
+    const place = name === undefined ? '' : templateLangString('MOD_VOY_GATE_WHERE_PLACE', { name: `<b>${name}</b>` }); // a name in bold (.308, C2-07)
     const hexes = templateLangString(distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${distance}` });
     return templateLangString('MOD_VOY_GATE_WHERE', { hexes, dir, place });
   };

@@ -328,7 +328,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     for (const { id, quantity } of P.NAVIGATOR.items) { const it = game.items.getObjectByID(id); if (it !== undefined) costs.push(costIcon(it.media, quantity, game.bank.getQty(it), it.name, it.id)); }
     const reason = why === 'level' ? t('MOD_VOY_PLAN_NAV_WHY_LEVEL', { level: `${P.NAVIGATOR.level}` })
       : why === 'port' ? t('MOD_VOY_PLAN_NAV_WHY_PORT') : why === 'cost' ? t('MOD_VOY_PLAN_NAV_WHY_COST') : '';
-    return section(`<div class="font-w600">${esc(t('MOD_VOY_PLAN_NAV_TITLE'))}</div>` +
+    return section(`<div class="voyage-big-head my-0"><i class="fa fa-map mr-2" aria-hidden="true"></i>${esc(t('MOD_VOY_PLAN_NAV_TITLE'))}</div>` // the Ship block's one sub-heading look (.309, scan A-19/A2-10) +
       `<div class="mb-1">${esc(t('MOD_VOY_PLAN_NAV_NEED', { level: `${P.NAVIGATOR.level}` }))}</div>` +
       `<div class="d-flex flex-wrap align-items-center">${costs.join('')}</div>` +
       (why === undefined
@@ -338,14 +338,24 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
 
   const html = () => {
     if (!open()) return '';
-    if (target === undefined) return section(`<div>${esc(t('MOD_VOY_PLAN_EMPTY'))}</div>`);
+    // The empty block gives a way to a plan: the journal's pages have Plan voyage (.308, scan A-06/A2-09).
+    if (target === undefined) return section(`<div class="voyage-empty text-muted">${esc(t('MOD_VOY_PLAN_EMPTY'))}</div><div class="voyage-hold-main"><button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="journal">${esc(t('MOD_VOY_PLAN_OPEN_JOURNAL'))}</button></div>`); // the one empty-state form (.309, scan A-21)
     const plan = compute();
     const media = target.media ? `<img class="voyage-plan-icon mr-2" src="${esc(target.media)}" alt="">` : '';
-    const destAt = plan.dest !== undefined ? ` <span class="text-muted">${at(plan.dest)}</span>` : '';
+    // Not after a bare hex: its name already is the coordinates (.308, scan A2-17).
+    const destAt = plan.dest !== undefined && target.name !== at(plan.dest) ? ` <span class="text-muted">${at(plan.dest)}</span>` : '';
     let out = section(`<div class="voyage-row"><div class="d-flex align-items-center">${media}<div><small class="text-muted d-block">${esc(t('MOD_VOY_PLAN_TO'))}</small><b>${esc(target.name)}</b>${destAt}</div></div>` +
       `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="clear">${esc(t('MOD_VOY_PLAN_CLEAR'))}</button></div>`);
     if (plan.path === undefined) {
-      out += section(`<div class="font-w600 ${plan.why === 'here' ? 'text-success' : 'text-danger'}">${esc(t(`MOD_VOY_PLAN_VERDICT_${VERDICT[plan.why] ?? 'NOWAY'}`))}</div>`);
+      // Uncharted: where to survey, with the map; a target with no hex on this map says so (.309, scan A2-27).
+      const onMap = target.hexes.map((h) => liveHex(h.q, h.r)).filter((h) => h !== undefined);
+      let verdict = t(`MOD_VOY_PLAN_VERDICT_${VERDICT[plan.why] ?? 'NOWAY'}`);
+      let more = '';
+      if (plan.why === 'uncharted' && onMap.length > 0) {
+        verdict = t('MOD_VOY_PLAN_VERDICT_UNCHARTED_AT', { at: at(onMap[0]) });
+        more = `<div class="voyage-plan-buttons mt-2"><button type="button" class="btn btn-outline-info" data-voyage-plan="map">${esc(t('MOD_VOY_PLAN_SHOW_MAP'))}</button></div>`;
+      } else if (onMap.length === 0 && target.hexes.length > 0) verdict = t('MOD_VOY_PLAN_VERDICT_OFF_MAP', { name: target.name });
+      out += section(`<div class="font-w600 ${plan.why === 'here' ? 'text-success' : 'text-danger'}">${esc(verdict)}</div>${more}`);
       return out;
     }
     // The plan as a small ledger (the user, build .124: "give some love to that text"): a label, then the value;
@@ -358,7 +368,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     const tone = (v, low) => (v <= 0 ? 'text-danger' : v < low ? 'text-warning' : '');
     const parts = [`<span class="voyage-plan-bit"><i class="fa fa-shoe-prints"></i>${esc(t('MOD_VOY_PLAN_LAND', { count: `${c.land}` }))}</span>`,
       `<span class="voyage-plan-bit"><i class="fa fa-water"></i>${esc(t('MOD_VOY_PLAN_SEA', { count: `${c.sea}` }))}</span>`];
-    if (c.hops > 0) parts.push(`<span class="voyage-plan-bit"><i class="fa fa-ship"></i>${esc(t('MOD_VOY_PLAN_HOPS', { count: `${c.hops}` }))}</span>`);
+    if (c.hops > 0) parts.push(`<span class="voyage-plan-bit"><i class="fa fa-ship"></i>${esc(t(c.hops === 1 ? 'MOD_VOY_PLAN_HOP' : 'MOD_VOY_PLAN_HOPS', { count: `${c.hops}` }))}</span>`); // one hop, singular (.308, A-23)
     let rows = row(t('MOD_VOY_PLAN_ROW_ROUTE'), parts.join(''));
     // Timed travel (phase 5a): how long the route takes and when you arrive.
     const clock = state.clock;
@@ -387,7 +397,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       const have = st.stores();
       const end = sp.ok ? sp.have : undefined;
       const hp = (n) => esc(t('MOD_VOY_PLAN_HP', { count: st.hp(n) }));
-      const fuel = (n) => (Math.round(n * 10) / 10).toFixed(1);
+      // The Stores block's number form, with the unit (.308, scan A2-18).
+      const fuel = (n) => esc(t('MOD_VOY_UNIT_FUEL', { n: st.fuelText(S.roundFuel(n)) }));
       rows += `<div></div><div class="voyage-plan-when">${esc(t(end === undefined ? 'MOD_VOY_PLAN_WHEN_NOW' : 'MOD_VOY_PLAN_WHEN'))}</div>`;
       rows += row(t('MOD_VOY_PLAN_ROW_FOOD'), `${icon('assets/ration.webp', t('MOD_VOY_PLAN_ROW_FOOD'))}${hp(have.food)}${end === undefined ? '' : `${arrow}<span class="${tone(end.food, S.LOW.food)}">${hp(end.food)}</span>`}`);
       rows += row(t('MOD_VOY_PLAN_ROW_FUEL'), `${icon('assets/fuel.webp', t('MOD_VOY_PLAN_ROW_FUEL'))}${fuel(have.fuel)}${end === undefined ? '' : `${arrow}<span class="${tone(end.fuel, S.LOW.fuel)}">${fuel(end.fuel)}</span>`}`);
@@ -399,7 +410,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
         if (!(wear > 0) || !sh?.enabled?.() || sh.vessel(kind) == null) continue;
         const cond = sh.cond(kind);
         const after = Math.max(0, cond - wear);
-        const label = two ? `${t('MOD_VOY_PLAN_ROW_HULL')}: ${sh.hullName(sh.vessel(kind))}` : t('MOD_VOY_PLAN_ROW_HULL');
+        // "Galleon hull", as the Stores block names it (.308, scan A2-19).
+        const label = two ? t('MOD_VOY_PLAN_ROW_HULL_OF', { hull: sh.hullName(sh.vessel(kind)) }) : t('MOD_VOY_PLAN_ROW_HULL');
         rows += row(label, `${icon('assets/hull_condition.webp', t('MOD_VOY_PLAN_ROW_HULL'))}${cond}%${arrow}<span class="${after <= 0 ? 'text-danger' : after < 50 ? 'text-warning' : ''}">${after}%</span> <span class="text-muted ml-1">${esc(t('MOD_VOY_PLAN_WEAR', { wear: `${wear}` }))}</span>`);
       }
     }
@@ -456,6 +468,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     else if (what === 'sail') sail();
     else if (what === 'map') showMap();
     else if (what === 'buy') buy();
+    else if (what === 'journal') { try { state.journal?.open({ tab: 'places' }); } catch (err) { log('journal open failed', err); } }
   };
 
   /** Plans a voyage to `target` and opens the Voyage page on the planner. */

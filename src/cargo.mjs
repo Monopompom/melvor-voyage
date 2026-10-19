@@ -418,7 +418,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     lines.push(`<div class="text-muted">${esc(progress(run, aboard, run.from === poi))}</div>`);
     const d = dropInfo(run);
     if (dropAsk === run.id) {
-      lines.push(`<div class="text-warning">${esc(d.why ?? t(d.k > 0 ? 'MOD_VOY_CARGO_DROP_SURE_SELL' : 'MOD_VOY_CARGO_DROP_SURE', { k: `${d.k}`, what: containerWord(run.c, d.k), gp: qty(d.gp) }))}</div>`);
+      // The question sits right above Keep it / Drop it, not above the reward lines (.308, scan B-70).
+      acts.push(`<div class="text-warning voyage-cargo-ask">${esc(d.why ?? t(d.k > 0 ? 'MOD_VOY_CARGO_DROP_SURE_SELL' : 'MOD_VOY_CARGO_DROP_SURE', { k: `${d.k}`, what: containerWord(run.c, d.k), gp: qty(d.gp) }))}</div>`);
       // A pair: Keep it first, Drop it last (build .209).
       acts.push(button('btn-outline-info', t('MOD_VOY_CARGO_DROP_NO'), 'data-cargo="drop-no"'));
       if (d.why === undefined) acts.push(button('btn-danger', t('MOD_VOY_CARGO_DROP_YES'), `data-cargo="drop-yes" data-run="${esc(run.id)}"`));
@@ -465,7 +466,9 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     else if (Object.keys(lanesNow()[poi] ?? {}).length === 0) html += `<div class="voyage-cargo-empty">${esc(t('MOD_VOY_CARGO_NO_LANE'))}</div>`;
     else if (!open) {
       const near = (regionsNow()[poi] ?? []).map((n) => dungeonOf(n)?.name).filter(Boolean);
-      html += `<div class="voyage-cargo-empty">${esc(near.length > 0 ? t('MOD_VOY_CARGO_CLOSED', { dungeons: near.join(', ') }) : t('MOD_VOY_CARGO_CLOSED_NONE'))}</div>`;
+      // Names in bold, three at most, the rest a count (.308, scan B-40).
+      const named = near.slice(0, 3).map((n) => `<b>${esc(n)}</b>`).join(', ') + (near.length > 3 ? esc(t('MOD_VOY_CARGO_CLOSED_MORE', { n: `${near.length - 3}` })) : '');
+      html += `<div class="voyage-cargo-empty">${near.length > 0 ? esc(t('MOD_VOY_CARGO_CLOSED', { dungeons: '\u0001' })).replace('\u0001', named) : esc(t('MOD_VOY_CARGO_CLOSED_NONE'))}</div>`;
     } else if (!hasPartner(poi) && board(poi).length === 0) html += `<div class="voyage-cargo-empty">${esc(t('MOD_VOY_CARGO_NO_PARTNER'))}</div>`;
     else {
       const reqs = board(poi);
@@ -604,11 +607,13 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     if (port === undefined || data() === undefined) return '';
     const c = data();
     const due = c.runs.filter((r) => r.to === port.poi && packedIn(r, allKinds()) > 0).length;
+    const task = state.tasks?.has?.() === true ? state.tasks.errandWords?.() ?? '' : '';
     const note = due > 0 ? `<span class="text-success">${esc(t('MOD_VOY_CARGO_PANEL_DUE', { n: `${due}` }))}</span>`
+      : task !== '' ? `<span class="text-info">${esc(t('MOD_VOY_CARGO_PANEL_TASK', { what: task }))}</span>` // the notice you took, on the line (.309, scan B-29)
       : `<span class="text-muted">${esc(c.runs.length > 1 ? t('MOD_VOY_CARGO_PANEL_RUNS', { n: `${c.runs.length}` })
         : t(c.runs.length === 1 ? 'MOD_VOY_CARGO_PANEL_RUN' : !posts(port.poi) ? 'MOD_VOY_CARGO_PANEL_SHUT' : hasPartner(port.poi) || (c.boards[port.poi]?.reqs.length ?? 0) > 0 ? 'MOD_VOY_CARGO_PANEL_IDLE' : 'MOD_VOY_CARGO_PANEL_ALONE'))}</span>`;
     return `<div class="voyage-here-place voyage-harbour-line"><span><span class="voyage-here-label">${esc(t('MOD_VOY_CARGO_PANEL_LABEL'))}</span> ${note}</span>` +
-      `<button type="button" class="btn btn-sm btn-outline-info voyage-harbour-link">${esc(t('MOD_VOY_CARGO_BOARD'))}</button></div>`;
+      `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-harbour-link">${esc(t('MOD_VOY_CARGO_BOARD'))}</button></div>`; // "Harbour:" and the row-button width like its neighbours (.308, B-24)
   };
   /** Packed cargo in a hold entry, for the Hold block's sealed tiles: { run, port } or undefined. */
   const sealOf = (entry) => {

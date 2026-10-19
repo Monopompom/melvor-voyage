@@ -192,7 +192,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
       if (poi !== undefined && poi.isDiscovered) return poi.name;
       const rec = recOf(hex);
       const o = hex.to_oddq();
-      return `${rec === undefined ? '' : `${getLangString(terrainMod.recKey(rec))} `}(${o.col}, ${o.row})`;
+      return t('MOD_VOY_ADRIFT_HEX_WORDS', { at: `(${o.col}, ${o.row})` }); // "hex (9, 21)", not the terrain standing in for a name (.309, scan A2-29)
     } catch { return ''; }
   };
   /** Hexes still to drift from where you are. */
@@ -471,12 +471,12 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
   const explain = () => {
     const a = cur();
     if (a === null) return;
-    const lines = [esc(t('MOD_VOY_ADRIFT_POPUP_WHY', { why: whyWords(a.why) }))];
+    const lines = [esc(t('MOD_VOY_ADRIFT_POPUP_WHY', { why: '\u0001' })).replace('\u0001', `<b class="text-danger">${esc(whyWords(a.why))}</b>`)]; // what you are short of, bold red (.308, C2-09)
     const left = leftHexes();
     lines.push(`<b>${esc(t('MOD_VOY_ADRIFT_WAY_DRIFT_HEAD'))}</b> ${marked(t, 'MOD_VOY_ADRIFT_WAY_DRIFT', { hexes: hexes(left) }, { time: mark.time(duration(Math.max(0, left - 1) * A.DRIFT_MS + a.left * C.TICK_MS)) })}`);
     const tow = paidTow();
     lines.push(`<b>${esc(t('MOD_VOY_ADRIFT_WAY_TOW_HEAD'))}</b> ${tow === undefined ? esc(t('MOD_VOY_ADRIFT_WAY_TOW_NONE')) : marked(t, 'MOD_VOY_ADRIFT_WAY_TOW', {}, { name: mark.name(portName(tow.port)), gp: gpMark(tow.gp) })}`);
-    lines.push(`<b>${esc(t('MOD_VOY_ADRIFT_WAY_FISH_HEAD'))}</b> ${esc(t('MOD_VOY_ADRIFT_WAY_FISH'))}`);
+    lines.push(`<b>${esc(t('MOD_VOY_ADRIFT_WAY_FISH_HEAD'))}</b> ${esc(t('MOD_VOY_ADRIFT_WAY_FISH'))}${fishLevelWords()}`);
     swal({
       title: t('MOD_VOY_ADRIFT_TITLE'),
       html: helpLayout.msgHtml(lines),
@@ -486,6 +486,15 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
       confirmButtonText: t('MOD_VOY_ADRIFT_DRIFT_ON'),
       denyButtonText: t('MOD_VOY_ADRIFT_GO_FISHING'),
     }).then((r) => { if (r.isDenied) goFishing(); });
+  };
+  /** " This sea's fish start at Fishing level 50; yours is 1." when the sea is above you, else '' (.309, scan B-48). */
+  const fishLevelWords = () => {
+    try {
+      if (!state.zonesOn?.() || state.zoneActionsHere(FISHING_ID).length > 0) return '';
+      const first = state.zoneActionsHere(FISHING_ID, { later: true })[0]?.level;
+      const have = game.fishing?.level ?? 0;
+      return Number.isFinite(first) && first > have ? ` <b class="text-warning">${esc(t('MOD_VOY_ADRIFT_WAY_FISH_LEVEL', { level: `${first}`, have: `${have}` }))}</b>` : '';
+    } catch { return ''; }
   };
   const goFishing = () => { try { state.openPage(game.pages.getObjectByID(FISHING_ID)); } catch (e) { log('fishing page failed', e); } };
   /** Starting anything but Fishing while Adrift: refused, with why. */

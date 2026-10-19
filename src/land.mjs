@@ -105,11 +105,12 @@ export function install(ctx, { state, landModel: L, shipModel, log }) {
       const hexDisplay = poi === undefined ? undefined : cartographyMap.getHexDisplay(poi.hex);
       sprite.visible = hexDisplay !== undefined;
       if (!sprite.visible) return;
-      // A little left of the hex centre, so the player figure standing on it does not hide it.
+      // At the hex's upper left, clear of the player figure and of the game's discovered-POI star on the hex, which
+      // the sign overlapped at the smallest zoom (.309, scan B-55).
       const scale = (HexCoords.SQRT3 * map.hexScale.y) / tex.orig.height / 2.2;
       sprite.scale.set(scale);
-      sprite.x = hexDisplay.x - tex.orig.width * scale * 0.45;
-      sprite.y = hexDisplay.y;
+      sprite.x = hexDisplay.x - map.hexScale.x * 0.45;
+      sprite.y = hexDisplay.y - map.hexScale.y * 0.2;
     } catch (e) { log('sign marker failed', e); }
   };
   ctx.patch(WorldMapDisplayElement, 'movePlayerMarker').after(() => refreshMarker());

@@ -46,7 +46,9 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       }
       // The "?" next to each block title: that block's chapter in the Captain's Journal (phase 4), else its popup.
       container?.querySelectorAll('[data-voyage-help]').forEach((b) => {
-        b.setAttribute('aria-label', t('MOD_VOY_HELP_BUTTON'));
+        // Named for its block: six "How this works" read the same to a screen reader (.308, scan A-17).
+        const name = b.closest('h5, h6')?.querySelector('lang-string, span')?.textContent.trim() ?? '';
+        b.setAttribute('aria-label', name === '' ? t('MOD_VOY_HELP_BUTTON') : t('MOD_VOY_HELP_BUTTON_OF', { name }));
         b.onclick = () => { if (state.journal !== undefined) state.journal.open({ chapter: b.dataset.voyageHelp }); else showHelp(b.dataset.voyageHelp); };
       });
       // The status row's second line (compass and travels, build .146) folds; the time stays. Open or closed is a
@@ -103,6 +105,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
         const kind = target.closest('[data-hold-kind]')?.dataset.holdKind ?? 'boat';
         if (target.dataset.voyagePreset !== undefined) { preset(target, `take-${kind}`); return; }
         if (target.dataset.voyageAction === 'hold-pick') { holdPicked[kind] = target.dataset.item; render(); }
+        else if (target.dataset.voyageAction === 'hold-fold') { holdOpen[target.dataset.kind] = target.getAttribute('aria-expanded') !== 'true'; render(); }
         else if (target.dataset.voyageAction === 'take') {
           const item = game.items.getObjectByID(holdPicked[kind] ?? '');
           const n = typed(`take-${kind}`);
@@ -181,7 +184,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
   const qty = (n) => numberWithCommas(n);
   /** A cost: icon, amount and what you have; red with the words when short (never colour alone). */
   const costIcon = (media, need, have, title, itemId) =>
-    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ` data-tip-media="${esc(media)}"`}><img class="mr-1" src="${media}" alt="${esc(title)}">${qty(need)}` +
+    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ` data-tip-media="${esc(media)}"`}><img class="mr-1" src="${media}" alt="${esc(title)}">${qty(need)}${itemId ? ` ${esc(title)}` : ''}` + // the item named, not tooltip-only (.309, scan C-10)
     ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: qty(have) })})</span></span>`;
   /** A grey section band inside a block. */
   const section = (html) => `<div class="voyage-section">${html}</div>`;
@@ -222,14 +225,14 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       // No dead disabled button: the reason stands where the button would be.
       return section(`<div class="d-flex align-items-center">${icon(hull)}<div><div>${t('MOD_VOY_PAGE_NO_SHIP_YET')}</div>` +
           `<small class="text-muted">${esc(t(shipModel.hullBlurbKey(hull.id)))}</small></div></div>`) +
-        section(`<div class="d-flex flex-wrap align-items-center"><span class="mr-2">${t('MOD_VOY_PAGE_BUILD_COST')}</span>${costs.join('')}</div>` +
+        section(`<div class="voyage-big-head mt-0">${t('MOD_VOY_PAGE_BUILD_COST')}</div><div class="d-flex flex-wrap align-items-center">${costs.join('')}</div>` + // one sub-heading look (.309, scan A-19)
           (why
             ? `<div class="text-warning mt-2">${esc(why)}</div>`
             : `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="build">${t('MOD_VOY_PAGE_BUILD_BUTTON')}</button></div>` +
-              `<small class="d-block text-center text-muted mt-1">${t('MOD_VOY_PAGE_BUILD_HINT')}</small>`));
+              `<small class="d-block text-center text-muted mt-1">${t('MOD_VOY_PAGE_BUILD_HINT')}${api.canFish?.() !== false ? ` ${t('MOD_VOY_PAGE_BUILD_HINT_HAT')}` : ''}</small>`));
     }
     // The hull's wear is in Stores (build .205: what a sail costs); what you can buy is in the Shipwright row.
-    return vesselRow('boat') + (api.big() != null ? `<div class="voyage-big-head">${esc(t('MOD_VOY_PAGE_BIG_HEAD'))}</div>${vesselRow('ship')}` : '') + shipwrightHtml();
+    return vesselRow('boat') + (api.big() != null ? `<div class="voyage-big-head"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(shipModel.HULLS[api.vessel('ship').hull].media)}" alt="">${esc(t('MOD_VOY_PAGE_BIG_HEAD'))}</div>${vesselRow('ship')}` : '') + shipwrightHtml();
   };
   /** The Shipwright row folds open (closed by default), per browser. */
   const SHIPWRIGHT_KEY = 'voyage-shipwright-open';
@@ -262,7 +265,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       ? `<span class="text-success">${esc(t(ready === 1 ? 'MOD_VOY_PAGE_SHIPWRIGHT_READY_ONE' : 'MOD_VOY_PAGE_SHIPWRIGHT_READY', { n: `${ready}` }))}</span>`
       : `<span class="text-muted">${esc(t(offers.length === 1 ? 'MOD_VOY_PAGE_SHIPWRIGHT_OFFER_ONE' : 'MOD_VOY_PAGE_SHIPWRIGHT_OFFER', { n: `${offers.length}` }))}</span>`;
     return `<div class="voyage-shipwright"><button type="button" class="voyage-shipwright-head" data-voyage-action="shipwright" aria-expanded="${open}">` +
-      `<i class="fa ${open ? 'fa-caret-down' : 'fa-caret-right'}" aria-hidden="true"></i><b>${esc(t('MOD_VOY_PAGE_SHIPWRIGHT'))}</b>${note}</button>` +
+      `<i class="fa ${open ? 'fa-caret-down' : 'fa-caret-right'}" aria-hidden="true"></i><b class="voyage-big-head my-0">${esc(t('MOD_VOY_PAGE_SHIPWRIGHT'))}</b>${note}</button>` +
       (open ? `<div class="voyage-shipwright-body">${offers.map((o) => o.html).join('')}</div>` : '') + '</div>';
   };
   /** A vessel's line: its name, where it is, and Find it on the map while you are not in it. */
@@ -273,7 +276,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     const where = api.inVessel() === kind ? t('MOD_VOY_PAGE_ABOARD')
       : kind === 'boat' && v.aboard === true ? t('MOD_VOY_PAGE_ON_BIG', { hull: esc(api.hullName(api.big())) })
         : t(kind === 'ship' ? 'MOD_VOY_PAGE_AT_ANCHOR' : 'MOD_VOY_PAGE_MOORED', { where: esc(api.whereIs(v)) });
-    const off = !api.enabled() && kind === 'boat' ? `<div class="text-warning">${t('MOD_VOY_PAGE_RULES_OFF')}</div>` : '';
+    const off = !api.enabled() && kind === 'boat' ? `<div class="text-warning">${t(game.tutorial?.complete === false ? 'MOD_VOY_PAGE_TUTORIAL' : 'MOD_VOY_PAGE_RULES_OFF')}</div>` : '';
     const find = api.inVessel() === kind || (kind === 'boat' && v.aboard === true) ? ''
       : `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="find" data-kind="${kind}">${t('MOD_VOY_PAGE_FIND_SHIP')}</button>`;
     return section(`<div class="voyage-row"><div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
@@ -296,7 +299,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       if (item !== undefined) costs.push(costIcon(item.media, quantity, game.bank.getQty(item), item.name, item.id));
     }
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
-        `<div><div><b>${esc(t('MOD_VOY_PAGE_BRIG_COST'))}</b></div><small class="text-muted">${esc(t(shipModel.hullBlurbKey(hull.id)))}</small></div></div>` +
+        `<div><div class="voyage-big-head my-0">${esc(t('MOD_VOY_PAGE_BRIG_COST'))}</div><small class="text-muted">${esc(t(shipModel.hullBlurbKey(hull.id)))}</small></div></div>` +
       `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` +
       (blocker !== undefined
         ? `<div class="text-warning mt-2">${esc(blocker)}</div>`
@@ -320,7 +323,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     }
     const old = state.ship.hullName(state.ship.vessel(kind));
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
-        `<div><div><b>${esc(t('MOD_VOY_PAGE_UPGRADE_COST', { hull: word }))}</b></div><small class="text-muted">${esc(t(shipModel.hullBlurbKey(hull.id)))}</small></div></div>` +
+        `<div><div class="voyage-big-head my-0">${esc(t('MOD_VOY_PAGE_UPGRADE_COST', { hull: word }))}</div><small class="text-muted">${esc(t(shipModel.hullBlurbKey(hull.id)))}</small></div></div>` +
       `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` +
       (blocker !== undefined
         ? `<div class="text-warning mt-2">${esc(blocker)}</div>`
@@ -340,9 +343,18 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     + '<path d="M9.5 36 38.5 6" stroke-width="2"/>'
     + '<circle cx="5.5" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="42.5" cy="8" r=".9" fill="currentColor" stroke="none"/>'
     + '<circle cx="5.5" cy="34" r=".9" fill="currentColor" stroke="none"/><circle cx="42.5" cy="34" r=".9" fill="currentColor" stroke="none"/></svg>';
-  const crates = (items, slots, pickedId) => {
+  const holdOpen = {};
+  const crates = (items, slots, pickedId, kind) => {
     const cells = [];
-    for (let i = 0; i < Math.max(slots, items.length); i++) {
+    // Used crates, the rest of their row, and at most one row of empties; the other empty slots fold behind a line,
+    // so an empty galleon's hold is one row, not six (.309, scan A-16/A2-15).
+    const PER_ROW = 6;
+    const empty = Math.max(0, slots - items.length);
+    const fill = (PER_ROW - items.length % PER_ROW) % PER_ROW;
+    const open = holdOpen[kind] === true;
+    const shown = open ? empty : Math.min(empty, fill === 0 ? PER_ROW : fill);
+    const hidden = empty - shown;
+    for (let i = 0; i < items.length + shown; i++) {
       const x = items[i];
       if (x === undefined) { cells.push(`<div class="voyage-crate" role="img" aria-label="${esc(t('MOD_VOY_HOLD_CRATE_EMPTY'))}">${CRATE_SVG}</div>`); continue; }
       // Packed cargo (phase 4): a sealed sack or crate with its goods on it, not picked or taken out.
@@ -356,7 +368,10 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       cells.push(`<button type="button" class="voyage-crate voyage-crate-full${x.item.id === pickedId ? ' voyage-crate-picked' : ''}" data-voyage-action="hold-pick" data-item="${esc(x.item.id)}" data-tip-item="${esc(x.item.id)}" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${x.item.id === pickedId}">`
         + `${CRATE_SVG}<img src="${x.item.media}" alt=""><span class="voyage-crate-qty">${numberWithCommas(x.qty)}</span></button>`);
     }
-    return `<div class="voyage-crates">${cells.join('')}</div>`;
+    const fold = hidden > 0
+      ? `<button type="button" class="voyage-hold-fold" data-voyage-action="hold-fold" data-kind="${kind}" aria-expanded="false"><i class="fa fa-caret-right mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_HOLD_MORE_SLOTS', { n: `${hidden}` }))}</button>`
+      : open && empty > PER_ROW ? `<button type="button" class="voyage-hold-fold" data-voyage-action="hold-fold" data-kind="${kind}" aria-expanded="true"><i class="fa fa-caret-down mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_HOLD_FOLD_SLOTS'))}</button>` : '';
+    return `<div class="voyage-crates">${cells.join('')}</div>${fold}`;
   };
 
   /**
@@ -372,10 +387,10 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     // Packed cargo sits in the grid but is never picked: it leaves the hold only where it is going.
     const items = all.filter((x) => x.entry?.cargo === undefined);
     const sealed = items.length < all.length ? `<div class="mt-2">${esc(t('MOD_VOY_HOLD_SEALED_NOTE'))}</div>` : '';
-    if (items.length === 0) return crates(all, h.slots(kind), undefined) + (sealed || `<div class="mt-2">${t('MOD_VOY_HOLD_EMPTY')}</div>`);
+    if (items.length === 0) return crates(all, h.slots(kind), undefined, kind) + (sealed || `<div class="voyage-section voyage-empty text-muted mt-2">${t('MOD_VOY_HOLD_EMPTY')}</div>`); // the one empty-state form: a band, centred, muted (.309, scan A-21)
     if (!items.some((x) => x.item.id === holdPicked[kind])) holdPicked[kind] = items[0].item.id;
     const sel = items.find((x) => x.item.id === holdPicked[kind]);
-    let html = crates(all, h.slots(kind), holdPicked[kind]) + sealed +
+    let html = crates(all, h.slots(kind), holdPicked[kind], kind) + sealed +
       `<div class="mt-2">${esc(t('MOD_VOY_PAGE_HOLD_SELECTED', { item: sel.item.name, count: numberWithCommas(sel.qty) }))}</div>`;
     if (why !== undefined) return `${html}<div class="text-warning mt-2">${esc(why)}</div>`;
     html += actionBlock({
@@ -556,7 +571,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       .map((g) => {
         const heavy = g.rations > 1 || g.fuel > 1;
         return {
-          cells: [sea(g) ? t('MOD_VOY_HELP_AT_SEA') : terrainList(g.classes), `${qty(g.rations * storesModel.RATION_HP)} HP`, g.fuel > 0 ? `${g.fuel}` : t('MOD_VOY_HELP_NONE')],
+          cells: [sea(g) ? t('MOD_VOY_HELP_AT_SEA') : terrainList(g.classes), t('MOD_VOY_UNIT_HP', { n: qty(g.rations * storesModel.RATION_HP) }), g.fuel > 0 ? `${g.fuel}` : t('MOD_VOY_HELP_NONE')],
           cls: heavy ? ['text-warning', 'text-warning'] : ['', ''],
         };
       });
@@ -623,7 +638,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
         const cap = st.capacity();
         out.push({ head: t('MOD_VOY_HELP_HEAD_ROOM'), body: [
           { table: { cols: [t('MOD_VOY_HELP_COL_STORE'), t('MOD_VOY_HELP_COL_ROOM')], rows: [
-            { cells: [t('MOD_VOY_HELP_COL_FOOD'), `${st.hp(cap.food)} HP`] },
+            { cells: [t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_UNIT_HP', { n: st.hp(cap.food) })] },
             { cells: [t('MOD_VOY_HELP_COL_FUEL'), st.fuelText(cap.fuel)] },
           ] } },
           t('MOD_VOY_HELP_ROOM_LEVEL', { level: `${skill()?.level ?? 1}`, food: `${storesModel.CAPACITY.foodPerLevel}`, fuel: `${storesModel.CAPACITY.fuelPerLevel}` }),
@@ -708,12 +723,14 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     if (api === undefined || have === undefined) return `<div class="text-warning">${t('MOD_VOY_PAGE_NO_SHIP')}</div>`;
     const cap = api.capacity();
     // What you carry against what fits: 600 / 620 HP, 15 / 15.5 fuel. Amber when low, red when empty.
-    const level = (kind) => (have[kind] <= 0 ? 'text-danger' : have[kind] < storesModel.LOW[kind] ? 'text-warning' : '');
+    // Red when empty, amber when low or over the limit (.308, A-10), and the word beside the colour (B-20/B-47).
+    const level = (kind) => (have[kind] <= 0 ? 'text-danger' : have[kind] < storesModel.LOW[kind] || have[kind] > cap[kind] ? 'text-warning' : '');
+    const word = (kind) => (have[kind] <= 0 ? ` <small>(${esc(t('MOD_VOY_PAGE_STORES_EMPTY_WORD'))})</small>` : have[kind] < storesModel.LOW[kind] ? ` <small>(${esc(t('MOD_VOY_PAGE_STORES_LOW_WORD'))})</small>` : '');
     const of = (n) => `<small class="text-muted">/ ${n}</small>`;
-    const carried = `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}" alt=""><span class="${level('food')}">${api.hp(have.food)}</span> ${of(api.hp(cap.food))} HP ` +
-      `<img src="${ctx.getResourceUrl('assets/fuel.webp')}" alt=""><span class="${level('fuel')}">${api.fuelText(have.fuel)}</span> ${of(api.fuelText(cap.fuel))}</span>`;
+    const carried = `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}" alt="" title="${esc(t('MOD_VOY_HELP_COL_FOOD'))}"><span class="${level('food')}">${api.hp(have.food)}${word('food')}</span> ${of(api.hp(cap.food))} ${esc(t('MOD_VOY_UNIT_HP', { n: '' })).trim()} ` +
+      `<img src="${ctx.getResourceUrl('assets/fuel.webp')}" alt="" title="${esc(t('MOD_VOY_HELP_COL_FUEL'))}"><span class="${level('fuel')}">${api.fuelText(have.fuel)}${word('fuel')}</span> ${of(api.fuelText(cap.fuel))} ${esc(t('MOD_VOY_PAGE_STORES_FUEL_WORD'))}</span>`;
     let html = section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt=""><b>${carried}</b></div>` +
-      (api.enabled() ? '' : `<div class="text-warning">${t('MOD_VOY_PAGE_STORES_OFF')}</div>`));
+      (api.enabled() ? '' : `<div class="text-warning">${t(game.tutorial?.complete === false ? 'MOD_VOY_PAGE_TUTORIAL' : 'MOD_VOY_PAGE_STORES_OFF')}</div>`)); // (.308, C-01)
     // What a sail costs (build .205, the user): food, fuel and the hull's wear, in one block.
     const big = state.ship?.big?.() != null;
     html += hullHtml('boat', big) + (big ? hullHtml('ship', true) : '');
@@ -721,7 +738,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     if (rates === undefined) return `${html}${section(`<div class="text-warning">${t('MOD_VOY_PAGE_STORES_NO_LOADING')}</div>`)}`;
     let load = `<div>${t('MOD_VOY_PAGE_STORES_LOADING', { place: esc(t(PLACE_KEY[rates.place])), food: pct(rates.food), fuel: pct(rates.fuel) })}</div>`;
     const items = api.loadable().filter((x) => rates[x.kind] > 0);
-    const unit = (x) => `${x.item.name}: ${x.kind === 'food' ? t('MOD_VOY_PAGE_STORES_UNIT_FOOD', { hp: `${x.unit}` }) : t('MOD_VOY_PAGE_STORES_UNIT_FUEL', { fuel: `${x.unit}` })}`;
+    const unit = (x) => `${x.item.name}, ${x.kind === 'food' ? t('MOD_VOY_PAGE_STORES_UNIT_FOOD', { hp: `${x.unit}` }) : t('MOD_VOY_PAGE_STORES_UNIT_FUEL', { fuel: `${x.unit}` })}`;
     if (items.length > 0 && !items.some((x) => x.item.id === picked)) picked = items[0].item.id;
     // Two wells, food | fuel, four chip rows tall, scrolling past that (build .149, the user; DESIGN "The Stores
     // picker"). An empty well says why in its middle.
@@ -745,7 +762,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     if (most <= 0) return html + section(`${load}<div class="mt-2 text-warning">${t(sel.kind === 'food' ? 'MOD_VOY_PAGE_STORES_FULL_FOOD' : 'MOD_VOY_PAGE_STORES_FULL_FUEL')}</div>`);
     loadPreview = (n) => {
       const v = Math.min(room, storesModel.loadAmount(sel.unit, Math.min(n, most), rate));
-      return sel.kind === 'food' ? `+${api.hp(v)} HP` : `+${api.fuelText(storesModel.roundFuel(v))}`;
+      return `+${sel.kind === 'food' ? t('MOD_VOY_UNIT_HP', { n: api.hp(v) }) : t('MOD_VOY_UNIT_FUEL', { n: api.fuelText(storesModel.roundFuel(v)) })}`; // units on both (.308, A-11/A2-18)
     };
     const value = amountFor('load', sel.item.id, most, most);
     load += actionBlock({
@@ -779,9 +796,22 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       `<span>${esc(t('MOD_VOY_CARGO_RUNS_COUNT', { n: `${state.cargo.count()}`, max: `${state.cargo.max}` }))}</span></div>${body}</div>`;
   };
 
+  /** Where the keyboard focus is inside the page, as a selector and index, so a redraw can put it back (.308, scan C-26). */
+  const focusKey = () => {
+    const el = document.activeElement;
+    const root = document.getElementById(CONTAINER_ID);
+    if (!(el instanceof Element) || root === null || !root.contains(el)) return undefined;
+    const sel = `${el.tagName.toLowerCase()}${[...el.classList].map((c) => `.${CSS.escape(c)}`).join('')}`;
+    return { el, sel, idx: [...root.querySelectorAll(sel)].indexOf(el) };
+  };
+  const refocus = (k) => {
+    if (k === undefined || k.el.isConnected) return;
+    try { document.getElementById(CONTAINER_ID)?.querySelectorAll(k.sel)[k.idx]?.focus({ preventScroll: true }); } catch {}
+  };
   const render = () => {
     const s = skill();
     if (s === undefined || document.getElementById(CONTAINER_ID) === null) return;
+    const focused = focusKey();
     const level = s.level;
     const rec = s.record;
 
@@ -878,16 +908,18 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
           `<span>${esc(t(`MOD_VOY_PAGE_COMPASS_STAGE_${i + 1}`))}</span></span>${value}</div>`;
       });
       const owned = state.compass?.owned?.() === true;
+      // Never had one yet: no warning chip, and the note says "a compass", not "another" (.308, scan C-02).
+      const everHad = owned || reachedCount > 0 || state.compass?.everOwned?.() === true;
       const next = model.nextCompassStage(level);
-      const head = `<div class="voyage-travel-head"><span class="voyage-travel-total">${reachedCount}</span><span class="voyage-travel-label">${esc(t('MOD_VOY_PAGE_COMPASS_READINGS', { all: `${model.COMPASS_STAGES.length}` }))}</span></div>` +
+      const head = `<div class="voyage-travel-head"><span class="voyage-travel-total">${reachedCount} / ${model.COMPASS_STAGES.length}</span><span class="voyage-travel-label">${esc(t('MOD_VOY_PAGE_COMPASS_READINGS'))}</span></div>` +
         '<div class="voyage-travel-split">' +
         (owned
           ? `<span class="voyage-travel-chip voyage-chip-ok"><i class="fa fa-check mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_COMPASS_IN_BANK'))}</span>`
-          : `<span class="voyage-travel-chip voyage-chip-warn"><i class="fa fa-exclamation-triangle mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_COMPASS_NOT_IN_BANK'))}</span>`) +
+          : everHad ? `<span class="voyage-travel-chip voyage-chip-warn"><i class="fa fa-exclamation-triangle mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_COMPASS_NOT_IN_BANK'))}</span>` : '') +
         (next === undefined ? '' : `<span class="voyage-travel-chip voyage-chip-next"><i class="fa fa-arrow-up mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_COMPASS_NEXT', { level: `${next.level}` }))}</span>`) +
         '</div>';
       // Without the compass, where to get another sits at the bottom of the band (the user, build .148).
-      const note = owned ? '' : `<div class="voyage-compass-note text-warning">${esc(t('MOD_VOY_PAGE_COMPASS_SHOP'))}</div>`;
+      const note = owned ? '' : `<div class="voyage-compass-note${everHad ? ' text-warning' : ''}">${esc(t(everHad ? 'MOD_VOY_PAGE_COMPASS_SHOP' : 'MOD_VOY_PAGE_COMPASS_SHOP_FIRST'))}</div>`;
       compass.innerHTML = section(`${head}<div class="voyage-stats">${rows.join('')}</div>${note}`);
     }
 
@@ -906,7 +938,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
         : [m === undefined || m.cut === 0 ? t('MOD_VOY_PAGE_LAND_NO_CUT') : { text: t('MOD_VOY_PAGE_LAND_CUT', { pct: `${Math.round(m.cut * 100)}` }), cls: 'text-success' }];
       const tipText = lines.map((l) => (typeof l === 'string' ? l : l.text)).join('. ');
       const inner = `<div class="voyage-land-face" data-tip-lines="${esc(JSON.stringify(lines))}"><div class="voyage-land-ring"><img src="${m === undefined ? ctx.getResourceUrl('assets/marker_traveller_figure.webp') : L.mediaOf(m)}" alt=""></div>` +
-        `<div class="voyage-land-name">${esc(name)}</div></div>`;
+        `<div class="voyage-land-name"><small class="voyage-land-kicker text-muted">${esc(t('MOD_VOY_PAGE_LAND_KICKER'))}</small>${esc(name)}</div></div>`;
       const shopHint = next === undefined ? '' : `. ${t('MOD_VOY_PAGE_LAND_NEXT', { name: L.nameOf(next), level: `${next.level}` })}. ${t('MOD_VOY_PAGE_LAND_SHOP')}`;
       const label = `${t('MOD_VOY_PAGE_LAND_TIP', { mount: name })}. ${tipText}${shopHint}`;
       land.innerHTML = next === undefined
@@ -921,6 +953,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       if (L !== undefined) sign.innerHTML = signTile(L);
     }
     try { state.tips?.apply(document.getElementById(CONTAINER_ID)); } catch (e) { log('tooltips failed', e); }
+    refocus(focused);
   };
 
   /** What the page depends on beyond the skill's own events. Cheap: read every frame while the page is open. */

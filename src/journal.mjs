@@ -615,7 +615,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       + ledger([t('MOD_VOY_JOURNAL_CREW_COL_NAME'), t('MOD_VOY_JOURNAL_CREW_COL_RANK'), t('MOD_VOY_JOURNAL_CREW_COL_AT'), t('MOD_VOY_JOURNAL_CREW_COL_STATUS')], rows);
   };
   const crewTiers = () => {
-    const rows = jm.CREW_TIERS.map((x) => [{ text: roleName(x.tier) }, { text: `${x.rate}`, cls: 'vj-num' }, { text: gp(x.wage), cls: 'vj-num' }, { text: gp(x.hire), cls: 'vj-num' }]);
+    // Units after the numbers (.308, scan C2-11): "60%", "75k GP".
+    const rows = jm.CREW_TIERS.map((x) => [{ text: roleName(x.tier) }, { text: t('MOD_VOY_UNIT_PCT', { n: `${x.rate}` }), cls: 'vj-num' }, { text: t('MOD_VOY_UNIT_GP', { n: gp(x.wage) }), cls: 'vj-num' }, { text: t('MOD_VOY_UNIT_GP', { n: gp(x.hire) }), cls: 'vj-num' }]);
     rows.numeric = [false, true, true, true];
     return ledger([t('MOD_VOY_JOURNAL_CREW_COL_RANK'), t('MOD_VOY_JOURNAL_CREW_COL_RATE'), t('MOD_VOY_JOURNAL_CREW_COL_WAGE'), t('MOD_VOY_JOURNAL_CREW_COL_HIRE')], rows);
   };
@@ -706,7 +707,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     // that sends people looking for goblins, and so to the golbin's purse.
     const scrawl = id !== 'lands' ? '' : '<div class="vj-scrawl" aria-hidden="true">'
       + `<span class="vj-scrawl-line">${esc(t('MOD_VOY_JOURNAL_GOBLIN_SCRAWL'))}</span><span class="vj-scrawl-line vj-scrawl-big">${esc(t('MOD_VOY_JOURNAL_GOBLIN_SCRAWL_WHAT'))}</span></div>`;
-    return `<div class="vj-page-body${scrawl ? ' vj-has-scrawl' : ''}">` + scrawl + runningHead(t('MOD_VOY_JOURNAL_TITLE'), t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))
+    // One running-head form on every tab (.309, scan C2-21): a left page reads the book, then its tab; a right page
+    // the tab, then the entry (the chapter here).
+    const tab = t(jm.JOURNAL_CREW.includes(id) ? 'MOD_VOY_JOURNAL_TAB_CREW' : 'MOD_VOY_JOURNAL_TAB_HOW');
+    return `<div class="vj-page-body${scrawl ? ' vj-has-scrawl' : ''}">` + scrawl + (left ? runningHead(t('MOD_VOY_JOURNAL_TITLE'), tab) : runningHead(tab, t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`)))
       + `<h2 class="vj-h1">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))}</h2>`
       + dropCap(t(`MOD_VOY_JOURNAL_CH_${key}_INTRO`)) + withNote(id, body + (id === 'travels' ? levelsLedger() : '') + (id === 'ship' ? shipBill() : '') + aside(id), noteHtml) + '</div>'
       + chapterFoot(turn, folio, left, one);
@@ -736,8 +740,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       + `<div class="vj-foot vj-foot-end vj-one-only">${turnBtn(1, 'MOD_VOY_JOURNAL_TURN', true)}</div>`;
     const how = list.map((id, i) => manifestRow(`data-vj-go="ch:${id}"`, t(`MOD_VOY_JOURNAL_CH_${id.toUpperCase()}_TITLE`), roman(i + 1))).join('');
     const crew = !crewOn() ? '' : `<div class="vj-manifest-head">${esc(t('MOD_VOY_JOURNAL_TAB_CREW'))}</div><div class="vj-mrows">`
-      + jm.JOURNAL_CREW.map((id, i) => manifestRow(`data-vj-crew="${i}"`, t(`MOD_VOY_JOURNAL_CH_${id.toUpperCase()}_TITLE`), roman(i + 1))).join('') + '</div>';
-    const right = '<div class="vj-page-body">' + runningHead(t('MOD_VOY_JOURNAL_TITLE'), t('MOD_VOY_JOURNAL_MANIFEST'))
+      + jm.JOURNAL_CREW.map((id, i) => manifestRow(`data-vj-crew="${i}"`, t(`MOD_VOY_JOURNAL_CH_${id.toUpperCase()}_TITLE`), roman(list.length + i + 1))).join('') + '</div>'; // one numbering (.308, C2-22)
+    const right = '<div class="vj-page-body">' + runningHead(t('MOD_VOY_JOURNAL_TAB_HOW'), t('MOD_VOY_JOURNAL_MANIFEST'))
       + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_MANIFEST'))}</h2>` + dropCap(t('MOD_VOY_JOURNAL_MANIFEST_LEAD'))
       + `<div class="vj-manifest-head">${esc(t('MOD_VOY_JOURNAL_TAB_HOW'))}</div><div class="vj-mrows">${how}</div>` + crew
       + `<p class="vj-p vj-manifest-rest">${esc(t('MOD_VOY_JOURNAL_MANIFEST_REST'))}</p></div>`
@@ -838,7 +842,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const from = state.position();
     const rows = jm.byDistance(e.found, from).map((h, i) => [{ text: at(h.q, h.r) }, land(h.q, h.r), i === 0 && from !== undefined && h.distance > 0 ? t('MOD_VOY_JOURNAL_NEAREST', { where: fromHere(h) }) : fromHere(h)]);
     const misses = e.missed.map(jm.parseHex).filter((h) => h !== undefined).map((h) => at(h.q, h.r));
-    return runningHead(level !== undefined ? t('MOD_VOY_JOURNAL_SKILL_LEVEL', { skill: skill?.name ?? '', level: `${level}` }) : skill?.name ?? '', '')
+    return runningHead(t('MOD_VOY_JOURNAL_TAB_RESOURCES'), level !== undefined ? t('MOD_VOY_JOURNAL_SKILL_LEVEL', { skill: skill?.name ?? '', level: `${level}` }) : skill?.name ?? '')
       + `<div class="vj-entry-head">${e.action?.media ? `<img src="${e.action.media}" alt="">` : ''}<h2 class="vj-h1">${esc(e.names[0])}</h2>${heatButton(e)}</div>`
       + (why ? `<p class="vj-p vj-italic">${esc(t('MOD_VOY_JOURNAL_WHY', { why }))}</p>` : '')
       // The balance pass: the first saving-up trip, and the boat nearly halves it.
@@ -919,7 +923,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     if (!sources.some((x) => x.key === p.source)) { p.source = sources.length === 1 ? sources[0].key : undefined; p.action = undefined; }
     const option = (attr, key, on, media, label, extra = '') => `<button type="button" class="vj-row${on ? ' vj-on' : ''}" ${attr}="${esc(key)}" aria-pressed="${on}">`
       + `<span class="vj-row-name">${media ? `<img src="${media}" alt="">` : ''}<b>${esc(label)}</b></span><span class="vj-row-count">${esc(extra)}</span></button>`;
-    let html = runningHead(t('MOD_VOY_JOURNAL_TAB_RESOURCES'), '')
+    let html = runningHead(t('MOD_VOY_JOURNAL_TAB_RESOURCES'), t('MOD_VOY_JOURNAL_PICK_TITLE'))
       + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_PICK_TITLE'))}</h2><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_PICK_INTRO'))}</p>`
       + `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_PICK_SOURCE'))}</h3>`
       + sources.map((x) => option('data-vj-pick-source', x.key, x.key === p.source, x.media, x.name, `×${x.count}`)).join('');
@@ -1232,7 +1236,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       .map((x) => `<span class="${dear ? 'vj-dear' : 'vj-cheap'}">${esc(x.name)} ${x.percent}%</span>`).join(', ') || '–';
     const rows = known.map((m) => [{ text: state.market.name(m.id), cls: 'vj-strong' }, { html: list(m, true) }, { html: list(m, false) }]);
     const left = state.market.total() - known.length;
-    return runningHead(t('MOD_VOY_JOURNAL_PLACES_TRADE'), '')
+    return runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), t('MOD_VOY_JOURNAL_PLACES_TRADE'))
       + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_MARKETS_TITLE'))}</h2><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_MARKETS_INTRO'))}</p>`
       + ledger([t('MOD_VOY_JOURNAL_COL_MARKET'), t('MOD_VOY_JOURNAL_COL_DEAR'), t('MOD_VOY_JOURNAL_COL_CHEAP')], rows)
       + `<p class="vj-p vj-faint">${esc(t(left > 0 ? 'MOD_VOY_JOURNAL_MARKETS_LEFT' : 'MOD_VOY_JOURNAL_MARKETS_ALL', { n: `${left}` }))}</p>`;
@@ -1248,7 +1252,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const p = all.find((x) => x.key === view.place);
     const right = p === undefined ? runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), '') + empty('MOD_VOY_JOURNAL_ENTRY_NONE')
       : p.ledger !== undefined ? marketsLedger()
-      : runningHead(t(`MOD_VOY_JOURNAL_PLACES_${p.group.toUpperCase()}`), '')
+      : runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), t(`MOD_VOY_JOURNAL_PLACES_${p.group.toUpperCase()}`))
         + `<div class="vj-entry-head">${p.media ? `<img src="${p.media}" alt="">` : ''}<h2 class="vj-h1">${esc(p.name)}</h2></div>`
         + ledger([t('MOD_VOY_JOURNAL_COL_HEX'), t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_FROM_HERE')], [[{ text: at(p.q, p.r) }, land(p.q, p.r), fromHere(p)]])
         + (p.group === 'port' ? portDeeds(p) : '')
@@ -1273,7 +1277,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const key = view.guide.toUpperCase();
     const [lead, ...rest] = t(`MOD_VOY_JOURNAL_GUIDE_${key}_BODY`).split('\n');
     const points = jm.JOURNAL_GUIDE_SECTIONS[view.guide]?.points === false ? [] : t(`MOD_VOY_JOURNAL_GUIDE_${key}_POINTS`).split('\n').filter((x) => x.trim() !== '');
-    const right = runningHead(t('MOD_VOY_JOURNAL_TAB_GUIDE'), '')
+    const right = runningHead(t('MOD_VOY_JOURNAL_TAB_GUIDE'), guideTitle(view.guide))
       + `<h2 class="vj-h1">${esc(guideTitle(view.guide))}</h2>` + dropCap(lead) + prose(rest)
       + (points.length > 0 ? `<ul class="vj-points">${points.map((p) => `<li>${rich(p)}</li>`).join('')}</ul>` : '') + guideSections(view.guide)
       + (view.back !== null ? `<div class="vj-foot vj-foot-end"><button type="button" class="vj-btn" data-vj-back="1">${esc(t('MOD_VOY_JOURNAL_BACK'))}</button></div>` : '');
@@ -1296,6 +1300,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   };
   /** The journal's one-column layout (css/voyage.css; the game's 992px sidebar edge): the tabs show their icon only. */
   const narrow = () => window.matchMedia?.('(max-width: 991.98px)').matches === true;
+  /** A short window (under 768px high) keeps the side tabs as icons only, the name as the tooltip (.308, scan C2-04). */
+  const iconsOnly = () => window.matchMedia?.('(min-width: 992px) and (max-height: 767.98px)').matches === true;
   const TAB_KEY = { how: 'MOD_VOY_JOURNAL_TAB_HOW', resources: 'MOD_VOY_JOURNAL_TAB_RESOURCES', places: 'MOD_VOY_JOURNAL_TAB_PLACES', guide: 'MOD_VOY_JOURNAL_TAB_GUIDE', crew: 'MOD_VOY_JOURNAL_TAB_CREW' };
   /** Draws the open book; `keepScroll` (a record changed under the reader) leaves the pages where they were. */
   const render = (keepScroll = false) => {
@@ -1333,7 +1339,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       if (n > 0) b.setAttribute('aria-label', t('MOD_VOY_JOURNAL_TAB_UNREAD', { tab: t(TAB_KEY[b.dataset.vjTab]), count: `${n}` })); else b.removeAttribute('aria-label');
       b.classList.toggle('vj-tab-on', on);
       // The name is on the tab beside the icon, except on a phone: there it is the tab's tooltip (press and hold).
-      state.tips?.set(b, narrow() ? t(TAB_KEY[b.dataset.vjTab]) : '');
+      state.tips?.set(b, narrow() || iconsOnly() ? t(TAB_KEY[b.dataset.vjTab]) : '');
       b.setAttribute('aria-current', on ? 'page' : 'false');
     });
     try { state.skillNames?.(root.querySelector('.vj-spread')); } catch {}
@@ -1474,6 +1480,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       if (e.key === 'Escape') { e.stopPropagation(); escape(); return; }
       if (e.key !== 'Tab') return;
       // Keep focus in the book while it is open (a modal dialog), or in the letter or heat map over it.
+      // (.308: `heatEl` lived in escape() only, so every Tab threw a ReferenceError and the trap never ran: scan C2-16.)
+      const heatEl = state.heatmap?.isOpen() ? state.heatmap.element() : undefined;
       const all = [...(giftEl ?? heatEl ?? root).querySelectorAll('button, input, a[href], canvas[tabindex]')].filter((x) => x.offsetParent !== null);
       if (all.length === 0) return;
       const first = all[0];
@@ -1508,6 +1516,12 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       root.querySelector('.vj-close')?.focus();
       // At phone width the pages stack: a chapter on the right page is scrolled to, not left below the other one.
       if (onRight) showPage('.vj-right', false);
+      // The spreads are a book's, fixed pairs, so a "?" may land on the right page beside another chapter: the page it
+      // landed on gets a gold edge that fades, so the eye goes there (build .310, scan C-16; the user: "do what is logical").
+      if (chapter !== undefined) {
+        const landed = root.querySelector(onRight ? '.vj-right' : '.vj-left');
+        if (landed !== null) { landed.classList.remove('vj-landed'); void landed.offsetWidth; landed.classList.add('vj-landed'); setTimeout(() => landed.classList.remove('vj-landed'), 1600); }
+      }
     } catch (e) { log('journal open failed', e); }
   };
   function close() {

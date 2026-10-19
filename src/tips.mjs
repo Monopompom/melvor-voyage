@@ -13,6 +13,8 @@
 
 export function install(ctx, { log }) {
   const live = new Set();
+  // Escape hides a tooltip that focus left showing (.308, scan C2-13: the header book's stayed up over the page).
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') for (const i of live) { try { i.hide(); } catch {} } });
 
   const itemOf = (id) => { try { return id ? game.items.getObjectByID(id) : undefined; } catch { return undefined; } };
 
@@ -70,7 +72,7 @@ export function install(ctx, { log }) {
     const inst = tippy(el, {
       content, placement: 'top', interactive: false, animation: false,
       // `data-tip-touch="off"`: no tooltip on touch, the press-and-hold does something else (the Here strip's name, build .187).
-      touch: el.dataset.tipTouch === 'off' ? false : el.matches('button, [role="button"], a') ? 'hold' : true, ...opts,
+      touch: el.dataset.tipTouch === 'off' ? false : el.closest('button, [role="button"], a') !== null ? 'hold' : true, ...opts, // the element or its button (.308, scan A-18/C-09)
     });
     live.add(inst);
     return inst;

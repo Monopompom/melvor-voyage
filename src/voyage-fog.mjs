@@ -205,7 +205,9 @@ export function install(ctx, { state, F, C, log }) {
         let btn = this.querySelector('.voyage-fog-btn');
         // A charted hex with no route offers it only when the fog gives one (build .233: a charted hex past the
         // dinghy's reach offered it, and pressing it said "No way through the fog", the wrong reason).
-        const show = on() && hex !== undefined && !hex.isPlayerHere && hex.map === map()
+        // Not on a hex above your Cartography level: the button could only refuse (.308, scan B-66); the game's own
+        // red "Requires Level N" line above it says why.
+        const show = on() && hex !== undefined && !hex.isPlayerHere && hex.map === map() && levelNeed(hex) <= (game.cartography?.level ?? 0)
           && (!hex.isFullySurveyed || (hex.map.selectedHexPath === undefined && routeTo(hex) !== undefined));
         if (!show) { btn?.classList.add('d-none'); return; }
         if (btn === null) {
