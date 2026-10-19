@@ -245,7 +245,7 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
         didRender: state.popupDidRender,
         title: `<img class="voyage-title-icon" src="${item.media}" alt="">${esc(item.name)}`,
         width: helpLayout.HELP_WIDTH,
-        html: helpLayout.helpHtml(sections),
+        html: helpLayout.helpHtml(sections, { notice: true }),
         // No Show on map: it zoomed onto the ring, and so onto the place (the user, 18 Oct 2026: "I don't wanna help
         // players with zoom on needed hex"). The popup gives the distance and the way, the fog clears, that is all.
         confirmButtonText: t('MOD_VOY_BUTTON_GOT_IT'),

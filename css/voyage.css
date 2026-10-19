@@ -240,6 +240,7 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-help-body .voyage-help-p { margin: 0; }
 .voyage-help-body .voyage-help-p + .voyage-help-p, .voyage-help-body .voyage-help-table + .voyage-help-p, .voyage-help-body .voyage-help-p + .voyage-help-table { margin-top: 6px; }
 .voyage-help-body .voyage-help-warn { border-left: 3px solid; } /* an amber edge: read this before you lose something */
+.voyage-help-notice .voyage-help-table { text-align: left; } /* a notice's bands read centred like every message popup (build .307); its tables keep their columns */
 .voyage-help-table { display: grid; grid-template-columns: minmax(0, 1fr) repeat(var(--voyage-help-cols, 1), auto); column-gap: 12px; }
 .voyage-help-th { color: var(--voyage-label); font-size: .9rem; padding-bottom: 2px; border-bottom: 1px solid var(--voyage-rule); }
 .voyage-help-td { padding: 3px 0; border-bottom: 1px solid var(--voyage-rule); overflow-wrap: anywhere; }
@@ -373,6 +374,11 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 
 /* Buttons at the right end of a panel row (Show, Load) share one width. */
 #voyage-here .voyage-row-btn { min-width: 5.5rem; min-height: 32px; text-align: center; font-size: .9rem; padding: .2rem .6rem; }
+/* Every button in the panel meets the 32px mouse minimum (build .306 after the scenario run of .305):
+   the head's Manage voyage and journal link, the Harbour board link, the trade "OK" link, the fight links. Inline-flex keeps
+   the text centred in the taller box; 40px under a coarse pointer below. */
+#voyage-here .btn, #voyage-here .voyage-here-link { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; vertical-align: middle; }
+#voyage-here .voyage-here-link { min-width: 32px; padding: 0 .3rem; }
 
 /* Grey means disabled and nothing else: no grey buttons unless they can't be used. */
 #voyage-container .btn:disabled, #voyage-container .btn.disabled, #voyage-here .btn:disabled, #voyage-here .btn.disabled,
@@ -430,7 +436,7 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-fight-link { min-height: 32px; }
 /* Touch screens: main buttons and toggles at least 40px high. */
 @media (pointer: coarse) {
-  .voyage-legend-toggle, .voyage-panel-toggle, #voyage-here .voyage-row-btn, .voyage-fight-link, .voyage-help, .voyage-row > .btn { min-height: 40px; }
+  .voyage-legend-toggle, .voyage-panel-toggle, #voyage-here .btn, #voyage-here .voyage-here-link, .voyage-fight-link, .voyage-help, .voyage-row > .btn { min-height: 40px; }
   .voyage-hold-presets .btn { min-height: 40px; }
 }
 

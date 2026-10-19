@@ -422,7 +422,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
         didRender: state.popupDidRender,
         title: `<img class="voyage-title-icon" src="${ctx.getResourceUrl(HULLS.dinghy.media)}" alt="">${t('MOD_VOY_SHIP_NOTICE_TITLE')}`,
         width: helpLayout.HELP_WIDTH,
-        html: helpLayout.helpHtml(sections),
+        html: helpLayout.helpHtml(sections, { notice: true }),
         confirmButtonText: t('MOD_VOY_BUTTON_GOT_IT'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       });

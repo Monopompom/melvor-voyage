@@ -70,7 +70,10 @@ const item = (it) => {
   return `<p class="voyage-help-p ${it.cls ?? ''}">${esc(it.text)}</p>`;
 };
 
-/** The popup body: wrap it in nothing else; it carries `voyage-help-body`. */
-export const helpHtml = (sections) => '<div class="text-left voyage-help-body">' + sections.map((s) =>
+/** The popup body: wrap it in nothing else; it carries `voyage-help-body`. A "?" help popup reads left like a page;
+ *  a notice built with the same bands (the welcome, the dinghy notice, a rumour or chart read) passes `notice: true`
+ *  and reads centred like every other message popup (build .307). Its
+ *  tables stay left so their columns line up. */
+export const helpHtml = (sections, { notice = false } = {}) => `<div class="${notice ? 'text-center voyage-help-body voyage-help-notice' : 'text-left voyage-help-body'}">` + sections.map((s) =>
   `<div class="voyage-section voyage-help-section${s.warn ? ' voyage-help-warn border-warning' : ''}">`
   + `${s.head ? `<div class="voyage-help-head">${esc(s.head)}</div>` : ''}${s.body.map(item).join('')}</div>`).join('') + '</div>';

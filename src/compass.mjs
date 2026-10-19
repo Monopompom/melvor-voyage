@@ -177,7 +177,7 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
         didRender: state.popupDidRender,
         title: `<img class="voyage-title-icon" src="${it.media}" alt="">${getLangString('MOD_VOY_COMPASS_WELCOME_TITLE')}`,
         width: helpLayout.HELP_WIDTH,
-        html: helpLayout.helpHtml(sections),
+        html: helpLayout.helpHtml(sections, { notice: true }),
         confirmButtonText: getLangString('MOD_VOY_BUTTON_GOT_IT'),
         showDenyButton: journal !== undefined,
         denyButtonText: getLangString('MOD_VOY_JOURNAL_OPEN'),
