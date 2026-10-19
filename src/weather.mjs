@@ -43,6 +43,52 @@ export function install(ctx, { state, W, shipModel, terrainMod, log }) {
   /** The effects on a record for the panel and the hex box (plain ones too), or undefined with the setting off. */
   const effectsAt = (rec) => { const o = order(); return o === undefined || rec === undefined ? undefined : W.effectsOf(rec.t, o); };
 
+  // ---- the wind (phase 5c-2) ---------------------------------------------------------------------------------------
+  // One wind over the sea from one of six sides, turning every 6 hours of game time by at most one side; it changes the
+  // time of a sailed step only, so it needs Timed travel. The roll is seeded per character (the save's `wind`, rolled
+  // here the first time) and follows game time (state.clockNow: the replayed moment offline).
+  let windObj;
+  let spareSeed;
+  /** A forced side for checks (dev.mjs voyageDev.wind(side)); undefined: the seeded wind. */
+  let forced;
+  const windSeed = () => {
+    const sk = state.voyageSkill?.();
+    if (sk === undefined) return undefined;
+    // A newer save kept as it is (futureRaw): a seed for this session only.
+    if (sk.futureRaw !== undefined) { spareSeed ??= W.newWindSeed(); return spareSeed; }
+    if (!(Number.isInteger(sk.record.wind) && sk.record.wind > 0)) sk.record.wind = W.newWindSeed();
+    return sk.record.wind;
+  };
+  const windNow = () => {
+    const seed = windSeed();
+    if (seed === undefined) return undefined;
+    if (windObj?.seed !== seed) windObj = W.createWind(seed);
+    return windObj;
+  };
+  /** The wind applies: the setting on, Timed travel on, a character loaded. */
+  const windOn = () => on() && state.timed?.() === true && windNow() !== undefined;
+  /** The side the wind blows from at `ms` of game time. */
+  const windAt = (ms) => (forced !== undefined ? forced : windNow()?.at(ms));
+  /** The time factor of a sailed step (ship.mjs stepsOf: `dq`, `dr`, `vessel`) begun at `ms`; small boats feel half. */
+  const windFactor = (step, ms) => {
+    if (step == null) return 1;
+    const from = windAt(ms);
+    if (from === undefined) return 1;
+    return W.windFactor(from, W.headingOf(step.dq ?? 0, step.dr ?? 0), (step.vessel ?? 'boat') === 'boat');
+  };
+  /**
+   * The wind for the panel, strip and page: { from (a side index), side ("NW"), word ("north-west"), toward (the side it
+   * blows to), msLeft (to the next turn) }, or undefined when it does not apply.
+   */
+  const wind = () => {
+    if (!windOn()) return undefined;
+    const now = state.clockNow?.() ?? Date.now();
+    const from = windAt(now);
+    if (from === undefined) return undefined;
+    const side = W.WIND_SIDES[from];
+    return { from, side, short: t(`MOD_VOY_DIR_SHORT_${side}`), word: t(`MOD_VOY_DIR_${side}`), toward: (from + 3) % 6, msLeft: W.nextWindTurnAt(now) - now };
+  };
+
   // ---- the winter ice ------------------------------------------------------------------------------------------------
   let iceFor;
   let iceRecs = [];
@@ -239,7 +285,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, log }) {
   const nextWords = (s) => {
     if (s.noTown) return t('MOD_VOY_WX_NO_TOWN');
     if (s.msLeft === undefined) return '';
-    const vars = { season: s.next.name, time: state.clock?.duration?.(s.msLeft) ?? `${Math.round(s.msLeft / 3600000)} h` };
+    const vars = { season: s.next.name, time: state.clock?.duration?.(s.msLeft) ?? `${Math.round(s.msLeft / 3600000)}H` };
     if (W.iceOn(s.next.order)) return t('MOD_VOY_WX_NEXT_FREEZE', vars);
     if (W.iceOn(s.order)) return t('MOD_VOY_WX_NEXT_THAW', vars);
     return t('MOD_VOY_WX_NEXT', vars);
@@ -277,6 +323,13 @@ export function install(ctx, { state, W, shipModel, terrainMod, log }) {
     key: () => (on() ? `${rawOrder()}` : ''),
     stepWeather,
     effectsAt,
+    windOn,
+    windFactor,
+    wind,
+    /** The memo key of anything timed by the wind: '' when it does not apply. */
+    windKey: () => (windOn() ? `${forced ?? ''}:${windNow()?.seed ?? ''}` : ''),
+    /** Checks only (dev.mjs): force the wind's side (an index of WIND_SIDES), or undefined for the seeded wind. */
+    forceWind: (side) => { forced = Number.isInteger(side) && side >= 0 && side < 6 ? side : undefined; },
     /** Night all season (Nightfall, Solar Eclipse, Eternal Darkness) with the setting on. */
     allNight: () => on() && W.allNight(rawOrder()),
     /** Loading rates with the Fall harvest (stores.mjs loadingAt). */

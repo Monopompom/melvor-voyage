@@ -496,6 +496,18 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       const here = state.recordAt(state.position());
       return { season: w.season(), here: here === undefined ? undefined : w.describe(here), frozen: w.frozenVessels().map((x) => x.kind) };
     },
+    /**
+     * The wind (5c-2): wind() reads it ({ wind, seed, applies }); wind(side) forces a side
+     * ('N'..'NW' or 0-5) for this session, wind(null) back to the seeded wind. Dev only.
+     */
+    wind(side) {
+      const w = state.weather;
+      if (w === undefined) return 'weather not loaded';
+      if (side === null) w.forceWind(undefined);
+      else if (side !== undefined) w.forceWind(typeof side === 'string' ? ['N', 'NE', 'SE', 'S', 'SW', 'NW'].indexOf(side.toUpperCase()) : side);
+      const sk = state.voyageSkill?.();
+      return { wind: w.wind(), seed: sk?.record?.wind, applies: w.windOn() };
+    },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },
     state,

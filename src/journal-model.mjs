@@ -58,7 +58,7 @@ export const JOURNAL_WRITTEN = {
   // The ship's clock (phase 5a, build .219).
   clock: { sections: ['PACE', 'WAY', 'LAND', 'ASK', 'FOG', 'AWAY', 'OFF'] },
   // The weather (phase 5c-1).
-  weather: { sections: ['SEASON', 'BANDS', 'HARVEST', 'ICE', 'RARE', 'OFF'] },
+  weather: { sections: ['SEASON', 'BANDS', 'HARVEST', 'ICE', 'WIND', 'RARE', 'OFF'] },
 };
 
 /**

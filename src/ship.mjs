@@ -197,7 +197,8 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       const adrift = sea && adriftOn && homeOf(recOf(prev), v) > 1;
       // The weather on the hex entered (phase 5c, weather.mjs): its band's fuel, rations and time, Lemon's sea rations.
       const wx = state.weather?.stepWeather?.(rec);
-      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(adrift ? { adrift } : {}), ...(sea || hop > 0 ? { vessel: kind } : {}), ...(wx !== undefined ? { wx } : {}) });
+      // A sea step's axial offset (phase 5c-2): its heading meets the wind (weather-model headingOf).
+      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(adrift ? { adrift } : {}), ...(sea || hop > 0 ? { vessel: kind, dq: next.q - prev.q, dr: next.r - prev.r } : {}), ...(wx !== undefined ? { wx } : {}) });
     }
     return steps;
   };

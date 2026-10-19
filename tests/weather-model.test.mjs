@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   SEASONS, seasonKey, tempOf, bandOf, BANDS, effectsOf, isPlain, allNight, harvestRates, nextOrder, iceOn, iceHexes,
-  icedRecord, wayAshore, NONE, LEMON_SEA_FOOD,
+  icedRecord, wayAshore, NONE, LEMON_SEA_FOOD, WIND_SIDES, WIND_TURN_MS, WIND_ORIGIN, WIND_FACTORS, createWind, windTurn,
+  nextWindTurnAt, headingOf, windGap, windFactor, newWindSeed, windRoll,
 } from '../src/weather-model.mjs';
 import { stepCost, planMove, RATION_HP, HEX_COST } from '../src/stores-model.mjs';
-import { stepMs, LAND_MS } from '../src/clock-model.mjs';
+import { stepMs, LAND_MS, routeTicks, SEA_MS, TICK_MS } from '../src/clock-model.mjs';
 import { seaIndex, canStep, isSea, shipAfterPath } from '../src/ship-model.mjs';
 import { createTerrain, CLASSES } from '../src/terrain.mjs';
 
@@ -201,4 +202,90 @@ test('the thaw: the shortest way ashore from the old ice', async () => {
   assert.equal(way[0], terrain.get(20, 14));
   assert.ok(!isSea(way[way.length - 1]));
   assert.equal(wayAshore(terrain.get(22, 12), nb), undefined);
+});
+
+test('wind: six sides; a step\'s heading from its axial offset, a hop to the nearest side', () => {
+  assert.deepEqual(WIND_SIDES, ['N', 'NE', 'SE', 'S', 'SW', 'NW']);
+  const sides = [[0, -1], [1, -1], [1, 0], [0, 1], [-1, 1], [-1, 0]].map(([q, r]) => WIND_SIDES[headingOf(q, r)]);
+  assert.deepEqual(sides, WIND_SIDES);
+  assert.equal(WIND_SIDES[headingOf(0, -4)], 'N');
+  assert.equal(WIND_SIDES[headingOf(3, -1)], 'SE'); // just south of east
+  assert.equal(WIND_SIDES[headingOf(3, -2)], 'NE'); // just north of east
+  assert.equal(headingOf(0, 0), undefined);
+});
+
+test('wind: with it ×0.7, broad ×0.85, close ×1.15, against ×1.4; small boats half; no wind or heading, ×1', () => {
+  const NW = 5;
+  const SE = 2;
+  assert.equal(windGap(NW, SE), 0);
+  assert.equal(windFactor(NW, SE), 0.7);
+  assert.equal(windFactor(NW, 1), 0.85); // NE
+  assert.equal(windFactor(NW, 3), 0.85); // S
+  assert.equal(windFactor(NW, 0), 1.15); // N
+  assert.equal(windFactor(NW, 4), 1.15); // SW
+  assert.equal(windFactor(NW, NW), 1.4);
+  assert.equal(windFactor(NW, SE, true), 0.85);
+  assert.equal(windFactor(NW, NW, true), 1.2);
+  assert.equal(windFactor(undefined, SE), 1);
+  assert.equal(windFactor(NW, undefined), 1);
+  // Over all six headings it about evens out.
+  const avg = [0, 1, 2, 3, 4, 5].reduce((a, h) => a + windFactor(0, h), 0) / 6;
+  assert.ok(Math.abs(avg - 1) < 0.02); // 1.017: a hair slower on average
+  assert.deepEqual(WIND_FACTORS, [0.7, 0.85, 1.15, 1.4]);
+});
+
+test('wind: seeded per character, holds 6 h, turns at most one side, the same however it is asked', () => {
+  const t0 = Date.UTC(2026, 9, 19, 3, 0);
+  assert.equal(windTurn(WIND_ORIGIN - 1), 0);
+  assert.equal(nextWindTurnAt(t0) - WIND_TURN_MS <= t0, true);
+  assert.equal(nextWindTurnAt(t0) > t0, true);
+  const a = createWind(4242);
+  const seq = [];
+  for (let i = 0; i < 400; i++) seq.push(a.at(t0 + i * WIND_TURN_MS));
+  for (let i = 1; i < seq.length; i++) {
+    const d = Math.abs(seq[i] - seq[i - 1]);
+    assert.ok(Math.min(d, 6 - d) <= 1, `turn ${i}: ${seq[i - 1]} -> ${seq[i]}`);
+  }
+  // Every side comes round, and it does not hold for ever.
+  assert.equal(new Set(seq).size, 6);
+  assert.ok(seq.some((s, i) => i > 0 && s !== seq[i - 1]));
+  // The same within a turn, and the same asked backwards or by a fresh copy (offline replays ask in any order).
+  assert.equal(a.at(t0 + 1000), a.at(t0 + WIND_TURN_MS - 1 - ((t0 - WIND_ORIGIN) % WIND_TURN_MS)));
+  const b = createWind(4242);
+  assert.equal(b.at(t0 + 399 * WIND_TURN_MS), seq[399]);
+  assert.equal(b.at(t0), seq[0]);
+  // Another character, other winds.
+  const c = createWind(777);
+  const other = [];
+  for (let i = 0; i < 400; i++) other.push(c.at(t0 + i * WIND_TURN_MS));
+  assert.notDeepEqual(other, seq);
+  // Seeds are whole numbers in range; the roll stays in [0, 1).
+  for (const r of [0, 0.5, 0.999999]) { const s = newWindSeed(() => r); assert.ok(Number.isInteger(s) && s >= 1 && s < 2 ** 31); }
+  for (let k = 0; k < 50; k++) { const x = windRoll(99, k); assert.ok(x >= 0 && x < 1); }
+});
+
+test('wind in the schedule: each sailed step in the wind as it begins; land and calm untouched', () => {
+  const hullOf = (kind) => (kind === 'ship' ? 'galleon' : 'dinghy');
+  const opts = { hullOf };
+  // Two galleon steps heading SE, then a land step: the wind from the NW until the first step ends, then from the SE.
+  const steps = [
+    { sea: true, cls: 'water', vessel: 'ship', dq: 1, dr: 0 },
+    { sea: true, cls: 'water', vessel: 'ship', dq: 1, dr: 0 },
+    { sea: false, cls: 'grasslands', dq: 0, dr: 1 },
+  ];
+  const turnAt = SEA_MS.galleon * 0.7; // the first step's end
+  const windOf = (s, ms) => {
+    const from = ms < turnAt ? 5 : 2; // NW, then SE
+    return windFactor(from, headingOf(s.dq, s.dr), (s.vessel ?? 'boat') === 'boat');
+  };
+  const ticks = routeTicks(steps, opts, 0, windOf);
+  assert.deepEqual(ticks.map((n) => n * TICK_MS), [SEA_MS.galleon * 0.7, SEA_MS.galleon * 1.4, LAND_MS]);
+  // No wind: the plain times.
+  assert.deepEqual(routeTicks(steps, opts, 0).map((n) => n * TICK_MS), [SEA_MS.galleon, SEA_MS.galleon, LAND_MS]);
+  // The dinghy feels half: downwind ×0.85.
+  const boat = [{ sea: true, cls: 'water', vessel: 'boat', dq: 1, dr: 0 }];
+  assert.equal(routeTicks(boat, opts, 0, () => windFactor(5, 2, true))[0] * TICK_MS, SEA_MS.dinghy * 0.85);
+  // A fast-travel hop takes the wind on its whole length, by its nearest side.
+  const hop = [{ fastTravel: true, hop: 3, vessel: 'ship', dq: 3, dr: -1 }];
+  assert.equal(routeTicks(hop, opts, 0, (s) => windFactor(5, headingOf(s.dq, s.dr), false))[0] * TICK_MS, Math.round(3 * SEA_MS.galleon * 0.7));
 });

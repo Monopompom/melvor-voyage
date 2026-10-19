@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -116,7 +116,7 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * one ended, for the page's note, or null. adrift-model.mjs cleanAdrift and cleanAdriftEnd check them in depth.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, wind: 0 };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -192,6 +192,8 @@ export const MIGRATIONS = {
   14: (rec) => ({ ...rec, v: 15, voyage: null, ending: null }),
   // phase 5b part two: not adrift, never was
   15: (rec) => ({ ...rec, v: 16, adrift: null, adriftEnd: null }),
+  // phase 5c-2, the wind: no seed yet (weather.mjs rolls one on first use)
+  16: (rec) => ({ ...rec, v: 17, wind: 0 }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -329,6 +331,8 @@ function clean(rec) {
     ending: plainObject(rec.ending),
     adrift: plainObject(rec.adrift),
     adriftEnd: plainObject(rec.adriftEnd),
+    // The wind's seed (weather-model.mjs createWind): 1 to 2^31 - 1, or 0 for none rolled yet.
+    wind: Number.isInteger(rec.wind) && rec.wind > 0 && rec.wind < 0x80000000 ? rec.wind : 0,
   };
 }
 /** An object kept for its own model to check (clock-model.mjs), or null. */

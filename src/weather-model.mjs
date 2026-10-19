@@ -160,3 +160,82 @@ export function wayAshore(start, neighbours, limit = 6) {
   }
   return undefined;
 }
+
+// ---- the wind (phase 5c-2) ------------------------------------------------------------------------------------------
+// One wind over the whole sea, from one of the six hex sides, turning every 6 hours of game time by at most one side
+// (the canvas's board 3, settled 19 Oct 2026). It changes only how long a sea hex takes, never what it costs. The roll
+// is seeded per character and follows game time, so online and offline meet the same winds and the Set off popup knows
+// the winds ahead: its time is exact.
+
+/** The six sides of a flat-top hex, clockwise from the north (the side a wind comes from, or a step heads to). */
+export const WIND_SIDES = ['N', 'NE', 'SE', 'S', 'SW', 'NW'];
+/** The wind holds for 6 hours of game time, then turns a side either way or holds again. */
+export const WIND_TURN_MS = 6 * 3600000;
+/** Where the turns are counted from (any fixed moment; 1 Jan 2026 UTC). */
+export const WIND_ORIGIN = Date.UTC(2026, 0, 1);
+/** A sea hex's time by how its heading meets the wind: with it, broad (60° off), close (120°), against it. */
+export const WIND_GAPS = ['with', 'broad', 'close', 'against'];
+export const WIND_FACTORS = [0.7, 0.85, 1.15, 1.4];
+/** Small boats (the dinghy and the longboat, rowed or with a short mast) feel half of it (the user: "half for small boats"). */
+export const SMALL_WIND = 0.5;
+
+/** A seed for a new character: a whole number from 1 to 2^31 - 1 (`rand`: a function giving [0, 1)). */
+export const newWindSeed = (rand = Math.random) => 1 + Math.floor(rand() * 0x7ffffffe);
+/** A deterministic number in [0, 1) for a seed and a turn (a 32-bit integer hash). */
+export function windRoll(seed, k) {
+  let h = (Math.imul(seed | 0, 0x9e3779b1) ^ Math.imul(k | 0, 0x85ebca77)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x846ca68b) >>> 0;
+  h = (h ^ (h >>> 16)) >>> 0;
+  return h / 4294967296;
+}
+/** The turn a moment falls in (0 at WIND_ORIGIN; moments before it count as turn 0). */
+export const windTurn = (ms) => Math.max(0, Math.floor((ms - WIND_ORIGIN) / WIND_TURN_MS));
+/** When the turn after the one `ms` falls in begins. */
+export const nextWindTurnAt = (ms) => WIND_ORIGIN + (windTurn(ms) + 1) * WIND_TURN_MS;
+
+/**
+ * A character's winds: `at(ms)` the side (index into WIND_SIDES) the wind blows from at that moment. Turn 0 rolls a
+ * side; each turn after holds, or turns one side either way, a third each. Memoised: the last turn asked is kept, and
+ * a later one walks on from it.
+ */
+export function createWind(seed) {
+  let k0 = 0;
+  let side0 = Math.floor(windRoll(seed, 0) * 6) % 6;
+  const first = side0;
+  const at = (ms) => {
+    const k = windTurn(ms);
+    if (k < k0) { k0 = 0; side0 = first; }
+    while (k0 < k) {
+      k0 += 1;
+      const r = windRoll(seed, k0);
+      side0 = (side0 + (r < 1 / 3 ? 5 : r < 2 / 3 ? 0 : 1)) % 6;
+    }
+    return side0;
+  };
+  return { seed, at };
+}
+
+/**
+ * The side a step heads to, from its axial offset (dq, dr) in the flat-top layout (terrain.mjs NEIGHBOURS: (0,-1) is
+ * N, (1,-1) NE, (1,0) SE, (0,1) S, (-1,1) SW, (-1,0) NW). A longer offset (a fast-travel hop) takes the nearest side.
+ * Undefined for no offset.
+ */
+export function headingOf(dq, dr) {
+  const x = 1.5 * dq;
+  const y = (Math.sqrt(3) / 2) * dq + Math.sqrt(3) * dr; // screen y grows downwards
+  if (x === 0 && y === 0) return undefined;
+  const angle = (Math.atan2(-y, x) * 180) / Math.PI; // 0 = E, 90 = N
+  return (((Math.round((90 - angle) / 60) % 6) + 6) % 6);
+}
+/** How a heading meets the wind from `from`: 0 with it (heading downwind) to 3 against it. */
+export function windGap(from, heading) {
+  const d = Math.abs((((heading - (from + 3)) % 6) + 6) % 6);
+  return Math.min(d, 6 - d);
+}
+/** The time factor of a sea step heading `heading` in the wind from `from`; `small` boats feel half of it. */
+export function windFactor(from, heading, small = false) {
+  if (!Number.isInteger(from) || !Number.isInteger(heading)) return 1;
+  const f = WIND_FACTORS[windGap(from, heading)];
+  return small ? 1 + (f - 1) * SMALL_WIND : f;
+}

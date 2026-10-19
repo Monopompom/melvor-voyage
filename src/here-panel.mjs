@@ -80,7 +80,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
 
   /** One icon per gated skill: full, penalised (with a % badge) or locked (dimmed); a tap or the tooltip says why. */
-  const skillRows = (pos, rec) => skillRowsHtml(skillLists(pos));
+  /** Works here and Locked here apart (build .296): what you can do sits high in the panel, what you can't at its foot. */
+  const worksRows = (pos) => skillRowsHtml({ ...skillLists(pos), locked: [] });
+  const lockedRows = (pos) => { const l = skillLists(pos); return l.locked.length > 0 ? skillRowsHtml({ ...l, works: null }) : ''; };
   /** The working and locked skill icons for this hex: { works, locked, off }. */
   const skillLists = (pos) => {
     const works = [];
@@ -176,7 +178,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const rulesNote = note !== undefined ? ` <small class="text-warning">${esc(getLangString(note))}</small>` : '';
     // Working skills fold behind "Works here: N" like the locked ones (user feedback, build .83: the rows ran long on a
     // phone); open by default, since this is what you can do here.
-    return (works.length > 0
+    return (works === null ? '' : works.length > 0
       ? `<div class="voyage-skillrow"><button type="button" class="voyage-legend-toggle voyage-works-toggle" aria-expanded="${worksOpen}">` +
         `<i class="fa fa-caret-${worksOpen ? 'down' : 'right'} mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_WORKS_COUNT', { count: `${works.length}` }))}</button>${rulesNote}</div>` +
         (worksOpen ? `<div class="voyage-skillrow voyage-locked-row">${works.join('')}</div>` : '')
@@ -357,6 +359,20 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return `<div class="voyage-here-ship voyage-here-time ${tod.night ? 'text-info' : 'text-muted'}" title="${esc(hint)}"><span><i class="fa fa-${tod.night ? 'moon' : 'sun'} mr-1"></i>${esc(text)}</span></div>`;
   };
 
+  // The wind's "turns in" moves on between redraws; a turn redraws the panel (phase 5c-2).
+  let windSeen;
+  setInterval(() => {
+    try {
+      const w = state.weather?.wind?.();
+      const side = w === undefined ? -1 : w.from;
+      if (windSeen !== undefined && side !== windSeen) { windSeen = side; render(); return; }
+      windSeen = side;
+      if (w === undefined) return;
+      const left = windLeft(w);
+      document.querySelectorAll('[data-voyage-wind="left"]').forEach((x) => { if (x.textContent !== left) x.textContent = left; });
+    } catch {}
+  }, 15000);
+
   /** Under way (phase 5a): where to and the time left, as of the hex entered last. */
   const wayFill = (way) => `<span class="voyage-way-fill" data-voyage-way="fill" style="width:${(way.frac * 100).toFixed(1)}%" aria-hidden="true"></span>`;
   // The bars and times move twice a second while under way, between the panel's own redraws.
@@ -398,6 +414,13 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
    * the icon and the degrees beside the toggle.
    */
   const seasonImg = (s) => (s.media ? `<img class="voyage-wx-icon" src="${esc(s.media)}" alt="">` : '');
+  /** The wind's arrow (phase 5c-2): pointing where it blows, so the NW wind's arrow points SE. */
+  const windArrow = (w) => `<i class="fa fa-long-arrow-alt-up voyage-wind-arrow" style="transform:rotate(${w.toward * 60}deg)" aria-hidden="true"></i>`;
+  const windLeft = (w) => templateLangString('MOD_VOY_WX_WIND_TURNS', { time: state.clock?.duration?.(w.msLeft) ?? '' });
+  const windTip = (w) => `${templateLangString('MOD_VOY_WX_WIND_FROM', { side: w.word })}, ${windLeft(w)}.`;
+  /** The wind's line in the open block: its arrow, where it comes from, when it turns. */
+  const windRow = (w) => (w === undefined ? '' : `<div class="voyage-wx-row" title="${esc(getLangString('MOD_VOY_WX_WIND_HINT_SHORT'))}"><span class="voyage-wx-icon voyage-wind-box">${windArrow(w)}</span>`
+    + `<span>${esc(templateLangString('MOD_VOY_WX_WIND_FROM', { side: w.short }))} · <span class="text-muted" data-voyage-wind="left">${esc(windLeft(w))}</span></span></div>`);
   const weatherBlock = (rec) => {
     const w = state.weather;
     const s = w?.season?.();
@@ -406,13 +429,20 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const toggle = `<button type="button" class="voyage-legend-toggle voyage-weather-toggle" aria-expanded="${weatherOpen}">` +
       `<i class="fa fa-caret-${weatherOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_WX_PANEL_TITLE'))}</button>`;
     const deg = `<b class="${d.tone}">${esc(d.deg)}</b>`;
-    if (!weatherOpen) return `<div class="voyage-wx"><div class="voyage-wx-head">${toggle}<span class="voyage-wx-sum" title="${esc(d.effect === '' ? s.name : `${s.name} · ${d.effect}`)}">${seasonImg(s)}${deg}</span></div></div>`;
+    const wind = w.wind?.();
+    if (!weatherOpen) {
+      const tip = `${d.effect === '' ? s.name : `${s.name} · ${d.effect}`}${wind === undefined ? '' : `\n${windTip(wind)}`}`;
+      const sum = `${seasonImg(s)}${deg}${wind === undefined ? '' : `<span class="voyage-wind-sum">${windArrow(wind)}${esc(wind.short)}</span>`}`;
+      return `<div class="voyage-wx"><div class="voyage-wx-head">${toggle}<span class="voyage-wx-sum" title="${esc(tip)}">${sum}</span></div></div>`;
+    }
     const next = w.nextWords(s);
     const frozen = (w.frozenVessels?.() ?? []).map(({ v }) => `<div class="voyage-wx-line text-info"><i class="fa fa-snowflake mr-1" aria-hidden="true"></i>${esc(templateLangString('MOD_VOY_WX_PANEL_FROZEN', { hull: state.ship?.hullName?.(v) ?? '' }))}</div>`).join('');
     return `<div class="voyage-wx"><div class="voyage-wx-head">${toggle}</div>` +
       `<div class="voyage-wx-row" title="${esc(getLangString('MOD_VOY_WX_PANEL_HINT'))}">${seasonImg(s)}<span>${deg} ${esc(s.name)}${d.effect === '' ? '' : ` · <span class="${d.tone || 'text-muted'}">${esc(d.head)}${d.head !== '' && d.fx !== '' ? ': ' : ''}${d.fx}</span>`}</span></div>` +
       frozen +
-      (next === '' ? '' : `<div class="voyage-wx-line text-muted">${esc(next)}</div>`) + '</div>';
+      (next === '' ? '' : `<div class="voyage-wx-line text-muted">${esc(next)}</div>`) +
+      // The wind last, under the season's lines (the user, build .292: "move wind to the bottom").
+      windRow(wind) + '</div>';
   };
   /** The strip's weather chip: the season's icon and the degrees, no name (the user's comment); the rest in its tooltip. */
   const weatherChip = (rec) => {
@@ -422,7 +452,10 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     if (s === undefined || d === undefined) return undefined;
     const next = w.nextWords(s);
     const img = s.media ? `<img class="voyage-chip-img mr-1" src="${esc(s.media)}" alt="">` : '';
-    return chip(`${img}<span class="${d.tone}">${esc(d.deg)}</span>`, `${s.name} · ${d.deg}${d.effect === '' ? '' : ` · ${d.effect}`}.${next === '' ? '' : `\n${next}`}`);
+    // The wind rides in the same chip (phase 5c-2): its arrow and side, so the strip keeps its chip count.
+    const wind = w.wind?.();
+    const windBit = wind === undefined ? '' : `<span class="voyage-wind-sum">${windArrow(wind)}${esc(wind.short)}</span>`;
+    return chip(`${img}<span class="${d.tone}">${esc(d.deg)}</span>${windBit}`, `${s.name} · ${d.deg}${d.effect === '' ? '' : ` · ${d.effect}`}.${wind === undefined ? '' : `\n${windTip(wind)}`}${next === '' ? '' : `\n${next}`}`);
   };
 
   /**
@@ -594,10 +627,36 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     tuckFrom = on ? from : undefined;
     try { localStorage.setItem(TUCK_KEY, on ? (from === 'open' ? 'open' : '1') : '0'); } catch {}
   };
-  const legendBlock = () =>
-    `<div class="voyage-legend-wrap"><button type="button" class="voyage-legend-toggle" aria-expanded="${legendOpen}">` +
-    `<i class="fa fa-caret-${legendOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_LEGEND'))}</button>` +
-    (legendOpen ? `<div class="voyage-legend">${legend()}</div>` : '') + '</div>';
+  /** Locked here, last (build .296), under a rule like the blocks above it. */
+  const lockedBlock = (pos) => { const html = lockedRows(pos); return html === '' ? '' : `<div class="voyage-skills voyage-locked-block">${html}</div>`; };
+  /**
+   * The legend on the map (the user, build .296: "move the legend, as a clickable badge that expands, to the place where
+   * the wind badge was"): a round button under the zoom and centre buttons; a tap opens the colours in a card beside it,
+   * another closes it. Shown while the terrain overlay is on. The open state is kept (localStorage voyage-legend-open).
+   */
+  const legendBadge = (box) => {
+    let wrap = box.querySelector(':scope > .voyage-legend-badge');
+    if (!state.settings.overlay() || state.mode === 'dormant') { wrap?.remove(); return; }
+    if (wrap === null) {
+      wrap = document.createElement('div');
+      wrap.className = 'voyage-legend-badge m-2 pointer-events-auto';
+      wrap.addEventListener('click', (e) => {
+        if (!(e.target instanceof Element) || e.target.closest('.voyage-legend-btn') === null) return;
+        legendOpen = !legendOpen;
+        try { localStorage.setItem(LEGEND_KEY, legendOpen ? '1' : '0'); } catch {}
+        legendBadge(box);
+      });
+      box.append(wrap);
+    }
+    const label = getLangString('MOD_VOY_PANEL_LEGEND');
+    const html = `<button type="button" class="btn btn-primary border border-2x border-dark btn-sm-mobile voyage-legend-btn${legendOpen ? ' active' : ''}" aria-expanded="${legendOpen}" aria-label="${esc(label)}" title="${esc(label)}"><i class="fa fa-palette" aria-hidden="true"></i></button>`
+      + (legendOpen ? `<div class="voyage-legend-card voyage-ui block block-rounded bg-combat-inner-dark p-2 mb-0"><div class="voyage-legend-card-title">${esc(label)}</div><div class="voyage-legend">${legend()}</div></div>` : '');
+    if (wrap.dataset.html !== html) {
+      wrap.dataset.html = html;
+      wrap.innerHTML = html;
+      try { state.tips?.apply(wrap); } catch {}
+    }
+  };
 
   const legend = () => [
     ...Object.entries(terrainMod.CLASS_INFO).filter(([cls]) => cls !== 'water').map(([cls, info]) => ({ css: info.css, label: classLabel(cls) })),
@@ -685,6 +744,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       }
       for (const el of [...host.children].filter((c) => c.matches('.btn-group-vertical, button'))) box.append(el);
       box.style.top = top && top.parentElement === map ? `${top.offsetTop + top.offsetHeight}px` : '';
+      legendBadge(box);
     } catch (e) { log('map controls move failed', e); }
   };
 
@@ -775,12 +835,6 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (e.target instanceof Element && e.target.closest('.voyage-panel-toggle')) {
         panelOpen = !panelOpen;
         try { localStorage.setItem(PANEL_KEY, panelOpen ? '1' : '0'); } catch {}
-        render();
-        return;
-      }
-      if (e.target instanceof Element && e.target.closest('.voyage-legend-toggle')) {
-        legendOpen = !legendOpen;
-        try { localStorage.setItem(LEGEND_KEY, legendOpen ? '1' : '0'); } catch {}
         render();
         return;
       }
@@ -915,17 +969,20 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       panel.innerHTML =
         `<div class="voyage-here-head"><button type="button" class="voyage-panel-toggle voyage-open-caret" data-tip-touch="off" aria-expanded="${panelOpen}" title="${esc(getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD'))}" aria-label="${esc(`${getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD')}. ${getLangString('MOD_VOY_PANEL_HOLD_TUCK')}`)}">` +
         `<i class="fa fa-caret-${panelOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_YOU_ARE_HERE'))}</button>${manageLink()}</div>` +
+        // In order of what a player needs (the user, build .296: "move blocks in order of importance"): any warning,
+        // where you are, what you can do here, your vessel, stores and the hour, the weather, then what is locked. The
+        // legend left the panel for a badge on the map (legendBadge).
         strandedLines(status) +
         `<div>${swatch}${esc(d.label)}<small class="text-muted">${features}${where}</small></div>` +
-        weatherBlock(rec) +
-        shipBox() +
+        mode +
+        `<div class="voyage-skills">${worksRows(pos)}</div>` +
         tradeLine(status) +
         harbourLine() +
         fightLine() +
         signLine() +
-        mode +
-        `<div class="voyage-skills">${skillRows(pos, rec)}</div>` +
-        (state.settings.overlay() ? legendBlock() : '');
+        shipBox() +
+        weatherBlock(rec) +
+        lockedBlock(pos);
       placeUnderBar();
       alignRowButtons(true);
     } catch (e) { log('here panel failed', e); }

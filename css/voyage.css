@@ -146,7 +146,15 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-here-ship { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0; }
 .voyage-here-ship .btn { font-size: .9rem; padding: .2rem .6rem; white-space: nowrap; }
 .voyage-here-stranded { margin: 4px 0; font-weight: 600; } /* a panel row like the others (build .86) */
-.voyage-legend-wrap { margin-top: 4px; }
+/* The legend badge on the map, under the zoom and centre buttons (here-panel.mjs legendBadge, build .296). The card
+   opens to its left, out of flow, so the panel's gutter (clearOfControls) measures only the button. */
+.voyage-legend-badge { position: relative; }
+.voyage-legend-btn { width: 40px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.voyage-legend-card { position: absolute; top: 0; right: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(19rem, calc(100vw - 80px)); box-shadow: 0 2px 8px rgba(0, 0, 0, .35); }
+.voyage-legend-card-title { color: var(--voyage-label); font-weight: 600; }
+.voyage-legend-card .voyage-legend { margin-top: 2px; grid-template-columns: repeat(2, max-content); }
+/* Locked here, at the panel's foot under a rule (build .296). */
+.voyage-locked-block { margin-top: 6px; padding-top: 4px; border-top: 1px solid var(--voyage-rule-soft); }
 /* Both panel toggles (Locked here, Legend) share one style. */
 .voyage-legend-toggle { background: none; border: 0; padding: 0; min-height: 32px; color: var(--voyage-label); font-size: 1rem; font-weight: 600; cursor: pointer; }
 @media (hover: hover) { .voyage-legend-toggle:hover { color: var(--voyage-label-hover); } }
@@ -179,6 +187,10 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-wx-icon { width: 20px; height: 20px; flex: none; }
 .voyage-wx-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
 .voyage-wx-line { margin: 2px 0; font-size: .9rem; }
+/* A square box: rotated, the narrow arrow would reach over the side beside it (the user, build .294: "arrow too close"). */
+.voyage-wind-arrow { display: inline-block; width: 1em; text-align: center; transition: transform .3s; }
+.voyage-wind-box { display: inline-flex; align-items: center; justify-content: center; font-size: 1.05rem; }
+.voyage-wind-sum { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-weight: 600; }
 .voyage-wx-fx { white-space: nowrap; cursor: help; }
 .voyage-wx-fx img { width: 1.1em; height: 1.1em; vertical-align: -0.2em; margin-right: 2px; }
 .voyage-wx-fx .fa { margin-right: 3px; font-size: .9em; }
@@ -316,11 +328,19 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-status-item { white-space: nowrap; }
 /* The season on the Voyage page (phase 5c-1): the year in four cells, this season ringed in its text colour. */
 .voyage-season { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--voyage-rule); }
+/* Its own band across Compass & Travels, first under the clock bar (build .297; the foot in .294-.296): every column. */
+.voyage-season-row { grid-column: 1 / -1; }
+.voyage-season-row .voyage-season { margin-top: 0; padding-top: 0; border-top: 0; }
 .voyage-season-year { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
 .voyage-season-cell { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; min-height: 32px; padding: 4px 6px;
   border-radius: 4px; background: var(--voyage-tile); color: var(--voyage-label); font-size: .85rem; font-weight: 600; text-align: center; }
 .voyage-season-now { box-shadow: inset 0 0 0 2px currentColor; }
 .voyage-season-text { margin-top: 8px; }
+.voyage-season-mid { text-align: center; }
+/* The ringed cell: the name on one line, the time left under it (build .296, no wrap mid-phrase at phone width). */
+.voyage-season-cell { flex-direction: column; }
+.voyage-season-name, .voyage-season-left { white-space: nowrap; }
+.voyage-season-left { font-size: .8rem; font-weight: 600; opacity: .9; }
 /* Phone width (the user's screenshot, build .207): the time and Show map on one line, the fold toggle on its own line
    under them, right above what it folds; three columns squeezed the time and the toggle into two-word lines. */
 @media (max-width: 767px) {
@@ -332,8 +352,15 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
      folded part drops its own rule. */
   .voyage-status-top > .voyage-status-toggle { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; white-space: nowrap; border-top: 1px solid var(--voyage-rule); padding-top: 4px; }
   .voyage-status-more { border-top: 0; padding-top: 4px; }
-  .voyage-status-more { grid-template-columns: 1fr; }
+}
+/* Compass, the land squares and Travels go one under another by the block's own width, not the window's (the user,
+   build .291: "should rearrange itself earlier, like mobile look but for tablet sizes"): beside the game's sidebar a
+   tablet leaves the block too narrow for three columns. One column, the two squares side by side. */
+.voyage-status-block { container-type: inline-size; container-name: voyage-status; }
+@container voyage-status (max-width: 959px) {
+  .voyage-status-more { grid-template-columns: minmax(0, 1fr); }
   .voyage-land-spacer { display: none; }
+  .voyage-land-wrap { flex-direction: row; flex-wrap: wrap; align-items: stretch; }
 }
 
 /* Buttons at the right end of a panel row (Show, Load) share one width. */
@@ -1003,3 +1030,4 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
   .voyage-clock-pick-icon { grid-column: 2; }
 }
 .voyage-clock-top + .voyage-section, .voyage-clock-tiles + .voyage-section { margin-top: 12px; }
+.voyage-clock-wind { font-size: .9rem; font-weight: 600; white-space: nowrap; }

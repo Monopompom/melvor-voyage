@@ -437,15 +437,26 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     const s = state.weather?.season?.();
     if (s === undefined) return '';
     const year = ['spring', 'summer', 'fall', 'winter'];
-    const left = s.msLeft === undefined ? '' : ` · ${esc(t('MOD_VOY_WX_PAGE_LEFT', { time: state.clock?.duration?.(s.msLeft) ?? '' }))}`;
+    // Build .296 (the user: "delete 'The north stays cold…', there is an entry in the Journal"): the season's sentence
+    // and the calendar note moved to the band's tooltip; the time left sits on its own short line in the ringed cell
+    // ("72H0M", the compact time, build .298), so the cell no longer wraps on a phone.
+    const full = s.msLeft === undefined ? '' : (state.clock?.duration?.(s.msLeft) ?? '');
+    const short = full;
+    const left = short === '' ? '' : `<span class="voyage-season-left">${esc(t('MOD_VOY_WX_PAGE_LEFT', { time: short }))}</span>`;
+    const icon = s.media ? `<img class="voyage-wx-icon mr-1" src="${esc(s.media)}" alt="">` : '';
     const cells = year.map((k, i) => {
       const now = s.key === k;
-      return `<span class="voyage-season-cell${now ? ' voyage-season-now text-info' : ''}">${now && s.media ? `<img class="voyage-wx-icon mr-1" src="${esc(s.media)}" alt="">` : ''}${esc(state.weather.seasonName?.(i) ?? k)}${now ? left : ''}</span>`;
+      return `<span class="voyage-season-cell${now ? ' voyage-season-now text-info' : ''}"><span class="voyage-season-name">${now ? icon : ''}${esc(state.weather.seasonName?.(i) ?? k)}</span>${now ? left : ''}</span>`;
     }).join('');
-    const rare = year.includes(s.key) ? '' : `<b class="text-info">${s.media ? `<img class="voyage-wx-icon mr-1" src="${esc(s.media)}" alt="">` : ''}${esc(s.name)}${left}:</b> `;
+    // A rare season is none of the four: its name and time left on a line of their own under the year.
+    const rare = year.includes(s.key) ? '' : `<div class="voyage-season-text voyage-season-mid text-info font-w600">${icon}${esc(s.name)}${short === '' ? '' : ` · ${esc(t('MOD_VOY_WX_PAGE_LEFT', { time: short }))}`}</div>`;
     const from = s.noTown ? t('MOD_VOY_WX_NO_TOWN') : t('MOD_VOY_WX_PAGE_FROM_TOWN');
-    return `<div class="voyage-season"><div class="voyage-season-year">${cells}</div>` +
-      `<div class="voyage-season-text">${rare}${esc(t(`MOD_VOY_WX_PAGE_${s.key.toUpperCase()}`))} <span class="text-muted">${esc(from)}</span></div></div>`;
+    const tip = `${t(`MOD_VOY_WX_PAGE_${s.key.toUpperCase()}`)} ${from}`;
+    // The wind (phase 5c-2): where it blows from and when it turns, with Timed travel on; centred under the year (.296).
+    const w = state.weather?.wind?.();
+    const wind = w === undefined ? '' : `<div class="voyage-season-text voyage-season-mid" title="${esc(t('MOD_VOY_WX_WIND_HINT'))}"><i class="fa fa-long-arrow-alt-up voyage-wind-arrow mr-2" style="transform:rotate(${w.toward * 60}deg)" aria-hidden="true"></i>`
+      + `${esc(t('MOD_VOY_WX_WIND_FROM', { side: w.word }))} · <span class="text-muted voyage-keep">${esc(t('MOD_VOY_WX_WIND_TURNS', { time: state.clock?.duration?.(w.msLeft) ?? '' }))}</span></div>`;
+    return `<div class="voyage-season"><div class="voyage-season-year" title="${esc(tip)}">${cells}</div>${rare}${wind}</div>`;
   };
   /**
    * The Travels stats (build .146): read from what the save and the map already keep, so
@@ -835,8 +846,16 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       try { const v = state.ship?.big?.() ?? state.ship?.boat?.(); if (ticon !== null) ticon.src = ctx.getResourceUrl(shipModel.HULLS[v?.hull ?? 'dinghy'].media); } catch {}
       travels.innerHTML =
         // One grey band, like the compass stages beside it (the user, build .146: "and grayish box").
-        section(travelHead(rec) + travelStats(rec) + seasonHtml()) +
+        section(travelHead(rec) + travelStats(rec)) +
         (s.futureRaw !== undefined ? `<div class="text-warning">${t('MOD_VOY_PAGE_FUTURE_SAVE')}</div>` : '');
+    }
+
+    // The season and the wind across Compass & Travels, at its top under the clock bar (the user, build .297).
+    const seasonRow = part('season');
+    if (seasonRow !== null) {
+      const html = seasonHtml();
+      seasonRow.classList.toggle('d-none', html === '');
+      seasonRow.innerHTML = html === '' ? '' : section(html);
     }
 
     const compass = part('compass');

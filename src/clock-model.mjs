@@ -41,6 +41,28 @@ export function stepMs(step, { hullOf = () => undefined, mountSpeed = 1 } = {}) 
 
 /** Whole ticks for `ms`, at least one. */
 export const ticksOf = (ms) => Math.max(1, Math.round(ms / TICK_MS));
+/** A step sailed (a sea hex or a fast-travel hop): the wind's to time. */
+export const isSailed = (step) => step != null && (step.fastTravel === true || step.sea === true || SEA_CLASSES.includes(step.cls));
+/**
+ * Ticks of each step of a route begun at `t0` (ms of game time), one after another: a sailed step's time is multiplied
+ * by the wind blowing as it begins (phase 5c-2; `windOf(step, ms)` its factor, 1 for none; no `windOf`, no wind). So
+ * the schedule is fixed when the voyage sets off, and the Set off popup's time is exact.
+ */
+export function routeTicks(steps, opts, t0, windOf) {
+  const out = [];
+  let at = Number.isFinite(t0) ? t0 : 0;
+  for (const s of steps ?? []) {
+    let ms = stepMs(s, opts);
+    if (typeof windOf === 'function' && isSailed(s)) {
+      const f = windOf(s, at);
+      if (Number.isFinite(f) && f > 0) ms *= f;
+    }
+    const ticks = ticksOf(ms);
+    out.push(ticks);
+    at += ticks * TICK_MS;
+  }
+  return out;
+}
 /** Milliseconds of a list of steps. */
 export const routeMs = (steps, opts) => (steps ?? []).reduce((sum, s) => sum + stepMs(s, opts), 0);
 
