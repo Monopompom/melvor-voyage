@@ -1294,8 +1294,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     guide: TAB_SVG('<circle cx="12" cy="12" r="8.5"></circle><path d="M15.5 8.5l-2.2 4.8-4.8 2.2 2.2-4.8z"></path>'),
     crew: TAB_SVG('<circle cx="9" cy="8" r="3"></circle><path d="M3.5 20c0-3.2 2.4-5.8 5.5-5.8s5.5 2.6 5.5 5.8"></path><circle cx="16.5" cy="9" r="2.4"></circle><path d="M15.6 14.3c2.8.3 4.9 2.6 4.9 5.7"></path>'),
   };
-  /** Phone width (the journal's one-column layout, css/voyage.css): the tabs show their icon only. */
-  const narrow = () => window.matchMedia?.('(max-width: 899px)').matches === true;
+  /** The journal's one-column layout (css/voyage.css; the game's 992px sidebar edge): the tabs show their icon only. */
+  const narrow = () => window.matchMedia?.('(max-width: 991.98px)').matches === true;
   const TAB_KEY = { how: 'MOD_VOY_JOURNAL_TAB_HOW', resources: 'MOD_VOY_JOURNAL_TAB_RESOURCES', places: 'MOD_VOY_JOURNAL_TAB_PLACES', guide: 'MOD_VOY_JOURNAL_TAB_GUIDE', crew: 'MOD_VOY_JOURNAL_TAB_CREW' };
   /** Draws the open book; `keepScroll` (a record changed under the reader) leaves the pages where they were. */
   const render = (keepScroll = false) => {
@@ -1394,7 +1394,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     // Melvor's tooltips for every title in the book and the heat map over it (build .161).
     state.tips?.watch(root);
     // The tab tooltips come and go with the phone layout.
-    window.matchMedia?.('(max-width: 899px)').addEventListener?.('change', refresh);
+    window.matchMedia?.('(max-width: 991.98px)').addEventListener?.('change', refresh);
     root.addEventListener('click', (e) => {
       const el = e.target instanceof Element ? e.target : null;
       if (el === null) return;

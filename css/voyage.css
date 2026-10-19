@@ -177,7 +177,7 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-store-well { scrollbar-width: none; -ms-overflow-style: none; }
 .voyage-store-well::-webkit-scrollbar { display: none; }
 .voyage-store-well-empty { display: flex; align-items: center; justify-content: center; text-align: center; color: var(--voyage-label); padding: 12px; }
-@media (max-width: 575px) { .voyage-store-cols { grid-template-columns: 1fr; } }
+@media (max-width: 575.98px) { .voyage-store-cols { grid-template-columns: 1fr; } }
 .voyage-store-item { display: inline-flex; align-items: center; gap: 4px; padding: .2rem .45rem; min-height: 40px; }
 .voyage-store-item img { width: 32px; height: 32px; } /* 32px icons on item chips */
 .voyage-store-item small { font-size: .8rem; }
@@ -351,7 +351,7 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-time .fa-hourglass-half { font-size: .85em; margin-right: .3em; opacity: .85; }
 /* Phone width (the user's screenshot, build .207): the time and Show map on one line, the fold toggle on its own line
    under them, right above what it folds; three columns squeezed the time and the toggle into two-word lines. */
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .voyage-status-top { grid-template-columns: 1fr auto; }
   .voyage-status-top > .voyage-status-row { grid-column: 1; grid-row: 1; justify-content: flex-start; }
   .voyage-status-map { grid-column: 2; }
@@ -562,7 +562,7 @@ body.vj-locked { overflow: hidden; }
   -webkit-background-clip: text; background-clip: text; color: transparent; }
 .vj-scrawl-big { display: inline-block; font-size: 1.7em; letter-spacing: .04em; padding: 0 6px 2px;
   border-bottom: 3px solid rgba(64, 60, 56, .8); border-radius: 0 0 40% 30% / 0 0 6px 4px; }
-@media (max-width: 899px) { .vj-scrawl { top: 150px; left: 30%; right: 2%; font-size: 22px; } }
+@media (max-width: 991.98px) { .vj-scrawl { top: 150px; left: 30%; right: 2%; font-size: 22px; } }
 .vj-pinned > .vj-foot { margin-top: 0; flex: none; border-top: 1px solid var(--vj-rule); }
 .vj-turn { border: 0; background: none; color: var(--vj-red); font-family: 'Voyage Fell', Georgia, serif !important; font-size: 18px; min-height: 44px; padding: 8px 4px; cursor: pointer; }
 .vj-one-only { display: none !important; } /* the phone's one-page book only (see the 899px block) */
@@ -638,8 +638,8 @@ body.vj-locked { overflow: hidden; }
 #voyage-journal .vj-page .text-info { color: #2c3e5c !important; }
 #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 .vj-page b, .vj-page strong { font-weight: 600; }
-/* Phone and narrow windows: one column that scrolls as a whole, bookmarks along the top. */
-@media (max-width: 899px) {
+/* Phone and narrow windows: one column that scrolls as a whole, bookmarks along the top. The game's own width (below 992px the sidebar is an overlay); build .305 moved it here from 899px, and journal.mjs narrow() matches it. */
+@media (max-width: 991.98px) {
   .vj-backdrop { padding: 0; }
   .vj-book { height: 100%; border-radius: 0; padding: 8px; flex-direction: column; }
   .vj-tabs { width: auto; flex-direction: row; flex-wrap: nowrap; align-items: flex-end; gap: 3px; padding: 0 0 0 52px; order: -1; min-height: 52px; }
@@ -689,7 +689,7 @@ body.vj-locked { overflow: hidden; }
 .vj-charts { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--vj-rule); border-radius: 4px; background: rgba(122, 42, 28, .06); }
 .vj-charts-head { font-family: 'Voyage Fell', Georgia, serif; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--vj-red); }
 .vj-charts-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 24px; }
-@media (max-width: 480px) { .vj-charts-list { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 575.98px) { .vj-charts-list { grid-template-columns: minmax(0, 1fr); } }
 .vj-chart-chip { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 16px; }
 .vj-chart-chip img { width: 26px; height: 26px; object-fit: contain; }
 .vj-charts .vj-btn { align-self: flex-start; }
@@ -724,7 +724,7 @@ body.vj-locked { overflow: hidden; }
 .vj-gift-foot .btn { min-height: 44px; font-size: 1rem; padding: 8px 22px; }
 @keyframes vj-letter-in { from { opacity: 0; transform: translateY(24px) rotate(-3deg) scale(.96); } to { opacity: 1; transform: rotate(-0.8deg); } }
 @media (prefers-reduced-motion: reduce) { .vj-letter { animation: none; } }
-@media (max-width: 480px) { .vj-letter { padding: 20px 18px 16px; font-size: 16px; transform: none; } }
+@media (max-width: 575.98px) { .vj-letter { padding: 20px 18px 16px; font-size: 16px; transform: none; } }
 /* Plan a voyage (build .119): the planner block on the Voyage page. Sail! green, the rest blue outline. */
 .voyage-plan-icon { width: 32px; height: 32px; object-fit: contain; }
 .voyage-plan-legs { padding-left: 1.2rem; margin: 0; }
@@ -1031,7 +1031,7 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-clock-pick-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--voyage-ring-bg); }
 .voyage-clock-pick-icon img { width: 24px; height: 24px; object-fit: contain; }
 .voyage-clock-pick-icon i { color: var(--voyage-label); font-size: 1.1rem; }
-@media (max-width: 575px) {
+@media (max-width: 575.98px) {
   .voyage-clock-tiles { grid-template-columns: 1fr; }
   .voyage-clock-pick { grid-template-columns: 22px 32px minmax(0, 1fr); row-gap: 2px; }
   .voyage-clock-pick-label { grid-column: 2 / -1; }
