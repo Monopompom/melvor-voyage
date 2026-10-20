@@ -95,9 +95,10 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   rule (notices, charts and rumours too), guide pages that turn up as you meet things, the markets' ledger and maps of where resources are.
   Its Places list where you fought, the ports you used and what you did there, the markets, and the islands you set
   foot on; search them by place, land, monster or what a monster drops.
-- **Your page, your panel.** Drag the Voyage page's blocks by their title (hold a moment on a phone) and fold the ones
-  you seldom need; Reset layout puts them back. On the map, tap the panel's top line to fold it to a strip; on a phone,
-  hold its triangle to shrink it to a small square, and tap the square to get it back as it was.
+- **Your page, your panel.** Drag the Voyage page's blocks by their title (hold a moment on a phone), into the other
+  column or across the whole page above or below both, and fold the ones you seldom need; Reset layout puts them
+  back. On the map, tap the panel's top line to fold it to a strip; on a phone, hold its triangle to shrink it to a
+  small square, and tap the square to get it back as it was.
 - **Night.** From 21:00 to 05:00 on your own clock, the fuel a trip leaves over lights the way, and every lit hex gives
   25% more Voyage XP. Light never takes the fuel a trip needs, so playing at night is never worse than by day.
   Astrology levels make the light go further. You can move the night in the settings, or switch it off. Very rarely
