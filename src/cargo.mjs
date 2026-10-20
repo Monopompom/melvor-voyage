@@ -23,6 +23,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const qty = (n) => numberWithCommas(n);
+  /** What you have, in the game's own number format (the player's setting: 9,952M, not 9,952,802,904; the user, build .362). */
+  const haveNum = (n) => { try { return formatNumber(Math.floor(n)); } catch { return numberWithCommas(Math.floor(n)); } };
   const skill = () => state.voyageSkill?.();
   const usable = () => { const s = skill(); return s !== undefined && s.futureRaw === undefined; };
 
@@ -247,8 +249,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
       // The row shows the goods' icon before their name and the count in red ("a count ... red when the bank
       // holds too few"); the button's tooltip keeps the plain words.
       const vars = { n: qty(M.PER_CONTAINER), what: containerWord(run.c, 1) };
-      why = t('MOD_VOY_CARGO_NEED_GOODS', { ...vars, item: goods?.name ?? run.item, have: qty(have) });
-      whyHtml = t('MOD_VOY_CARGO_NEED_GOODS', { ...vars, item: `${goods === undefined ? '' : icon(goods.media)}${esc(goods?.name ?? run.item)}`, have: `<span class="text-danger font-w600">${qty(have)}</span>` });
+      why = t('MOD_VOY_CARGO_NEED_GOODS', { ...vars, item: goods?.name ?? run.item, have: haveNum(have) });
+      whyHtml = t('MOD_VOY_CARGO_NEED_GOODS', { ...vars, item: `${goods === undefined ? '' : icon(goods.media)}${esc(goods?.name ?? run.item)}`, have: `<span class="text-danger font-w600">${haveNum(have)}</span>` });
     } else if (free <= 0) why = t('MOD_VOY_CARGO_HOLD_FULL');
     // A load short of the rest: the hold's room, the empty containers or the goods stop it (in that order on a tie).
     const limit = why !== undefined || k >= run.n - run.packed ? undefined

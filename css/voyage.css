@@ -236,6 +236,8 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-cost-own > quantity-icons { display: none !important; }
 .voyage-stores-icons img { width: 20px; height: 20px; vertical-align: -4px; margin: 0 2px 0 4px; }
 .voyage-stores-icons img:first-child { margin-left: 0; }
+/* What the stores carry (build .360): food, then fuel, each on one line; the fuel wraps under the food on a phone. */
+.voyage-stores-carried { display: inline-flex; flex-wrap: wrap; column-gap: 10px; row-gap: 2px; }
 /* The Voyage page's notes (<small>, 80% by default) read too small (user feedback, build .67): close to body size. */
 #voyage-container small, #voyage-here small, .voyage-ui small { font-size: .9rem; }
 #voyage-container .voyage-store-item small { font-size: .8rem; }
@@ -252,7 +254,7 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-help-body .voyage-help-p + .voyage-help-p, .voyage-help-body .voyage-help-table + .voyage-help-p, .voyage-help-body .voyage-help-p + .voyage-help-table { margin-top: 6px; }
 .voyage-help-body .voyage-help-warn { border-left: 3px solid var(--voyage-warn); }
 .voyage-help-body .voyage-help-warn .voyage-help-head { color: var(--voyage-warn); } /* the band's edge and heading in the theme's amber (.308, C-20) */ /* an amber edge: read this before you lose something */
-.voyage-help-notice .voyage-help-table { text-align: left; } /* a notice's bands read centred like every message popup (build .307); its tables keep their columns */
+.voyage-help-body .voyage-help-table { text-align: left; } /* the bands read centred like every popup (.307, .354); the tables keep their columns */
 .voyage-help-table { display: grid; grid-template-columns: minmax(0, 1fr) repeat(var(--voyage-help-cols, 1), auto); column-gap: 12px; }
 .voyage-help-th { color: var(--voyage-label); font-size: .9rem; padding-bottom: 2px; border-bottom: 1px solid var(--voyage-rule); }
 .voyage-help-td { padding: 3px 0; border-bottom: 1px solid var(--voyage-rule); overflow-wrap: anywhere; }
@@ -366,6 +368,16 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-season-cell { flex-direction: column; }
 .voyage-season-name, .voyage-season-left { white-space: nowrap; }
 .voyage-season-left { font-size: .9rem; font-weight: 600; opacity: .9; }
+/* Build .360 (the user, an iPhone SE): on a phone each season is its picture, the name read out but not shown; wider,
+   only the season now has its picture, before its name. */
+.voyage-season-name { display: inline-flex; align-items: center; }
+.voyage-season-pic { margin-right: .25rem; }
+.voyage-season-pic-phone { display: none; }
+@media (max-width: 575.98px) {
+  .voyage-season-pic-phone { display: inline-block; }
+  .voyage-season-pic { margin-right: 0; width: 24px; height: 24px; }
+  .voyage-season-name:has(.voyage-season-pic) .voyage-season-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 /* A shown duration (help-layout timeHtml, build .301): the hourglass, a little smaller, then "7h 7m", never split. */
 .voyage-time { white-space: nowrap; }
 .voyage-time .fa-hourglass-half { font-size: .85em; margin-right: .3em; opacity: .85; }
@@ -875,6 +887,15 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-plan-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 12px; padding-top: 12px; }
 .voyage-plan-buttons .btn { min-height: 40px; min-width: 140px; }
 .vj-foot-end { gap: 12px; flex-wrap: wrap; }
+/* The action buttons (Send a Folk here, Plan voyage, Show on map): one width, the widest's; two to a row, a third
+   under the right one (the user, 20 Oct 2026); one column on a phone. */
+.vj-foot-actions { display: grid; grid-template-columns: repeat(2, 1fr); width: fit-content; margin-left: auto; }
+.vj-foot-actions > .vj-btn { justify-content: center; }
+.vj-foot-actions > :last-child:nth-child(odd) { grid-column: 2; }
+@media (max-width: 520px) {
+  .vj-foot-actions { grid-template-columns: 1fr; }
+  .vj-foot-actions > :last-child:nth-child(odd) { grid-column: auto; }
+}
 
 /* The mini panel: the folded Here panel as one strip, only as wide as its content, wrapping to a
    second line when the search box is narrow. Chips: an icon and a short value; buttons where they do something. */
@@ -916,6 +937,13 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 /* Build .204: a column empty when the drag starts shows after the other, so nothing shifts under the pointer
    (src/page-layout.mjs lateStart). */
 #voyage-container.voyage-dragging .voyage-col-late { order: 2; }
+/* Build .353 (the user): the rows across the page, above and below the columns. Empty, they show only during a drag:
+   a lower dashed strip that says what it is for. The bottom row stays after a late column. */
+.voyage-col-bottom { order: 3; }
+#voyage-container.voyage-dragging .voyage-col-wide { min-height: 56px; margin-bottom: 12px; }
+#voyage-container.voyage-dragging .voyage-col-wide:not(:has(> .block:not(.d-none))) { display: flex; align-items: center; justify-content: center; }
+#voyage-container.voyage-dragging .voyage-col-wide:not(:has(> .block:not(.d-none)))::after { content: attr(data-drop-label); color: var(--voyage-label); font-size: .875rem; pointer-events: none; }
+#voyage-container.voyage-dragging .voyage-col-wide:has(> .block:not(.d-none)) { margin-bottom: 0; }
 /* Build .203 (the user): each block's title row folds it (caret, left) and drags it (grip, right; the whole row is the
    handle). Folded, only the title row stays. */
 .voyage-block-head { display: flex; align-items: center; gap: 8px; min-height: 32px; margin-bottom: 8px; }
@@ -937,10 +965,13 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 /* Small buttons (All, All but 1, Show map, presets) up to the 32px target and .9rem text. */
 #voyage-container .btn-sm:not(.voyage-help):not(.voyage-store-item) { font-size: .9rem; min-height: 32px; }
 
-/* The hold's crates (build .133): six to a row across the whole width (the user, .134), each a cell pressed into the block with a crate drawn side-on;
-   empty ones wait faintly, a stowed item sits inside its crate. Picked: the game's info blue. */
-.voyage-crates { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
-.voyage-crate { position: relative; aspect-ratio: 1 / 1; min-width: 40px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid var(--voyage-crate-line); background: var(--voyage-crate); box-shadow: inset 0 3px 7px var(--voyage-crate-shade), inset 0 -1px 0 rgba(255, 255, 255, .07); color: var(--voyage-crate-empty); }
+/* The hold's crates (build .133): each a cell pressed into the block with a crate drawn side-on; empty ones wait
+   faintly, a stowed item sits inside its crate. Picked: the game's info blue. Build .355 (the user, 20 Oct 2026: they
+   grew and shrank with the block): the bank's cell, 64px at most, spread across the block's width (.357, the user:
+   "fixed but still fills whole width"). Always six to a row, as the hold grows in rows of six (.134), never wrapping
+   (.359, the user: "always 6 in a row + no wrap"): where six don't fit at 64px each takes what is left. */
+.voyage-crates { display: grid; grid-template-columns: repeat(6, minmax(0, 64px)); justify-content: space-between; gap: 8px; }
+.voyage-crate { position: relative; width: 100%; aspect-ratio: 1 / 1; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid var(--voyage-crate-line); background: var(--voyage-crate); box-shadow: inset 0 3px 7px var(--voyage-crate-shade), inset 0 -1px 0 rgba(255, 255, 255, .07); color: var(--voyage-crate-empty); }
 .voyage-crate-art { position: absolute; inset: 14%; width: 72%; height: 72%; opacity: .32; }
 .voyage-crate-full { cursor: pointer; }
 .voyage-crate-full .voyage-crate-art { opacity: .5; }
@@ -1205,6 +1236,7 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 /* The work: the skill's dropdown, the resource's under it (the planner's dropdown); a list of one is a plain line
    lined up with a toggle's face. */
 #voyage-walk-works > * + * { margin-top: 8px; }
+.voyage-walk-folk-where { color: var(--voyage-label); font-size: .9rem; margin-left: 4px; }
 .voyage-walk-one { display: flex; align-items: center; min-height: 40px; padding: 0 calc(.75rem + 1px); font-size: 1rem; }
 .voyage-walk-note:not(:empty) { margin-top: 8px; }
 .voyage-walk-places { display: flex; flex-direction: column; gap: 8px; max-width: 420px; max-height: 320px; margin: 0 auto; overflow-y: auto; padding-right: 2px; scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }

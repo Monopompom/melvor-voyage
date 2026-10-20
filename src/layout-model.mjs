@@ -5,17 +5,21 @@
 /** The page's blocks, by their `data-voyage` name, and where they start. */
 // Build .205: the Errands block went into the Hold; a saved layout that still names it drops it (clean()).
 // Phase 6c: the Crew block, under the ship.
-export const DEFAULT = Object.freeze({ left: ['plan-block', 'hold-block'], right: ['stores-block', 'ship-block', 'crew-block'] });
+// Build .353 (the user, 20 Oct 2026: "a place for full-width panel placement"): a full-width row above the two columns
+// and one below them, empty by default.
+export const DEFAULT = Object.freeze({ top: [], left: ['plan-block', 'hold-block'], right: ['stores-block', 'ship-block', 'crew-block'], bottom: [] });
 export const BLOCKS = [...DEFAULT.left, ...DEFAULT.right];
-export const COLUMNS = ['left', 'right'];
+/** Every place a block can sit, in page order; SIDES are the two half-width columns. */
+export const COLUMNS = ['top', 'left', 'right', 'bottom'];
+export const SIDES = ['left', 'right'];
 
 /**
- * A saved layout made safe: `{ left, right, folded }` with every block once, unknown names dropped, and a block the
+ * A saved layout made safe: `{ top, left, right, bottom, folded }` with every block once, unknown names dropped, and a block the
  * saved layout doesn't have (new in a later build) put back in its default column after the blocks that come before
  * it there by default. Anything unreadable gives the default.
  */
 export function clean(saved) {
-  const out = { left: [], right: [], folded: [] };
+  const out = { top: [], left: [], right: [], bottom: [], folded: [] };
   const seen = new Set();
   if (saved !== null && typeof saved === 'object') {
     for (const col of COLUMNS) {

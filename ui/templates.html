@@ -50,6 +50,9 @@
       <!-- Build .133 (the user's sketch): the plan and the hold on the left; stores and ship on the right. -->
       <!-- Build .203 (the user): the blocks drag between and within the columns by their title row, and fold; the
            order and the folds are kept per browser (src/page-layout.mjs). -->
+      <!-- Build .353 (the user): a row across the whole page above the two columns and one below them, empty until a
+           block is dropped there. -->
+      <div class="col-12 voyage-col voyage-col-wide voyage-col-top" data-voyage="col-top"></div>
       <div class="col-12 col-lg-6 voyage-col voyage-col-left" data-voyage="col-left">
         <div class="block block-rounded border-top border-voyage border-4x d-none voyage-block" data-voyage="plan-block">
           <div class="block-content p-3">
@@ -91,6 +94,7 @@
           </div>
         </div>
       </div>
+      <div class="col-12 voyage-col voyage-col-wide voyage-col-bottom" data-voyage="col-bottom"></div>
     </div>
     <div class="voyage-layout-foot d-none" data-voyage="layout-foot"></div>
   </div>

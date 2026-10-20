@@ -25,6 +25,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   const liveHex = (q, r) => { try { return live()?.getHex(new HexCoords(q, r)); } catch { return undefined; } };
   const at = (hex) => { try { const o = hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${hex.q}, ${hex.r})`; } };
   const num = (n) => numberWithCommas(Math.floor(n));
+  /** What you have, in the game's own number format (the player's setting: 9,952M, not 9,952,802,904; the user, build .362). */
+  const haveNum = (n) => { try { return formatNumber(Math.floor(n)); } catch { return numberWithCommas(Math.floor(n)); } };
 
   /** The planned voyage: the target and the chosen arrival ('none', 'go', or 'm:<monster id>'). */
   let target;
@@ -305,7 +307,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   const section = (html) => `<div class="voyage-section">${html}</div>`;
   const costIcon = (media, need, have, title, itemId) =>
     `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ` data-tip-media="${esc(media)}"`}><img class="mr-1" src="${media}" alt="${esc(title)}">${num(need)}` +
-    ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: num(have) })})</span></span>`;
+    ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: haveNum(have) })})</span></span>`;
   const amounts = (food, fuel) => state.stores?.amounts?.(food, fuel) ?? '';
   const stopName = (hex, place) => {
     const poi = hex.pointOfInterest;

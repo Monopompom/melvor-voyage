@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-20.348';
+export const BUILD = '2026-10-20.363';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -51,42 +51,6 @@ export async function setup(ctx) {
   let zonesMod;
   let zoneTable;
   try { zonesMod = await ctx.loadModule('src/zones.mjs'); zoneTable = await ctx.loadData('data/zones.json'); } catch (e) { console.error('[Voyage] zone table failed; resource zones are off', e); zonesMod = undefined; }
-  // Items and shop entries (the compass). Registered before any character loads.
-  try { await ctx.gameData.addPackage('data/package.json'); } catch (e) { console.error('[Voyage] data package failed; the compass is unavailable', e); }
-  // Names that live in the data files come from the language file too (the English there is the fallback). The shop
-  // purchase takes its name and description from the item.
-  try {
-    const compass = game.items.getObjectByID('voyage:Wayfinder_Compass');
-    if (compass !== undefined) {
-      compass._name = getLangString('MOD_VOY_ITEM_COMPASS_NAME');
-      compass._customDescription = getLangString('MOD_VOY_ITEM_COMPASS_DESC');
-      compass._modifiedDescription = undefined;
-    }
-    const pitch = game.items.getObjectByID('voyage:Pitch');
-    if (pitch !== undefined) {
-      pitch._name = getLangString('MOD_VOY_ITEM_PITCH_NAME');
-      pitch._customDescription = getLangString('MOD_VOY_ITEM_PITCH_DESC');
-      pitch._modifiedDescription = undefined;
-    }
-    // The six charts (build .116): MOD_VOY_ITEM_<ID>_NAME / _DESC.
-    for (const id of ['Prospectors_Notes', 'Foresters_Survey', 'Anglers_Log', 'Farmers_Almanac', 'Fences_Ledger', 'Star_Chart']) {
-      const it = game.items.getObjectByID(`voyage:${id}`);
-      if (it === undefined) continue;
-      it._name = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_NAME`);
-      it._customDescription = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`);
-      it._modifiedDescription = undefined;
-    }
-    // The two rumours (build .210) and the Starlit Chart (.214), src/charts.mjs.
-    for (const [id, name, desc] of [['Tavern_Tale', 'MOD_VOY_ITEM_TAVERN_TALE_NAME', 'MOD_VOY_ITEM_TAVERN_TALE_DESC'], ['Sailors_Rumour', 'MOD_VOY_ITEM_SAILORS_RUMOUR_NAME', 'MOD_VOY_ITEM_SAILORS_RUMOUR_DESC'], ['Starlit_Chart', 'MOD_VOY_ITEM_STARLIT_CHART_NAME', 'MOD_VOY_ITEM_STARLIT_CHART_DESC']]) {
-      const it = game.items.getObjectByID(`voyage:${id}`);
-      if (it === undefined) continue;
-      it._name = getLangString(name);
-      it._customDescription = getLangString(desc);
-      it._modifiedDescription = undefined;
-    }
-    const category = game.shop.categories.getObjectByID('voyage:Voyage');
-    if (category !== undefined) category._name = getLangString('MOD_VOY_SHOP_CATEGORY');
-  } catch (e) { console.error('[Voyage] data names not translated', e); }
 
   // The Voyage skill (phase 3a): the class first, then the data (page, milestones) that references it. A failure here
   // leaves the skill out and everything else running.
@@ -137,6 +101,44 @@ export async function setup(ctx) {
     } catch (e) { console.error('[Voyage] milestone names not translated', e); }
     voyageSkillOk = true;
   } catch (e) { console.error('[Voyage] the Voyage skill failed to register; the rules still run', e); }
+
+  // Items and shop entries (the compass). Registered before any character loads, and after the skill (build .361):
+  // the shop's Voyage-level requirements are resolved when this package registers, so the skill must be there first.
+  try { await ctx.gameData.addPackage('data/package.json'); } catch (e) { console.error('[Voyage] data package failed; the compass is unavailable', e); }
+  // Names that live in the data files come from the language file too (the English there is the fallback). The shop
+  // purchase takes its name and description from the item.
+  try {
+    const compass = game.items.getObjectByID('voyage:Wayfinder_Compass');
+    if (compass !== undefined) {
+      compass._name = getLangString('MOD_VOY_ITEM_COMPASS_NAME');
+      compass._customDescription = getLangString('MOD_VOY_ITEM_COMPASS_DESC');
+      compass._modifiedDescription = undefined;
+    }
+    const pitch = game.items.getObjectByID('voyage:Pitch');
+    if (pitch !== undefined) {
+      pitch._name = getLangString('MOD_VOY_ITEM_PITCH_NAME');
+      pitch._customDescription = getLangString('MOD_VOY_ITEM_PITCH_DESC');
+      pitch._modifiedDescription = undefined;
+    }
+    // The six charts (build .116): MOD_VOY_ITEM_<ID>_NAME / _DESC.
+    for (const id of ['Prospectors_Notes', 'Foresters_Survey', 'Anglers_Log', 'Farmers_Almanac', 'Fences_Ledger', 'Star_Chart']) {
+      const it = game.items.getObjectByID(`voyage:${id}`);
+      if (it === undefined) continue;
+      it._name = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_NAME`);
+      it._customDescription = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`);
+      it._modifiedDescription = undefined;
+    }
+    // The two rumours (build .210) and the Starlit Chart (.214), src/charts.mjs.
+    for (const [id, name, desc] of [['Tavern_Tale', 'MOD_VOY_ITEM_TAVERN_TALE_NAME', 'MOD_VOY_ITEM_TAVERN_TALE_DESC'], ['Sailors_Rumour', 'MOD_VOY_ITEM_SAILORS_RUMOUR_NAME', 'MOD_VOY_ITEM_SAILORS_RUMOUR_DESC'], ['Starlit_Chart', 'MOD_VOY_ITEM_STARLIT_CHART_NAME', 'MOD_VOY_ITEM_STARLIT_CHART_DESC']]) {
+      const it = game.items.getObjectByID(`voyage:${id}`);
+      if (it === undefined) continue;
+      it._name = getLangString(name);
+      it._customDescription = getLangString(desc);
+      it._modifiedDescription = undefined;
+    }
+    const category = game.shop.categories.getObjectByID('voyage:Voyage');
+    if (category !== undefined) category._name = getLangString('MOD_VOY_SHOP_CATEGORY');
+  } catch (e) { console.error('[Voyage] data names not translated', e); }
 
   // The loader calls a setting's onChange(newValue, oldValue) BEFORE it stores newValue, so section.get()
   // inside the handler still returns the old value. Each handler therefore records the new value itself.
@@ -408,6 +410,8 @@ export async function setup(ctx) {
       if (s !== undefined) s.clock = clock;
       // The route line on the map (build .272): what is left to sail, a light running along it, the walked part dim.
       try { (await ctx.loadModule('src/route-line.mjs')).install(ctx, { state, C: clockModel, log }); } catch (e) { log('route line failed to load', e); }
+      // Folks walking alone on the map (6d): a boot badge where each stands, its road ahead dashed.
+      try { (await ctx.loadModule('src/walk-line.mjs')).install(ctx, { state, C: clockModel, log }); } catch (e) { log('walk line failed to load', e); }
       // The pin moves under way (build .341): the traveller walks, the vessel rolls. A failure leaves it still.
       try { state.pinMotion = (await ctx.loadModule('src/pin-motion.mjs')).install(ctx, { state, M: await ctx.loadModule('src/pin-motion-model.mjs'), log }); } catch (e) { log('pin motion failed to load', e); }
       // Voyages into the fog (phase 5b): the voyage surveys its own way. A failure leaves known routes only.

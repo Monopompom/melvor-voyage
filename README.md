@@ -90,7 +90,7 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   shows the route, the stops to stock up and the cost. With Navigator's Charts (Voyage 50, bought once at a port for
   300,000 GP and 100 Pitch) Set off makes the whole trip in one go (in time, with Timed travel on), and On arrival starts the work you planned.
 - **On land.** The shop's Voyage tab sells Sturdy Boots, a Pack Yak, a Riding Horse and a Unicorn, each making land
-  hexes quicker to cross (cheaper instead with Timed travel off), and from Voyage 35 a Crossroads Sign that carries a place's gifts with you.
+  hexes quicker to cross (cheaper instead with Timed travel off), and from Voyage 35 a Crossroads sign that carries a place's gifts with you.
 - **The Captain's Journal.** The book button on the Voyage page (or the J key) opens a journal of chapters on every
   rule (notices, charts and rumours too), guide pages that turn up as you meet things, the markets' ledger and maps of where resources are.
   Its Places list where you fought, the ports you used and what you did there, the markets, and the islands you set
@@ -109,6 +109,10 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   each eats from the stores by its rank and burns fuel as you do. On empty stores they go hungry and lose a tenth of
   their HP every hex, and hunger can kill. Put them ashore on land and pick their work there. The Crew block on the
   Voyage page lists them.
+  With Walking Orders from the Voyage shop (Voyage level 20), a Folk with you or within a hex can be sent alone to
+  work at a place your Journal found: pick the skill, the resource and the place, or press Send a Folk here on a
+  Journal resource page. It walks on foot over land you know, packing its food and fuel from the stores, and starts
+  the work when it arrives, offline too. The map shows it with a boot badge and its road dashed; Stop here halts it.
 
 ## Settings (Mod Settings, section Voyage)
 

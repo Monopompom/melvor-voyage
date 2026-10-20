@@ -70,11 +70,11 @@ const item = (it) => {
   return `<p class="voyage-help-p ${it.cls ?? ''}">${esc(it.text)}</p>`;
 };
 
-/** The popup body: wrap it in nothing else; it carries `voyage-help-body`. A "?" help popup reads left like a page;
- *  a notice built with the same bands (the welcome, the dinghy notice, a rumour or chart read) passes `notice: true`
- *  and reads centred like every other message popup (build .307), with its
- *  picture on top through MSG_IMAGE like them, not in the title (build .310, scan C-07). Its tables stay left so their
+/** The popup body: wrap it in nothing else; it carries `voyage-help-body`. It reads centred like every other popup:
+ *  a notice built with the bands (the welcome, the dinghy notice, a rumour or chart read; build .307) and, since
+ *  build .354, a "?" help too (the user, 20 Oct 2026: "let's center all of them"). A notice passes `notice: true` and
+ *  has its picture on top through MSG_IMAGE, not in the title (build .310, scan C-07). Tables stay left so their
  *  columns line up. */
-export const helpHtml = (sections, { notice = false } = {}) => `<div class="${notice ? 'text-center voyage-help-body voyage-help-notice' : 'text-left voyage-help-body'}">` + sections.map((s) =>
+export const helpHtml = (sections, { notice = false } = {}) => `<div class="text-center voyage-help-body${notice ? ' voyage-help-notice' : ''}">` + sections.map((s) =>
   `<div class="voyage-section voyage-help-section${s.warn ? ' voyage-help-warn' : ''}">`
   + `${s.head ? `<div class="voyage-help-head">${esc(s.head)}</div>` : ''}${s.body.map(item).join('')}</div>`).join('') + '</div>';

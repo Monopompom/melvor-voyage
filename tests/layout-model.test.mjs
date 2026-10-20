@@ -5,7 +5,7 @@ import { DEFAULT, BLOCKS, clean, isDefault, setFolded } from '../src/layout-mode
 test('layout: nothing saved or unreadable gives the default', () => {
   for (const saved of [null, undefined, 'x', 3, [], { left: 'plan-block' }]) {
     const l = clean(saved);
-    assert.deepEqual(l, { left: [...DEFAULT.left], right: [...DEFAULT.right], folded: [] });
+    assert.deepEqual(l, { top: [], left: [...DEFAULT.left], right: [...DEFAULT.right], bottom: [], folded: [] });
     assert.ok(isDefault(l));
   }
 });
@@ -46,4 +46,14 @@ test('layout: folding and unfolding', () => {
   assert.deepEqual(l.folded, ['ship-block']);
   l = setFolded(l, 'ship-block', false);
   assert.ok(isDefault(l));
+});
+
+test('layout: a block across the page, above or below the columns, is kept there', () => {
+  const l = clean({ top: ['plan-block'], left: ['hold-block'], right: ['stores-block', 'ship-block'], bottom: ['crew-block', 'nope'] });
+  assert.deepEqual(l.top, ['plan-block']);
+  assert.deepEqual(l.left, ['hold-block']);
+  assert.deepEqual(l.bottom, ['crew-block']);
+  assert.ok(!isDefault(l));
+  // A layout saved before the full-width rows: both empty, nothing moves.
+  assert.ok(isDefault(clean({ left: [...DEFAULT.left], right: [...DEFAULT.right] })));
 });

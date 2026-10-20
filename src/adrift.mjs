@@ -26,6 +26,8 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const num = (n) => numberWithCommas(Math.floor(n));
+  /** What you have, in the game's own number format (the player's setting: 9,952M, not 9,952,802,904; the user, build .362). */
+  const haveNum = (n) => { try { return formatNumber(Math.floor(n)); } catch { return numberWithCommas(Math.floor(n)); } };
   const res = (file) => ctx.getResourceUrl(`assets/${file}`);
   const skill = () => state.voyageSkill?.();
   const usable = () => { const s = skill(); return s !== undefined && s.futureRaw === undefined; };
@@ -355,7 +357,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
   const offerTow = () => {
     const tow = paidTow();
     if (tow === undefined || cur() === null) return;
-    if (game.gp.amount < tow.gp) { notify(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(tow.gp), have: num(game.gp.amount) }), 'danger'); return; }
+    if (game.gp.amount < tow.gp) { notify(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(tow.gp), have: haveNum(game.gp.amount) }), 'danger'); return; }
     const name = portName(tow.port);
     swal({
       title: t('MOD_VOY_ADRIFT_TOW_TITLE'),
@@ -371,7 +373,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
     }).then((r) => {
       if (!r.isConfirmed || cur() === null) return;
       const now = paidTow();
-      if (now === undefined || game.gp.amount < now.gp) { notify(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(now?.gp ?? tow.gp), have: num(game.gp.amount) }), 'danger'); return; }
+      if (now === undefined || game.gp.amount < now.gp) { notify(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(now?.gp ?? tow.gp), have: haveNum(game.gp.amount) }), 'danger'); return; }
       game.gp.remove(now.gp);
       if (!startTow('pay', now, now.gp)) { game.gp.add(now.gp); notify(t('MOD_VOY_ADRIFT_TOW_FAILED'), 'danger'); return; }
       notify(t('MOD_VOY_ADRIFT_TOW_STARTED', { name: portName(now.port), gp: num(now.gp) }));
@@ -591,7 +593,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
     const short = tow !== undefined && game.gp.amount < tow.gp;
     const payBtn = tow === undefined ? ''
       : short
-        ? `<button type="button" class="btn btn-secondary" disabled title="${esc(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(tow.gp), have: num(game.gp.amount) }))}">${esc(t('MOD_VOY_ADRIFT_TOW_PAY_BTN'))}</button>`
+        ? `<button type="button" class="btn btn-secondary" disabled title="${esc(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(tow.gp), have: haveNum(game.gp.amount) }))}">${esc(t('MOD_VOY_ADRIFT_TOW_PAY_BTN'))}</button>`
         : `<button type="button" class="btn btn-success" data-voyage-adrift-do="tow">${esc(t('MOD_VOY_ADRIFT_TOW_PAY_BTN'))}</button>`; // the price is on the Tow line above (main buttons have one width)
     return `<div class="voyage-clock-top"><img class="voyage-clock-pic" src="${esc(hullArt())}" alt="">`
       + `<div><h5 class="font-w600 mb-0 text-warning"><i class="fa fa-water mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_ADRIFT_TITLE'))}</h5>`
@@ -607,7 +609,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
       + `<div class="voyage-adrift-way"><i class="fa fa-fw fa-fish text-muted" aria-hidden="true"></i>${esc(t('MOD_VOY_ADRIFT_FISH_LINE'))}</div></div>`
       + '<div class="voyage-plan-buttons">'
       + `<button type="button" class="btn btn-outline-info" data-voyage-adrift-do="fish">${esc(t('MOD_VOY_ADRIFT_GO_FISHING'))}</button>${payBtn}</div>`
-      + (short ? `<div class="text-muted voyage-clock-note text-right">${esc(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(tow.gp), have: num(game.gp.amount) }))}</div>` : '');
+      + (short ? `<div class="text-muted voyage-clock-note text-right">${esc(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(tow.gp), have: haveNum(game.gp.amount) }))}</div>` : '');
   };
   /** Moves the block's bars (every frame while the page is open). */
   const renderBars = (el) => {

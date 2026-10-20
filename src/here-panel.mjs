@@ -216,7 +216,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     try {
       const v = state.trader?.verdict?.();
       const cost = v?.road?.gp;
-      if (Number.isFinite(cost)) out += ` ${templateLangString('MOD_VOY_PANEL_STRANDED_ROAD', { cost: numberWithCommas(Math.round(cost)), have: numberWithCommas(game.gp.amount) })}`;
+      if (Number.isFinite(cost)) out += ` ${templateLangString('MOD_VOY_PANEL_STRANDED_ROAD', { cost: numberWithCommas(Math.round(cost)), have: (() => { try { return formatNumber(Math.floor(game.gp.amount)); } catch { return numberWithCommas(game.gp.amount); } })() }) /* the game's number format (.362) */}`;
     } catch (e) { log('stranded road failed', e); }
     return out;
   };

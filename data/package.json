@@ -461,7 +461,7 @@
       },
       {
         "id": "Crossroads_Sign",
-        "customName": "Crossroads Sign",
+        "customName": "Crossroads sign",
         "customDescription": "Plant it on a place that gives buffs while you stand there: its buffs follow you wherever you go. One sign; pick it up on its hex to move it.",
         "media": "assets/crossroads_sign.webp",
         "category": "voyage:Voyage",

@@ -1,6 +1,7 @@
 // The Voyage page's blocks move and fold (build .203, the user, 18 Oct 2026: "per device with folding"). Each block's
 // title row is its handle: drag it within or between the two columns (the game's own SortableJS, as the bank's
-// tabs), and the caret at its left folds the block to that row. The order and the folds are kept per browser in
+// tabs), or (build .353) into a row across the whole page above or below them; the caret at its left folds the block
+// to that row. The order and the folds are kept per browser in
 // localStorage, not the save; Reset layout at the page's foot puts everything back. The rules are pure
 // (layout-model.mjs).
 
@@ -8,8 +9,10 @@ const KEY = 'voyage-page-layout';
 
 export function install(ctx, { container, L, t, tips, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const cols = { left: container.querySelector('[data-voyage="col-left"]'), right: container.querySelector('[data-voyage="col-right"]') };
-  if (cols.left === null || cols.right === null) return undefined;
+  const cols = Object.fromEntries(L.COLUMNS.map((col) => [col, container.querySelector(`[data-voyage="col-${col}"]`)]));
+  if (L.COLUMNS.some((col) => cols[col] === null)) return undefined;
+  // The full-width rows name themselves while a drag shows them empty.
+  for (const col of L.COLUMNS) if (!L.SIDES.includes(col)) cols[col].dataset.dropLabel = t('MOD_VOY_PAGE_DROP_WIDE');
   const block = (id) => container.querySelector(`[data-voyage="${id}"]`);
   const foot = container.querySelector('[data-voyage="layout-foot"]');
 
@@ -63,7 +66,7 @@ export function install(ctx, { container, L, t, tips, log }) {
   };
   const fromPage = () => {
     const ids = (col) => [...cols[col].children].map((el) => el.dataset?.voyage).filter((id) => L.BLOCKS.includes(id));
-    layout = L.clean({ left: ids('left'), right: ids('right'), folded: layout.folded });
+    layout = L.clean({ ...Object.fromEntries(L.COLUMNS.map((col) => [col, ids(col)])), folded: layout.folded });
   };
 
   const footNow = () => {
@@ -88,16 +91,31 @@ export function install(ctx, { container, L, t, tips, log }) {
   // its side: the two columns swap their shown blocks, so what was on the left stays on the left.
   const shown = (col) => [...cols[col].children].filter((el) => el.classList.contains('voyage-block') && !el.classList.contains('d-none'));
   let late;
+  // Build .353: the empty row above the columns opens when a drag starts and would push everything down under the
+  // pointer, so the page scrolls by as much and the dragged block stays where it was.
+  const scroller = () => {
+    for (let el = container.parentElement; el !== null; el = el.parentElement) {
+      const y = getComputedStyle(el).overflowY;
+      if ((y === 'auto' || y === 'scroll') && el.scrollHeight > el.clientHeight) return el;
+    }
+    return document.scrollingElement;
+  };
+  const steady = (change) => {
+    const mark = cols.left.getBoundingClientRect().top;
+    change();
+    const moved = cols.left.getBoundingClientRect().top - mark;
+    if (moved !== 0) { const el = scroller(); if (el != null) el.scrollTop += moved; }
+  };
   const lateStart = () => {
-    late = L.COLUMNS.find((c) => shown(c).length === 0 && shown(L.COLUMNS.find((o) => o !== c)).length > 0);
+    late = L.SIDES.find((c) => shown(c).length === 0 && shown(L.SIDES.find((o) => o !== c)).length > 0);
     if (late !== undefined) cols[late].classList.add('voyage-col-late');
   };
   const lateEnd = () => {
     if (late === undefined) return;
     cols[late].classList.remove('voyage-col-late');
-    const other = L.COLUMNS.find((c) => c !== late);
+    const other = L.SIDES.find((c) => c !== late);
     // Only the left column moves when it comes late; the right one is after the left anyway.
-    if (L.COLUMNS.indexOf(late) < L.COLUMNS.indexOf(other) && shown(late).length > 0 && shown(other).length > 0) {
+    if (L.SIDES.indexOf(late) < L.SIDES.indexOf(other) && shown(late).length > 0 && shown(other).length > 0) {
       const mine = shown(late);
       const theirs = shown(other);
       theirs.forEach((b) => cols[late].append(b));
@@ -119,8 +137,8 @@ export function install(ctx, { container, L, t, tips, log }) {
       delayOnTouchOnly: (() => { try { return getSortableDelayOnTouch(); } catch { return true; } })(),
       animation: 150,
       ghostClass: 'voyage-block-ghost',
-      onStart: () => { lateStart(); container.classList.add('voyage-dragging'); swipe(true); try { tippy.hideAll(); } catch {} },
-      onEnd: () => { container.classList.remove('voyage-dragging'); lateEnd(); swipe(false); fromPage(); write(); },
+      onStart: () => { steady(() => { lateStart(); container.classList.add('voyage-dragging'); }); swipe(true); try { tippy.hideAll(); } catch {} },
+      onEnd: () => { steady(() => { container.classList.remove('voyage-dragging'); lateEnd(); }); swipe(false); fromPage(); write(); },
     };
     try { L.COLUMNS.forEach((col) => new Sortable(cols[col], options)); } catch (e) { log('page drag failed', e); }
   }

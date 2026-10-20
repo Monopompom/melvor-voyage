@@ -193,10 +193,12 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
   };
 
   const qty = (n) => numberWithCommas(n);
+  /** What you have, in the game's own number format (the player's setting: 9,952M, not 9,952,802,904; the user, build .362). */
+  const haveNum = (n) => { try { return formatNumber(Math.floor(n)); } catch { return numberWithCommas(Math.floor(n)); } };
   /** A cost: icon, amount and what you have; red with the words when short (never colour alone). */
   const costIcon = (media, need, have, title, itemId) =>
     `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ` data-tip-media="${esc(media)}"`}><img class="mr-1" src="${media}" alt="${esc(title)}">${qty(need)}${itemId ? ` ${esc(title)}` : ''}` + // the item named, not tooltip-only (.309, scan C-10)
-    ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: qty(have) })})</span></span>`;
+    ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: haveNum(have) })})</span></span>`;
   /** A grey section band inside a block. */
   const section = (html) => `<div class="voyage-section">${html}</div>`;
   /**
@@ -561,9 +563,13 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     const short = full;
     const left = short === '' ? '' : `<span class="voyage-season-left">${helpLayout.withTime('MOD_VOY_WX_PAGE_LEFT', { time: short })}</span>`;
     const icon = s.media ? `<img class="voyage-wx-icon mr-1" src="${esc(s.media)}" alt="">` : '';
+    // Build .360 (the user, an iPhone SE: four names don't fit): every season has its picture, and on a phone the cells
+    // show only the pictures, the names kept for screen readers; wider, only the season now shows its picture.
     const cells = year.map((k, i) => {
       const now = s.key === k;
-      return `<span class="voyage-season-cell${now ? ' voyage-season-now text-info' : ''}"><span class="voyage-season-name">${now ? icon : ''}${esc(state.weather.seasonName?.(i) ?? k)}</span>${now ? left : ''}</span>`;
+      const media = now ? s.media : state.weather.seasonMedia?.(i);
+      const pic = media ? `<img class="voyage-wx-icon voyage-season-pic${now ? '' : ' voyage-season-pic-phone'}" src="${esc(media)}" alt="">` : '';
+      return `<span class="voyage-season-cell${now ? ' voyage-season-now text-info' : ''}"><span class="voyage-season-name">${pic}<span class="voyage-season-word">${esc(state.weather.seasonName?.(i) ?? k)}</span></span>${now ? left : ''}</span>`;
     }).join('');
     // A rare season is none of the four: its name and time left on a line of their own under the year.
     const rare = year.includes(s.key) ? '' : `<div class="voyage-season-text voyage-season-mid text-info font-w600">${icon}${esc(s.name)}${short === '' ? '' : ` · ${helpLayout.withTime('MOD_VOY_WX_PAGE_LEFT', { time: short })}`}</div>`;
@@ -734,6 +740,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
           t('MOD_VOY_HELP_CREW_BLOCK'),
         ] },
         { head: t('MOD_VOY_HELP_HEAD_CREW_ASHORE'), body: [t('MOD_VOY_HELP_CREW_ASHORE'), t('MOD_VOY_HELP_CREW_FIXED')] },
+        { head: t('MOD_VOY_HELP_HEAD_CREW_WALK'), body: [t('MOD_VOY_HELP_CREW_WALK'), t('MOD_VOY_HELP_CREW_WALK_PACK'), t('MOD_VOY_HELP_CREW_WALK_ARRIVE')] },
       ];
     }
     if (topic === 'hold') {
@@ -850,8 +857,10 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     const level = (kind) => (have[kind] <= 0 ? 'text-danger' : have[kind] < storesModel.LOW[kind] || have[kind] > cap[kind] ? 'text-warning' : '');
     const word = (kind) => (have[kind] <= 0 ? ` <small>(${esc(t('MOD_VOY_PAGE_STORES_EMPTY_WORD'))})</small>` : have[kind] < storesModel.LOW[kind] ? ` <small>(${esc(t('MOD_VOY_PAGE_STORES_LOW_WORD'))})</small>` : '');
     const of = (n) => `<small class="text-muted">/ ${n}</small>`;
-    const carried = `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}" alt="" title="${esc(t('MOD_VOY_HELP_COL_FOOD'))}"><span class="${level('food')}">${api.hp(have.food)}${word('food')}</span> ${of(api.hp(cap.food))} ${esc(t('MOD_VOY_UNIT_HP', { n: '' })).trim()} ` +
-      `<img src="${ctx.getResourceUrl('assets/fuel.webp')}" alt="" title="${esc(t('MOD_VOY_HELP_COL_FUEL'))}"><span class="${level('fuel')}">${api.fuelText(have.fuel)}${word('fuel')}</span> ${of(api.fuelText(cap.fuel))} ${esc(t('MOD_VOY_PAGE_STORES_FUEL_WORD'))}</span>`;
+    // Food and fuel each never split; the fuel drops under the food where both don't fit (build .360, the user, an
+    // iPhone SE: it ran past the band).
+    const carried = `<span class="voyage-stores-carried"><span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}" alt="" title="${esc(t('MOD_VOY_HELP_COL_FOOD'))}"><span class="${level('food')}">${api.hp(have.food)}${word('food')}</span> ${of(api.hp(cap.food))} ${esc(t('MOD_VOY_UNIT_HP', { n: '' })).trim()}</span>` +
+      `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/fuel.webp')}" alt="" title="${esc(t('MOD_VOY_HELP_COL_FUEL'))}"><span class="${level('fuel')}">${api.fuelText(have.fuel)}${word('fuel')}</span> ${of(api.fuelText(cap.fuel))} ${esc(t('MOD_VOY_PAGE_STORES_FUEL_WORD'))}</span></span>`;
     let html = section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt=""><b>${carried}</b></div>` +
       (api.enabled() ? '' : `<div class="text-warning">${t(game.tutorial?.complete === false ? 'MOD_VOY_PAGE_TUTORIAL' : 'MOD_VOY_PAGE_STORES_OFF')}</div>`)); // (.308, C-01)
     // What a sail costs (build .205, the user): food, fuel and the hull's wear, in one block.

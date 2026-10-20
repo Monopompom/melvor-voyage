@@ -138,7 +138,7 @@ export function install(ctx, { state, landModel: L, shipModel, log }) {
     signOwned: () => enabled() && owned(L.SIGN.id),
     signPoi: () => poiById(placedId()),
     signAction: action, place, pickup,
-    signName: () => purchase(L.SIGN.id)?.name ?? 'Crossroads Sign',
+    signName: () => purchase(L.SIGN.id)?.name ?? 'Crossroads sign',
     signMedia: () => ctx.getResourceUrl('assets/crossroads_sign.webp'),
     /** The signed POI's buffs as the game writes them (coloured spans), or []. */
     signBuffSpans: () => { const p = poiById(placedId()); try { return p?.activeStats?.hasStats ? p.activeStats.describeAsSpans(1, posMult()) : []; } catch { return []; } },

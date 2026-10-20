@@ -114,6 +114,8 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
 
   // ---- sending, stopping, arriving --------------------------------------------------------------------------------------
   const notify = (text, kind = 'info') => {
+    // During the offline catch-up the notice waits for the Welcome Back box.
+    if (offline()) { tellAway(text, kind); return; }
     try {
       if (kind === 'danger') game.notifications.createErrorNotification('voyage:walk', text);
       else if (kind === 'success') game.notifications.createSuccessNotification('voyage:walk', text, ctx.getResourceUrl('assets/walking_orders.webp'));
@@ -205,6 +207,27 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     changed();
   };
 
+  // ---- Welcome Back ---------------------------------------------------------------------------------------------------
+  // What the walks did while away, under the game's own lines (as Adrift's): each arrival, then each Folk still on the
+  // road. Not saved: the box comes in the same session as the catch-up.
+  let away = [];
+  let walkedAway = false;
+  const awayLine = (text, kind) => `<img class="skill-icon-xs mr-1" src="${esc(ctx.getResourceUrl('assets/walking_orders.webp'))}" alt="">`
+    + `<span class="${kind === 'danger' ? 'text-warning' : ''}">${esc(text)}</span>`;
+  function tellAway(text, kind) { if (away.length < 12) away.push(awayLine(text, kind)); }
+  try {
+    ctx.patch(OfflineProgressElement, 'setMessages').after(function () {
+      try {
+        const lines = [...away];
+        if (walkedAway) for (const { folk, walk } of walking()) lines.push(awayLine(t('MOD_VOY_WALK_OFFLINE_STILL', { name: folk.name, to: walk.to, left: walk.leftText }), 'info'));
+        away = [];
+        walkedAway = false;
+        if (lines.length === 0 || this.messageContainer == null) return;
+        for (const html of lines) { const h = document.createElement('h5'); h.className = 'font-w600 mb-1'; h.innerHTML = html; this.messageContainer.append(h); }
+      } catch (e) { log('walk offline lines failed', e); }
+    });
+  } catch (e) { log('walk offline summary not patched', e); }
+
   // ---- the clock (the Voyage skill's passive tick, online and offline) ----------------------------------------------
   // `due` caches the next moment anything happens (a hex entered, an arrival), so a tick with nothing due is one
   // comparison. The card's minutes left are redrawn once a minute online.
@@ -225,6 +248,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     const all = walks();
     const ids = Object.keys(all);
     if (ids.length === 0 || api() === undefined) return;
+    if (offline()) walkedAway = true;
     const at = now();
     if (due === undefined || at >= due) {
       for (const id of ids) step(id, all[id], at);
@@ -244,6 +268,11 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     const dest = w.road[w.road.length - 1];
     return { to: placeText(dest, w.skillId, w.actionId), leftText: duration(pos.left), left: pos.left, at: pos.at, reached: pos.reached, hexes: w.road.length };
   };
+  /** For the map: each walk's hex reached and the road still ahead, [{ id, at, ahead: [{ q, r }] }]. */
+  const routes = () => Object.entries(walks()).map(([id, w]) => {
+    const pos = W.walkAt(w, now());
+    return { id, at: pos.at ?? w.from, ahead: w.road.slice(pos.reached).map((h) => ({ q: h.q, r: h.r })) };
+  });
   /** The Folks walking now, as Worker Folks views, each with its walk described. */
   const walking = () => {
     const a = api();
@@ -252,56 +281,80 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
   };
 
   // ---- the Send dialog ------------------------------------------------------------------------------------------------
-  /** Pick the work, then the place. `done` redraws the page. */
-  const askSend = (id, done) => {
+  /** The Folks that may be sent now: with you or within a hex, nothing in the way. */
+  const sendable = () => { const a = api(); return a === undefined ? [] : a.folks().filter((f) => sendRefusal(f) === undefined); };
+  /** A Journal resource a Folk could be sent for (its skill can be given to a Folk, and you have Walking Orders). */
+  const canSendFor = (actionId) => usable() && works().some((x) => x.id === actionId);
+
+  /**
+   * The Send dialog. From the Crew block (`id`): pick the work, then the place. From a Journal resource (`actionId`):
+   * the work is set; pick the Folk (with you or within a hex), then the place. `done` redraws the page.
+   */
+  const askSend = (id, done, actionId) => {
     const a = api();
-    const f = a?.folkById(id);
-    const why = sendRefusal(f);
-    if (why !== undefined) { if (why !== '') notify(why, 'danger'); return; }
-    const all = works();
+    if (a === undefined) return;
+    const fixed = actionId !== undefined;
+    const all = fixed ? works().filter((x) => x.id === actionId) : works();
+    const who = fixed ? sendable() : [];
+    let f = fixed ? (who.find((x) => x.id === id) ?? who[0]) : a.folkById(id);
+    if (fixed) {
+      if (all.length === 0) return;
+      if (f === undefined) { notify(t('MOD_VOY_WALK_NOBODY'), 'danger'); return; }
+    } else {
+      const why = sendRefusal(f);
+      if (why !== undefined) { if (why !== '') notify(why, 'danger'); return; }
+    }
     const holders = new Map(a.skills().map((s) => [s.id, s.holder]));
     const skillOf = (sid) => { try { return game.skills.getObjectByID(sid); } catch { return undefined; } };
     const first = all.find((x) => x.skillId === f.skillId) ?? all[0];
     let workPicked = first?.id;
+    let skillPicked = first?.skillId;
     /** The works by skill, in the Journal's order. */
     const groups = new Map();
     for (const x of all) {
       if (!groups.has(x.skillId)) groups.set(x.skillId, []);
       groups.get(x.skillId).push(x);
     }
-    let skillPicked = first?.skillId;
-    // The work as two of the game's own dropdowns (Bootstrap's data-toggle, as the planner's and the ship's clock's;
-    // the user, 20 Oct 2026), not the browser's select: the skill, then under it that skill's resources, each with its
-    // icon, the picked one on the toggle. A list of one is a plain line: no dropdown of one.
+    // The picks as the game's own dropdowns (Bootstrap's data-toggle, as the planner's and the ship's clock's; the user,
+    // 20 Oct 2026), not the browser's select: the Folk (from the Journal), the skill, then under it that skill's
+    // resources, each with its icon, the picked one on the toggle. A list of one is a plain line: no dropdown of one.
     const workOf = (wid) => all.find((y) => y.id === wid);
     const ico = (media) => (media ? `<img class="voyage-plan-pick-ico" src="${esc(media)}" alt="">` : '');
     const skillFace = (sid) => { const sk = skillOf(sid); return `${ico(sk?.media)}<span>${esc(sk?.name ?? sid)}</span>`; };
     const workFace = (x) => `${ico(x?.action.media)}<span>${esc(x?.action.name ?? '')}</span>`;
+    // A Folk by its work's icon (none: a plain figure), its name, and where it is.
+    const folkFace = (x) => {
+      const sk = x.skillId ? skillOf(x.skillId) : undefined;
+      const lead = sk?.media ? ico(sk.media) : '<i class="fa fa-user voyage-plan-pick-ico" aria-hidden="true"></i>';
+      return `${lead}<span>${esc(x.name)} <span class="voyage-walk-folk-where">${esc(t(x.travel === 'with' ? 'MOD_VOY_WALK_WHO_WITH' : 'MOD_VOY_WALK_WHO_NEAR'))}</span></span>`;
+    };
     const one = (face) => `<div class="voyage-walk-one">${face}</div>`;
-    const dd = (kind, face, items) => '<div class="dropdown voyage-plan-arrival voyage-clock-dd">'
-      + `<button type="button" id="voyage-walk-${kind}-toggle" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-labelledby="voyage-walk-work-label">${face}</button>`
+    const dd = (kind, label, face, items) => '<div class="dropdown voyage-plan-arrival voyage-clock-dd">'
+      + `<button type="button" id="voyage-walk-${kind}-toggle" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-labelledby="${label}">${face}</button>`
       + `<div class="dropdown-menu overflow-y-auto" aria-labelledby="voyage-walk-${kind}-toggle">${items}</div></div>`;
     const item = (attr, value, on, face) => `<a class="dropdown-item pointer-enabled${on ? ' active' : ''}" role="button" ${attr}="${esc(value)}">${face}</a>`;
+    const whoHtml = () => (who.length === 1 ? one(folkFace(f))
+      : dd('who', 'voyage-walk-who-label', folkFace(f), who.map((x) => item('data-walk-folk', x.id, x.id === f.id, folkFace(x))).join('')));
     const worksHtml = () => {
       const skills = [...groups.keys()];
       const items = groups.get(skillPicked) ?? [];
       return (skills.length === 1 ? one(skillFace(skillPicked))
-        : dd('skill', skillFace(skillPicked), skills.map((sid) => item('data-walk-skill', sid, sid === skillPicked, skillFace(sid))).join('')))
+        : dd('skill', 'voyage-walk-work-label', skillFace(skillPicked), skills.map((sid) => item('data-walk-skill', sid, sid === skillPicked, skillFace(sid))).join('')))
         + (items.length === 1 ? one(workFace(items[0]))
-          : dd('work', workFace(workOf(workPicked)), items.map((x) => item('data-walk-work', x.id, x.id === workPicked, workFace(x))).join('')));
+          : dd('work', 'voyage-walk-work-label', workFace(workOf(workPicked)), items.map((x) => item('data-walk-work', x.id, x.id === workPicked, workFace(x))).join('')));
     };
-    /** The line under the chips: the skill another Folk holds now moves to this one when it arrives. */
+    /** The line under the work: the skill another Folk holds now moves to this one when it arrives. */
     const workNote = () => {
-      const x = all.find((y) => y.id === workPicked);
+      const x = workOf(workPicked);
       const h = x === undefined ? null : holders.get(x.skillId) ?? null;
-      if (h === null || h === id) return '';
+      if (h === null || h === f.id) return '';
       return esc(t('MOD_VOY_WALK_TAKES', { holder: a.folkById(h)?.name ?? '', skill: skillOf(x.skillId)?.name ?? x.skillId, name: f.name }));
     };
     // The places as the other pickers draw a choice: a full-width button, filled blue when picked, blue outline when
     // not; one it can't go to is a grey outline with its reason in amber.
     let picked;
-    const placesHtml = (actionId) => {
-      const list = places(f, actionId);
+    const placesHtml = () => {
+      const list = places(f, workPicked);
       if (list.length === 0) { picked = undefined; return `<div class="text-muted">${esc(t('MOD_VOY_WALK_NO_PLACES'))}</div>`; }
       const firstOk = list.find((p) => p.why === undefined);
       picked = firstOk === undefined ? undefined : `${firstOk.q},${firstOk.r}`;
@@ -330,61 +383,53 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
         b.setAttribute('aria-pressed', `${on}`);
       }
     };
-    const body = all.length === 0
-      ? helpLayout.msgHtml([t('MOD_VOY_WALK_NO_WORKS')])
-      : helpLayout.msgHtml([t('MOD_VOY_WALK_SEND_TEXT', { name: `<b>${esc(f.name)}</b>` })])
-        + `<div class="voyage-section mt-3"><div class="font-w600 mb-2" id="voyage-walk-work-label">${esc(t('MOD_VOY_WALK_WORK_LABEL'))}</div><div id="voyage-walk-works" data-no-skill-names>${worksHtml()}</div>`
-        + `<div id="voyage-walk-work-note" class="voyage-walk-note text-muted">${workNote()}</div></div>`
-        + `<div class="voyage-section"><div class="font-w600 mb-2">${esc(t('MOD_VOY_WALK_PLACE_LABEL'))}</div><div id="voyage-walk-places" class="voyage-walk-places">${placesHtml(first.id)}</div></div>`
-        + (provisions() ? `<small class="d-block text-muted mt-3">${esc(t('MOD_VOY_WALK_PACK_HINT'))}</small>` : '');
+    const section = (labelId, labelKey, inner, extra = '') => `<div class="voyage-section${extra}"><div class="font-w600 mb-2" id="${labelId}">${esc(t(labelKey))}</div>${inner}</div>`;
+    const bodyHtml = () => helpLayout.msgHtml([fixed ? esc(t('MOD_VOY_WALK_HERE_TEXT')) : t('MOD_VOY_WALK_SEND_TEXT', { name: `<b>${esc(f.name)}</b>` })])
+      + (fixed ? section('voyage-walk-who-label', 'MOD_VOY_WALK_WHO_LABEL', `<div id="voyage-walk-who" data-no-skill-names>${whoHtml()}</div>`, ' mt-3') : '')
+      + section('voyage-walk-work-label', 'MOD_VOY_WALK_WORK_LABEL', `<div id="voyage-walk-works" data-no-skill-names>${worksHtml()}</div>`
+        + `<div id="voyage-walk-work-note" class="voyage-walk-note text-muted">${workNote()}</div>`, fixed ? '' : ' mt-3')
+      + section('voyage-walk-place-label', 'MOD_VOY_WALK_PLACE_LABEL', `<div id="voyage-walk-places" class="voyage-walk-places">${placesHtml()}</div>`)
+      + (provisions() ? `<small class="d-block text-muted mt-3">${esc(t('MOD_VOY_WALK_PACK_HINT'))}</small>` : '');
+    const body = all.length === 0 ? helpLayout.msgHtml([t('MOD_VOY_WALK_NO_WORKS')]) : `<div id="voyage-walk-body">${bodyHtml()}</div>`;
     SwalLocale.fire({
       didRender: (el) => {
         try { state.popupDidRender?.(el); } catch {}
-        const works = document.getElementById('voyage-walk-works');
-        if (works !== null && works.dataset.voyageBound !== '1') {
-          works.dataset.voyageBound = '1';
-          works.addEventListener('click', (e) => {
-            const at = e.target instanceof Element ? e.target : null;
-            const sk = at?.closest('[data-walk-skill]');
-            const wk = at?.closest('[data-walk-work]');
-            // A new skill picks its first resource.
-            if (sk != null && sk.dataset.walkSkill !== skillPicked) {
-              skillPicked = sk.dataset.walkSkill;
-              workPicked = groups.get(skillPicked)?.[0]?.id;
-            } else if (wk != null && wk.dataset.walkWork !== workPicked) workPicked = wk.dataset.walkWork;
-            else return;
-            works.innerHTML = worksHtml();
-            const note = document.getElementById('voyage-walk-work-note');
-            if (note !== null) note.innerHTML = workNote();
-            const box = document.getElementById('voyage-walk-places');
-            if (box !== null) box.innerHTML = placesHtml(workPicked);
-            // The redrawn note and places get their skill names' icons again (the pass is safe to run twice).
-            try { state.popupDidRender?.(el); } catch {}
-          });
-        }
-        const box = document.getElementById('voyage-walk-places');
-        if (box !== null && box.dataset.voyageBound !== '1') {
-          box.dataset.voyageBound = '1';
-          box.addEventListener('click', (e) => { const b = e.target instanceof Element ? e.target.closest('[data-walk-place]') : null; if (b !== null && !b.disabled) pick(b.dataset.walkPlace); });
-        }
+        const box = document.getElementById('voyage-walk-body');
+        if (box === null || box.dataset.voyageBound === '1') return;
+        box.dataset.voyageBound = '1';
+        box.addEventListener('click', (e) => {
+          const at = e.target instanceof Element ? e.target : null;
+          const place = at?.closest('[data-walk-place]');
+          if (place != null) { if (!place.disabled) pick(place.dataset.walkPlace); return; }
+          const fk = at?.closest('[data-walk-folk]');
+          const sk = at?.closest('[data-walk-skill]');
+          const wk = at?.closest('[data-walk-work]');
+          if (fk != null && fk.dataset.walkFolk !== f.id) f = who.find((x) => x.id === fk.dataset.walkFolk) ?? f;
+          // A new skill picks its first resource.
+          else if (sk != null && sk.dataset.walkSkill !== skillPicked) { skillPicked = sk.dataset.walkSkill; workPicked = groups.get(skillPicked)?.[0]?.id; }
+          else if (wk != null && wk.dataset.walkWork !== workPicked) workPicked = wk.dataset.walkWork;
+          else return;
+          box.innerHTML = bodyHtml();
+          // The redrawn body gets its skill names' icons again (the pass is safe to run twice).
+          try { state.popupDidRender?.(el); } catch {}
+        });
       },
-      // The menu opens over the popup's buttons, as the ship's clock's.
+      // The menus open over the popup's buttons, as the ship's clock's.
       customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' }) : { ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' },
-      title: t('MOD_VOY_WALK_SEND_TITLE', { name: f.name }),
+      title: fixed ? t('MOD_VOY_WALK_HERE_TITLE', { what: all[0].action.name }) : t('MOD_VOY_WALK_SEND_TITLE', { name: f.name }),
       html: body,
       showConfirmButton: all.length > 0,
       showCancelButton: true,
       confirmButtonText: t('MOD_VOY_WALK_SEND_BUTTON'),
       cancelButtonText: t('MOD_VOY_WALK_SEND_CANCEL'),
       preConfirm: () => {
-        const actionId = workPicked ?? '';
         if (picked === undefined) { Swal.showValidationMessage(t('MOD_VOY_WALK_PICK_PLACE')); return false; }
         const [q, r] = picked.split(',').map(Number);
-        return { actionId, hex: { q, r } };
+        return { id: f.id, actionId: workPicked ?? '', hex: { q, r } };
       },
     }).then((res) => {
       if (!res.isConfirmed || res.value == null) return;
-      try { if (send(id, res.value.actionId, res.value.hex)) done?.(); } catch (e) { log('walk send failed', e); }
+      try { if (send(res.value.id, res.value.actionId, res.value.hex)) done?.(); } catch (e) { log('walk send failed', e); }
     });
   };
 
@@ -408,7 +453,10 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
   ctx.patch(Shop, 'buyItemOnClick').after(function (_ret, p) { try { if (p?.id === PURCHASE_ID) changed(); } catch {} });
 
   const out = {
-    ground, road, canWalk, walks, owned, usable, sendRefusal, works, places, send, stopHere, askSend, askStop, tick, describe, walking,
+    ground, road, canWalk, walks, owned, usable, sendRefusal, works, places, send, stopHere, askSend, askStop, tick, describe, walking, routes,
+    canSendFor,
+    /** The Journal's door: the work set, the Folk picked in the dialog. */
+    askHere: (actionId, done) => askSend(undefined, done, actionId),
     arriving: () => arrivingId,
     /** Forgets the cached next moment (the dev console moved a walk's start). */
     reschedule: schedule,

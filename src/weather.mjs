@@ -497,6 +497,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
     wayWords,
     degrees,
     seasonName,
+    seasonMedia,
     order,
     /** The memo key of anything priced or timed by the weather: '' with the setting off. */
     // The storms (5c-3) move each half-hour: the half-hour is in the key, so a planned step's storm wear stays current.

@@ -340,6 +340,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   const planButton = (kind, id) => state.planner?.open?.() !== true ? '' : `<button type="button" class="vj-btn" data-vj-plan="${esc(kind)}" data-vj-id="${esc(id)}">`
     + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17h18l-2 4H5z"></path><path d="M12 3v12"></path><path d="M12 4l6 9h-6"></path></svg>'
     + `${esc(t('MOD_VOY_PLAN_BUTTON'))}</button>`;
+  // Send a Folk here (phase 6d): a Folk with you or within a hex walks to one of the hexes found, the work set.
+  const sendButton = (id) => state.walks?.canSendFor?.(id) !== true ? '' : `<button type="button" class="vj-btn" data-vj-send="${esc(id)}">`
+    + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h6.5v8l3 1 3 1.5 1.5 2V19H6v-4l1-3z"></path><path d="M6 16.5h15"></path></svg>'
+    + `${esc(t('MOD_VOY_JOURNAL_SEND_HERE'))}</button>`;
   const empty = (key) => `<p class="vj-p vj-faint">${esc(t(key))}</p>`;
 
   /** The Voyage page's help sections, in book form (help-layout.mjs shape: { head?, warn?, body: [...] }). */
@@ -859,7 +863,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
         ? `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_WHERE_FOUND'))}</h3>${ledger([t('MOD_VOY_JOURNAL_COL_HEX'), t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_FROM_HERE')], rows)}`
         : empty('MOD_VOY_JOURNAL_NOT_FOUND_YET'))
       + (misses.length > 0 ? `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_WHERE_NOT'))}</h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_MISSES_LINE', { name: e.names[0], hexes: misses.join(', ') }))}</p>` : '')
-      + (rows.length > 0 ? `<div class="vj-foot vj-foot-end">${planButton('entry', e.id)}${mapButton('entry', e.id)}</div>` : '');
+      + (rows.length > 0 ? `<div class="vj-foot vj-foot-end vj-foot-actions">${sendButton(e.id)}${planButton('entry', e.id)}${mapButton('entry', e.id)}</div>` : '');
   };
   /** The heat map button next to an entry's name (src/heatmap.mjs): a hexagon with a glow in it. */
   const heatButton = (e) => {
@@ -1266,7 +1270,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
         + (p.group === 'island' ? islandKnows(p, all) : '')
         + placeEffects(p)
         + (p.group === 'trade' || p.group === 'port' ? marketPrices(p) : '')
-        + `<div class="vj-foot vj-foot-end">${planButton('place', p.key)}${mapButton('place', p.key)}</div>`;
+        + `<div class="vj-foot vj-foot-end vj-foot-actions">${planButton('place', p.key)}${mapButton('place', p.key)}</div>`;
     return { left, right };
   };
 
@@ -1462,6 +1466,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       if (map !== null) { showOnMap(map.dataset.vjMap, map.dataset.vjId); return; }
       const plan = el.closest('[data-vj-plan]');
       if (plan !== null) { planFrom(plan.dataset.vjPlan, plan.dataset.vjId); return; }
+      const send = el.closest('[data-vj-send]');
+      if (send !== null) { state.walks?.askHere?.(send.dataset.vjSend, () => render()); return; }
       if (el.closest('[data-vj-back]')) { const back = view.back; close(); back?.(); }
     });
     root.addEventListener('input', (e) => {

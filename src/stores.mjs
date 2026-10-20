@@ -331,7 +331,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
         if (gpOnly && gp > 0) {
           const enough = game.gp.amount >= gp;
           lines.push(row(`<img class="voyage-stores-lead-img" src="${game.gp.media}" alt="">`,
-            t('MOD_VOY_STORES_PATH_GP_TIP', { have: numberWithCommas(Math.floor(game.gp.amount)) }),
+            t('MOD_VOY_STORES_PATH_GP_TIP', { have: (() => { try { return formatNumber(Math.floor(game.gp.amount)); } catch { return numberWithCommas(Math.floor(game.gp.amount)); } })() } /* the game's number format (.362) */),
             `<span class="${enough ? 'text-success' : 'text-danger'}">${esc(numberWithCommas(gp))}</span>`));
         }
       } catch (e) { log('travel GP row failed', e); }
