@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-20.313';
+export const BUILD = '2026-10-20.315';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -323,6 +323,10 @@ export async function setup(ctx) {
   // Every popup we open runs this on render: skill names get their icon and bold.
   const skillNamesMod = await ctx.loadModule('src/skill-names.mjs');
   state.popupDidRender = skillNamesMod.didRender;
+  // Worker Folks' API (phase 6): undefined without Worker Folks or with one older than Voyage drives; said once.
+  const folksLink = await ctx.loadModule('src/folks-link.mjs');
+  let folksWarned = false;
+  state.folksApi = () => folksLink.folksApi({ warn: (msg) => { if (!folksWarned) { folksWarned = true; console.warn(`[Voyage] ${msg}`); } } });
   state.skillNames = skillNamesMod.skillNames;
   const compassMod = await ctx.loadModule('src/compass.mjs');
   const traderMod = await ctx.loadModule('src/trader.mjs');

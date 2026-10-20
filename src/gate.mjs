@@ -125,10 +125,11 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     } catch {}
     return terrainMod.areaLabel(rec.poi);
   };
+  /** HTML: the place's name is escaped and bold, so callers pass it as is (build .315: escaped again, the tags showed). */
   const whereIs = (pos, hex, distance) => {
     const dir = getLangString(`MOD_VOY_DIR_SHORT_${terrainMod.directionLabel(pos, hex)}`);
     const name = hex.poi ? poiName(hex) : hex.area ? terrainMod.areaLabel(hex.area) : undefined;
-    const place = name === undefined ? '' : templateLangString('MOD_VOY_GATE_WHERE_PLACE', { name: `<b>${name}</b>` }); // a name in bold (.308, C2-07)
+    const place = name === undefined ? '' : templateLangString('MOD_VOY_GATE_WHERE_PLACE', { name: `<b>${esc(name)}</b>` }); // a name in bold (.308, C2-07)
     const hexes = templateLangString(distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${distance}` });
     return templateLangString('MOD_VOY_GATE_WHERE', { hexes, dir, place });
   };
@@ -204,14 +205,14 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
             : hex.area && terms.areas.includes(hex.area) ? placeName(hex.area) : undefined);
       const match = matchOf(near.hex);
       const where = whereIs(pos, near.hex, near.distance);
-      if (match !== undefined) lines.push(line('MOD_VOY_GATE_NEAREST', { match: match.html, where: esc(where) }));
+      if (match !== undefined) lines.push(line('MOD_VOY_GATE_NEAREST', { match: match.html, where }));
       else {
         // The nearest hex works by grace: name what is next door (phase 2 re-run, 16 Oct 2026: the noun made "Nearest
         // a town or port: 2 hexes SW").
         const from = rules.graceFrom(skillId, near.hex, state.ruleOpts()).map(matchOf).find((m) => m !== undefined);
         lines.push(from !== undefined
-          ? line('MOD_VOY_GATE_NEAREST_GRACE', { match: from.html, where: esc(where) })
-          : line('MOD_VOY_GATE_NEAREST_ANY', { where: esc(where) }));
+          ? line('MOD_VOY_GATE_NEAREST_GRACE', { match: from.html, where })
+          : line('MOD_VOY_GATE_NEAREST_ANY', { where }));
       }
     } else {
       lines.push(line('MOD_VOY_GATE_NONE_KNOWN', { need: n.html }));
@@ -433,7 +434,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       const d = hexDistance(pos, rec);
       if (best === undefined || d < best.distance) best = { hex: rec, distance: d };
     }
-    if (best !== undefined) lines.push(line('MOD_VOY_ZONE_NEAREST', { where: esc(whereIs(pos, best.hex, best.distance)) }));
+    if (best !== undefined) lines.push(line('MOD_VOY_ZONE_NEAREST', { where: whereIs(pos, best.hex, best.distance) }));
     else {
       lines.push(line('MOD_VOY_ZONE_NONE_KNOWN'));
       const compass = compassLine(state.compass?.readingTo(all, pos));
@@ -586,7 +587,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     if (here.length > 0) lines.push(line('MOD_VOY_GATE_AREA_HERE', { names: esc(here.map((a) => a.name).join(', ')) }));
     if (nearest !== undefined && state.knowledge?.isKnown(nearest.hex)) {
       const where = whereIs(pos, nearest.hex, nearest.distance);
-      lines.push(line('MOD_VOY_GATE_AREA_WHERE', { where: esc(where) }));
+      lines.push(line('MOD_VOY_GATE_AREA_WHERE', { where }));
     } else {
       lines.push(line('MOD_VOY_GATE_AREA_UNKNOWN', { name: esc(name) }));
       const compass = compassLine(state.compass?.readingTo(state.terrain.placesFor(area.id), pos));
@@ -628,7 +629,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     const near = terrainMod.nearestIn(tradeCandidates(), pos, (rec) => state.knowledge?.isKnown(rec) !== false);
     if (near !== undefined) {
       const where = whereIs(pos, near.hex, near.distance);
-      lines.push(line('MOD_VOY_GATE_TRADE_NEAREST', { where: esc(where) }));
+      lines.push(line('MOD_VOY_GATE_TRADE_NEAREST', { where }));
     } else {
       lines.push(line('MOD_VOY_GATE_TRADE_NONE_KNOWN'));
       const compass = compassLine(state.compass?.readingTo(tradeCandidates(), pos));
@@ -660,10 +661,28 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   tradeGate(Bank, 'processSellSelectedItems', 'sell');
   tradeGate(Bank, 'processItemSale', 'sell', true); // backstop for any other sale path
   tradeGate(Shop, 'buyItemOnClick', 'buy');
+  // Hiring follows Township: a hire needs a town or port. Worker Folks 1.3 asks through its staff guard and shows the
+  // reason on its own Shop line, before the click (phase 6a, build .314). An older Worker Folks has no API: the
+  // patch below still refuses the purchase, with the lock popup after the click.
+  const hireRefusal = () => {
+    const locked = lockedHere(HIRING_ID);
+    if (locked === undefined) return undefined;
+    const d = describe(game.skills.getObjectByID(HIRING_ID), HIRING_ID, locked);
+    return { reason: d.lines.slice(0, 2).map((l) => l.text).join(' ') };
+  };
+  ctx.onModsLoaded(() => {
+    const api = state.folksApi?.();
+    if (api === undefined) return;
+    api.registerGuard('staff', (request) => {
+      try { return request?.action === 'hire' ? hireRefusal() : undefined; } catch (e) { console.error('[Voyage] hiring guard failed open', e); return undefined; }
+    });
+    state.folksGuarded = true;
+    log('hiring: Worker Folks staff guard registered');
+  });
   // Registered after the trade gate, so it wraps it and runs first: a hire is a staff change before it is a purchase.
   ctx.patch(Shop, 'buyItemOnClick').replace(function (original, purchase, ...rest) {
     try {
-      if (typeof purchase?.id === 'string' && purchase.id.startsWith(HIRE_PURCHASE_PREFIX)) {
+      if (!state.folksGuarded && typeof purchase?.id === 'string' && purchase.id.startsWith(HIRE_PURCHASE_PREFIX)) {
         const locked = lockedHere(HIRING_ID);
         if (locked !== undefined) { showLocked(game.skills.getObjectByID(HIRING_ID), HIRING_ID, locked); return undefined; }
       }
@@ -681,6 +700,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   // Only signing a hand (the hire purchases above) follows the Township rule. Promote, Fire and Settle are management
   // and work anywhere (the user's decision D-2 on the Worker Folks scan board, build .312): before, Promote and Fire
   // were refused away from a town with no sign on the Hiring page before the click.
+
+  /** Worker Folks' guarded lines (the Shop's hire line) follow the player's hex and the rules. */
+  const refreshFolks = () => { try { if (state.folksGuarded) state.folksApi?.()?.refresh(); } catch (e) { log('folks refresh failed', e); } };
 
   // ---------------------------------------------------------------------------------------------------- moving
   // A gated skill (or fight) that does not fit the current hex stops, with a notice. Checked on every move
@@ -726,12 +748,13 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     stopWhatDoesNotFit('move');
     refreshRates();
     dimSidebar();
+    refreshFolks();
   };
   ctx.patch(WorldMap, 'setPlayerPosition').after(function () {
     try { if (game.cartography?.activeMap === this) setTimeout(onMoved, 0); } catch {}
   });
   // Deferred: settings handlers run inside the loader's onChange, before it stores the value.
-  state.listeners.push(() => setTimeout(() => stopWhatDoesNotFit('rules'), 0), refreshRates, dimSidebar);
+  state.listeners.push(() => setTimeout(() => stopWhatDoesNotFit('rules'), 0), refreshRates, dimSidebar, () => setTimeout(refreshFolks, 0));
   // A level gained can open a zoned skill here (build .280): the sidebar follows at once.
   ctx.patch(Skill, 'onLevelUp').after(function () { try { if (state.zoneTable?.skills?.[this.id] !== undefined) setTimeout(dimSidebar, 0); } catch {} });
   ctx.onInterfaceReady(() => setTimeout(() => { stopWhatDoesNotFit('load'); dimSidebar(); }, 0));
