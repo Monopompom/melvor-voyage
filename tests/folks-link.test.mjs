@@ -10,8 +10,8 @@ test('Worker Folks API: used only when present and new enough; an older one is n
   assert.equal(folksApi({ mods: { api: {} }, warn }), undefined);
   assert.equal(folksApi({ mods: undefined, warn }), undefined);
   assert.equal(warnings.length, 0, 'no Worker Folks is not a warning');
-  assert.equal(folksApi({ mods: { api: { worker_folks: { version: 0, registerGuard() {} } } }, warn }), undefined);
+  assert.equal(folksApi({ mods: { api: { worker_folks: { version: 1, registerGuard() {} } } }, warn }), undefined);
   assert.equal(folksApi({ mods: { api: { worker_folks: { registerGuard() {} } } }, warn }), undefined);
   assert.equal(warnings.length, 2);
-  assert.match(warnings[0], /older than 1/);
+  assert.match(warnings[0], /older than 2/);
 });

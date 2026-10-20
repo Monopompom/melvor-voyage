@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-20.315';
+export const BUILD = '2026-10-20.318';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -347,7 +347,7 @@ export async function setup(ctx) {
   gate.install(ctx, { state, rules, terrainMod, zones: zonesMod, helpLayout, log });
   compassMod.install(ctx, { state, rules, terrainMod, model, helpLayout, log });
   traderMod.install(ctx, { state, rules, terrainMod, stranded, helpLayout, log });
-  herePanel.install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, log });
+  state.herePanel = herePanel.install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, log });
   /** The Voyage skill object, or undefined when it did not register. */
   const voyageSkill = () => { try { return voyageSkillOk ? game.skills.getObjectByID(model.SKILL_ID) : undefined; } catch { return undefined; } };
   state.voyageSkill = voyageSkill;

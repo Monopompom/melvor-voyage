@@ -134,4 +134,18 @@ so once and turns the locks off until it is updated. The mod keeps its own data 
 the Voyage skill, your vessels and their holds, cargo, tasks, the fog you have charted, the journal. The game's own data is left as it is. Removing
 the mod drops all of its data, so take your items out of the holds first (packed cargo can't come out).
 
+## Credits
+
+The Captain's Journal is set in two open-source typefaces, with thanks to their makers:
+
+- **EB Garamond**, by Georg Duffner and Octavio Pardo (The EB Garamond Project Authors), a revival of Claude
+  Garamont's sixteenth-century types: the journal's text and italics.
+  [github.com/octaviopardo/EBGaramond12](https://github.com/octaviopardo/EBGaramond12)
+- **IM Fell English**, by Igino Marini, a digitisation of the Fell Types that Bishop John Fell gathered for Oxford
+  in the seventeenth century: the journal's headings.
+  [fonts.google.com/specimen/IM+Fell+English](https://fonts.google.com/specimen/IM+Fell+English)
+
+Both are released under the SIL Open Font License 1.1; their licence texts ship beside the fonts in `assets/fonts/`.
+The mod's own code is under the MIT License (`LICENSE`); the fonts keep their own licence.
+
 Built by a developer using assistive AI.

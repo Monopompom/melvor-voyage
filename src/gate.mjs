@@ -8,12 +8,13 @@
 //     nothing" bug of build .2).
 //  2. Game.idleChecker(action), the one call every start goes through. Returning true refuses the start. This is the
 //     backstop for any path that does not go through a known entry point. Worker Folks patches it too; the loader
-//     chains the patches, so a Folk delegated by Worker Folks may bypass this gate until phase 6.
+//     chains the patches. Since phase 6b a start Worker Folks gives a Folk is judged where that Folk stands
+//     (`lockedFor`, `zoneLockedFor`, the rate), with a toast instead of the lock popup.
 // Combat: CombatManager.checkAreaEntryRequirements, called by every area/dungeon/stronghold/depth selection.
 // Trade: the bank's sell entries and Shop.buyItemOnClick. The Township trader is not trade: it follows
 // the Township rule (a town or port), decided 15 Oct 2026.
-// Hiring (Worker Folks, optional): follows the Township rule for staff changes: the hire purchases, promote and fire.
-// Assigning Folks to skills stays free; delegation is a phase 6 topic.
+// Hiring (Worker Folks, optional): hires follow the Township rule; since phase 6b every Folk has a place, and
+// Promote, Fire, Settle, picking it for a skill and its gear need you within 1 hex of it (guards through its API).
 
 /**
  * Skill UI methods that start the skill. `cls` is a thunk: game classes are top-level `class` declarations, global
@@ -180,14 +181,30 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const on = () => state.active();
 
   /** undefined when the skill may start here (or the gate is off); otherwise the position and its record. */
-  const lockedHere = (skillId) => {
-    if (!on() || !rules.isGated(skillId)) return undefined;
-    const pos = state.position();
-    if (pos === undefined) return undefined;
+  const lockedAt = (skillId, pos) => {
+    if (!on() || !rules.isGated(skillId) || pos === undefined || pos === null) return undefined;
     const rec = state.recordAt(pos);
     if (rules.allowedAt(skillId, rec, state.ruleOpts())) return undefined;
     return { pos, rec };
   };
+  const lockedHere = (skillId) => lockedAt(skillId, state.position());
+  // Phase 6b: the Folk a start of this skill goes to (Worker Folks' API), or undefined when it is yours.
+  const folkActor = (skillId) => {
+    if (!state.folksGuarded) return undefined;
+    try { return state.folksApi?.()?.workerOf?.(skillId); } catch (e) { log('folk actor failed', e); return undefined; }
+  };
+  /** lockedHere, or, for a start that goes to a Folk, locked where it stands ({ pos, rec, folk }); no place is free. */
+  const lockedFor = (skillId) => {
+    const folk = folkActor(skillId);
+    if (folk === undefined) return lockedHere(skillId);
+    const locked = lockedAt(skillId, folk.place);
+    return locked === undefined ? undefined : { ...locked, folk };
+  };
+  /** A Folk's refusal is a toast with the reason, never the lock popup (its own Worker box says it before the click). */
+  const toastFolk = (text) => { try { game.notifications.createErrorNotification('voyage:folk', text); } catch {} };
+  const folkWorkText = (skillId, { rec, folk }) => line('MOD_VOY_FOLK_WORK_NEEDS', {
+    name: esc(folk.name), here: here(rec).html, skill: esc(skillLabel(skillId, game.skills.getObjectByID(skillId)?.name ?? skillId)), need: need(skillId).html,
+  }).text;
   /** True when the gate refuses a gated skill on the player's hex (the ship's clock leaves it to the gate). */
   state.skillLockedHere = (skillId) => lockedHere(skillId) !== undefined;
 
@@ -260,9 +277,11 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
         try {
           const id = ep.skillId ?? this.id;
           if (rules.isGated(id) && (ep.when === 'always' || !this.isActive)) {
-            const locked = lockedHere(id);
+            const locked = lockedFor(id);
             if (locked !== undefined) {
-              if (!quiet) showLocked(ep.skillId !== undefined ? game.skills.getObjectByID(id) ?? this : this, id, locked, args);
+              if (quiet) return undefined;
+              if (locked.folk !== undefined) toastFolk(folkWorkText(id, locked));
+              else showLocked(ep.skillId !== undefined ? game.skills.getObjectByID(id) ?? this : this, id, locked, args);
               return undefined;
             }
           }
@@ -282,7 +301,10 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const rawRate = (skillId) => {
     try {
       if (!on() || !rules.isGated(skillId)) return 1;
-      return rules.rateAt(skillId, state.recordAt(state.position()), state.ruleOpts());
+      // A Folk's skill runs at the rate of the Folk's hex (6b); one with no place yet at full rate.
+      const folk = folkActor(skillId);
+      if (folk !== undefined && folk.place === null) return 1;
+      return rules.rateAt(skillId, state.recordAt(folk === undefined ? state.position() : folk.place), state.ruleOpts());
     } catch { return 1; }
   };
   const intervalRate = (skillId) => { const r = rawRate(skillId); return r > 0 && r < 1 ? r : 1; };
@@ -360,15 +382,24 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   /** The zone takes the hex, or (a grace hex) one of the full-rate neighbours that lift it (src/zones.mjs). */
   const allowsHere = (z, rec) => zones.zoneAllowsWithGrace(z.zone, rec, nbOf, rules.graceFrom(z.skillId, rec, state.ruleOpts()));
   /** undefined when the action may run here (or zones are off); otherwise { pos, rec, skillId, zone }. */
-  const zoneLocked = (action) => {
-    if (!zonesOn() || action === undefined || action === null) return undefined;
+  const zoneLockedAt = (action, pos) => {
+    if (!zonesOn() || action === undefined || action === null || pos === undefined || pos === null) return undefined;
     const z = zoneIndex.get(action.id);
     if (z === undefined) return undefined;
-    const pos = state.position();
     const rec = state.recordAt(pos);
     if (rec === undefined) return undefined;
     return allowsHere(z, rec) ? undefined : { pos, rec, ...z };
   };
+  const zoneLocked = (action) => zoneLockedAt(action, state.position());
+  /** zoneLocked, or for an action a Folk would do, judged where the Folk stands ({ ..., folk }) (6b). */
+  const zoneLockedFor = (action) => {
+    const z = action === undefined || action === null ? undefined : zoneIndex.get(action.id);
+    const folk = z === undefined ? undefined : folkActor(z.skillId);
+    if (folk === undefined) return zoneLocked(action);
+    const locked = zoneLockedAt(action, folk.place);
+    return locked === undefined ? undefined : { ...locked, folk };
+  };
+  const folkZoneText = (action, { rec, folk }) => line('MOD_VOY_FOLK_ZONE_NEEDS', { name: esc(folk.name), here: here(rec).html, action: esc(action.name ?? action.id) }).text;
   /** Every hex where the action works (skill rule and zone), memoised per action and strictness. */
   const zoneHexes = new Map();
   state.listeners.push(() => zoneHexes.clear());
@@ -484,10 +515,10 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       try {
         if (zonesOn()) {
           const action = ze.action.apply(this, args);
-          const locked = zoneLocked(action);
+          const locked = zoneLockedFor(action);
           // Where the skill itself is locked, its own gate speaks (the skill modal, not the zone one).
           if (locked !== undefined && rules.allowedAt(locked.skillId, locked.rec, state.ruleOpts())) {
-            if (!ze.quiet) showZoneLocked(action, locked);
+            if (!ze.quiet) { if (locked.folk !== undefined) toastFolk(folkZoneText(action, locked)); else showZoneLocked(action, locked); }
             return ze.refused;
           }
           left = ze.skipped?.apply(this, args) ?? [];
@@ -673,12 +704,55 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   ctx.onModsLoaded(() => {
     const api = state.folksApi?.();
     if (api === undefined) return;
-    api.registerGuard('staff', (request) => {
-      try { return request?.action === 'hire' ? hireRefusal() : undefined; } catch (e) { console.error('[Voyage] hiring guard failed open', e); return undefined; }
-    });
+    // Every guard fails open: an error, the rules off or no hex means Worker Folks plays as without Voyage.
+    const guard = (what, fn) => (request) => {
+      try { return on() ? fn(request ?? {}) : undefined; } catch (e) { console.error(`[Voyage] ${what} guard failed open`, e); return undefined; }
+    };
+    api.registerGuard('staff', guard('staff', ({ action, folk, skillId }) => {
+      if (action === 'hire') return hireRefusal();
+      const far = farRefusal(folk);
+      if (far !== undefined || action !== 'assign') return far;
+      // Picking a Folk for a skill puts it on your hex (6b), so the skill must work here.
+      const locked = lockedHere(skillId);
+      return locked === undefined ? undefined : { reason: describe(game.skills.getObjectByID(skillId), skillId, locked).lines[0].text };
+    }));
+    api.registerGuard('gear', guard('gear', ({ folk }) => farRefusal(folk)));
+    api.registerGuard('work', guard('work', ({ folk, skillId, skill }) => workRefusal(folk, skillId, skill)));
+    // A new Folk stands where it was hired; a Folk picked for a skill moves to your hex.
+    const placeHere = (folk, why) => {
+      const pos = state.position();
+      if (pos === undefined || folk === undefined) return;
+      api.setPlace(folk.id, { q: pos.q, r: pos.r });
+      log(`${folk.name} placed at (${pos.q},${pos.r}): ${why}`);
+    };
+    api.on('folkHired', ({ folk }) => placeHere(folk, 'hired'));
+    api.on('folkAssigned', ({ folk, skillId }) => { if (skillId !== null) placeHere(folk, `picked for ${skillId}`); });
+    api.registerLocationText((folk) => { try { return on() ? folkWhere(folk) : ''; } catch (e) { log('folk location failed', e); return ''; } });
+    // The map's badges and the Here panel's Folks line follow the crew (6b); one redraw per burst of events.
+    let folksDirty = false;
+    const folksChanged = () => {
+      state.overlay?.folksChanged?.();
+      if (folksDirty) return;
+      folksDirty = true;
+      setTimeout(() => { folksDirty = false; try { state.herePanel?.render?.(); } catch (e) { log('folks redraw failed', e); } }, 0);
+    };
+    for (const name of ['folkMoved', 'folkHired', 'folkFired', 'folkDied', 'folkPromoted', 'folkAssigned', 'folkStarted', 'folkStruck', 'folkReleased', 'crewChanged']) api.on(name, folksChanged);
     state.folksGuarded = true;
-    log('hiring: Worker Folks staff guard registered');
+    log('hiring: Worker Folks guards registered (staff, gear, work)');
   });
+  // A place no longer on the map (the table changed) moves to your hex, said once per Folk.
+  ctx.onInterfaceReady(() => setTimeout(() => {
+    try {
+      const api = state.folksGuarded ? state.folksApi?.() : undefined;
+      const pos = state.position();
+      if (api === undefined || pos === undefined || state.terrain === undefined) return;
+      for (const f of api.folks()) {
+        if (f.place === null || state.recordAt(f.place) !== undefined) continue;
+        api.setPlace(f.id, { q: pos.q, r: pos.r });
+        console.warn(`[Voyage] ${f.name}'s place (${f.place.q},${f.place.r}) is not on the map: moved to your hex`);
+      }
+    } catch (e) { log('folk place check failed', e); }
+  }, 0));
   // Registered after the trade gate, so it wraps it and runs first: a hire is a staff change before it is a purchase.
   ctx.patch(Shop, 'buyItemOnClick').replace(function (original, purchase, ...rest) {
     try {
@@ -697,10 +771,37 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   state.combatHere = () => { try { return combatHere(); } catch (e) { log('combat here failed', e); return []; } };
 
   // ---------------------------------------------------------------------------------------------------- hiring
-  // Only signing a hand (the hire purchases above) follows the Township rule. Promote, Fire and Settle are management
-  // and work anywhere (the user's decision D-2 on the Worker Folks scan board, build .312): before, Promote and Fire
-  // were refused away from a town with no sign on the Hiring page before the click.
+  // Only signing a hand (the hire purchases above) follows the Township rule (D-2, build .312). Management goes by
+  // distance since 6b (build .316): Promote, Fire, Settle, picking a Folk for a skill and its gear need you within 1
+  // hex of the Folk (the guards above, below).
 
+  /** Management needs you within 1 hex of the Folk (6b, the user 19 Oct 2026); a Folk with no place yet is free. */
+  const farRefusal = (folk) => {
+    if (folk === undefined || folk.place === null || folk.place === undefined) return undefined;
+    const pos = state.position();
+    if (pos === undefined) return undefined;
+    const d = hexDistance(pos, folk.place);
+    if (d <= 1) return undefined;
+    return { reason: line('MOD_VOY_FOLK_TOO_FAR', { name: esc(folk.name), where: whereIs(pos, state.recordAt(folk.place) ?? folk.place, d) }).text };
+  };
+  /** A Folk works only what its own hex allows, resource zones included (6b): the skill rule, then what it was on. */
+  const workRefusal = (folk, skillId, skill) => {
+    if (folk === undefined || folk.place === null || folk.place === undefined) return undefined;
+    const locked = lockedAt(skillId, folk.place);
+    if (locked !== undefined) return { reason: folkWorkText(skillId, { ...locked, folk }) };
+    const off = skill === undefined ? undefined : runningActions(skill).map((a) => [a, zoneLockedAt(a, folk.place)]).find(([, z]) => z !== undefined);
+    return off === undefined ? undefined : { reason: folkZoneText(off[0], { ...off[1], folk }) };
+  };
+  /** The card's and Worker box's line: where the Folk stands, from you. */
+  const folkWhere = (folk) => {
+    if (folk.place === null) return getLangString('MOD_VOY_FOLK_NO_PLACE');
+    const rec = state.recordAt(folk.place);
+    const pos = state.position();
+    if (rec === undefined || pos === undefined) return '';
+    const d = hexDistance(pos, folk.place);
+    if (d === 0) return line('MOD_VOY_FOLK_AT_HERE', { here: here(rec).html }).text;
+    return line('MOD_VOY_FOLK_AT', { here: here(rec).html, where: whereIs(pos, rec, d) }).text;
+  };
   /** Worker Folks' guarded lines (the Shop's hire line) follow the player's hex and the rules. */
   const refreshFolks = () => { try { if (state.folksGuarded) state.folksApi?.()?.refresh(); } catch (e) { log('folks refresh failed', e); } };
 
@@ -769,8 +870,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     try {
       const skillId = action?.id;
       if (typeof skillId !== 'string') return original(action);
-      const locked = lockedHere(skillId);
+      const locked = lockedFor(skillId);
       if (locked === undefined) return original(action);
+      if (locked.folk !== undefined) { toastFolk(folkWorkText(skillId, locked)); return true; }
       showLocked(action, skillId, locked);
       if (ENTRY_POINTS.some((ep) => ep.skillId === skillId)) console.warn(`[Voyage] backstop refused ${skillId}: a start path bypassed its entry point`);
       return true;

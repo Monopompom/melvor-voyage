@@ -278,6 +278,20 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return `<div class="voyage-here-place">${label}<span class="text-danger" title="${esc(getLangString('MOD_VOY_PANEL_NO_TRADE_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_NO_TRADE'))}</span>${trader}</div>`;
   };
 
+  /** "Folks here: Tobin (Junior, Mining), Mira (Middle, idle)": Worker Folks standing on this hex (phase 6b). */
+  const FOLK_STATUS = { idle: 'MOD_VOY_PANEL_FOLK_IDLE', strike: 'MOD_VOY_PANEL_FOLK_STRIKE', cooldown: 'MOD_VOY_PANEL_FOLK_REST', debt: 'MOD_VOY_PANEL_FOLK_DEBT' };
+  const folksLine = (pos) => {
+    if (!state.active() || !state.folksGuarded) return '';
+    const folks = (state.folksApi?.()?.folks() ?? []).filter((f) => f.place !== null && f.place.q === pos.q && f.place.r === pos.r);
+    if (folks.length === 0) return '';
+    const what = (f) => {
+      const key = FOLK_STATUS[f.status];
+      if (key !== undefined) return getLangString(key);
+      return game.skills.getObjectByID(f.skillId)?.name ?? getLangString('MOD_VOY_PANEL_FOLK_IDLE');
+    };
+    const names = folks.map((f) => `<span class="voyage-keep">${esc(f.name)} <small class="text-muted">(${esc(templateLangString('MOD_VOY_PANEL_FOLK_WHAT', { tier: f.tier, what: what(f) }))})</small></span>`).join(', ');
+    return `<div class="voyage-here-place"><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_FOLKS_LABEL'))}</span> ${names}</div>`;
+  };
   /** "Combat: Golbin Village, …" or "Combat: Not here": the areas combat works in from this hex (empty while combat is not gated). */
   const fightLine = () => {
     if (!state.active() || !state.settings.combat()) return '';
@@ -823,8 +837,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       for (const el of [...host.children].filter((c) => c.matches('.btn-group-vertical, button'))) box.append(el);
       box.style.top = top && top.parentElement === map ? `${top.offsetTop + top.offsetHeight}px` : '';
       legendBadge(box);
-      // The storms' layer (phase 5c-3, overlay.mjs) hooks the map's ticker the first time the map is up.
+      // The storms' and the Folks' layers (overlay.mjs) hook the map's ticker the first time the map is up.
       state.overlay?.drawStorms?.();
+      state.overlay?.drawFolks?.();
     } catch (e) { log('map controls move failed', e); }
   };
 
@@ -1064,6 +1079,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         harbourLine() +
         planLine() +
         fightLine() +
+        folksLine(pos) +
         signLine() +
         weatherBlock(rec) +
         lockedBlock(pos) +

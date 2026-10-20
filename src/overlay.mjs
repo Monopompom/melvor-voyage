@@ -151,6 +151,81 @@ export function install(ctx, { state, terrainMod, log }) {
     } catch (e) { log('storm layer failed', e); }
   }
 
+  // ---- Worker Folks (phase 6b): a badge with the count on each hex where Folks stand, at the hex's lower right ----
+  // Dark with a light green ring: it reads on grass, sand and sea alike.
+  const FOLK_FILL = 0x14171b;
+  const FOLK_EDGE = 0x74d394;
+  /** The badge's smallest radius and count size in screen pixels; zoomed in it grows to FOLK_SHARE of the hex, never past FOLK_MAX_SHARE. */
+  const FOLK_RADIUS_PX = 11;
+  const FOLK_FONT_PX = 13;
+  const FOLK_SHARE = 0.09;
+  const FOLK_MAX_SHARE = 0.2;
+  let folkLayer;
+  let folkTicker;
+  let folkDrawn;
+  /** Bumped when a Folk moves, joins or leaves (gate.mjs listens to Worker Folks); part of the redraw key. */
+  let folkStamp = 0;
+  // The map's own draw counts too: a first call before the map is drawn would otherwise never be redone.
+  const folkKey = (vp, map) => `${folkStamp}|${vp?.scaled}|${map?.id}|${cartographyMap.lastDrawnMap === map}|${state.active?.()}|${state.folksGuarded === true}`;
+  function drawFolks() {
+    try {
+      if (typeof cartographyMap === 'undefined' || cartographyMap.viewport === undefined || typeof PIXI === 'undefined') return;
+      const vp = cartographyMap.viewport;
+      if (folkLayer === undefined || folkLayer.destroyed) { folkLayer = new PIXI.Container(); folkLayer.eventMode = 'none'; }
+      // Under the game's markers (the player figure), over the hexes, marks and storms.
+      const pins = cartographyMap.markerLayer;
+      if (folkLayer.parent !== vp || (pins?.parent === vp && vp.children.indexOf(folkLayer) > vp.children.indexOf(pins))) {
+        if (pins?.parent === vp) vp.addChildAt(folkLayer, vp.children.indexOf(pins)); else vp.addChild(folkLayer);
+      }
+      const ticker = cartographyMap.app?.ticker;
+      if (ticker !== undefined && folkTicker !== ticker) {
+        ticker.add(() => { if (folkKey(cartographyMap.viewport, game.cartography?.activeMap) !== folkDrawn) drawFolks(); });
+        folkTicker = ticker;
+      }
+      const map = game.cartography?.activeMap;
+      folkDrawn = folkKey(vp, map);
+      for (const child of folkLayer.removeChildren()) child.destroy();
+      if (map === undefined || cartographyMap.lastDrawnMap !== map || !state.active?.() || !state.folksGuarded) return;
+      const counts = new Map();
+      for (const f of state.folksApi?.()?.folks() ?? []) {
+        if (f.place === null || f.travel !== 'idle') continue;
+        const key = `${f.place.q},${f.place.r}`;
+        counts.set(key, { q: f.place.q, r: f.place.r, n: (counts.get(key)?.n ?? 0) + 1 });
+      }
+      if (counts.size === 0) return;
+      const points = cartographyMap.hexPolygon?.points;
+      if (points === undefined || points.length === 0) return;
+      const xs = points.filter((_, i) => i % 2 === 0);
+      const ys = points.filter((_, i) => i % 2 === 1);
+      const mid = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+      const wide = Math.max(...xs) - Math.min(...xs);
+      const tall = Math.max(...ys) - Math.min(...ys);
+      const radius = Math.min(Math.max(FOLK_RADIUS_PX / (vp.scaled || 1), tall * FOLK_SHARE), tall * FOLK_MAX_SHARE);
+      const k = radius / FOLK_RADIUS_PX;
+      const dots = new PIXI.Graphics();
+      folkLayer.addChild(dots);
+      for (const { q, r, n } of counts.values()) {
+        const hex = map.getHex(new HexCoords(q, r));
+        if (hex === undefined) continue;
+        const o = map.getHexOrigin(hex);
+        const cx = o.x + mid.x + wide * 0.22;
+        const cy = o.y + mid.y + tall * 0.22;
+        dots.lineStyle({ width: 2.5 * k, color: FOLK_EDGE, alpha: 1, alignment: 1 });
+        dots.beginFill(FOLK_FILL, 1);
+        dots.drawCircle(cx, cy, FOLK_RADIUS_PX * k);
+        dots.endFill();
+        // The count is drawn at (at least) its screen size and scaled down, so it stays sharp at any zoom.
+        const sharp = Math.max(2, Math.ceil((vp.scaled || 1) * k * 2));
+        const text = new PIXI.Text(`${n}`, { fontFamily: 'Arial', fontSize: FOLK_FONT_PX * sharp, fontWeight: '700', fill: 0xffffff });
+        text.anchor.set(0.5, 0.5);
+        text.scale.set(k / sharp);
+        text.position.set(cx, cy);
+        folkLayer.addChild(text);
+      }
+    } catch (e) { log('folk badges failed', e); }
+  }
+  const folksChanged = () => { folkStamp += 1; };
+
   /** Redraws every hex background on the currently drawn map (after a settings change), and the marks. */
   const refresh = () => {
     try {
@@ -160,7 +235,8 @@ export function install(ctx, { state, terrainMod, log }) {
     } catch (e) { log('overlay refresh failed', e); }
     drawMarks();
     drawStorms();
+    drawFolks();
   };
   state.listeners.push(refresh);
-  return { refresh, drawStorms };
+  return { refresh, drawStorms, drawFolks, folksChanged };
 }
