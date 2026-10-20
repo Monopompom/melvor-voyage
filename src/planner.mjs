@@ -256,7 +256,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       }
     }
     for (const leg of plan.split.legs) {
-      const path = plan.walk.slice(leg.from, leg.to + 1).reverse();
+      const path = P.legPath(plan.walk, leg.from, leg.to, plan.path.voyageModes);
       try { cart.movePlayer(path, false); } catch (e) { log('plan leg failed', e); }
       if (cart.activeMap?.playerPosition !== plan.walk[leg.to]) {
         notify(t('MOD_VOY_PLAN_STOPPED', { at: at(cart.activeMap?.playerPosition ?? plan.walk[leg.from]) }), 'danger');

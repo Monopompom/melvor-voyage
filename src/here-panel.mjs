@@ -272,21 +272,21 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     if (!state.tradeLocked?.()) return `<div class="voyage-here-place">${label}<button type="button" class="voyage-here-link voyage-bank-link text-success" title="${esc(getLangString('MOD_VOY_PANEL_TRADE_OK_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_TRADE_OK'))}</button></div>`;
     const trader = status === 'here' ? ` <span class="text-warning" title="${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'))}">· ${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE'))}</span>` : '';
     // With a trader here the row says so, not "not here" beside "is here" (.308, scan B-36).
-    // The tooltip on the row as the Combat row's (.309, scan B-21); "not here" says where trade is in its tooltip, not
-    // on a line under the row (.310, the user: "remove text under Trade and Combat").
-    if (status === 'here') return `<div class="voyage-here-place" title="${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'))}">${label}<span class="text-warning">${esc(getLangString('MOD_VOY_PANEL_TRADE_TRADER'))}</span></div>`;
-    return `<div class="voyage-here-place" title="${esc(getLangString('MOD_VOY_PANEL_NO_TRADE_HINT'))}">${label}<span class="text-danger">${esc(getLangString('MOD_VOY_PANEL_NO_TRADE'))}</span>${trader}</div>`;
+    // The tooltip sits on the value it explains, as Open bank's does, so its arrow points at "Not here", not at the
+    // row's middle (.310, the user); "Not here" says where trade is in it, not on a line under the row.
+    if (status === 'here') return `<div class="voyage-here-place">${label}<span class="text-warning" title="${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_TRADE_TRADER'))}</span></div>`;
+    return `<div class="voyage-here-place">${label}<span class="text-danger" title="${esc(getLangString('MOD_VOY_PANEL_NO_TRADE_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_NO_TRADE'))}</span>${trader}</div>`;
   };
 
-  /** "Combat: Golbin Village, …" or "Combat: not here": the areas combat works in from this hex (empty while combat is not gated). */
+  /** "Combat: Golbin Village, …" or "Combat: Not here": the areas combat works in from this hex (empty while combat is not gated). */
   const fightLine = () => {
     if (!state.active() || !state.settings.combat()) return '';
     const areas = state.combatHere?.() ?? [];
     const names = areas.length > 0
-      ? `<span class="voyage-fight-links">${areas.map((a) => `<button type="button" class="btn btn-sm btn-outline-info voyage-fight-link" data-area="${esc(a.id)}">${esc(a.name)}</button>`).join('')}</span>`
-      : `<span class="text-danger">${esc(getLangString('MOD_VOY_PANEL_COMBAT_NONE'))}</span>`;
-    if (areas.length === 0) return `<div class="voyage-here-place" title="${esc(getLangString('MOD_VOY_PANEL_COMBAT_NONE_HINT'))}"><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_COMBAT_LABEL'))}</span> ${names}</div>`; // where to look, in the tooltip (.309 C-11; under the row no more, .310, the user)
-    return `<div class="voyage-here-place" title="${esc(getLangString('MOD_VOY_PANEL_COMBAT_HINT'))}"><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_COMBAT_LABEL'))}</span> ${names}</div>`; // (.308, B-26/C-12)
+      ? `<span class="voyage-fight-links" title="${esc(getLangString('MOD_VOY_PANEL_COMBAT_HINT'))}">${areas.map((a) => `<button type="button" class="btn btn-sm btn-outline-info voyage-fight-link" data-area="${esc(a.id)}">${esc(a.name)}</button>`).join('')}</span>`
+      : `<span class="text-danger" title="${esc(getLangString('MOD_VOY_PANEL_COMBAT_NONE_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_COMBAT_NONE'))}</span>`;
+    // The tooltip on the value, not the row: its arrow points at what it explains (.310, the user).
+    return `<div class="voyage-here-place"><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_COMBAT_LABEL'))}</span> ${names}</div>`;
   };
 
   /**

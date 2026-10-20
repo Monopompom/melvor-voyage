@@ -162,6 +162,13 @@ export function createVoyageClass({ model, log }) {
     // ---- page ----------------------------------------------------------------------------------------
     render() {
       super.render();
+      // The game shows "Game Guide" under every skill page's title; Voyage has no guide page, so the link did nothing
+      // (Folks scan C-02, build .311). changePage only calls page.action.onPageChange(), and this page has no action,
+      // so the link is hidden here, in the render loop, while the page is open.
+      if (this.game.openPage?.id === model.SKILL_ID) {
+        const link = document.getElementById('game-guide-header-link');
+        if (link !== null && !link.classList.contains('d-none')) link.classList.add('d-none');
+      }
       // While the page is open, redraw when its signature moves (the bank and GP have no event the page listens to).
       if (!this.renderQueue.page && this.pageSignature !== undefined && this.game.openPage?.id === model.SKILL_ID) {
         try { const sig = this.pageSignature(); if (sig !== this._pageSig) this.renderQueue.page = true; } catch {}

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../src/stores-model.mjs';
-import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs } from '../src/plan-model.mjs';
+import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs, legPath } from '../src/plan-model.mjs';
 
 test('Navigator\'s Charts: owned, level, port, cost, then buyable', () => {
   const ok = { owned: false, level: NAVIGATOR.level, atPort: true, gp: NAVIGATOR.gp, items: Object.fromEntries(NAVIGATOR.items.map((x) => [x.id, x.quantity])) };
@@ -75,3 +75,20 @@ test('the Navigator milestone level is the unlock level', async () => {
   const { NAVIGATOR_LEVEL } = await import('../src/voyage-model.mjs');
   assert.equal(NAVIGATOR.level, NAVIGATOR_LEVEL);
 });
+
+test('a leg keeps its share of the route\'s vessel modes (build .313)', () => {
+  // walk start first: hexes a..e; the game path is destination first, its modes one per step (into path[i]).
+  const walk = ['a', 'b', 'c', 'd', 'e'];
+  const modes = [{ m: 'ship' }, { m: 'ship' }, { m: 'boat' }, undefined]; // into e, d, c, b
+  const whole = legPath(walk, 0, 4, modes);
+  assert.deepEqual([...whole], ['e', 'd', 'c', 'b', 'a']);
+  assert.deepEqual(whole.voyageModes, modes);
+  const first = legPath(walk, 0, 2, modes); // a -> c: steps into b, c
+  assert.deepEqual([...first], ['c', 'b', 'a']);
+  assert.deepEqual(first.voyageModes, [{ m: 'boat' }, undefined]);
+  const second = legPath(walk, 2, 4, modes); // c -> e: steps into d, e
+  assert.deepEqual([...second], ['e', 'd', 'c']);
+  assert.deepEqual(second.voyageModes, [{ m: 'ship' }, { m: 'ship' }]);
+  assert.equal(legPath(walk, 0, 4, undefined).voyageModes, undefined);
+});
+

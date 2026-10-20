@@ -87,3 +87,17 @@ export function splitLegs(n, have, bank, price, loadAt) {
   }
   return { ok: true, legs, depart, have: cur };
 }
+
+/**
+ * A leg's game path (destination first) for the steps from..to-1 of `walk` (start first). `modes` is the whole route's
+ * `voyageModes` (ship.mjs computePath, destination first, one per step): the leg keeps its own share, so each step is
+ * sailed, priced and worn in its own vessel (build .313: without them every sea step went to the small boat).
+ */
+export function legPath(walk, from, to, modes) {
+  const path = walk.slice(from, to + 1).reverse();
+  if (Array.isArray(modes)) {
+    const n = walk.length - 1;
+    path.voyageModes = modes.slice(n - to, n - from);
+  }
+  return path;
+}

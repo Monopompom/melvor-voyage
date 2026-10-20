@@ -106,7 +106,12 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     if (terms.land) return coloured(ruleNoun(skillId));
     const parts = [...terms.classes.map(biome), ...terms.features.map(feature), ...terms.pois.map(placeName), ...terms.areas.map(placeName)];
     // No more than three in a sentence (.308, scan C-14/C2-08): the rest is a count, the journal's Guide has the list.
-    return parts.length === 0 ? coloured(ruleNoun(skillId)) : parts.length <= 3 ? join(parts) : `${join(parts.slice(0, 3))}${templateLangString('MOD_VOY_GATE_NEEDS_MORE', { n: `${parts.length - 3}` })}`;
+    if (parts.length === 0) return coloured(ruleNoun(skillId));
+    if (parts.length <= 3) return join(parts);
+    // Still a { text, html } pair: a plain string here printed a raw "${need}" in the lock popup (Folks scan A-39, .311).
+    const first = join(parts.slice(0, 3));
+    const more = templateLangString('MOD_VOY_GATE_NEEDS_MORE', { n: `${parts.length - 3}` });
+    return { text: `${first.text}${more}`, html: `${first.html}${esc(more)}` };
   };
   /** Where the player is: biome, or "Cloud" when the hex is under cloud. */
   const here = (rec) => (rec.cloud === true ? coloured(getLangString(terrainMod.CLOUD_KEY), terrainMod.CLOUD_INFO.css) : biome(rec.t));
@@ -673,25 +678,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   state.combatHere = () => { try { return combatHere(); } catch (e) { log('combat here failed', e); return []; } };
 
   // ---------------------------------------------------------------------------------------------------- hiring
-  // Worker Folks may load after Voyage, so its class is looked up once the character (and every mod) is in.
-  ctx.onCharacterLoaded(() => {
-    try {
-      const hiring = game.skills.getObjectByID(HIRING_ID);
-      if (hiring === undefined) return;
-      const cls = hiring.constructor;
-      for (const method of ['promote', 'fire']) {
-        if (typeof cls.prototype?.[method] !== 'function') { console.warn(`[Voyage] Hiring.${method} not found; not gated`); continue; }
-        ctx.patch(cls, method).replace(function (original, ...args) {
-          try {
-            const locked = lockedHere(HIRING_ID);
-            if (locked !== undefined) { showLocked(this, HIRING_ID, locked); return undefined; }
-          } catch (e) { console.error('[Voyage] hiring gate failed open', e); }
-          return original(...args);
-        });
-      }
-      log('Worker Folks Hiring: hire purchases, promote and fire follow the Township rule');
-    } catch (e) { log('hiring gate skipped', e); }
-  });
+  // Only signing a hand (the hire purchases above) follows the Township rule. Promote, Fire and Settle are management
+  // and work anywhere (the user's decision D-2 on the Worker Folks scan board, build .312): before, Promote and Fire
+  // were refused away from a town with no sign on the Hiring page before the click.
 
   // ---------------------------------------------------------------------------------------------------- moving
   // A gated skill (or fight) that does not fit the current hex stops, with a notice. Checked on every move

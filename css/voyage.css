@@ -247,7 +247,7 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-help:focus-visible, #voyage-container .btn:focus-visible, #voyage-here .btn:focus-visible, .voyage-ui .btn:focus-visible, .voyage-chip-btn:focus-visible { outline: 2px solid var(--voyage-help) !important; outline-offset: 2px; } /* a ring the keyboard can see (.308, C-22/C2-12) */
 @media (hover: hover) { .voyage-help:hover { color: var(--voyage-hover); } }
 /* Help popups (build .87): one grey band per idea, a heading, short paragraphs, tables for numbers. */
-.voyage-ui .swal2-html-container { font-size: 1rem; line-height: 1.5; max-height: calc(100vh - 14rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; } /* one body size (.308, C-08/B-68); a long popup scrolls inside, its buttons stay on screen (A2-23/C2-03) */
+.voyage-ui .swal2-html-container { font-size: 1rem; line-height: 1.5; max-height: calc(100vh - 14rem); overflow-y: auto; scrollbar-width: thin; } /* one body size (.308, C-08/B-68); a long popup scrolls inside, its buttons stay on screen (A2-23/C2-03); at its end the wheel goes on to the modal, not stopped by overscroll-behavior (.310, the user) */
 .voyage-help-body .voyage-help-head { color: var(--voyage-label); font-weight: 600; margin-bottom: 4px; }
 .voyage-help-body .voyage-help-p { margin: 0; }
 .voyage-help-body .voyage-help-p + .voyage-help-p, .voyage-help-body .voyage-help-table + .voyage-help-p, .voyage-help-body .voyage-help-p + .voyage-help-table { margin-top: 6px; }
