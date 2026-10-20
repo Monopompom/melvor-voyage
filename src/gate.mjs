@@ -727,6 +727,13 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     };
     api.registerGuard('staff', guard('staff', ({ action, folk, skillId }) => {
       if (action === 'hire') return hireRefusal();
+      // A Folk arriving from a walk (6d) is given the work it was sent for: only the hex it reached has to allow it.
+      if (action === 'assign' && arriving(folk)) {
+        const locked = lockedAt(skillId, folk.place);
+        return locked === undefined ? undefined : { reason: folkWorkText(skillId, { ...locked, folk }) };
+      }
+      const walking = walkingRefusal(folk);
+      if (walking !== undefined) return walking;
       // Its kept job, given from anywhere: only its own hex has to allow it.
       if (action === 'assign' && keptJob(folk, skillId)) {
         const locked = lockedAt(skillId, folk.place);
@@ -738,8 +745,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       const locked = lockedHere(skillId);
       return locked === undefined ? undefined : { reason: describe(game.skills.getObjectByID(skillId), skillId, locked).lines[0].text };
     }));
-    api.registerGuard('gear', guard('gear', ({ folk }) => farRefusal(folk)));
-    api.registerGuard('work', guard('work', ({ folk, skillId, skill }) => workRefusal(folk, skillId, skill)));
+    api.registerGuard('gear', guard('gear', ({ folk }) => walkingRefusal(folk) ?? farRefusal(folk)));
+    api.registerGuard('work', guard('work', ({ folk, skillId, skill }) => walkingRefusal(folk) ?? workRefusal(folk, skillId, skill)));
     // A new Folk stands where it was hired; a Folk picked for a skill moves to your hex.
     const placeHere = (folk, why) => {
       const pos = state.position();
@@ -753,7 +760,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       const back = skillId !== null && keptJob(folk, skillId);
       updateJobs((CM, jobs) => CM.jobsAfterAssign(jobs, { folkId: folk.id, previous, skillId }));
       if (skillId === null) return;
-      // Back on its kept job: it works on where it stands.
+      // Back on its kept job, or arriving from a walk (6d): it works on where it stands.
+      if (arriving(folk)) { log(`${folk.name} arrives on ${skillId} at (${folk.place.q},${folk.place.r})`); return; }
       if (back) { log(`${folk.name} back on ${skillId} at (${folk.place.q},${folk.place.r})`); return; }
       if (folk.travel === 'with') api.setTravel(folk.id, 'idle');
       placeHere(folk, `picked for ${skillId}`);
@@ -833,9 +841,29 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     const off = skill === undefined ? undefined : runningActions(skill).map((a) => [a, zoneLockedAt(a, place)]).find(([, z]) => z !== undefined);
     return off === undefined ? undefined : { reason: folkZoneText(off[0], { ...off[1], folk }) };
   };
+  /** A Folk walking alone (6d) takes no orders but Stop here until it arrives. */
+  const walkingRefusal = (folk) => {
+    if (folk?.travel !== 'walking' || arriving(folk)) return undefined;
+    const w = state.walks?.describe?.(folk.id);
+    return { reason: line('MOD_VOY_WALK_BUSY', { name: esc(folk.name), to: w === undefined ? '' : esc(w.to) }).text };
+  };
+  const arriving = (folk) => folk !== undefined && state.walks?.arriving?.() === folk.id;
+  /** Why a Folk standing on `hex` can't do `action` of `skillId` there (6d's places), or undefined. Plain text. */
+  state.folkWorkAt = (folk, skillId, action, hex) => {
+    const locked = lockedAt(skillId, hex);
+    if (locked !== undefined) return folkWorkText(skillId, { ...locked, folk });
+    const z = zoneLockedAt(action, hex);
+    return z === undefined ? undefined : folkZoneText(action, { ...z, folk });
+  };
+  /** The land of a hex in a word or two, as the lock popups name it (6d's places): { text, html }. */
+  state.landWords = (hex) => { const rec = state.recordAt(hex); return rec === undefined ? { text: '', html: '' } : here(rec); };
   /** The card's and Worker box's line: where the Folk stands, from you. */
   const folkWhere = (folk) => {
     if (folk.travel === 'with') return getLangString('MOD_VOY_FOLK_WITH_YOU');
+    if (folk.travel === 'walking') {
+      const w = state.walks?.describe?.(folk.id);
+      if (w !== undefined) return line('MOD_VOY_WALK_CARD', { to: esc(w.to), left: esc(w.leftText) }).text;
+    }
     if (folk.place === null) return getLangString('MOD_VOY_FOLK_NO_PLACE');
     const rec = state.recordAt(folk.place);
     const pos = state.position();

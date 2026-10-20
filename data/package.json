@@ -500,6 +500,44 @@
         "defaultBuyLimit": 1,
         "buyLimitOverrides": [],
         "showBuyLimit": false
+      },
+      {
+        "id": "Walking_Orders",
+        "customName": "Walking Orders",
+        "customDescription": "Sealed orders for your Folks. Send a Folk with you or within a hex to a place the Journal knows: it walks there alone, eating from your stores, and starts its work on arrival.",
+        "media": "assets/walking_orders.webp",
+        "category": "voyage:Voyage",
+        "contains": {
+          "items": [],
+          "modifiers": {}
+        },
+        "cost": {
+          "items": [
+            {
+              "id": "melvorF:Gold_Ruby_Necklace",
+              "quantity": 200
+            }
+          ],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 200000
+            }
+          ]
+        },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          {
+            "type": "SkillLevel",
+            "skillID": "voyage:Voyage",
+            "level": 20
+          }
+        ],
+        "defaultBuyLimit": 1,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
       }
     ],
     "shopDisplayOrder": [
@@ -511,7 +549,8 @@
           "voyage:Pack_Yak",
           "voyage:Riding_Horse",
           "voyage:Unicorn",
-          "voyage:Crossroads_Sign"
+          "voyage:Crossroads_Sign",
+          "voyage:Walking_Orders"
         ]
       }
     ]

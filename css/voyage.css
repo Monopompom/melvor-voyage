@@ -966,8 +966,9 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-board-popup { max-width: 96vw; }
 .voyage-board-popup .voyage-cargo { max-height: 62vh; min-height: min(62vh, 26rem); overflow-y: auto; padding-right: 2px; } /* a steady height, so the tab bar stays put on a switch (.309, B-25) */
 /* The mod's scroll areas get a thin scrollbar in the page's colours, not the browser's white one (the user, build .205):
-   light on the dark board and Here panel, ink-brown on the journal's paper. */
-.voyage-board-popup .voyage-cargo, #voyage-here.voyage-capped, .voyage-plan-arrival .dropdown-menu { scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }
+   light on the dark board, Here panel and every popup's body (the Send dialog's showed white, 20 Oct 2026), ink-brown
+   on the journal's paper. */
+.voyage-board-popup .voyage-cargo, #voyage-here.voyage-capped, .voyage-plan-arrival .dropdown-menu, .voyage-ui .swal2-html-container { scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }
 .vj-page, .vj-page-body, .vj-spread, .vj-letter { scrollbar-width: thin; scrollbar-color: rgba(90, 60, 30, .45) transparent; }
 .voyage-cargo { display: flex; flex-direction: column; gap: 8px; font-size: .95rem; }
 .voyage-cargo-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 16px; padding: 8px 12px; border-radius: 4px; background: var(--voyage-band); }
@@ -1102,6 +1103,8 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-clock-note { font-size: .9rem; margin-top: 6px; }
 .voyage-clock-ended { display: flex; align-items: flex-start; gap: 12px; }
 .voyage-clock-ended-text { flex: 1; }
+/* Two notes at once (a voyage's end and an Adrift spell's): a rule between them, each with its own Close. */
+.voyage-clock-ended + .voyage-clock-ended { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--voyage-rule); }
 .voyage-clock-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .voyage-clock-tile-wide { grid-column: 1 / -1; }
 /* Set off popup (build .222, the user: icons, colour, decoration): each tile has a gold edge on the left. */
@@ -1196,6 +1199,23 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-crew-skill { vertical-align: -2px; margin-right: 2px; }
 .voyage-crew-row + .voyage-crew-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
 .voyage-crew-work select { max-width: 320px; margin: 0 auto; }
+/* Walking alone (6d): the row's two buttons stacked, one width; the Send dialog's places as picker buttons. */
+.voyage-crew-buttons { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
+.voyage-crew-buttons .btn { width: 100%; }
+/* The work: the skill's dropdown, the resource's under it (the planner's dropdown); a list of one is a plain line
+   lined up with a toggle's face. */
+#voyage-walk-works > * + * { margin-top: 8px; }
+.voyage-walk-one { display: flex; align-items: center; min-height: 40px; padding: 0 calc(.75rem + 1px); font-size: 1rem; }
+.voyage-walk-note:not(:empty) { margin-top: 8px; }
+.voyage-walk-places { display: flex; flex-direction: column; gap: 8px; max-width: 420px; max-height: 320px; margin: 0 auto; overflow-y: auto; padding-right: 2px; scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }
+.voyage-walk-place { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; white-space: normal; padding: 8px 12px; }
+.voyage-walk-place-name { font-weight: 600; }
+.voyage-walk-place-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; font-size: .9rem; }
+.voyage-walk-dot { opacity: .6; }
+.voyage-walk-place .voyage-stores-icons img { width: 16px; height: 16px; }
+/* A place it can't go to: a grey outline, as every disabled button, but its reason stays readable (no faded text). */
+.voyage-walk-place:disabled { opacity: 1; color: var(--voyage-dis-text); border-color: var(--voyage-dis-line); cursor: default; }
+.voyage-walk-place-why { font-size: .9rem; }
 
 /* The Here panel's Folks lines (phase 6c): the names or the count on the left, the Crew button on the right. */
 .voyage-here-folks { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

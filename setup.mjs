@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-20.342';
+export const BUILD = '2026-10-20.348';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -378,7 +378,9 @@ export async function setup(ctx) {
   } catch (e) { console.error('[Voyage] the crew failed to load; Folks stay ashore', e); state.crew = undefined; }
   // Folks walking alone (phase 6d): the road over known land and the walks in the save. A failure: nobody walks.
   try {
-    state.walks = (await ctx.loadModule('src/walks.mjs')).install(ctx, { state, W: await ctx.loadModule('src/walk-model.mjs'), log });
+    state.walks = (await ctx.loadModule('src/walks.mjs')).install(ctx, { state, W: await ctx.loadModule('src/walk-model.mjs'), S: storesModel, C: await ctx.loadModule('src/clock-model.mjs'), helpLayout, log });
+    const s = voyageSkill();
+    if (s !== undefined) s.walks = state.walks;
   } catch (e) { console.error('[Voyage] walking failed to load; Folks stay put', e); state.walks = undefined; }
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.
   holdMod.install(ctx, { state, shipModel, helpLayout, log });

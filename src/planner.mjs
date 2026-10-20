@@ -328,7 +328,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     for (const { id, quantity } of P.NAVIGATOR.items) { const it = game.items.getObjectByID(id); if (it !== undefined) costs.push(costIcon(it.media, quantity, game.bank.getQty(it), it.name, it.id)); }
     const reason = why === 'level' ? t('MOD_VOY_PLAN_NAV_WHY_LEVEL', { level: `${P.NAVIGATOR.level}` })
       : why === 'port' ? t('MOD_VOY_PLAN_NAV_WHY_PORT') : why === 'cost' ? t('MOD_VOY_PLAN_NAV_WHY_COST') : '';
-    return section(`<div class="voyage-big-head my-0"><i class="fa fa-map mr-2" aria-hidden="true"></i>${esc(t('MOD_VOY_PLAN_NAV_TITLE'))}</div>` // the Ship block's one sub-heading look (.309, scan A-19/A2-10) +
+    // The Ship block's one sub-heading look (.309, scan A-19/A2-10).
+    return section(`<div class="voyage-big-head my-0"><i class="fa fa-map mr-2" aria-hidden="true"></i>${esc(t('MOD_VOY_PLAN_NAV_TITLE'))}</div>` +
       `<div class="mb-1">${esc(t('MOD_VOY_PLAN_NAV_NEED', { level: `${P.NAVIGATOR.level}` }))}</div>` +
       `<div class="d-flex flex-wrap align-items-center">${costs.join('')}</div>` +
       (why === undefined
@@ -517,7 +518,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     return { name: target.name, media: target.media, distance: Number.isFinite(d) ? d : undefined };
   };
   const reopen = () => { if (target === undefined) return false; showBlock(); return true; };
-  const api = { planTo, forAction, forArea, html, onClick, signature, open, owned, summary, reopen, navHtml, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
+  // startAction and startable: a Folk arriving from a walk (6d) starts its resource the same way.
+  const api = { planTo, forAction, forArea, html, onClick, signature, open, owned, summary, reopen, navHtml, startAction, startable, isRunning, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
   state.planner = api;
   return api;
 }

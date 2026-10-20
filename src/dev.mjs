@@ -230,6 +230,16 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       return { from, to, hexes: road.length, minutes: Math.round(ms / 60000), classes: road.map((s) => s.cls).join(' '), canWalk: state.walks.canWalk() };
     },
     /**
+     * The Folks walking alone (6d), or with `minutes` every walk moved that far along (its start set back), so the
+     * next tick steps it on or ends it. voyageDev.walks(10)
+     */
+    walks(minutes) {
+      if (state.walks === undefined) return 'walking not loaded';
+      const r = state.voyageSkill?.()?.record;
+      if (Number.isFinite(minutes) && r?.walks) { for (const w of Object.values(r.walks)) w.start -= minutes * 60000; state.walks.reschedule(); }
+      return state.walks.walking().map(({ folk, walk }) => ({ name: folk.name, place: folk.place, travel: folk.travel, to: walk.to, left: walk.leftText, reached: `${walk.reached}/${walk.hexes}` }));
+    },
+    /**
      * Sets the Voyage skill level (compass stages: 10 adds the hex count, 25 the place name), or shows the skill's
      * record when called without a level. voyageDev.voyage(25)
      */

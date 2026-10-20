@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WALK_MS, hexMs, findRoad, roadMs, roadPack, walkAt, cleanWalk, cleanWalks, WALKS_MAX, ROAD_MAX } from '../src/walk-model.mjs';
+import { WALK_MS, hexMs, findRoad, roadMs, roadPack, walkAt, nextAt, folkStepCost, sortPlaces, cleanWalk, cleanWalks, WALKS_MAX, ROAD_MAX } from '../src/walk-model.mjs';
+import { stepCost } from '../src/stores-model.mjs';
+import { foodShare } from '../src/crew-model.mjs';
 import { stepMs } from '../src/clock-model.mjs';
 import { SAVE_VERSION, defaultSave, loadSave, serializeSave } from '../src/voyage-model.mjs';
 
@@ -61,10 +63,44 @@ test('walk: where the Folk is at a moment, and when it arrives', () => {
   assert.equal(walkAt(walk, 0).reached, 0, 'a clock before the start stays at the start');
 });
 
+test('walk: the next hex comes when its time is walked, and nothing after the last', () => {
+  const walk = { from: { q: 0, r: 0 }, start: 1000, road: [{ q: 1, r: 0, ms: 100 }, { q: 2, r: 0, ms: 150 }] };
+  assert.equal(nextAt(walk, 1000), 1100);
+  assert.equal(nextAt(walk, 1099), 1100);
+  assert.equal(nextAt(walk, 1100), 1250);
+  assert.equal(nextAt(walk, 1250), undefined);
+});
+
+test('walk: a Folk alone eats its rank\'s share of your food and burns your fuel', () => {
+  const yours = stepCost({ cls: 'highlands' }, 1, 0);
+  assert.deepEqual(folkStepCost(yours, foodShare('Middle')), yours);
+  assert.deepEqual(folkStepCost(yours, foodShare('Newbie')), { food: Math.round(yours.food / 2), fuel: yours.fuel });
+  assert.equal(folkStepCost(yours, foodShare('Expert')).food, Math.round(yours.food * 1.5));
+  assert.deepEqual(folkStepCost(undefined, 1), { food: 0, fuel: 0 });
+  // Snowlands cost twice the easy ground, as yours do.
+  const snow = folkStepCost(stepCost({ cls: 'snowlands' }, 1, 0), 1);
+  const grass = folkStepCost(stepCost({ cls: 'grasslands' }, 1, 0), 1);
+  assert.equal(snow.food, grass.food * 2);
+});
+
+test('walk: places it can reach come first, quickest first; then the ones across water, nearest first', () => {
+  const step = (ms) => ({ q: 0, r: 0, cls: 'grasslands', ms });
+  const list = [
+    { id: 'far-water', road: undefined, distance: 9 },
+    { id: 'slow', road: [step(300), step(300)], distance: 2 },
+    { id: 'near-water', road: undefined, distance: 3 },
+    { id: 'quick', road: [step(100), step(100), step(100)], distance: 3 },
+  ];
+  assert.deepEqual(sortPlaces(list).map((p) => p.id), ['quick', 'slow', 'near-water', 'far-water']);
+  assert.deepEqual(sortPlaces(undefined), []);
+});
+
 test('walk: a saved walk keeps what it needs and drops junk', () => {
   const good = { from: { q: 1, r: 2 }, start: 5, road: [{ q: 2, r: 2, cls: 'grasslands', ms: 360000.4 }], skillId: 'melvorD:Mining', actionId: 'melvorD:Iron_Ore', extra: 1 };
   assert.deepEqual(cleanWalk(good), { from: { q: 1, r: 2 }, start: 5, road: [{ q: 2, r: 2, cls: 'grasslands', ms: 360000 }], skillId: 'melvorD:Mining', actionId: 'melvorD:Iron_Ore' });
   assert.equal(cleanWalk({ ...good, skillId: 3 }).skillId, null);
+  assert.equal(cleanWalk({ ...good, holder: 'f2' }).holder, 'f2');
+  assert.equal('holder' in cleanWalk({ ...good, holder: 7 }), false);
   for (const bad of [null, 'x', { ...good, from: { q: 1.5, r: 0 } }, { ...good, start: -1 }, { ...good, road: [] }, { ...good, road: [{ q: 1, r: 1, cls: '', ms: 5 }] }, { ...good, road: [{ q: 1, r: 1, cls: 'x', ms: 0 }] }]) {
     assert.equal(cleanWalk(bad), undefined);
   }

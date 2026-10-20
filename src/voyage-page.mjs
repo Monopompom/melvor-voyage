@@ -123,6 +123,9 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
         const id = target.dataset.folk;
         if (target.dataset.voyageAction === 'crew-come') { if (state.crew.comeAlong(id)) render(); }
         else if (target.dataset.voyageAction === 'crew-ashore') state.crew.askAshore(id, render);
+        // Walking alone (6d): Send… and Stop here.
+        else if (target.dataset.voyageAction === 'crew-send') state.walks?.askSend(id, render);
+        else if (target.dataset.voyageAction === 'walk-stop') state.walks?.askStop(id, render);
       });
       part('stores')?.addEventListener('click', (e) => {
         const target = e.target instanceof Element ? e.target.closest('[data-voyage-action], [data-voyage-preset]') : null;
@@ -280,9 +283,9 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       }
       return `${out}</div>`;
     };
-    const row = (f, extra, button, along = false, skillIcon = '') => `<div class="voyage-crew-row">`
+    const row = (f, extra, button, along = false, skillIcon = '', note = '') => `<div class="voyage-crew-row">`
       + (f.portrait ? `<img class="voyage-crew-face" src="${esc(f.portrait)}" alt="">` : '')
-      + `<div class="voyage-crew-who"><div><span class="font-w600">${esc(f.name)}</span> <small class="text-muted">(${esc(rankName(f.tier))}${skillIcon}${extra})</small></div>${hpBlock(f, along)}</div>`
+      + `<div class="voyage-crew-who"><div><span class="font-w600">${esc(f.name)}</span> <small class="text-muted">(${esc(rankName(f.tier))}${skillIcon}${extra})</small></div>${hpBlock(f, along)}${note}</div>`
       + `${button}</div>`;
     // Berths: each vessel you own, the one you are in marked.
     const inV = c.inVessel();
@@ -291,8 +294,13 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       return `<span class="voyage-crew-berth${kind === inV ? ' font-w600' : ' text-muted'}"><img class="voyage-hold-part-icon mr-1" src="${ctx.getResourceUrl(shipModel.HULLS[v.hull].media)}" alt="">${esc(t(c.berthsFor(kind) === 1 ? 'MOD_VOY_CREW_BERTHS_ONE' : 'MOD_VOY_CREW_BERTHS', { hull: t(shipModel.hullNameKey(v.hull)), n: `${c.berthsFor(kind)}` }))}</span>`;
     });
     let html = berths.length > 0 ? `<div class="voyage-crew-berths">${berths.join('')}</div>` : `<div class="text-muted">${esc(t('MOD_VOY_CREW_NO_VESSEL'))}</div>`;
-    const ashoreBtn = (f) => (ashoreWhy !== undefined ? ''
-      : `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="crew-ashore" data-folk="${esc(f.id)}">${esc(t('MOD_VOY_CREW_ASHORE_BUTTON'))}</button>`);
+    // Send… (6d): with Walking Orders, for a Folk with you or within a hex; the dialog says where and what it costs.
+    const wk = state.walks;
+    const sendBtn = (f) => (wk === undefined || wk.sendRefusal(f) !== undefined ? ''
+      : `<button type="button" class="btn btn-sm btn-outline-success" data-voyage-action="crew-send" data-folk="${esc(f.id)}">${esc(t('MOD_VOY_WALK_SEND_OPEN'))}</button>`);
+    const buttons = (...parts) => { const b = parts.filter((x) => x !== ''); return b.length > 1 ? `<div class="voyage-crew-buttons">${b.join('')}</div>` : b.join(''); };
+    const ashoreBtn = (f) => buttons(ashoreWhy !== undefined ? ''
+      : `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="crew-ashore" data-folk="${esc(f.id)}">${esc(t('MOD_VOY_CREW_ASHORE_BUTTON'))}</button>`, sendBtn(f));
     html += crew.length === 0
       ? `<div class="text-muted mt-2">${esc(t('MOD_VOY_CREW_NONE'))}</div>`
       : `<div class="voyage-big-head">${esc(t('MOD_VOY_CREW_WITH_HEAD'))}</div>${crew.map((f) => row(f, '', ashoreBtn(f), true)).join('')}` +
@@ -304,7 +312,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       };
       const comeBtn = (f) => {
         const why = c.comeRefusal(f.id);
-        return why !== undefined ? '' : `<button type="button" class="btn btn-sm btn-success" data-voyage-action="crew-come" data-folk="${esc(f.id)}">${esc(t('MOD_VOY_CREW_COME_BUTTON'))}</button>`;
+        return buttons(why !== undefined ? '' : `<button type="button" class="btn btn-sm btn-success" data-voyage-action="crew-come" data-folk="${esc(f.id)}">${esc(t('MOD_VOY_CREW_COME_BUTTON'))}</button>`, sendBtn(f));
       };
       const refusal = near.map((f) => c.comeRefusal(f.id)).find((w) => w !== undefined && w !== '' && w !== busy);
       html += `<div class="voyage-big-head">${esc(t('MOD_VOY_CREW_NEAR_HEAD'))}</div>${near.map((f) => {
@@ -319,6 +327,13 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     }
     // Under way or adrift: one line says why no button shows, under both lists.
     if (busy !== undefined && (crew.length > 0 || near.length > 0)) html += `<small class="d-block text-warning mt-2">${esc(busy)}</small>`;
+    // Walking alone (6d): where each is going and the time left; Stop here from anywhere.
+    const walking = wk?.walking?.() ?? [];
+    if (walking.length > 0) {
+      html += `<div class="voyage-big-head">${esc(t('MOD_VOY_WALK_HEAD'))}</div>${walking.map(({ folk, walk }) => row(folk, '',
+        `<button type="button" class="btn btn-sm btn-outline-warning" data-voyage-action="walk-stop" data-folk="${esc(folk.id)}">${esc(t('MOD_VOY_WALK_STOP_BUTTON'))}</button>`,
+        false, '', `<small class="d-block text-muted voyage-walk-line">${esc(t('MOD_VOY_WALK_CARD', { to: walk.to, left: walk.leftText }))}</small>`)).join('')}`;
+    }
     return section(html) + `<small class="d-block text-muted mt-1">${esc(t('MOD_VOY_CREW_HINT'))}</small>`;
   };
   /** The Shipwright row folds open (closed by default), per browser. */

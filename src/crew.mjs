@@ -24,12 +24,12 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
   /** The vessel you are in now, or undefined ashore. */
   const inVessel = () => state.ship?.inVessel?.();
   const atSea = () => shipModel.isSea(state.recordAt(state.position()));
-  /** Idle Folks within 1 hex who could come along, nearest first. */
+  /** Folks standing within 1 hex who could come along, nearest first (not one walking alone, 6d). */
   const near = () => {
     const pos = state.position();
     if (!on() || pos === undefined) return [];
     return api().folks()
-      .filter((f) => f.travel !== 'with' && f.place !== null && hexDistance(pos, f.place) <= 1)
+      .filter((f) => f.travel === 'idle' && f.place !== null && hexDistance(pos, f.place) <= 1)
       .sort((a, b) => hexDistance(pos, a.place) - hexDistance(pos, b.place) || a.slot - b.slot);
   };
   /** Why the crew can't change now, or undefined: under way on a voyage, or adrift. */
@@ -48,7 +48,7 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
       if (count() >= berths) return t(berths === 1 ? 'MOD_VOY_CREW_NO_BERTH_ONE' : 'MOD_VOY_CREW_NO_BERTH', { hull: state.ship.hullName(state.ship.vessel(kind)), berths: `${berths}` });
     }
     const f = api()?.folkById(id);
-    if (f === undefined || f.travel === 'with') return '';
+    if (f === undefined || f.travel !== 'idle') return '';
     return undefined;
   };
   const comeAlong = (id) => {

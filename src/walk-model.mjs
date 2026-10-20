@@ -96,6 +96,38 @@ export function walkAt(walk, now) {
   return { reached, at: at === undefined ? undefined : { q: at.q, r: at.r }, left: Math.max(0, total - elapsed), done: reached >= road.length };
 }
 
+/** The moment the walk enters its next hex (ms since the epoch), or undefined once it has arrived. */
+export function nextAt(walk, now) {
+  const { reached, done } = walkAt(walk, now);
+  if (done) return undefined;
+  let t = walk.start;
+  for (let i = 0; i <= reached; i++) t += walk.road[i].ms;
+  return t;
+}
+
+/**
+ * What a Folk eats on a hex walked alone (6d): your cost for the hex (stores-model stepCost, no crew) with the food
+ * by its rank's share (crew-model foodShare); the fuel as yours.
+ */
+export const folkStepCost = (yours, share) => ({
+  food: Math.round((Number.isFinite(yours?.food) ? yours.food : 0) * (Number.isFinite(share) && share > 0 ? share : 1)),
+  fuel: Number.isFinite(yours?.fuel) ? yours.fuel : 0,
+});
+
+/**
+ * The places a Folk may be sent, in the order the dialog lists them: the ones it can reach first, quickest first;
+ * then the ones across water, nearest first. Each place is { road (undefined: no road), distance }.
+ */
+export function sortPlaces(places) {
+  const key = (p) => (p.road === undefined ? [1, p.distance] : [0, roadMs(p.road), p.distance]);
+  return [...(places ?? [])].sort((a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    for (let i = 0; i < Math.max(ka.length, kb.length); i++) if ((ka[i] ?? 0) !== (kb[i] ?? 0)) return (ka[i] ?? 0) - (kb[i] ?? 0);
+    return 0;
+  });
+}
+
 /** Walks a save keeps at most: one per Folk, and Worker Folks never hires more than there are skills to hold. */
 export const WALKS_MAX = 64;
 /** Hexes a saved road keeps at most. */
@@ -110,9 +142,10 @@ const cleanStep = (s) => {
 };
 
 /**
- * One walk as a save keeps it: { from, road, start, skillId, actionId? }. `from` the hex it set off from, `start` the
- * moment (ms since the epoch), `skillId` the work it starts on arrival (null: none), `actionId` the resource picked
- * from the Journal, if any. Undefined when it can't be read.
+ * One walk as a save keeps it: { from, road, start, skillId, actionId?, holder? }. `from` the hex it set off from,
+ * `start` the moment (ms since the epoch), `skillId` the work it starts on arrival (null: none), `actionId` the resource
+ * picked from the Journal, `holder` the Folk that held that skill when it was sent (it takes the skill over from that
+ * one, and only that one). Undefined when it can't be read.
  */
 export function cleanWalk(w) {
   if (w === null || typeof w !== 'object') return undefined;
@@ -127,6 +160,7 @@ export function cleanWalk(w) {
   if (road.length === 0) return undefined;
   const out = { from, road, start: Math.round(w.start), skillId: typeof w.skillId === 'string' && w.skillId !== '' ? w.skillId : null };
   if (typeof w.actionId === 'string' && w.actionId !== '') out.actionId = w.actionId;
+  if (typeof w.holder === 'string' && w.holder !== '') out.holder = w.holder;
   return out;
 }
 

@@ -29,6 +29,8 @@ export function createVoyageClass({ model, log }) {
       this.adrift = undefined;
       /** Set by setup: the weather (src/weather.mjs); its passive tick notices Township's season changing. */
       this.weather = undefined;
+      /** Set by setup: Folks walking alone (src/walks.mjs), on the clock online and offline (phase 6d). */
+      this.walks = undefined;
     }
 
     get name() { return getLangString('SKILL_NAME_Voyage'); }
@@ -40,10 +42,11 @@ export function createVoyageClass({ model, log }) {
 
     // ---- the active action (a voyage under way) ---------------------------------------------------------
     activeTick() { try { this.clock?.tick(); } catch (e) { log('voyage tick failed', e); } }
-    /** Every tick, online and offline, whatever runs (Game.tick's passive tickers): the drift while Adrift (5b part two). */
+    /** Every tick, online and offline, whatever runs (Game.tick's passive tickers): the drift while Adrift (5b part two), the season, Folks walking alone (6d). */
     passiveTick() {
       try { this.weather?.tick(); } catch (e) { log('weather tick failed', e); }
       try { this.adrift?.tick(); } catch (e) { log('adrift tick failed', e); }
+      try { this.walks?.tick(); } catch (e) { log('walks tick failed', e); }
     }
     get isActive() { return this.clock?.running?.() === true; }
     get activeSkills() { return this.isActive ? [this] : []; }

@@ -1774,7 +1774,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
 
   /** The hexes where an action was found, as { q, r } (the planner heads for the nearest, build .119). */
   const foundHexes = (actionId) => (journal()?.found[actionId] ?? []).map(jm.parseHex).filter((h) => h !== undefined);
-  const api = { open, close, learn, miss, footer, portUsed, iconUrl, isOpen: () => view.open, refresh, badge, foundHexes, golbinLetter: showLetter, chartAny, canChartAny };
+  /** The resources found so far, as the Resources tab lists them: [{ id, skillId, action, found: [{ q, r }] }] (6d's places). */
+  const finds = () => entries().filter((e) => e.found.length > 0 && e.action !== undefined)
+    .map((e) => ({ id: e.id, skillId: e.skillId, action: e.action, found: e.found.map(jm.parseHex).filter((h) => h !== undefined) }));
+  const api = { open, close, learn, miss, footer, portUsed, iconUrl, isOpen: () => view.open, refresh, badge, foundHexes, finds, golbinLetter: showLetter, chartAny, canChartAny };
   state.journal = api;
   return api;
 }
