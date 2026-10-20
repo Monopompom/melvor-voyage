@@ -377,7 +377,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (info === undefined || info.blocker !== undefined) return '';
       const hull = sh.hullName({ hull: info.id });
       return `<div class="voyage-here-ship"><span><i class="fa fa-hammer mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_SHIPYARD_READY', { hull }))}</span>` +
-        `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-shipyard-link" title="${esc(getLangString('MOD_VOY_PANEL_SHIPYARD_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_SHIPYARD_BUTTON'))}</button></div>`;
+        `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-shipyard-link">${esc(getLangString('MOD_VOY_PANEL_SHIPYARD_BUTTON'))}</button></div>`;
     }).join('');
   };
 
@@ -577,10 +577,11 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const on = st?.enabled?.() === true;
     // 1b. Under way (phase 5a): the time left, as of the hex entered last.
     const way = state.clock?.chip?.();
-    // Each chip's tap hint is a row of its own in the tooltip (build .283, the user: "Tap to open - move on separate row").
+    // A tooltip says what a chip is about, never what a tap does: a chip that goes somewhere wears a ring instead (the
+    // user, 20 Oct 2026: "remove tooltip's texts about clicking on element and instead 'show' with UI").
     // The strip's chips go where they are about (build .267, the user: "maybe every skill icon can open respective
     // skill page?"): under way to its block on the Voyage page, the stores to Stores, the hull to the vessel.
-    if (way !== undefined) out.push(chip(`${wayFill(way)}<i class="fa fa-${way.tow ? 'anchor' : 'route'} mr-1"></i><span data-voyage-way="chip">${esc(way.text)}</span>`, `${way.tip}\n${getLangString('MOD_VOY_MINI_WAY_HINT')}`, 'text-info voyage-way', 'voyage-chip-link voyage-way-link'));
+    if (way !== undefined) out.push(chip(`${wayFill(way)}<i class="fa fa-${way.tow ? 'anchor' : 'route'} mr-1"></i><span data-voyage-way="chip">${esc(way.text)}</span>`, way.tip, 'text-info voyage-way', 'voyage-chip-link voyage-way-link'));
     // 2. Stores, coloured like the panel's line: Stock up itself where you can stock up (the user: "move Stock up
     // button onto the Stores stats"), ringed blue with a plus then.
     const have = on ? st.stores() : undefined;
@@ -589,7 +590,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const cap = st.capacity();
       const load = st.loadingHere() !== undefined && (have.food < cap.food || have.fuel < cap.fuel);
       out.push(chip(st.icons(have.food, have.fuel, false) + (load ? '<i class="fa fa-plus-circle text-info ml-1" aria-hidden="true"></i>' : ''),
-        `${st.amounts(have.food, have.fuel)}.\n${getLangString(load ? 'MOD_VOY_MINI_LOAD_HINT' : 'MOD_VOY_MINI_STORES_HINT')}`, `${low}${load ? ' voyage-chip-load' : ''}`, 'voyage-chip-link voyage-load-link'));
+        `${st.amounts(have.food, have.fuel)}.${load ? `\n${getLangString('MOD_VOY_MINI_LOAD_HINT')}` : ''}`, `${low}${load ? ' voyage-chip-load' : ''}`, 'voyage-chip-link voyage-load-link'));
     }
     // 2b. The Folks with you (6c, the user: "an icon on the minimized map panel that a player is with a crew"): how
     // many, named in the tooltip; red once the food is out, as each hex then costs them HP. A tap opens the Crew block.
@@ -598,7 +599,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const hungry = have !== undefined && have.food <= 0;
       const names = crew.map((f) => `${f.name} (${state.rankName?.(f.tier) ?? f.tier})`).join('\n');
       out.push(chip(`<i class="fa fa-users mr-1" aria-hidden="true"></i>${crew.length}`,
-        `${getLangString('MOD_VOY_PANEL_CREW_LABEL')}\n${names}${hungry ? `\n${getLangString('MOD_VOY_MINI_CREW_HUNGRY')}` : ''}\n${getLangString('MOD_VOY_MINI_CREW_HINT')}`,
+        `${getLangString('MOD_VOY_PANEL_CREW_LABEL')}\n${names}${hungry ? `\n${getLangString('MOD_VOY_MINI_CREW_HUNGRY')}` : ''}`,
         hungry ? 'text-danger' : 'text-info', 'voyage-chip-link voyage-crew-link'));
     }
     // 3. Hull, once worn.
@@ -613,7 +614,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         // The name starts the tooltip, so it takes a capital (build .270, the user: "ship name - capitalize").
         const named = sh.hullName?.(sh.vessel(kind)) ?? getLangString('MOD_VOY_SHIP_BOAT');
         const tip = `${named.charAt(0).toUpperCase()}${named.slice(1)}: ${templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` })}`;
-        out.push(chip(`<i class="fa fa-ship mr-1"></i>${c}%`, `${tip}.\n${getLangString('MOD_VOY_MINI_HULL_HINT')}`, c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : '', 'voyage-chip-link voyage-find-ship', ` data-kind="${kind}"`));
+        out.push(chip(`<i class="fa fa-ship mr-1"></i>${c}%`, `${tip}.`, c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : '', 'voyage-chip-link voyage-find-ship', ` data-kind="${kind}"`));
       }
     }
     // 3b. A storm within 3 hexes (phase 5c-3, the canvas's board 4: "a storm chip only when one is within 3 hexes").
@@ -652,7 +653,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         if (areas.length > 0) {
           // Several in reach: the tap unfolds the panel, its Combat row has a button each (build .280, the user's pick).
           const one = areas.length === 1;
-          const tip = `${templateLangString('MOD_VOY_MINI_COMBAT', { areas: areas.map((a) => a.name).join(', ') })}\n${getLangString(one ? 'MOD_VOY_MINI_COMBAT_HINT' : 'MOD_VOY_MINI_COMBAT_PICK')}`;
+          const tip = templateLangString('MOD_VOY_MINI_COMBAT', { areas: areas.map((a) => a.name).join(', ') });
           const media = game.pages.getObjectByID('melvorD:Combat')?.media ?? '';
           fight = `<button type="button" class="voyage-skill-btn voyage-fight-chip"${one ? ` data-area="${esc(areas[0].id)}"` : ''} title="${esc(tip)}" aria-label="${esc(tip)}"><img class="skill-icon-xs" src="${esc(media)}" alt=""></button>`;
         }
@@ -708,8 +709,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
   const tuckHtml = (tip, status) => {
     const alert = tuckAlert();
-    const label = `${getLangString('MOD_VOY_PANEL_YOU_ARE_HERE')}: ${tip}.${alert === '' ? '' : ` ${getLangString(alert === 'bad' ? 'MOD_VOY_PANEL_TUCK_BAD' : 'MOD_VOY_PANEL_TUCK_WARN')}`} ${getLangString('MOD_VOY_PANEL_UNTUCK')}`;
-    return `<div class="voyage-tuck-row"><button type="button" class="voyage-panel-toggle voyage-tuck" aria-expanded="false" title="${esc(label)}" aria-label="${esc(label)}">`
+    const said = `${getLangString('MOD_VOY_PANEL_YOU_ARE_HERE')}: ${tip}.${alert === '' ? '' : ` ${getLangString(alert === 'bad' ? 'MOD_VOY_PANEL_TUCK_BAD' : 'MOD_VOY_PANEL_TUCK_WARN')}`}`;
+    const label = `${said} ${getLangString('MOD_VOY_PANEL_UNTUCK')}`;
+    return `<div class="voyage-tuck-row"><button type="button" class="voyage-panel-toggle voyage-tuck" aria-expanded="false" title="${esc(said)}" aria-label="${esc(label)}">`
       + `${captainIcon()}${alert === '' ? '' : `<span class="voyage-tuck-dot voyage-tuck-${alert}" aria-hidden="true"></span>`}</button>${warnChips(status).join('')}</div>`;
   };
   const miniHtml = (pos, d, tip, status) => {
@@ -720,8 +722,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     // The caret is its own button (the user, 18 Oct 2026): a tap unfolds, a press and hold on a touchscreen shrinks the
     // strip to the square. The terrain name unfolds too and keeps its tooltip.
     return `<div class="voyage-mini-row"><button type="button" class="voyage-panel-toggle voyage-mini-caret" data-tip-touch="off" aria-expanded="false" aria-label="${esc(`${unfold}. ${hold}`)}"><i class="fa fa-caret-right"></i></button>` +
-      `<button type="button" class="voyage-panel-toggle voyage-mini-toggle" aria-expanded="false" title="${esc(`${tip}.\n${unfold}`)}" aria-label="${esc(`${tip}. ${unfold}`)}">` +
-      `${swatch}${esc(d.label)}</button>${warn.join('')}${miniChips(pos, status).join('')}</div>`;
+      `<button type="button" class="voyage-panel-toggle voyage-mini-toggle" aria-expanded="false" title="${esc(tip)}" aria-label="${esc(`${tip}. ${unfold}`)}">` +
+      `<span class="voyage-toggle-pill">${swatch}${esc(d.label)}</span></button>${warn.join('')}${miniChips(pos, status).join('')}</div>`;
   };
 
   // The legend folds away behind a "Legend" toggle; closed by default. The choice is a browser convenience kept in
@@ -1136,8 +1138,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const headLabel = time === undefined ? esc(getLangString('MOD_VOY_PANEL_YOU_ARE_HERE'))
         : `<span class="voyage-here-clock ${time.night ? 'text-info' : ''}"><i class="fa fa-${time.night ? 'moon' : 'sun'} mr-1"></i>${esc(time.text)}</span>`;
       panel.innerHTML =
-        `<div class="voyage-here-head"><button type="button" class="voyage-panel-toggle voyage-open-caret" data-tip-touch="off" aria-expanded="${panelOpen}" title="${esc(time === undefined ? fold : `${time.text}. ${time.hint}\n${fold}`)}" aria-label="${esc(`${getLangString('MOD_VOY_PANEL_YOU_ARE_HERE')}. ${fold}. ${getLangString('MOD_VOY_PANEL_HOLD_TUCK')}`)}">` +
-        `<i class="fa fa-caret-${panelOpen ? 'down' : 'right'} mr-1"></i>${headLabel}</button>${manageLink()}</div>` +
+        `<div class="voyage-here-head"><button type="button" class="voyage-panel-toggle voyage-open-caret" data-tip-touch="off" aria-expanded="${panelOpen}" aria-label="${esc(`${getLangString('MOD_VOY_PANEL_YOU_ARE_HERE')}. ${fold}. ${getLangString('MOD_VOY_PANEL_HOLD_TUCK')}`)}">` +
+        `<i class="fa fa-caret-${panelOpen ? 'down' : 'right'} mr-1"></i><span class="voyage-toggle-pill"${time === undefined ? '' : ` title="${esc(`${time.text}. ${time.hint}`)}"`}>${headLabel}</span></button>${manageLink()}</div>` +
         // In groups (the user's mock-up, 20 Oct 2026): any warning; where you are; the weather; your vessel, stores and
         // crew, folding; what the place offers (trade, harbour, combat, the Folks on it, the sign); then what works and
         // what is locked here. The planned voyage stands under the vessel group, outside its fold.

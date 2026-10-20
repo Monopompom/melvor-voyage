@@ -421,6 +421,11 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-panel-toggle { background: none; border: 0; padding: 0; min-height: 32px; color: inherit; font-size: 1rem; font-weight: 600; cursor: pointer; }
 @media (hover: hover) { .voyage-panel-toggle:hover { color: var(--voyage-hover); } }
 .voyage-panel-toggle i { width: .7em; }
+/* The title and the strip's land name show they fold and unfold by their look, not their tooltip (the user, 20 Oct
+   2026): a pill under the pointer, darker while pressed. Its padding sits in a negative margin, so nothing moves. */
+.voyage-toggle-pill { display: inline-flex; align-items: center; padding: 2px 8px 2px 4px; margin: -2px -8px -2px -4px; border-radius: 6px; transition: background-color .12s; }
+@media (hover: hover) { .voyage-panel-toggle:hover .voyage-toggle-pill { background: var(--voyage-press); } }
+.voyage-panel-toggle:active .voyage-toggle-pill { background: var(--voyage-press-on); }
 .voyage-here-ship.voyage-here-time > span { flex: 0 1 auto; } /* the day/night line stays centred */
 .voyage-here-ship > .voyage-here-left { flex: 0 0 auto; white-space: nowrap; font-weight: 600; } /* the time left of a voyage, plain text colour */
 /* The travel bar (build .256): the Under way line and its chip fill as the voyage goes, a sheen running over the part
@@ -814,8 +819,9 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-chip-plain { border: 0; color: inherit; cursor: pointer; }
 /* A chip that goes where it is about (build .267): the stores to Stores, the hull to the vessel, under way to its block.
    Its band look, a lighter band under the pointer; the stores ringed blue with a plus where you can stock up. */
-.voyage-chip-link { border: 0; color: inherit; cursor: pointer; }
+.voyage-chip-link { border: 0; color: inherit; cursor: pointer; box-shadow: inset 0 0 0 1px var(--voyage-rule); }
 @media (hover: hover) { .voyage-chip-link:hover { background: var(--voyage-press); } }
+.voyage-chip-link:active { background: var(--voyage-press-on); }
 .voyage-chip-link:focus-visible { outline: 2px solid var(--voyage-help); }
 .voyage-chip-load { box-shadow: inset 0 0 0 1.5px var(--voyage-sea); }
 /* A word in a panel row that opens its place ("Trade: OK" opens the bank): the word as it was, underlined on hover. */
@@ -980,15 +986,19 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-tuck-warn { background: #f0b43c; } .voyage-tuck-bad { background: #e5483b; }
 .voyage-mini-caret, .voyage-open-caret, .voyage-tuck { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* The strip's caret, its own button: plain on a wide screen; on touch a bigger round grey button, the one to hold. */
-.voyage-mini-caret { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; } /* (.308, B-10) */
+/* The panel's triangle, folded or open, sits in a round grey button (the user, .207 on touch; 20 Oct 2026 everywhere:
+   "put grayish circle around triangle"), 28px, 38px on touch, with the same 6px to the title's pill either way. */
+.voyage-mini-caret { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 28px; padding: 0;
+  border-radius: 50%; background: var(--voyage-press); } /* (.308, B-10) */
 .voyage-mini-caret i { width: auto !important; }
+.voyage-mini-caret:active { background: var(--voyage-press-on); }
+.voyage-mini-caret + .voyage-mini-toggle { margin-left: 4px; } /* the row's 6px gap, less the pill's 4px reach, plus 4 */
+.voyage-open-caret > i { display: inline-flex; align-items: center; justify-content: center; width: 28px !important; height: 28px; margin-right: 10px !important;
+  border-radius: 50%; background: var(--voyage-press); vertical-align: middle; }
+.voyage-open-caret:active > i { background: var(--voyage-press-on); }
 @media (pointer: coarse) {
-  .voyage-mini-caret { width: 38px; height: 38px; min-height: 38px; border-radius: 50%; background: var(--voyage-press); font-size: 1.3rem; }
-  .voyage-mini-caret:active { background: var(--voyage-press-on); }
-  /* The open panel's "You are here" caret holds the same way: the same round grey button round its triangle (the user, .207). */
-  .voyage-open-caret > i { display: inline-flex; align-items: center; justify-content: center; width: 38px !important; height: 38px; margin-right: 8px !important;
-    border-radius: 50%; background: var(--voyage-press); font-size: 1.3rem; vertical-align: middle; }
-  .voyage-open-caret:active > i { background: var(--voyage-press-on); }
+  .voyage-mini-caret { width: 38px; height: 38px; min-height: 38px; font-size: 1.3rem; }
+  .voyage-open-caret > i { width: 38px !important; height: 38px; font-size: 1.3rem; }
 }
 .voyage-tuck-icon { width: 32px; height: 32px; object-fit: contain; pointer-events: none; }
 /* On a phone the open panel stops a little past the map's middle and scrolls inside (here-panel.mjs capHeight). */
