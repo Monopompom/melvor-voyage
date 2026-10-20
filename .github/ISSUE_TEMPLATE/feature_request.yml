@@ -1,0 +1,28 @@
+name: Idea or suggestion
+description: "Something you would like Voyage to do, or do differently."
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome. Check the open issues first in case someone has suggested it already; a thumbs-up there helps too.
+  - type: textarea
+    id: idea
+    attributes:
+      label: "The idea"
+      description: "What should change, and how would it work in the game?"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: "Why"
+      description: "What it would make better for you: a chore it removes, a choice it adds, something that feels off now."
+    validations:
+      required: true
+  - type: input
+    id: mod-version
+    attributes:
+      label: "Voyage version you play"
+      placeholder: "0.1.0"

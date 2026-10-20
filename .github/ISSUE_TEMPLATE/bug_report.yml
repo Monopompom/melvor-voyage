@@ -1,0 +1,128 @@
+name: Bug report
+description: "Something in Voyage does not work as it should."
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. One bug per issue, please, and check the open issues first in case it is already known.
+        
+        Voyage needs the Atlas of Discovery expansion. A screenshot of the map and the You are here panel helps a lot.
+  - type: input
+    id: mod-version
+    attributes:
+      label: "Voyage version"
+      description: "Shown on the mod's mod.io page and in the in-game Mod Manager."
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: game-version
+    attributes:
+      label: "Melvor Idle version"
+      description: "Bottom of the game's sidebar."
+      placeholder: "1.3.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: "Platform"
+      options:
+        - "Steam"
+        - "Epic Games Store"
+        - "Browser"
+        - "iOS"
+        - "Android"
+        - "Other"
+    validations:
+      required: true
+  - type: dropdown
+    id: game-mode
+    attributes:
+      label: "Game mode"
+      options:
+        - "Standard"
+        - "Hardcore"
+        - "Adventure"
+        - "Ancient Relics"
+        - "Other"
+    validations:
+      required: true
+  - type: checkboxes
+    id: expansions
+    attributes:
+      label: "Expansions"
+      options:
+        - label: "Throne of the Herald"
+        - label: "Atlas of Discovery"
+        - label: "Into the Abyss"
+  - type: dropdown
+    id: worker-folks
+    attributes:
+      label: "Worker Folks loaded?"
+      options:
+        - "No"
+        - "Yes"
+    validations:
+      required: true
+  - type: dropdown
+    id: strictness
+    attributes:
+      label: "Strictness setting"
+      options:
+        - "Strict"
+        - "Relaxed"
+    validations:
+      required: true
+  - type: dropdown
+    id: timed-travel
+    attributes:
+      label: "Timed travel"
+      options:
+        - "On"
+        - "Off"
+    validations:
+      required: true
+  - type: input
+    id: place
+    attributes:
+      label: "Where on the map"
+      description: "The place name or hex shown in the You are here panel, if the bug is tied to a spot."
+      placeholder: "Port Ostra, hex 14,16"
+  - type: textarea
+    id: other-mods
+    attributes:
+      label: "Other mods"
+      description: "Every other mod you have loaded. A conflict between mods is a common cause."
+      placeholder: |
+        Worker Folks, SEMI Core, ...
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: "What happened"
+      description: "What you saw, and what you expected instead."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Steps to reproduce"
+      placeholder: |
+        1. Stand on ...
+        2. Start Woodcutting
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: "Console errors"
+      description: "Optional but very helpful: open the developer console (F12, or Ctrl+Shift+I / Cmd+Option+I) and paste any red lines that mention Voyage."
+      render: text
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: "Screenshots"
+      description: "Optional. Drag images here."
