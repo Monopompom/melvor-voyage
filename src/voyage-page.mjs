@@ -716,6 +716,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
             cells: [rankName(tier), `${Math.round(share * 100)}%`], cls: share === 1 ? ['font-w600'] : share < 1 ? ['text-success'] : ['text-warning'],
           })) } },
           { text: t('MOD_VOY_HELP_CREW_HUNGER', { pct: `${Math.round((state.crewModel?.HUNGER_SHARE ?? 0.1) * 100)}` }), cls: 'text-danger' },
+          t('MOD_VOY_HELP_CREW_BLOCK'),
         ] },
         { head: t('MOD_VOY_HELP_HEAD_CREW_ASHORE'), body: [t('MOD_VOY_HELP_CREW_ASHORE'), t('MOD_VOY_HELP_CREW_FIXED')] },
       ];

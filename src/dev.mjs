@@ -217,6 +217,19 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       return { coords: hex ? display(hex) : undefined, ...near.hex, distance: near.distance, dir: terrainMod.directionLabel(pos, near.hex) };
     },
     /**
+     * The road a Folk would walk from you to (col, row) in display coords (phase 6d): hexes, time and the hexes it
+     * crosses, or why there is none. voyageDev.road(20, 9)
+     */
+    road(col, row) {
+      if (state.walks === undefined) return 'walking not loaded';
+      const from = state.position();
+      const to = fromDisplay(col, row);
+      const road = state.walks.road(from, to);
+      if (road === undefined) return { from, to, road: 'none: water, unknown ground or too far', canWalk: state.walks.canWalk() };
+      const ms = road.reduce((s, x) => s + x.ms, 0);
+      return { from, to, hexes: road.length, minutes: Math.round(ms / 60000), classes: road.map((s) => s.cls).join(' '), canWalk: state.walks.canWalk() };
+    },
+    /**
      * Sets the Voyage skill level (compass stages: 10 adds the hex count, 25 the place name), or shows the skill's
      * record when called without a level. voyageDev.voyage(25)
      */

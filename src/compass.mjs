@@ -161,6 +161,7 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
   const popup = (it, purse) => {
     try {
       const journal = state.journal;
+      let from;
       journal?.learn('compass', true);
       const sections = [
         { body: [{ html: getLangString(journal !== undefined ? 'MOD_VOY_WELCOME_FOUND_BOTH' : 'MOD_VOY_WELCOME_FOUND_COMPASS'), cls: 'text-center' }] },
@@ -183,8 +184,10 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
         showDenyButton: journal !== undefined,
         denyButtonText: getLangString('MOD_VOY_JOURNAL_OPEN'),
         customClass: (() => { const c = { ...SWAL_CLASS, denyButton: 'btn btn-outline-info m-1' }; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
+        // Where the journal's cover grows from: the button is gone once the popup closes.
+        preDeny: () => { const r = Swal.getDenyButton()?.getBoundingClientRect(); from = r !== undefined && r.width > 0 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : undefined; },
       // Opens on the Foreword, the book's first page (the user, 18 Oct 2026; the compass is in this popup already).
-      }).then((result) => { if (result.isDenied) journal?.open({ chapter: 'foreword' }); });
+      }).then((result) => { if (result.isDenied) journal?.open({ chapter: 'foreword', from }); });
     } catch (e) { log('welcome popup failed', e); }
   };
 

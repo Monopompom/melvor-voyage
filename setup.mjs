@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-20.337';
+export const BUILD = '2026-10-20.342';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -181,8 +181,10 @@ export async function setup(ctx) {
     { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
     { type: 'switch', name: 'weather', label: getLangString('MOD_VOY_SETTING_WEATHER'), hint: getLangString('MOD_VOY_SETTING_WEATHER_HINT'), default: true, onChange: onChange('weather') },
     { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
-    { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
+    { type: 'switch', name: 'mapMotion', label: getLangString('MOD_VOY_SETTING_MAP_MOTION'), hint: getLangString('MOD_VOY_SETTING_MAP_MOTION_HINT'), default: true, onChange: onChange('mapMotion') },
+    { type: 'switch', name: 'bookOpening', label: getLangString('MOD_VOY_SETTING_BOOK_OPENING'), hint: getLangString('MOD_VOY_SETTING_BOOK_OPENING_HINT'), default: false, onChange: onChange('bookOpening') },
     { type: 'text', name: 'journalKey', label: getLangString('MOD_VOY_SETTING_JOURNAL_KEY'), hint: getLangString('MOD_VOY_SETTING_JOURNAL_KEY_HINT'), default: 'J', maxLength: 1, onChange: onChange('journalKey') },
+    { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
     { type: 'text', name: 'mapKey', label: getLangString('MOD_VOY_SETTING_MAP_KEY'), hint: getLangString('MOD_VOY_SETTING_MAP_KEY_HINT'), default: 'M', maxLength: 1, onChange: onChange('mapKey') },
   ]);
 
@@ -223,6 +225,8 @@ export async function setup(ctx) {
       timedTravel: () => flag('timedTravel'),
       centreKey: () => String(value('centreKey') ?? '').trim().toUpperCase(),
       journalKey: () => String(value('journalKey') ?? '').trim().toUpperCase(),
+      mapMotion: () => flag('mapMotion'),
+      bookOpening: () => value('bookOpening') === true,
       mapKey: () => String(value('mapKey') ?? '').trim().toUpperCase(),
       nightShift: () => { const v = Number(value('nightShift')); return Number.isFinite(v) ? Math.max(-12, Math.min(12, Math.round(v))) : 0; },
     },
@@ -372,6 +376,10 @@ export async function setup(ctx) {
     crew = (await ctx.loadModule('src/crew.mjs')).install(ctx, { state, CM: crewModel, shipModel, terrainMod, helpLayout, log });
     state.crewModel = crewModel;
   } catch (e) { console.error('[Voyage] the crew failed to load; Folks stay ashore', e); state.crew = undefined; }
+  // Folks walking alone (phase 6d): the road over known land and the walks in the save. A failure: nobody walks.
+  try {
+    state.walks = (await ctx.loadModule('src/walks.mjs')).install(ctx, { state, W: await ctx.loadModule('src/walk-model.mjs'), log });
+  } catch (e) { console.error('[Voyage] walking failed to load; Folks stay put', e); state.walks = undefined; }
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.
   holdMod.install(ctx, { state, shipModel, helpLayout, log });
   const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
@@ -398,6 +406,8 @@ export async function setup(ctx) {
       if (s !== undefined) s.clock = clock;
       // The route line on the map (build .272): what is left to sail, a light running along it, the walked part dim.
       try { (await ctx.loadModule('src/route-line.mjs')).install(ctx, { state, C: clockModel, log }); } catch (e) { log('route line failed to load', e); }
+      // The pin moves under way (build .341): the traveller walks, the vessel rolls. A failure leaves it still.
+      try { state.pinMotion = (await ctx.loadModule('src/pin-motion.mjs')).install(ctx, { state, M: await ctx.loadModule('src/pin-motion-model.mjs'), log }); } catch (e) { log('pin motion failed to load', e); }
       // Voyages into the fog (phase 5b): the voyage surveys its own way. A failure leaves known routes only.
       try {
         const fogModel = await ctx.loadModule('src/fog-model.mjs');

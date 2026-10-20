@@ -96,18 +96,19 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   Its Places list where you fought, the ports you used and what you did there, the markets, and the islands you set
   foot on; search them by place, land, monster or what a monster drops.
 - **Your page, your panel.** Drag the Voyage page's blocks by their title (hold a moment on a phone) and fold the ones
-  you seldom need; Reset layout puts them back. On the map, tap You are here to fold the panel to a strip; on a phone,
+  you seldom need; Reset layout puts them back. On the map, tap the panel's top line to fold it to a strip; on a phone,
   hold its triangle to shrink it to a small square, and tap the square to get it back as it was.
 - **Night.** From 21:00 to 05:00 on your own clock, the fuel a trip leaves over lights the way, and every lit hex gives
   25% more Voyage XP. Light never takes the fuel a trip needs, so playing at night is never worse than by day.
   Astrology levels make the light go further. You can move the night in the settings, or switch it off. Very rarely
-  a lit hex at sea turns up a Starlit Chart: read it from the bank to clear the fog of the sea you are on.
+  a lit hex at sea turns up a Steersman's Chart: read it from the bank to clear the fog of the sea you are on.
 - **Worker Folks.** With Worker Folks loaded, hiring needs a town or port, like Township. Every Folk stands on a hex:
-  it is hired or picked for a skill on yours, works only what its hex allows, and you manage it from within a hex.
+  it is hired or picked for a skill on yours, works only what its hex allows, and you manage it from within a hex. A
+  Folk whose skill you take back keeps that job in mind, and you can give it back from anywhere.
   Folks can also come along with you: each needs a berth on the water (dinghy 1, longboat 2, brig 6, galleon 12), and
-  each eats from the stores and burns fuel as you do. On empty stores they go hungry and lose a tenth of their HP
-  every hex, and hunger can kill. Put them ashore on land and pick their work there. The Crew block on the Voyage
-  page lists them.
+  each eats from the stores by its rank and burns fuel as you do. On empty stores they go hungry and lose a tenth of
+  their HP every hex, and hunger can kill. Put them ashore on land and pick their work there. The Crew block on the
+  Voyage page lists them.
 
 ## Settings (Mod Settings, section Voyage)
 
@@ -119,6 +120,8 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
 - **Combat needs its area** and **Trade only near markets**: each can be switched off on its own.
 - **Provisions**: off, moves take nothing from your stores and sailing wears nothing.
 - **Night** and **Move the night (hours)**: night on or off, and when it falls (−12 to 12 hours from 21:00 to 05:00).
+- **Motion on the map**: while a voyage is under way the traveller walks and the vessel rolls; off, they stand still.
+- **Open the journal by its cover**: the cover and a few turning pages on every open, not only the first time.
 - **Keys**: G centres the map on you, J opens and closes the journal, M opens the map. Each can be changed, or left
   empty to turn it off.
 

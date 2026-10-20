@@ -632,10 +632,11 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     rows.numeric = [false, true, true, false];
     return ledger([t('MOD_VOY_JOURNAL_CREW_COL_LICENCE'), t('MOD_VOY_JOURNAL_CREW_COL_LEVEL'), t('MOD_VOY_JOURNAL_CREW_COL_GP'), t('MOD_VOY_JOURNAL_CREW_COL_DUNGEON')], rows);
   };
-  /** Worker Folks' own tips, as its author keeps them (its language keys). */
+  /** Worker Folks' own tips, as its author keeps them (its language keys). A tip ending in a colon leads into a table
+   *  only Worker Folks draws, so it is left out here. */
   const crewTheirTips = () => {
     const tips = [];
-    for (let n = 1; n <= jm.CREW_TIPS; n++) if (has(`MOD_WF_TIP_${n}`)) tips.push({ head: has(`MOD_WF_TIP_${n}_HEAD`) ? getLangString(`MOD_WF_TIP_${n}_HEAD`) : '', body: getLangString(`MOD_WF_TIP_${n}`) });
+    for (let n = 1; n <= jm.CREW_TIPS; n++) if (has(`MOD_WF_TIP_${n}`) && !getLangString(`MOD_WF_TIP_${n}`).trim().endsWith(':')) tips.push({ head: has(`MOD_WF_TIP_${n}_HEAD`) ? getLangString(`MOD_WF_TIP_${n}_HEAD`) : '', body: getLangString(`MOD_WF_TIP_${n}`) });
     if (tips.length === 0) return '';
     return `<div class="vj-section"><h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_CREW_THEIRS'))}</h3><ul class="vj-points">`
       + tips.map((x) => `<li>${x.head ? `<b>${esc(x.head)}.</b> ` : ''}${esc(x.body)}</li>`).join('') + '</ul></div>';
@@ -1410,6 +1411,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     root.addEventListener('click', (e) => {
       const el = e.target instanceof Element ? e.target : null;
       if (el === null) return;
+      if (cover !== null) { endCover(); return; } // a click while the cover plays only skips it
       if (el === root || el.closest('[data-vj-close]')) { close(); return; }
       const tab = el.closest('[data-vj-tab]');
       if (tab !== null) { view.tab = tab.dataset.vjTab; view.back = null; view.pick = undefined; view.side = 'left'; render(); return; }
@@ -1480,10 +1482,11 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || !view.open || root === null || root.contains(e.target)) return;
       try { if (typeof Swal !== 'undefined' && Swal.isVisible()) return; } catch {}
+      if (cover !== null) { endCover(); return; }
       escape();
     });
     root.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { e.stopPropagation(); escape(); return; }
+      if (e.key === 'Escape') { e.stopPropagation(); if (cover !== null) endCover(); else escape(); return; }
       if (e.key !== 'Tab') return;
       // Keep focus in the book while it is open (a modal dialog), or in the letter or heat map over it.
       // (.308: `heatEl` lived in escape() only, so every Tab threw a ReferenceError and the trap never ran: scan C2-16.)
@@ -1497,13 +1500,79 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     });
   };
 
+  // The cover (the user, 20 Oct 2026, picked on the design canvas "Voyage: Journal opening"): the closed book grows
+  // from the button that opened it, the clasp lets go, the cover swings open on the spine and three leaves riffle over.
+  // The book is drawn under it from the start, so the last frame is the book itself. A click, a tap or Esc skips it;
+  // with reduced motion asked for, the book only fades in. The motion is in css/voyage.css ("The cover").
+  const COVER_MS = { wide: 2050, narrow: 1700, fade: 220 };
+  const ROSE_SVG = '<svg class="vj-cover-rose" viewBox="-32 -32 64 64" aria-hidden="true"><defs><clipPath id="vj-rose-half"><rect x="0" y="-40" width="40" height="80"/></clipPath></defs>'
+    + '<circle r="21" fill="none" stroke="#e4b64c" stroke-opacity=".55" stroke-width="1"/><path fill="#e4b64c" d="M0,-30 L6,-6 L30,0 L6,6 L0,30 L-6,6 L-30,0 L-6,-6 Z"/>'
+    + '<path fill="#b98829" clip-path="url(#vj-rose-half)" d="M0,-30 L6,-6 L30,0 L6,6 L0,30 L-6,6 L-30,0 L-6,-6 Z"/>'
+    + '<path fill="#f2c94c" transform="rotate(45)" d="M0,-15 L4,-4 L15,0 L4,4 L0,15 L-4,4 L-15,0 L-4,-4 Z"/><circle r="4" fill="#44230f"/></svg>';
+  /** Faint lines of ink on a riffled leaf, both sides. */
+  const leafSide = (cls) => `<div class="${cls}"><span class="vj-ink vj-ink-s"></span><span class="vj-ink"></span><span class="vj-ink vj-ink-m"></span><span class="vj-ink"></span></div>`;
+  /** The centre of an element on screen, or undefined when it isn't shown. */
+  const centreOf = (el) => {
+    if (!(el instanceof Element) || !el.isConnected || el === document.body || el === document.documentElement) return undefined;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : undefined;
+  };
+  /** While the cover plays: { timer, els }. */
+  let cover = null;
+  const endCover = () => {
+    if (cover === null) return;
+    clearTimeout(cover.timer);
+    for (const el of cover.els) el.remove();
+    root?.classList.remove('vj-intro', 'vj-intro-fade');
+    cover = null;
+  };
+  const playCover = (from) => {
+    endCover();
+    const book = root.querySelector('.vj-book');
+    if (book === null) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true) {
+      root.classList.add('vj-intro-fade');
+      cover = { els: [], timer: setTimeout(endCover, COVER_MS.fade) };
+      return;
+    }
+    const wide = !narrow();
+    const leaves = document.createElement('div');
+    leaves.className = 'vj-leaves';
+    leaves.setAttribute('aria-hidden', 'true');
+    leaves.innerHTML = [3, 2, 1].map((n) => `<div class="vj-leaf vj-leaf-${n}">${leafSide('vj-leaf-f')}${leafSide('vj-leaf-b')}</div>`).join('');
+    book.append(leaves);
+    // Wide, the closed cover lies over the right page (the spine between the pages) and turns onto the left; narrow,
+    // it covers the whole book. It sits outside the book, which stays hidden until the cover lifts.
+    const b = book.getBoundingClientRect();
+    const spine = b.left + 18 + (b.width - 82) / 2; // the book's 18px left frame and 64px of tabs, as .vj-book sets them
+    const box = wide ? { left: spine, top: b.top, width: b.right - 46 - spine, height: b.height } : { left: b.left, top: b.top, width: b.width, height: b.height };
+    const el = document.createElement('div');
+    el.className = 'vj-cover';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '<div class="vj-cover-turn"><div class="vj-cover-face vj-cover-front">'
+      + '<span class="vj-cover-spine"><span class="vj-cover-band"></span><span class="vj-cover-band vj-cover-band-low"></span></span>'
+      + `<span class="vj-cover-frame"></span>${ROSE_SVG}<span class="vj-cover-title">${esc(t('MOD_VOY_JOURNAL_TITLE'))}</span>`
+      + `<span class="vj-cover-sub">${esc(t('MOD_VOY_JOURNAL_COVER_SUB'))}</span>`
+      + '<span class="vj-cover-clasp"><span class="vj-cover-strap"></span><span class="vj-cover-buckle"></span></span></div>'
+      + '<div class="vj-cover-face vj-cover-back"><span class="vj-cover-endpaper"></span></div></div>';
+    const at = from ?? { x: window.innerWidth / 2, y: 0 };
+    for (const [k, v] of Object.entries(box)) el.style[k] = `${Math.round(v)}px`;
+    el.style.setProperty('--vj-dx', `${Math.round(at.x - (box.left + box.width / 2))}px`);
+    el.style.setProperty('--vj-dy', `${Math.round(at.y - (box.top + box.height / 2))}px`);
+    root.append(el);
+    root.classList.add('vj-intro');
+    cover = { els: [el, leaves], timer: setTimeout(endCover, wide ? COVER_MS.wide : COVER_MS.narrow) };
+  };
+
   let opener = null;
   /**
    * Opens the book. `tab` 'how' | 'resources' | 'places' | 'guide'; `chapter` (a Voyage page "?" topic) opens its
-   * spread; `guide` opens that page; `back` (a function) adds "Back to the lock" on a guide page.
+   * spread; `guide` opens that page; `back` (a function) adds "Back to the lock" on a guide page. `from` ({ x, y } on
+   * screen) is where the cover grows from when it plays, for a button that is gone by then (the welcome's).
    */
-  const open = ({ tab, chapter, guide, entry, back } = {}) => {
+  const open = ({ tab, chapter, guide, entry, back, from } = {}) => {
     try {
+      const wasOpen = view.open;
       if (journal() === undefined && tab !== 'how' && chapter === undefined) { tab = 'how'; }
       if (root === undefined) build();
       clearMarks();
@@ -1519,6 +1588,12 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       root.classList.remove('d-none');
       document.body.classList.add('vj-locked');
       render();
+      // The cover plays the first time a character opens the book, and every time with the setting on.
+      const jr = journal();
+      if (!wasOpen && jr !== undefined && (jr.opened !== true || state.settings?.bookOpening?.() === true)) {
+        jr.opened = true;
+        playCover(from ?? centreOf(opener) ?? centreOf(headerEl));
+      }
       root.querySelector('.vj-close')?.focus();
       // At phone width the pages stack: a chapter on the right page is scrolled to, not left below the other one.
       if (onRight) showPage('.vj-right', false);
@@ -1532,6 +1607,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
   };
   function close() {
     if (root === undefined || !view.open) return;
+    endCover();
     try { state.heatmap?.close(); } catch {}
     closeLetter();
     view.open = false;

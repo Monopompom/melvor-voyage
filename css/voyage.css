@@ -778,6 +778,73 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .vj-landed { animation: vj-landed 1.4s ease-out both; }
 @keyframes vj-landed { 0% { outline: 3px solid var(--voyage-gold); outline-offset: -3px; } 100% { outline: 3px solid transparent; outline-offset: -3px; } }
 @media (prefers-reduced-motion: reduce) { .vj-landed { animation: none; outline: 3px solid var(--voyage-gold); outline-offset: -3px; } }
+
+/* ---- The cover (the user, 20 Oct 2026): the first opening of the book, or every one with the setting on. The closed
+   book grows from the button that opened it, the clasp lets go, the cover swings open on the spine, three leaves
+   riffle over, then the tabs come out. The book is drawn under it all along (journal.mjs playCover places the cover
+   and times it: 2.05 s wide, 1.7 s narrow). Wide, the cover lies over the right page and turns onto the left; narrow,
+   it covers the whole book and swings away. */
+.vj-intro .vj-book { position: relative; }
+.vj-cover { position: fixed; z-index: 1; perspective: 2600px; pointer-events: none; }
+.vj-cover-turn { position: absolute; inset: 0; transform-origin: left center; transform-style: preserve-3d; }
+.vj-cover-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 4px 14px 14px 4px; }
+.vj-cover-front { background: #7a4428; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .35), inset 0 0 70px rgba(40, 18, 6, .6), 0 18px 50px rgba(0, 0, 0, .6); }
+.vj-cover-spine { position: absolute; left: 0; top: 0; bottom: 0; width: 28px; background: #5e321c; border-radius: 4px 0 0 4px; box-shadow: inset -3px 0 6px rgba(0, 0, 0, .35); }
+.vj-cover-band { position: absolute; left: 0; right: 0; top: 13%; height: 7px; background: #b98829; }
+.vj-cover-band-low { top: auto; bottom: 13%; }
+.vj-cover-frame { position: absolute; top: 24px; bottom: 24px; left: 50px; right: 26px; border: 1.5px solid rgba(228, 182, 76, .5); border-radius: 6px; }
+.vj-cover-rose { position: absolute; left: calc(50% + 14px); top: 50%; width: 124px; height: 124px; margin: -150px 0 0 -62px; }
+.vj-cover-title, .vj-cover-sub { position: absolute; left: 28px; right: 0; top: 50%; text-align: center; color: #e4b64c; }
+.vj-cover-title { margin-top: 2px; font-family: 'Voyage Fell', Georgia, serif; font-size: 31px; letter-spacing: .06em; }
+.vj-cover-sub { margin-top: 46px; font-family: 'Voyage Garamond', 'EB Garamond', Georgia, serif; font-style: italic; font-size: 17px; opacity: .75; }
+.vj-cover-clasp { position: absolute; right: -16px; top: 50%; margin-top: -31px; width: 52px; height: 62px; }
+.vj-cover-strap { position: absolute; left: 0; top: 13px; width: 42px; height: 36px; background: #5e321c; border-radius: 4px; box-shadow: 0 2px 4px rgba(0, 0, 0, .4); }
+.vj-cover-buckle { position: absolute; right: 0; top: 0; width: 16px; height: 62px; background: #e4b64c; border-radius: 4px; box-shadow: inset -4px 0 0 #b98829; }
+.vj-cover-back { transform: rotateY(180deg); background: #4a2c1a; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .35); }
+.vj-cover-endpaper { position: absolute; top: 16px; bottom: 16px; left: 16px; right: 20px; background: #e3cfa2; border-radius: 3px; box-shadow: inset 0 0 50px rgba(110, 70, 25, .35); }
+.vj-leaves { position: absolute; z-index: 2; top: 18px; bottom: 18px; left: calc(18px + (100% - 82px) / 2); right: 64px; perspective: 2600px; pointer-events: none; }
+.vj-leaf { position: absolute; inset: 0; transform-origin: left center; transform-style: preserve-3d; }
+.vj-leaf-f, .vj-leaf-b { position: absolute; inset: 0; background: #f1e4c6; backface-visibility: hidden; -webkit-backface-visibility: hidden; padding: 64px 44px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; }
+.vj-leaf-f { box-shadow: inset 26px 0 30px -22px rgba(60, 35, 10, .45), -2px 0 6px rgba(60, 35, 10, .15); }
+.vj-leaf-b { transform: rotateY(180deg); box-shadow: inset -26px 0 30px -22px rgba(60, 35, 10, .45); }
+.vj-ink { display: block; height: 9px; border-radius: 4px; background: rgba(43, 33, 24, .12); }
+.vj-ink-s { width: 50%; }
+.vj-ink-m { width: 75%; }
+@keyframes vj-dim { from { background-color: rgba(10, 12, 16, 0); } }
+@keyframes vj-show { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vj-gone { to { opacity: 0; } }
+@keyframes vj-grow { 0% { opacity: 0; transform: translate(var(--vj-dx, 0px), var(--vj-dy, 0px)) scale(.07) rotate(-10deg); } 18% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes vj-unclasp { to { transform: translateX(30px); opacity: 0; } }
+@keyframes vj-turn { from { transform: rotateY(0); } to { transform: rotateY(-180deg); } }
+@keyframes vj-swing { from { transform: rotateY(0); } to { transform: rotateY(-110deg); } }
+@keyframes vj-uncover { from { clip-path: inset(0 0 0 calc(18px + (100% - 82px) / 2)); } to { clip-path: inset(0); } }
+@keyframes vj-tabs-in { from { transform: translateX(-36px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes vj-tabs-down { from { transform: translateY(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
+.vj-intro, .vj-intro-fade { animation: vj-dim 260ms ease-out both; }
+.vj-intro .vj-cover { animation: vj-grow 480ms cubic-bezier(.2, .75, .25, 1) both, vj-gone 240ms ease-in 1180ms forwards; }
+.vj-intro .vj-cover-clasp { animation: vj-unclasp 150ms ease-in 470ms both; }
+.vj-intro .vj-cover-turn { animation: vj-turn 560ms cubic-bezier(.5, 0, .25, 1) 620ms both; }
+.vj-intro .vj-book { animation: vj-show 1ms linear 610ms both, vj-uncover 1ms linear 900ms both; }
+.vj-intro .vj-tabs { animation: vj-tabs-in 260ms ease-out 1760ms both; }
+.vj-intro .vj-leaf-1 { animation: vj-turn 400ms cubic-bezier(.45, 0, .3, 1) 1200ms both, vj-gone 160ms 1600ms forwards; }
+.vj-intro .vj-leaf-2 { animation: vj-turn 400ms cubic-bezier(.45, 0, .3, 1) 1320ms both, vj-gone 160ms 1720ms forwards; }
+.vj-intro .vj-leaf-3 { animation: vj-turn 400ms cubic-bezier(.45, 0, .3, 1) 1440ms both, vj-gone 160ms 1840ms forwards; }
+.vj-intro-fade .vj-book { animation: vj-show 200ms ease-out both; }
+@media (max-width: 991.98px) {
+  .vj-cover { perspective: 1400px; }
+  .vj-cover-face { border-radius: 0 10px 10px 0; }
+  .vj-cover-back, .vj-leaf-b, .vj-leaf-3 { display: none; }
+  .vj-cover-clasp { right: -6px; }
+  .vj-leaves { top: 60px; bottom: 8px; left: 8px; right: 8px; perspective: 1600px; }
+  .vj-leaf-f { padding: 64px 22px; border-radius: 0 0 6px 6px; }
+  .vj-intro .vj-cover { animation: vj-grow 460ms cubic-bezier(.2, .75, .25, 1) both; }
+  .vj-intro .vj-cover-clasp { animation: vj-unclasp 150ms ease-in 450ms both; }
+  .vj-intro .vj-cover-turn { animation: vj-swing 480ms cubic-bezier(.5, 0, .3, 1) 600ms both, vj-gone 200ms ease-in 900ms forwards; }
+  .vj-intro .vj-book { animation: vj-show 1ms linear 590ms both; }
+  .vj-intro .vj-tabs { animation: vj-tabs-down 240ms ease-out 1420ms both; }
+  .vj-intro .vj-leaf-1 { animation: vj-swing 380ms cubic-bezier(.45, 0, .3, 1) 1080ms both, vj-gone 160ms ease-in 1300ms forwards; }
+  .vj-intro .vj-leaf-2 { animation: vj-swing 380ms cubic-bezier(.45, 0, .3, 1) 1210ms both, vj-gone 160ms ease-in 1430ms forwards; }
+}
 @media (max-width: 575.98px) { .vj-letter { padding: 20px 18px 16px; font-size: 16px; transform: none; } }
 /* Plan a voyage (build .119): the planner block on the Voyage page. Sail! green, the rest blue outline. */
 .voyage-plan-icon { width: 32px; height: 32px; object-fit: contain; }
