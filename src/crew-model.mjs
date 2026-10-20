@@ -45,3 +45,26 @@ export function berthRefusal(steps, crew, berthsFor) {
   }
   return undefined;
 }
+
+// A Folk's kept job (the user, 20 Oct 2026). Giving a Folk a job needs you within a hex of it, but you can take the
+// skill back from anywhere. So a Folk keeps the job it lost that way, at its own hex, and you may give it that job
+// again from anywhere: it works on where it stands. Another job still needs the walk. `jobs` is { folkId: skillId }.
+
+/** The jobs after a Folk's assignment changed (`skillId` null: it lost `previous`). A job someone else takes is gone. */
+export function jobsAfterAssign(jobs, { folkId, previous, skillId }) {
+  const out = {};
+  for (const [id, kept] of Object.entries(jobs)) if (id !== folkId && kept !== skillId) out[id] = kept;
+  if (skillId === null && typeof previous === 'string') out[folkId] = previous;
+  return out;
+}
+/** The jobs without this Folk's: it moved, came aboard, was fired or died. */
+export function jobsWithout(jobs, folkId) {
+  if (!(folkId in jobs)) return jobs;
+  const { [folkId]: _gone, ...rest } = jobs;
+  return rest;
+}
+/** True when giving `folk` (a Worker Folks view) `skillId` is its kept job: it stands on a hex, not with you. */
+export function keptJob(jobs, folk, skillId) {
+  return folk !== undefined && folk !== null && folk.travel !== 'with' && folk.place !== null && folk.place !== undefined
+    && typeof skillId === 'string' && jobs[folk.id] === skillId;
+}

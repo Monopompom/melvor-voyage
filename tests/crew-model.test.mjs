@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BERTHS, berthsOf, mouths, hungerDamage, hungryHexes, berthRefusal, FOOD_SHARE, foodShare, crewLoad } from '../src/crew-model.mjs';
+import { BERTHS, berthsOf, mouths, hungerDamage, hungryHexes, berthRefusal, FOOD_SHARE, foodShare, crewLoad, jobsAfterAssign, jobsWithout, keptJob } from '../src/crew-model.mjs';
 import { HULLS } from '../src/ship-model.mjs';
 
 test('crew: every hull has berths, bigger hulls more; no vessel none', () => {
@@ -55,4 +55,23 @@ test('food by rank: a Trainee eats half, a Foreman half again; fuel one share ea
   assert.deepEqual(crewLoad([{ tier: 'Newbie' }, { tier: 'Junior' }]), { count: 2, food: 1.25 });
   assert.deepEqual(crewLoad([]), { count: 0, food: 0 });
   assert.deepEqual(crewLoad(undefined), { count: 0, food: 0 });
+});
+
+test('kept job: losing a job keeps it; another job, a new holder or leaving drops it', () => {
+  let jobs = jobsAfterAssign({}, { folkId: 'a', previous: 'melvorD:Woodcutting', skillId: null });
+  assert.deepEqual(jobs, { a: 'melvorD:Woodcutting' });
+  const at = { id: 'a', travel: 'idle', place: { q: 15, r: 9 } };
+  assert.equal(keptJob(jobs, at, 'melvorD:Woodcutting'), true);
+  assert.equal(keptJob(jobs, at, 'melvorD:Mining'), false);
+  assert.equal(keptJob(jobs, { ...at, travel: 'with' }, 'melvorD:Woodcutting'), false);
+  assert.equal(keptJob(jobs, { ...at, place: null }, 'melvorD:Woodcutting'), false);
+  assert.equal(keptJob(jobs, undefined, 'melvorD:Woodcutting'), false);
+  // Another Folk takes Woodcutting: a's is gone.
+  assert.deepEqual(jobsAfterAssign(jobs, { folkId: 'b', previous: null, skillId: 'melvorD:Woodcutting' }), {});
+  // a gets a job (its own back, or another): nothing kept.
+  assert.deepEqual(jobsAfterAssign(jobs, { folkId: 'a', previous: null, skillId: 'melvorD:Mining' }), {});
+  // Unassigned with nothing before: nothing to keep.
+  assert.deepEqual(jobsAfterAssign({}, { folkId: 'a', previous: null, skillId: null }), {});
+  assert.deepEqual(jobsWithout(jobs, 'a'), {});
+  assert.equal(jobsWithout(jobs, 'z'), jobs);
 });

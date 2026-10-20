@@ -209,8 +209,7 @@ body:not(.darkMode) .voyage-store-item.btn-info { background: var(--voyage-sea);
 .voyage-wx-sep { display: inline-block; margin: 0 7px; font-size: .75em; vertical-align: .1em; opacity: .55; }
 .voyage-here-shipbox { background: var(--voyage-band); border-top: 1px solid var(--voyage-rule);
   border-bottom: 1px solid var(--voyage-rule); margin: 4px -8px; padding: 2px 8px; }
-/* Last in the panel (build .303, the user: "move that boat info block at the very bottom"): the band runs to the
-   panel's foot, its rounded corners, no rule under it. */
+/* Last in the panel: the band runs to the panel's foot, its rounded corners, no rule under it. */
 .voyage-here-shipbox:last-child { margin-bottom: -8px; border-bottom: 0; border-radius: 0 0 4px 4px; padding-bottom: 6px; }
 .voyage-stores-note { font-size: .9rem; line-height: 1.35; padding: .2rem .75rem 0; text-align: left; }
 /* The note takes a row of its own and the game's Travel button goes under it (the user, 19 Oct 2026: "Travel should be
@@ -1124,3 +1123,18 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 /* The Here panel's Folks lines (phase 6c): the names or the count on the left, the Crew button on the right. */
 .voyage-here-folks { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .voyage-folks-count { text-decoration: underline dotted; cursor: help; }
+/* The hidden anchor of the floating tooltip (map badges): it takes no room and no pointer. */
+.voyage-tip-anchor { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+
+/* The vessel group's fold (the user, 20 Oct 2026): in the panel's own colour between two rules, its caret before
+   the first row in Weather's column, the row taking the rest. */
+.voyage-vessel-group { border-top: 1px solid var(--voyage-rule); margin: 4px 0 0; padding: 2px 0 4px; }
+/* The place band right under it draws the one rule between them. */
+.voyage-vessel-group + .voyage-here-shipbox { margin-top: 0; }
+.voyage-vessel-head { display: flex; align-items: center; }
+.voyage-vessel-head > .voyage-here-ship { flex: 1 1 auto; min-width: 0; }
+.voyage-vessel-toggle { flex: 0 0 auto; text-align: left; }
+/* The hour in the panel's head, in the band's look. */
+.voyage-here-clock { font-weight: 400; }
+/* The sun or moon at its own width (the toggle's .7em is the caret's), a gap before the words. */
+.voyage-panel-toggle .voyage-here-clock i { width: auto; margin-right: .4em !important; }

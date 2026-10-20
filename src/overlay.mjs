@@ -163,6 +163,8 @@ export function install(ctx, { state, terrainMod, log }) {
   let folkLayer;
   let folkTicker;
   let folkDrawn;
+  /** The badges as drawn, in map coordinates: { x, y, r, q, hr } (hr: the hex's r), for the hover below. */
+  let folkSpots = [];
   /** Bumped when a Folk moves, joins or leaves (gate.mjs listens to Worker Folks); part of the redraw key. */
   let folkStamp = 0;
   // The map's own draw counts too: a first call before the map is drawn would otherwise never be redone.
@@ -185,6 +187,9 @@ export function install(ctx, { state, terrainMod, log }) {
       const map = game.cartography?.activeMap;
       folkDrawn = folkKey(vp, map);
       for (const child of folkLayer.removeChildren()) child.destroy();
+      folkSpots = [];
+      hideFolkTip();
+      bindFolkHover();
       if (map === undefined || cartographyMap.lastDrawnMap !== map || !state.active?.() || !state.folksGuarded) return;
       const counts = new Map();
       for (const f of state.folksApi?.()?.folks() ?? []) {
@@ -213,6 +218,7 @@ export function install(ctx, { state, terrainMod, log }) {
         dots.lineStyle({ width: 2.5 * k, color: FOLK_EDGE, alpha: 1, alignment: 1 });
         dots.beginFill(FOLK_FILL, 1);
         dots.drawCircle(cx, cy, FOLK_RADIUS_PX * k);
+        folkSpots.push({ x: cx, y: cy, r: FOLK_RADIUS_PX * k, q, hr: r });
         dots.endFill();
         // The count is drawn at (at least) its screen size and scaled down, so it stays sharp at any zoom.
         const sharp = Math.max(2, Math.ceil((vp.scaled || 1) * k * 2));
@@ -225,6 +231,80 @@ export function install(ctx, { state, terrainMod, log }) {
     } catch (e) { log('folk badges failed', e); }
   }
   const folksChanged = () => { folkStamp += 1; };
+
+  // Who is on a badge (the user, 20 Oct 2026: "can we show on hover who's there?"). The badges take no pointer events,
+  // so a click on one still reaches the hex under it; the map's canvas is watched instead, and a pointer over a badge
+  // (a little past its ring) shows a tooltip naming each Folk there, its rank and what it does. On a touch screen a
+  // tap on a badge shows it for a few seconds (the tap still selects the hex, as before).
+  let hoverCanvas;
+  let tipKey;
+  let tipTimer;
+  const TIP_SLACK = 1.4;
+  const TOUCH_TIP_MS = 3500;
+  function hideFolkTip() {
+    if (tipKey === undefined) return;
+    tipKey = undefined;
+    clearTimeout(tipTimer);
+    state.tips?.hideAt?.();
+  }
+  const canvasOf = () => { const app = cartographyMap.app; return app?.view ?? app?.canvas; };
+  /** The badge under a client point, or undefined. */
+  const folkSpotAt = (clientX, clientY) => {
+    const vp = cartographyMap.viewport;
+    const canvas = canvasOf();
+    const screen = cartographyMap.app?.renderer?.screen;
+    if (vp === undefined || canvas == null || screen === undefined || folkSpots.length === 0) return undefined;
+    const b = canvas.getBoundingClientRect();
+    if (b.width === 0 || b.height === 0) return undefined;
+    const w = vp.toWorld((clientX - b.left) * (screen.width / b.width), (clientY - b.top) * (screen.height / b.height));
+    return folkSpots.find((s) => Math.hypot(w.x - s.x, w.y - s.y) <= s.r * TIP_SLACK);
+  };
+  /** Shows the tooltip over a badge, its arrow at the top of the ring. */
+  const showFolkTip = (spot) => {
+    if (spot === undefined) { hideFolkTip(); return; }
+    const key = `${spot.q},${spot.hr}`;
+    if (key === tipKey) return;
+    const folks = (state.folksApi?.()?.folks() ?? []).filter((f) => f.travel === 'idle' && f.place !== null && f.place.q === spot.q && f.place.r === spot.hr);
+    if (folks.length === 0) { hideFolkTip(); return; }
+    const vp = cartographyMap.viewport;
+    const canvas = canvasOf();
+    const screen = cartographyMap.app?.renderer?.screen;
+    if (vp === undefined || canvas == null || screen === undefined) return;
+    const b = canvas.getBoundingClientRect();
+    const top = vp.toScreen(spot.x, spot.y - spot.r);
+    const lines = folks.map((f) => ({
+      text: templateLangString('MOD_VOY_MAP_FOLK_TIP', { name: f.name, rank: state.rankName?.(f.tier) ?? f.tier, what: state.folkDoing?.(f) ?? '' }),
+      media: f.portrait,
+    }));
+    tipKey = key;
+    state.tips?.showAt?.(b.left + top.x * (b.width / screen.width), b.top + top.y * (b.height / screen.height), lines);
+  };
+  function bindFolkHover() {
+    const canvas = canvasOf();
+    if (!(canvas instanceof HTMLElement) || hoverCanvas === canvas) return;
+    hoverCanvas = canvas;
+    let press;
+    canvas.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      if (e.buttons !== 0) { hideFolkTip(); return; }
+      try { showFolkTip(folkSpotAt(e.clientX, e.clientY)); } catch (err) { log('folk tooltip failed', err); }
+    });
+    canvas.addEventListener('pointerleave', () => hideFolkTip());
+    canvas.addEventListener('wheel', () => hideFolkTip(), { passive: true });
+    canvas.addEventListener('pointerdown', (e) => {
+      hideFolkTip();
+      press = e.pointerType === 'mouse' ? undefined : { x: e.clientX, y: e.clientY };
+    });
+    canvas.addEventListener('pointerup', (e) => {
+      if (press === undefined || Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) { press = undefined; return; }
+      press = undefined;
+      try {
+        const spot = folkSpotAt(e.clientX, e.clientY);
+        showFolkTip(spot);
+        if (spot !== undefined) { clearTimeout(tipTimer); tipTimer = setTimeout(hideFolkTip, TOUCH_TIP_MS); }
+      } catch (err) { log('folk tooltip failed', err); }
+    });
+  }
 
   /** Redraws every hex background on the currently drawn map (after a settings change), and the marks. */
   const refresh = () => {

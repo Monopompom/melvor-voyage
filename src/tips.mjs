@@ -126,5 +126,30 @@ export function install(ctx, { log }) {
     if (tip !== undefined) tip.setContent(body(text)); else { try { make(el, body(text), opts); } catch (e) { log('tooltip failed', e); } }
   };
 
-  return { apply, watch, set };
+  /**
+   * One floating tooltip for what is drawn on a canvas (the map's Folk badges): `lines` as in `data-tip-lines`, shown
+   * above the screen point (x, y) until hideAt(). A hidden anchor in the page carries it.
+   */
+  let floater;
+  let floatAt = new DOMRect(0, 0, 0, 0);
+  const showAt = (x, y, lines) => {
+    if (typeof tippy !== 'function' || !Array.isArray(lines) || lines.length === 0) return;
+    floatAt = new DOMRect(x, y, 0, 0);
+    try {
+      if (floater === undefined) {
+        const anchor = document.createElement('span');
+        anchor.className = 'voyage-tip-anchor';
+        anchor.setAttribute('aria-hidden', 'true');
+        document.body.append(anchor);
+        floater = tippy(anchor, { content: '', placement: 'top', trigger: 'manual', interactive: false, animation: false, maxWidth: 400, getReferenceClientRect: () => floatAt });
+        live.add(floater);
+      }
+      floater.setContent(linesBody(lines));
+      floater.show();
+      floater.popperInstance?.update();
+    } catch (e) { log('floating tooltip failed', e); }
+  };
+  const hideAt = () => { try { floater?.hide(); } catch {} };
+
+  return { apply, watch, set, showAt, hideAt };
 }

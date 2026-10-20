@@ -677,8 +677,8 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     cls: ['text-success'],
   });
 
-  /** A Folk's rank as Worker Folks names it (Trainee … Foreman), the tier id where its texts aren't loaded. */
-  const rankName = (tier) => { const key = `MOD_WF_ROLE_${tier}`; try { const s = getLangString(key); return s && !s.includes(key) ? s : tier; } catch { return tier; } };
+  /** A Folk's rank as Worker Folks names it (Trainee … Foreman). */
+  const rankName = (tier) => state.rankName?.(tier) ?? tier;
   const helpSections = (topic) => {
     const R = shipModel.REPAIR;
     const st = state.stores;

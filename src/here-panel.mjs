@@ -283,7 +283,6 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
    * you: …", the crew (6c). Up to two names stand in the line; from three on it says how many, the names in its tooltip
    * (a galleon's twelve took ten rows of the panel), and the crew's line has a button to the Crew block.
    */
-  const FOLK_STATUS = { idle: 'MOD_VOY_PANEL_FOLK_IDLE', strike: 'MOD_VOY_PANEL_FOLK_STRIKE', cooldown: 'MOD_VOY_PANEL_FOLK_REST', debt: 'MOD_VOY_PANEL_FOLK_DEBT' };
   const INLINE_FOLKS = 2;
   const folkList = (label, folks, about, button = '') => {
     const named = (f) => `${f.name} (${about(f)})`;
@@ -292,20 +291,20 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       : `<span class="voyage-folks-count" title="${esc(folks.map(named).join('\n'))}">${esc(templateLangString('MOD_VOY_PANEL_FOLKS_COUNT', { count: `${folks.length}` }))}</span>`;
     return `<div class="voyage-here-place voyage-here-folks"><span><span class="voyage-here-label">${esc(getLangString(label))}</span> ${body}</span>${button}</div>`;
   };
+  /** The Folks standing on this hex (6b): with the place's lines. */
   const folksLine = (pos) => {
     if (!state.active() || !state.folksGuarded) return '';
-    const all = state.folksApi?.()?.folks() ?? [];
-    const crew = all.filter((f) => f.travel === 'with');
+    const folks = (state.folksApi?.()?.folks() ?? []).filter((f) => f.travel !== 'with' && f.place !== null && f.place.q === pos.q && f.place.r === pos.r);
+    if (folks.length === 0) return '';
+    return folkList('MOD_VOY_PANEL_FOLKS_LABEL', folks, (f) => templateLangString('MOD_VOY_PANEL_FOLK_WHAT', { tier: state.rankName(f.tier), what: state.folkDoing(f) }));
+  };
+  /** The Folks with you (6c): in the vessel group, under the stores they eat from. */
+  const crewLine = () => {
+    if (!state.active() || !state.folksGuarded) return '';
+    const crew = (state.folksApi?.()?.folks() ?? []).filter((f) => f.travel === 'with');
+    if (crew.length === 0) return '';
     const crewBtn = `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-crew-link">${esc(getLangString('MOD_VOY_PANEL_CREW_BUTTON'))}</button>`;
-    const crewLine = crew.length === 0 ? '' : folkList('MOD_VOY_PANEL_CREW_LABEL', crew, (f) => f.tier, crewBtn);
-    const folks = all.filter((f) => f.travel !== 'with' && f.place !== null && f.place.q === pos.q && f.place.r === pos.r);
-    if (folks.length === 0) return crewLine;
-    const what = (f) => {
-      const key = FOLK_STATUS[f.status];
-      if (key !== undefined) return getLangString(key);
-      return game.skills.getObjectByID(f.skillId)?.name ?? getLangString('MOD_VOY_PANEL_FOLK_IDLE');
-    };
-    return folkList('MOD_VOY_PANEL_FOLKS_LABEL', folks, (f) => templateLangString('MOD_VOY_PANEL_FOLK_WHAT', { tier: f.tier, what: what(f) })) + crewLine;
+    return folkList('MOD_VOY_PANEL_CREW_LABEL', crew, (f) => state.rankName(f.tier), crewBtn);
   };
   /** "Combat: Golbin Village, …" or "Combat: Not here": the areas combat works in from this hex (empty while combat is not gated). */
   const fightLine = () => {
@@ -411,16 +410,6 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return `<div class="voyage-here-ship"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_STORES_LABEL'))}</span> <span class="${low}">${api.icons(have.food, have.fuel)}</span></span>${load}</div>`;
   };
 
-  /** Day or night (3e) and when it turns; the tooltip says what night does. Only while provisions apply. */
-  const nightLine = () => {
-    const api = state.stores;
-    const tod = api?.enabled() ? api.timeOfDay?.() : undefined;
-    if (tod === undefined) return '';
-    const hint = templateLangString('MOD_VOY_PANEL_NIGHT_HINT', { land: `${storesModel.LIGHT.land}`, sea: `${storesModel.LIGHT.sea}`, bonus: `${Math.round(model.STAR_XP * 100)}` });
-    const text = tod.season ? getLangString('MOD_VOY_PANEL_NIGHT_SEASON') : templateLangString(tod.night ? 'MOD_VOY_PANEL_NIGHT' : 'MOD_VOY_PANEL_DAY', { time: tod.until });
-    return `<div class="voyage-here-ship voyage-here-time ${tod.night ? 'text-info' : 'text-muted'}" title="${esc(hint)}"><span><i class="fa fa-${tod.night ? 'moon' : 'sun'} mr-1"></i>${esc(text)}</span></div>`;
-  };
-
   // The wind's "turns in" moves on between redraws; a turn redraws the panel (phase 5c-2).
   let windSeen;
   let stormSeen;
@@ -470,9 +459,44 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
 
   /** The ship and stores lines in one band with its own background (user feedback, build .58). */
   // Night first (the user, build .228), then the boat, then the voyage under way (the user, build .233).
-  const shipBox = () => {
-    const inner = nightLine() + shipLine() + underwayLine() + shipyardLine() + storesLine();
+  //
+  // The vessel group (the user, 20 Oct 2026: "boat info collapsible (3 rows)"): your vessel, a voyage under way, a
+  // hull ready at the shipyard, the stores and the Folks with you, in one band that folds to its first row. Folded,
+  // stores running low or out still show: a warning never hides. The hour moved up to the panel's head.
+  const VESSEL_KEY = 'voyage-vessel-open';
+  let vesselOpen = (() => { try { return localStorage.getItem(VESSEL_KEY) !== '0'; } catch { return true; } })();
+  const storesLow = () => {
+    try {
+      const api = state.stores;
+      const have = api?.enabled() ? api.stores() : undefined;
+      return have !== undefined && (have.food < storesModel.LOW.food || have.fuel < storesModel.LOW.fuel);
+    } catch { return false; }
+  };
+  const vesselGroup = () => {
+    const stores = storesLine();
+    const rows = [shipLine(), underwayLine(), shipyardLine(), stores, crewLine()].filter((r) => r !== '');
+    if (rows.length === 0) return '';
+    const [first, ...rest] = rows;
+    const shown = vesselOpen ? rest : rest.filter((r) => r === stores && storesLow());
+    const label = getLangString(vesselOpen ? 'MOD_VOY_PANEL_VESSEL_FOLD' : 'MOD_VOY_PANEL_VESSEL_UNFOLD');
+    const toggle = rows.length < 2 ? ''
+      : `<button type="button" class="voyage-legend-toggle voyage-vessel-toggle" aria-expanded="${vesselOpen}" title="${esc(label)}" aria-label="${esc(label)}"><i class="fa fa-caret-${vesselOpen ? 'down' : 'right'} mr-1"></i></button>`;
+    return `<div class="voyage-vessel-group"><div class="voyage-vessel-head">${toggle}${first}</div>${shown.join('')}</div>`;
+  };
+  // What the place offers, in the panel's band (the user, 20 Oct 2026: "put BG from the boat row to the Trade/Combat
+  // part"): trade, the harbour, combat, the Folks on this hex and the sign.
+  const placeBox = (status, pos) => {
+    const inner = tradeLine(status) + harbourLine() + fightLine() + folksLine(pos) + signLine();
     return inner === '' ? '' : `<div class="voyage-here-shipbox">${inner}</div>`;
+  };
+  /** The hour for the panel's head (3e): { text, night, hint }, or undefined while provisions don't apply. */
+  const headTime = () => {
+    const api = state.stores;
+    const tod = api?.enabled() ? api.timeOfDay?.() : undefined;
+    if (tod === undefined) return undefined;
+    const hint = templateLangString('MOD_VOY_PANEL_NIGHT_HINT', { land: `${storesModel.LIGHT.land}`, sea: `${storesModel.LIGHT.sea}`, bonus: `${Math.round(model.STAR_XP * 100)}` });
+    const text = tod.season ? getLangString('MOD_VOY_PANEL_NIGHT_SEASON') : templateLangString(tod.night ? 'MOD_VOY_PANEL_NIGHT' : 'MOD_VOY_PANEL_DAY', { time: tod.until });
+    return { text, night: tod.night === true, hint };
   };
 
   /**
@@ -566,6 +590,16 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const load = st.loadingHere() !== undefined && (have.food < cap.food || have.fuel < cap.fuel);
       out.push(chip(st.icons(have.food, have.fuel, false) + (load ? '<i class="fa fa-plus-circle text-info ml-1" aria-hidden="true"></i>' : ''),
         `${st.amounts(have.food, have.fuel)}.\n${getLangString(load ? 'MOD_VOY_MINI_LOAD_HINT' : 'MOD_VOY_MINI_STORES_HINT')}`, `${low}${load ? ' voyage-chip-load' : ''}`, 'voyage-chip-link voyage-load-link'));
+    }
+    // 2b. The Folks with you (6c, the user: "an icon on the minimized map panel that a player is with a crew"): how
+    // many, named in the tooltip; red once the food is out, as each hex then costs them HP. A tap opens the Crew block.
+    const crew = state.active() && state.folksGuarded === true ? (state.crew?.list?.() ?? []) : [];
+    if (crew.length > 0) {
+      const hungry = have !== undefined && have.food <= 0;
+      const names = crew.map((f) => `${f.name} (${state.rankName?.(f.tier) ?? f.tier})`).join('\n');
+      out.push(chip(`<i class="fa fa-users mr-1" aria-hidden="true"></i>${crew.length}`,
+        `${getLangString('MOD_VOY_PANEL_CREW_LABEL')}\n${names}${hungry ? `\n${getLangString('MOD_VOY_MINI_CREW_HUNGRY')}` : ''}\n${getLangString('MOD_VOY_MINI_CREW_HINT')}`,
+        hungry ? 'text-danger' : 'text-info', 'voyage-chip-link voyage-crew-link'));
     }
     // 3. Hull, once worn.
     const sh = state.ship;
@@ -932,6 +966,12 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         try { state.openPage(game.pages.getObjectByID('melvorD:Bank')); } catch (err) { log('bank link failed', err); }
         return;
       }
+      if (e.target instanceof Element && e.target.closest('.voyage-vessel-toggle')) {
+        vesselOpen = !vesselOpen;
+        try { localStorage.setItem(VESSEL_KEY, vesselOpen ? '1' : '0'); } catch {}
+        render();
+        return;
+      }
       if (e.target instanceof Element && e.target.closest('.voyage-weather-toggle')) {
         weatherOpen = !weatherOpen;
         try { localStorage.setItem(WEATHER_KEY, weatherOpen ? '1' : '0'); } catch {}
@@ -1089,26 +1129,27 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         placeUnderBar();
         return;
       }
+      // The head: the fold toggle, which shows the hour when there is one (the user, 20 Oct 2026, a mock-up of the
+      // panel with "Day until 21:00" at its top), else "You are here"; then Manage voyage and the book.
+      const time = headTime();
+      const fold = getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD');
+      const headLabel = time === undefined ? esc(getLangString('MOD_VOY_PANEL_YOU_ARE_HERE'))
+        : `<span class="voyage-here-clock ${time.night ? 'text-info' : ''}"><i class="fa fa-${time.night ? 'moon' : 'sun'} mr-1"></i>${esc(time.text)}</span>`;
       panel.innerHTML =
-        `<div class="voyage-here-head"><button type="button" class="voyage-panel-toggle voyage-open-caret" data-tip-touch="off" aria-expanded="${panelOpen}" title="${esc(getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD'))}" aria-label="${esc(`${getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD')}. ${getLangString('MOD_VOY_PANEL_HOLD_TUCK')}`)}">` +
-        `<i class="fa fa-caret-${panelOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_YOU_ARE_HERE'))}</button>${manageLink()}</div>` +
-        // In order of what a player needs (the user, build .296: "move blocks in order of importance"): any warning,
-        // where you are, what you can do here, the weather, what is locked, then your vessel, stores and the hour in
-        // their band at the very bottom (the user, build .303: "move that boat info block at the very bottom"). The
-        // legend left the panel for a badge on the map (legendBadge).
+        `<div class="voyage-here-head"><button type="button" class="voyage-panel-toggle voyage-open-caret" data-tip-touch="off" aria-expanded="${panelOpen}" title="${esc(time === undefined ? fold : `${time.text}. ${time.hint}\n${fold}`)}" aria-label="${esc(`${getLangString('MOD_VOY_PANEL_YOU_ARE_HERE')}. ${fold}. ${getLangString('MOD_VOY_PANEL_HOLD_TUCK')}`)}">` +
+        `<i class="fa fa-caret-${panelOpen ? 'down' : 'right'} mr-1"></i>${headLabel}</button>${manageLink()}</div>` +
+        // In groups (the user's mock-up, 20 Oct 2026): any warning; where you are; the weather; your vessel, stores and
+        // crew, folding; what the place offers (trade, harbour, combat, the Folks on it, the sign); then what works and
+        // what is locked here. The planned voyage stands under the vessel group, outside its fold.
         strandedLines(status) +
         `<div>${swatch}${esc(d.label)}<small class="text-muted">${features}</small>${where}</div>` +
         mode +
-        `<div class="voyage-skills">${worksRows(pos)}</div>` +
-        tradeLine(status) +
-        harbourLine() +
-        planLine() +
-        fightLine() +
-        folksLine(pos) +
-        signLine() +
         weatherBlock(rec) +
-        lockedBlock(pos) +
-        shipBox();
+        vesselGroup() +
+        planLine() +
+        placeBox(status, pos) +
+        `<div class="voyage-skills">${worksRows(pos)}</div>` +
+        lockedBlock(pos);
       placeUnderBar();
       alignRowButtons(true);
     } catch (e) { log('here panel failed', e); }

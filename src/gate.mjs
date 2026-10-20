@@ -197,8 +197,25 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const lockedFor = (skillId) => {
     const folk = folkActor(skillId);
     if (folk === undefined) return lockedHere(skillId);
-    const locked = lockedAt(skillId, folk.place);
+    // A Folk picked for this skill while busy on another moves to your hex when it starts, unless it goes back to its
+    // kept job; a Folk with you is put down on your hex too.
+    const moves = folk.travel === 'with' || (folk.skillId !== skillId && !keptJob(folk, skillId));
+    const locked = lockedAt(skillId, moves ? state.position() : folk.place);
     return locked === undefined ? undefined : { ...locked, folk };
+  };
+  // A Folk's kept job (crew-model.mjs): the job it lost to you taking the skill back, which you may give it again from
+  // anywhere. Kept in the Voyage save; without the skill or the crew model there is none and the walk rule holds.
+  const jobsRecord = () => {
+    const r = state.voyageSkill?.()?.record;
+    return r !== null && typeof r === 'object' && r.jobs !== null && typeof r.jobs === 'object' ? r : undefined;
+  };
+  const keptJob = (folk, skillId) => {
+    const r = jobsRecord();
+    return r !== undefined && state.crewModel?.keptJob(r.jobs, folk, skillId) === true;
+  };
+  const updateJobs = (fn) => {
+    const r = jobsRecord();
+    if (r !== undefined && state.crewModel !== undefined) r.jobs = fn(state.crewModel, r.jobs);
   };
   /** A Folk's refusal is a toast with the reason, never the lock popup (its own Worker box says it before the click). */
   const toastFolk = (text) => { try { game.notifications.createErrorNotification('voyage:folk', text); } catch {} };
@@ -710,6 +727,11 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     };
     api.registerGuard('staff', guard('staff', ({ action, folk, skillId }) => {
       if (action === 'hire') return hireRefusal();
+      // Its kept job, given from anywhere: only its own hex has to allow it.
+      if (action === 'assign' && keptJob(folk, skillId)) {
+        const locked = lockedAt(skillId, folk.place);
+        return locked === undefined ? undefined : { reason: folkWorkText(skillId, { ...locked, folk }) };
+      }
       const far = farRefusal(folk);
       if (far !== undefined || action !== 'assign') return far;
       // Picking a Folk for a skill puts it on your hex (6b), so the skill must work here.
@@ -727,11 +749,17 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     };
     api.on('folkHired', ({ folk }) => placeHere(folk, 'hired'));
     // A Folk with you picked for a skill steps ashore first (6c): it works where you stand.
-    api.on('folkAssigned', ({ folk, skillId }) => {
+    api.on('folkAssigned', ({ folk, previous, skillId }) => {
+      const back = skillId !== null && keptJob(folk, skillId);
+      updateJobs((CM, jobs) => CM.jobsAfterAssign(jobs, { folkId: folk.id, previous, skillId }));
       if (skillId === null) return;
+      // Back on its kept job: it works on where it stands.
+      if (back) { log(`${folk.name} back on ${skillId} at (${folk.place.q},${folk.place.r})`); return; }
       if (folk.travel === 'with') api.setTravel(folk.id, 'idle');
       placeHere(folk, `picked for ${skillId}`);
     });
+    // A Folk that moves, comes aboard, is fired or dies no longer keeps a job.
+    for (const name of ['folkMoved', 'folkFired', 'folkDied']) api.on(name, ({ folk }) => { if (folk?.id !== undefined) updateJobs((CM, jobs) => CM.jobsWithout(jobs, folk.id)); });
     api.registerLocationText((folk) => { try { return on() ? folkWhere(folk) : ''; } catch (e) { log('folk location failed', e); return ''; } });
     // The map's badges and the Here panel's Folks line follow the crew (6b); one redraw per burst of events.
     let folksDirty = false;
@@ -813,8 +841,10 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     const pos = state.position();
     if (rec === undefined || pos === undefined) return '';
     const d = hexDistance(pos, folk.place);
-    if (d === 0) return line('MOD_VOY_FOLK_AT_HERE', { here: here(rec).html }).text;
-    return line('MOD_VOY_FOLK_AT', { here: here(rec).html, where: whereIs(pos, rec, d) }).text;
+    const at = d === 0 ? line('MOD_VOY_FOLK_AT_HERE', { here: here(rec).html }).text : line('MOD_VOY_FOLK_AT', { here: here(rec).html, where: whereIs(pos, rec, d) }).text;
+    const job = folk.skillId === null ? jobsRecord()?.jobs[folk.id] : undefined;
+    if (job === undefined) return at;
+    return `${at}. ${line('MOD_VOY_FOLK_JOB_KEPT', { skill: esc(skillLabel(job, game.skills.getObjectByID(job)?.name ?? job)) }).text}`;
   };
   /** Worker Folks' guarded lines (the Shop's hire line) follow the player's hex and the rules. */
   const refreshFolks = () => { try { if (state.folksGuarded) state.folksApi?.()?.refresh(); } catch (e) { log('folks refresh failed', e); } };
