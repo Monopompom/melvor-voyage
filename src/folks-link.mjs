@@ -1,8 +1,8 @@
 // Worker Folks: Hiring's API (mod.api.worker_folks), read by Voyage for phase 6. Voyage drives Folks only through an
 // API it knows: an older Worker Folks (none, or a lower version) is left alone, said once in the console.
 
-/** The lowest Worker Folks API version Voyage drives (6a: guards, places, events; 6b: workerOf, location text). */
-export const FOLKS_API_MIN = 2;
+/** The lowest Worker Folks API version Voyage drives (6a: guards, places, events; 6b: workerOf, location text; 6c: skills, assign, hurt). */
+export const FOLKS_API_MIN = 3;
 
 /** The API when it is there and new enough, else undefined. `warn` is told once why an older one is skipped. */
 // The game declares `mod` with a top-level let: a global name, but not a property of globalThis (build .314 check).

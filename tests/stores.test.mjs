@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   RATION_HP, HEX_COST, isEasy, fuelFactor, foodHP, loadingAt, loadAmount, stepCost, pathCost, planMove, ashoreReserve, STARTER_KIT,
-  capacity, loadCount, wearOf, pathWear, hullReserve, WORN,
+  capacity, loadCount, wearOf, pathWear, hullReserve, WORN, crewMul, roundFuel,
   isNight, nextTurn, nightHours, lightCost, planLight, lightFactor, lightable,
 } from '../src/stores-model.mjs';
 import * as terrainMod from '../src/terrain.mjs';
@@ -215,4 +215,36 @@ test('the galleon\'s unlimited reach (build .152): the reserves count the way ho
   assert.equal(hullReserve(3, Infinity), hullReserve(3, 5));
   assert.equal(ashoreReserve(Infinity, Infinity), 0);
   assert.equal(hullReserve(Infinity, Infinity), 0);
+});
+
+test('crew (6c): every Folk with you eats and burns fuel like you; the plan pays for all', () => {
+  const step = land('snowlands');
+  const one = stepCost(step, 1);
+  assert.deepEqual(stepCost(step, 1, 2), { food: one.food * 3, fuel: Math.round(one.fuel * 3 * 1000) / 1000 });
+  assert.deepEqual(stepCost(step, 1, 0), one);
+  assert.deepEqual(stepCost({ ...step, free: true }, 1, 4), { food: 0, fuel: 0 });
+  const hop = stepCost({ cls: 'water', hop: 3 }, 1, 1);
+  assert.equal(hop.food, stepCost({ cls: 'water', hop: 3 }, 1).food * 2);
+  const steps = [land('snowlands'), land('snowlands')];
+  assert.deepEqual(pathCost(steps, 1, 1), { food: one.food * 4, fuel: Math.round(one.fuel * 4 * 1000) / 1000 });
+  // Stores enough for one but not for two: hard ground refuses with a Folk along.
+  const have = { food: one.food * 2, fuel: one.fuel * 2 };
+  assert.equal(planMove(have, steps, { fmLevel: 1 }).ok, true);
+  assert.equal(planMove(have, steps, { fmLevel: 1, crew: 1 }).ok, false);
+  // Easy ground walks on hungry instead, the steps marked for the crew's hunger.
+  const easy = [land('grasslands'), land('grasslands')];
+  const g = stepCost(land('grasslands'), 1);
+  const p = planMove({ food: g.food * 2, fuel: g.fuel * 2 }, easy, { fmLevel: 1, crew: 1 });
+  assert.equal(p.ok, true);
+  assert.deepEqual(p.hungry, [1]);
+});
+
+test('crew by rank: food follows the shares, fuel one per Folk', () => {
+  const step = { cls: 'Grasslands' };
+  const you = stepCost(step, 1);
+  const two = stepCost(step, 1, { count: 2, food: 1.25 });
+  assert.equal(two.food, Math.round(you.food * 2.25));
+  assert.equal(two.fuel, roundFuel(you.fuel * 3));
+  assert.deepEqual(stepCost(step, 1, { count: 1, food: 1 }), stepCost(step, 1, 1));
+  assert.deepEqual(crewMul(undefined), { food: 1, fuel: 1 });
 });

@@ -726,7 +726,12 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       log(`${folk.name} placed at (${pos.q},${pos.r}): ${why}`);
     };
     api.on('folkHired', ({ folk }) => placeHere(folk, 'hired'));
-    api.on('folkAssigned', ({ folk, skillId }) => { if (skillId !== null) placeHere(folk, `picked for ${skillId}`); });
+    // A Folk with you picked for a skill steps ashore first (6c): it works where you stand.
+    api.on('folkAssigned', ({ folk, skillId }) => {
+      if (skillId === null) return;
+      if (folk.travel === 'with') api.setTravel(folk.id, 'idle');
+      placeHere(folk, `picked for ${skillId}`);
+    });
     api.registerLocationText((folk) => { try { return on() ? folkWhere(folk) : ''; } catch (e) { log('folk location failed', e); return ''; } });
     // The map's badges and the Here panel's Folks line follow the crew (6b); one redraw per burst of events.
     let folksDirty = false;
@@ -734,7 +739,12 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       state.overlay?.folksChanged?.();
       if (folksDirty) return;
       folksDirty = true;
-      setTimeout(() => { folksDirty = false; try { state.herePanel?.render?.(); } catch (e) { log('folks redraw failed', e); } }, 0);
+      setTimeout(() => {
+        folksDirty = false;
+        try { state.herePanel?.render?.(); } catch (e) { log('folks redraw failed', e); }
+        // The Voyage page's Crew block (6c).
+        try { const s = state.voyageSkill?.(); if (s !== undefined) s.renderQueue.page = true; } catch {}
+      }, 0);
     };
     for (const name of ['folkMoved', 'folkHired', 'folkFired', 'folkDied', 'folkPromoted', 'folkAssigned', 'folkStarted', 'folkStruck', 'folkReleased', 'crewChanged']) api.on(name, folksChanged);
     state.folksGuarded = true;
@@ -776,8 +786,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   // hex of the Folk (the guards above, below).
 
   /** Management needs you within 1 hex of the Folk (6b, the user 19 Oct 2026); a Folk with no place yet is free. */
+  // A Folk with you (6c) is always at hand.
   const farRefusal = (folk) => {
-    if (folk === undefined || folk.place === null || folk.place === undefined) return undefined;
+    if (folk === undefined || folk.travel === 'with' || folk.place === null || folk.place === undefined) return undefined;
     const pos = state.position();
     if (pos === undefined) return undefined;
     const d = hexDistance(pos, folk.place);
@@ -786,14 +797,17 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   };
   /** A Folk works only what its own hex allows, resource zones included (6b): the skill rule, then what it was on. */
   const workRefusal = (folk, skillId, skill) => {
-    if (folk === undefined || folk.place === null || folk.place === undefined) return undefined;
-    const locked = lockedAt(skillId, folk.place);
+    // A Folk with you (6c) is put down on your hex to work: your hex is the one that counts.
+    const place = folk?.travel === 'with' ? state.position() : folk?.place;
+    if (folk === undefined || place === null || place === undefined) return undefined;
+    const locked = lockedAt(skillId, place);
     if (locked !== undefined) return { reason: folkWorkText(skillId, { ...locked, folk }) };
-    const off = skill === undefined ? undefined : runningActions(skill).map((a) => [a, zoneLockedAt(a, folk.place)]).find(([, z]) => z !== undefined);
+    const off = skill === undefined ? undefined : runningActions(skill).map((a) => [a, zoneLockedAt(a, place)]).find(([, z]) => z !== undefined);
     return off === undefined ? undefined : { reason: folkZoneText(off[0], { ...off[1], folk }) };
   };
   /** The card's and Worker box's line: where the Folk stands, from you. */
   const folkWhere = (folk) => {
+    if (folk.travel === 'with') return getLangString('MOD_VOY_FOLK_WITH_YOU');
     if (folk.place === null) return getLangString('MOD_VOY_FOLK_NO_PLACE');
     const rec = state.recordAt(folk.place);
     const pos = state.position();

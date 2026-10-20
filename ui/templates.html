@@ -80,6 +80,16 @@
             <div data-voyage="ship"></div>
           </div>
         </div>
+        <!-- Phase 6c: the Folks with you, their berths, and who could come along (src/voyage-page.mjs crewHtml). -->
+        <div class="block block-rounded border-top border-voyage border-4x d-none voyage-block" data-voyage="crew-block">
+          <div class="block-content p-3">
+            <div class="voyage-block-head">
+              <h5 class="font-w600 mb-0"><i class="fa fa-users voyage-title-fa" aria-hidden="true"></i><lang-string lang-id="MOD_VOY_CREW_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="crew"><i class="fa fa-question-circle"></i></button></h5>
+              <span class="font-w600" data-voyage="crew-count"></span>
+            </div>
+            <div data-voyage="crew"></div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="voyage-layout-foot d-none" data-voyage="layout-foot"></div>

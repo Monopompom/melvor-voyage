@@ -102,7 +102,12 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   25% more Voyage XP. Light never takes the fuel a trip needs, so playing at night is never worse than by day.
   Astrology levels make the light go further. You can move the night in the settings, or switch it off. Very rarely
   a lit hex at sea turns up a Starlit Chart: read it from the bank to clear the fog of the sea you are on.
-- **Worker Folks.** With Worker Folks loaded, hiring, promoting and firing need a town or port, like Township.
+- **Worker Folks.** With Worker Folks loaded, hiring needs a town or port, like Township. Every Folk stands on a hex:
+  it is hired or picked for a skill on yours, works only what its hex allows, and you manage it from within a hex.
+  Folks can also come along with you: each needs a berth on the water (dinghy 1, longboat 2, brig 6, galleon 12), and
+  each eats from the stores and burns fuel as you do. On empty stores they go hungry and lose a tenth of their HP
+  every hex, and hunger can kill. Put them ashore on land and pick their work there. The Crew block on the Voyage
+  page lists them.
 
 ## Settings (Mod Settings, section Voyage)
 

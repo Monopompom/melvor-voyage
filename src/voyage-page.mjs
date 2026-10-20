@@ -116,6 +116,14 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
           if (item !== undefined && n > 0) state.hold?.sell(item, n, kind, () => { delete amounts[`take-${kind}`]; render(); });
         }
       });
+      // The Crew (phase 6c): Come with me, and Put ashore with its work dialog.
+      part('crew')?.addEventListener('click', (e) => {
+        const target = e.target instanceof Element ? e.target.closest('[data-voyage-action]') : null;
+        if (target === null || state.crew === undefined) return;
+        const id = target.dataset.folk;
+        if (target.dataset.voyageAction === 'crew-come') { if (state.crew.comeAlong(id)) render(); }
+        else if (target.dataset.voyageAction === 'crew-ashore') state.crew.askAshore(id, render);
+      });
       part('stores')?.addEventListener('click', (e) => {
         const target = e.target instanceof Element ? e.target.closest('[data-voyage-action], [data-voyage-preset]') : null;
         if (target === null) return;
@@ -233,6 +241,85 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     }
     // The hull's wear is in Stores (build .205: what a sail costs); what you can buy is in the Shipwright row.
     return vesselRow('boat') + (api.big() != null ? `<div class="voyage-big-head"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(shipModel.HULLS[api.vessel('ship').hull].media)}" alt="">${esc(t('MOD_VOY_PAGE_BIG_HEAD'))}</div>${vesselRow('ship')}` : '') + shipwrightHtml();
+  };
+  /**
+   * The Crew (phase 6c): the Folks with you and the berths they ride in, and the Folks within a hex who could come
+   * along. Put ashore asks what the Folk should work here; a reason stands where a button can't be.
+   */
+  const crewHtml = () => {
+    const c = state.crew;
+    const crew = c.list();
+    const near = c.near();
+    const busy = c.busy();
+    const ashoreWhy = c.ashoreRefusal();
+    // A row as the Folk's card has it: its rank's portrait, the name, and its health as a bar coloured like the card's
+    // (green over half, amber over a quarter, red below), the game's heart before it.
+    const CM = state.crewModel;
+    const pctOf = (share) => `${Math.round(share * 100)}`;
+    const foodOut = (state.stores?.stores?.()?.food ?? 1) <= 0;
+    const heart = (() => { try { return game.hitpoints.media; } catch { return undefined; } })();
+    const hpBlock = (f, along) => {
+      if (f.maxHp === undefined) return '';
+      const hp = f.hp ?? f.maxHp;
+      const pct = Math.max(0, Math.min(100, Math.round((hp / f.maxHp) * 100)));
+      const tone = pct > 50 ? 'success' : pct > 25 ? 'warning' : 'danger';
+      let out = `<div class="voyage-crew-hp">${heart ? `<img class="skill-icon-xxs" src="${esc(heart)}" alt="">` : ''}`
+        + `<div class="progress voyage-crew-hpbar" role="presentation"><div class="progress-bar bg-${tone}" style="width:${pct}%"></div></div>`
+        + `<small class="text-${tone}">${esc(t('MOD_VOY_CREW_HP', { hp: numberWithCommas(hp), max: numberWithCommas(f.maxHp) }))}</small>`;
+      // Along with you: its share of your food by rank, and how many hexes on empty stores it would live through,
+      // amber once the food is gone.
+      if (along && CM !== undefined) {
+        const share = CM.foodShare(f.tier);
+        out += `<small class="voyage-crew-eats ${share < 1 ? 'text-success' : share > 1 ? 'text-warning' : 'text-muted'}" title="${esc(t('MOD_VOY_CREW_EATS_TIP', { rank: rankName(f.tier), pct: pctOf(share) }))}">`
+          + `<img class="skill-icon-xxs mr-1" src="${esc(ctx.getResourceUrl('assets/ration.webp'))}" alt="">${esc(t('MOD_VOY_CREW_EATS', { pct: pctOf(share) }))}</small>`;
+        const n = CM.hungryHexes(f.hp, f.maxHp);
+        const key = n === 0 ? 'MOD_VOY_CREW_LASTS_NONE' : n === 1 ? 'MOD_VOY_CREW_LASTS_ONE' : 'MOD_VOY_CREW_LASTS';
+        const cls = !foodOut ? 'text-muted' : n === 0 ? 'text-danger font-w600' : 'text-warning';
+        out += `<small class="voyage-crew-lasts ${cls}" title="${esc(t('MOD_VOY_CREW_LASTS_TIP', { hp: numberWithCommas(CM.hungerDamage(f.maxHp)) }))}">`
+          + `<i class="fa fa-skull mr-1" aria-hidden="true"></i>${esc(t(key, { n: `${n}` }))}</small>`;
+      }
+      return `${out}</div>`;
+    };
+    const row = (f, extra, button, along = false, skillIcon = '') => `<div class="voyage-crew-row">`
+      + (f.portrait ? `<img class="voyage-crew-face" src="${esc(f.portrait)}" alt="">` : '')
+      + `<div class="voyage-crew-who"><div><span class="font-w600">${esc(f.name)}</span> <small class="text-muted">(${esc(rankName(f.tier))}${skillIcon}${extra})</small></div>${hpBlock(f, along)}</div>`
+      + `${button}</div>`;
+    // Berths: each vessel you own, the one you are in marked.
+    const inV = c.inVessel();
+    const berths = ['boat', 'ship'].filter((kind) => state.ship?.vessel?.(kind) != null).map((kind) => {
+      const v = state.ship.vessel(kind);
+      return `<span class="voyage-crew-berth${kind === inV ? ' font-w600' : ' text-muted'}"><img class="voyage-hold-part-icon mr-1" src="${ctx.getResourceUrl(shipModel.HULLS[v.hull].media)}" alt="">${esc(t(c.berthsFor(kind) === 1 ? 'MOD_VOY_CREW_BERTHS_ONE' : 'MOD_VOY_CREW_BERTHS', { hull: t(shipModel.hullNameKey(v.hull)), n: `${c.berthsFor(kind)}` }))}</span>`;
+    });
+    let html = berths.length > 0 ? `<div class="voyage-crew-berths">${berths.join('')}</div>` : `<div class="text-muted">${esc(t('MOD_VOY_CREW_NO_VESSEL'))}</div>`;
+    const ashoreBtn = (f) => (ashoreWhy !== undefined ? ''
+      : `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="crew-ashore" data-folk="${esc(f.id)}">${esc(t('MOD_VOY_CREW_ASHORE_BUTTON'))}</button>`);
+    html += crew.length === 0
+      ? `<div class="text-muted mt-2">${esc(t('MOD_VOY_CREW_NONE'))}</div>`
+      : `<div class="voyage-big-head">${esc(t('MOD_VOY_CREW_WITH_HEAD'))}</div>${crew.map((f) => row(f, '', ashoreBtn(f), true)).join('')}` +
+        (ashoreWhy !== undefined && ashoreWhy !== busy ? `<small class="d-block text-warning mt-1">${esc(ashoreWhy)}</small>` : '');
+    if (near.length > 0) {
+      const statusWord = (f) => {
+        if (f.status === 'idle') return t('MOD_VOY_PANEL_FOLK_IDLE');
+        return game.skills.getObjectByID(f.skillId ?? '')?.name ?? '';
+      };
+      const comeBtn = (f) => {
+        const why = c.comeRefusal(f.id);
+        return why !== undefined ? '' : `<button type="button" class="btn btn-sm btn-success" data-voyage-action="crew-come" data-folk="${esc(f.id)}">${esc(t('MOD_VOY_CREW_COME_BUTTON'))}</button>`;
+      };
+      const refusal = near.map((f) => c.comeRefusal(f.id)).find((w) => w !== undefined && w !== '' && w !== busy);
+      html += `<div class="voyage-big-head">${esc(t('MOD_VOY_CREW_NEAR_HEAD'))}</div>${near.map((f) => {
+        const w = statusWord(f);
+        const media = f.status === 'idle' ? undefined : game.skills.getObjectByID(f.skillId ?? '')?.media;
+        return row(f, w === '' ? '' : `${media ? '' : ', '}${w}`, comeBtn(f), false, media ? `, <img class="skill-icon-xxs voyage-crew-skill" src="${esc(media)}" alt="">` : '');
+      }).join('')}` +
+        (refusal !== undefined ? `<small class="d-block text-warning mt-1">${esc(refusal)}</small>` : '') +
+        (near.some((f) => f.skillId !== null) && refusal === undefined && busy === undefined ? `<small class="d-block text-muted mt-1">${esc(t('MOD_VOY_CREW_COME_STOPS'))}</small>` : '');
+    } else if (busy === undefined) {
+      html += `<small class="d-block text-muted mt-2">${esc(t('MOD_VOY_CREW_NEAR_NONE'))}</small>`;
+    }
+    // Under way or adrift: one line says why no button shows, under both lists.
+    if (busy !== undefined && (crew.length > 0 || near.length > 0)) html += `<small class="d-block text-warning mt-2">${esc(busy)}</small>`;
+    return section(html) + `<small class="d-block text-muted mt-1">${esc(t('MOD_VOY_CREW_HINT'))}</small>`;
   };
   /** The Shipwright row folds open (closed by default), per browser. */
   const SHIPWRIGHT_KEY = 'voyage-shipwright-open';
@@ -590,6 +677,8 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     cls: ['text-success'],
   });
 
+  /** A Folk's rank as Worker Folks names it (Trainee … Foreman), the tier id where its texts aren't loaded. */
+  const rankName = (tier) => { const key = `MOD_WF_ROLE_${tier}`; try { const s = getLangString(key); return s && !s.includes(key) ? s : tier; } catch { return tier; } };
   const helpSections = (topic) => {
     const R = shipModel.REPAIR;
     const st = state.stores;
@@ -614,6 +703,23 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
         ] },
       ];
     }
+    if (topic === 'crew') {
+      return [
+        { body: [t('MOD_VOY_HELP_CREW_WHAT')] },
+        { head: t('MOD_VOY_HELP_HEAD_BERTHS'), body: [
+          t('MOD_VOY_HELP_CREW_BERTHS'),
+          { table: { cols: [t('MOD_VOY_HELP_COL_SHIP'), t('MOD_VOY_HELP_COL_BERTHS')], rows: Object.keys(shipModel.HULLS).map((id) => ({ cells: [t(shipModel.hullNameKey(id)), `${state.crewModel?.berthsOf?.(id) ?? ''}`] })) } },
+        ] },
+        { head: t('MOD_VOY_HELP_HEAD_CREW_STORES'), body: [
+          t('MOD_VOY_HELP_CREW_EATS'),
+          { table: { cols: [t('MOD_VOY_HELP_COL_RANK'), t('MOD_VOY_HELP_COL_EATS')], rows: Object.entries(state.crewModel?.FOOD_SHARE ?? {}).map(([tier, share]) => ({
+            cells: [rankName(tier), `${Math.round(share * 100)}%`], cls: share === 1 ? ['font-w600'] : share < 1 ? ['text-success'] : ['text-warning'],
+          })) } },
+          { text: t('MOD_VOY_HELP_CREW_HUNGER', { pct: `${Math.round((state.crewModel?.HUNGER_SHARE ?? 0.1) * 100)}` }), cls: 'text-danger' },
+        ] },
+        { head: t('MOD_VOY_HELP_HEAD_CREW_ASHORE'), body: [t('MOD_VOY_HELP_CREW_ASHORE'), t('MOD_VOY_HELP_CREW_FIXED')] },
+      ];
+    }
     if (topic === 'hold') {
       return [
         { head: t('MOD_VOY_HELP_HEAD_SLOTS'), body: [
@@ -633,6 +739,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
       const out = [{ head: t('MOD_VOY_HELP_HEAD_COSTS'), body: [
         { table: { cols: [t('MOD_VOY_HELP_COL_TERRAIN'), t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_HELP_COL_FUEL')], rows: costRows() } },
         t('MOD_VOY_HELP_FUEL_WHY'),
+        ...(state.crew !== undefined && state.folksGuarded === true ? [t('MOD_VOY_HELP_CREW_COSTS')] : []),
       ] }];
       if (st !== undefined) {
         const cap = st.capacity();
@@ -702,7 +809,7 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     return [];
   };
 
-  const TITLE_KEY = { ship: 'MOD_VOY_PAGE_SHIP_TITLE', hold: 'MOD_VOY_HOLD_LABEL', stores: 'MOD_VOY_PAGE_STORES_TITLE', travels: 'MOD_VOY_PAGE_TRAVELS_TITLE', compass: 'MOD_VOY_PAGE_COMPASS_TITLE' };
+  const TITLE_KEY = { crew: 'MOD_VOY_CREW_TITLE', ship: 'MOD_VOY_PAGE_SHIP_TITLE', hold: 'MOD_VOY_HOLD_LABEL', stores: 'MOD_VOY_PAGE_STORES_TITLE', travels: 'MOD_VOY_PAGE_TRAVELS_TITLE', compass: 'MOD_VOY_PAGE_COMPASS_TITLE' };
   const showHelp = (topic) => {
     try {
       SwalLocale.fire({
@@ -831,6 +938,19 @@ export function install(ctx, { state, model, shipModel, storesModel, pageLayout,
     }
     const ship = part('ship');
     if (ship !== null && !typing(ship)) ship.innerHTML = shipHtml();
+    // The Crew (phase 6c): with Worker Folks' API and the rules on.
+    const crewBlock = part('crew-block');
+    const crewOn = state.crew !== undefined && state.folksGuarded === true && state.active();
+    crewBlock?.classList.toggle('d-none', !crewOn);
+    const crewPart = part('crew');
+    if (crewPart !== null && crewOn) {
+      try {
+        crewPart.innerHTML = crewHtml();
+        const n = state.crew.count();
+        const head = part('crew-count');
+        if (head !== null) head.textContent = n > 0 ? t('MOD_VOY_CREW_COUNT', { count: `${n}` }) : '';
+      } catch (e) { log('crew render failed', e); }
+    }
     const holdBlock = part('hold-block');
     const holdKinds = state.hold?.kinds?.() ?? [];
     const hasShip = holdKinds.length > 0;

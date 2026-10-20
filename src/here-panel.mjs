@@ -278,19 +278,34 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return `<div class="voyage-here-place">${label}<span class="text-danger" title="${esc(getLangString('MOD_VOY_PANEL_NO_TRADE_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_NO_TRADE'))}</span>${trader}</div>`;
   };
 
-  /** "Folks here: Tobin (Junior, Mining), Mira (Middle, idle)": Worker Folks standing on this hex (phase 6b). */
+  /**
+   * "Folks here: Tobin (Junior, Mining), Mira (Middle, Idle)": Worker Folks standing on this hex (phase 6b), and "With
+   * you: …", the crew (6c). Up to two names stand in the line; from three on it says how many, the names in its tooltip
+   * (a galleon's twelve took ten rows of the panel), and the crew's line has a button to the Crew block.
+   */
   const FOLK_STATUS = { idle: 'MOD_VOY_PANEL_FOLK_IDLE', strike: 'MOD_VOY_PANEL_FOLK_STRIKE', cooldown: 'MOD_VOY_PANEL_FOLK_REST', debt: 'MOD_VOY_PANEL_FOLK_DEBT' };
+  const INLINE_FOLKS = 2;
+  const folkList = (label, folks, about, button = '') => {
+    const named = (f) => `${f.name} (${about(f)})`;
+    const body = folks.length <= INLINE_FOLKS
+      ? folks.map((f) => `<span class="voyage-keep">${esc(f.name)} <small class="text-muted">(${esc(about(f))})</small></span>`).join(', ')
+      : `<span class="voyage-folks-count" title="${esc(folks.map(named).join('\n'))}">${esc(templateLangString('MOD_VOY_PANEL_FOLKS_COUNT', { count: `${folks.length}` }))}</span>`;
+    return `<div class="voyage-here-place voyage-here-folks"><span><span class="voyage-here-label">${esc(getLangString(label))}</span> ${body}</span>${button}</div>`;
+  };
   const folksLine = (pos) => {
     if (!state.active() || !state.folksGuarded) return '';
-    const folks = (state.folksApi?.()?.folks() ?? []).filter((f) => f.place !== null && f.place.q === pos.q && f.place.r === pos.r);
-    if (folks.length === 0) return '';
+    const all = state.folksApi?.()?.folks() ?? [];
+    const crew = all.filter((f) => f.travel === 'with');
+    const crewBtn = `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-crew-link">${esc(getLangString('MOD_VOY_PANEL_CREW_BUTTON'))}</button>`;
+    const crewLine = crew.length === 0 ? '' : folkList('MOD_VOY_PANEL_CREW_LABEL', crew, (f) => f.tier, crewBtn);
+    const folks = all.filter((f) => f.travel !== 'with' && f.place !== null && f.place.q === pos.q && f.place.r === pos.r);
+    if (folks.length === 0) return crewLine;
     const what = (f) => {
       const key = FOLK_STATUS[f.status];
       if (key !== undefined) return getLangString(key);
       return game.skills.getObjectByID(f.skillId)?.name ?? getLangString('MOD_VOY_PANEL_FOLK_IDLE');
     };
-    const names = folks.map((f) => `<span class="voyage-keep">${esc(f.name)} <small class="text-muted">(${esc(templateLangString('MOD_VOY_PANEL_FOLK_WHAT', { tier: f.tier, what: what(f) }))})</small></span>`).join(', ');
-    return `<div class="voyage-here-place"><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_FOLKS_LABEL'))}</span> ${names}</div>`;
+    return folkList('MOD_VOY_PANEL_FOLKS_LABEL', folks, (f) => templateLangString('MOD_VOY_PANEL_FOLK_WHAT', { tier: f.tier, what: what(f) })) + crewLine;
   };
   /** "Combat: Golbin Village, …" or "Combat: Not here": the areas combat works in from this hex (empty while combat is not gated). */
   const fightLine = () => {
@@ -900,6 +915,16 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
           state.pageLayout?.unfold('underway-block');
           setTimeout(() => document.querySelector('#voyage-container [data-voyage="underway-block"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 100);
         } catch (err) { log('Under way link failed', err); }
+        return;
+      }
+      // The crew's line (6c): its button opens the Voyage page at the Crew block.
+      if (e.target instanceof Element && e.target.closest('.voyage-crew-link')) {
+        e.preventDefault();
+        try {
+          state.openPage(game.pages.getObjectByID('voyage:Voyage'));
+          state.pageLayout?.unfold('crew-block');
+          setTimeout(() => document.querySelector('#voyage-container [data-voyage="crew-block"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 100);
+        } catch (err) { log('Crew link failed', err); }
         return;
       }
       if (e.target instanceof Element && e.target.closest('.voyage-bank-link')) {

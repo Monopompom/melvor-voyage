@@ -11,7 +11,7 @@
  * 'clock' (build .219) is timed travel (phase 5a, 4.5); 'weather' (phase 5c-1, 4.24) the seasons, the bands and the ice. Cargo, markets, notices and planning were chapters here until
  * build .231; they are Guide pages now (JOURNAL_GUIDE_SECTIONS), written at their first moment.
  */
-export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'travels', 'clock', 'weather', 'road', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
+export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'crew', 'travels', 'clock', 'weather', 'road', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
 /**
  * The Old Man's Crew pages (build .116, the user's ask): a guide to Worker Folks: Hiring in the captain's voice, shown
  * as their own tab only while that mod is loaded. Written chapters like the ones below (MOD_VOY_JOURNAL_CH_CREW_*).
@@ -151,6 +151,17 @@ export function linkTargetExists(kind, id, guides) {
   if (kind === 'tab') return JOURNAL_TABS.includes(id);
   return false;
 }
+
+/**
+ * A book line that begins with `{folks}` (after a list's "- ", if any) is about Worker Folks: kept, without the mark, only while Folks are on, so a
+ * player without that mod never reads of Folks (nor follows a link to the hidden "Folks aboard").
+ */
+const FOLKS_LINE = /^(\s*(?:[-*>] )?)\{folks\}\s*/;
+export const folksLines = (lines, on) => lines.flatMap((l) => {
+  const m = FOLKS_LINE.exec(l);
+  if (m === null) return [l];
+  return on ? [m[1] + l.slice(m[0].length)] : [];
+});
 
 export const hexStr = (q, r) => `${q},${r}`;
 export function parseHex(s) {

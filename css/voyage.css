@@ -1106,3 +1106,21 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-storm-ahead > .fa-bolt { color: var(--voyage-storm); margin-top: 3px; }
 .voyage-storm-row .fa-bolt, .voyage-storm-sum, .voyage-storm-chip .fa-bolt { color: var(--voyage-storm); }
 .voyage-storm-sum { margin-left: 8px; }
+
+/* The Crew block (phase 6c): the berths of each vessel, then a row per Folk with its button on the right. */
+.voyage-crew-berths { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.voyage-crew-berth { display: inline-flex; align-items: center; }
+.voyage-crew-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.voyage-crew-face { width: 36px; height: 36px; flex: 0 0 auto; object-fit: contain; }
+.voyage-crew-who { flex: 1 1 auto; min-width: 0; }
+.voyage-crew-row .btn { flex: 0 0 auto; }
+.voyage-crew-hp { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; margin-top: 2px; }
+.voyage-crew-hpbar { width: 72px; height: 5px; margin: 0; flex: 0 0 auto; }
+.voyage-crew-eats, .voyage-crew-lasts { display: inline-flex; align-items: center; margin-left: 4px; }
+.voyage-crew-skill { vertical-align: -2px; margin-right: 2px; }
+.voyage-crew-row + .voyage-crew-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.voyage-crew-work select { max-width: 320px; margin: 0 auto; }
+
+/* The Here panel's Folks lines (phase 6c): the names or the count on the left, the Crew button on the right. */
+.voyage-here-folks { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.voyage-folks-count { text-decoration: underline dotted; cursor: help; }

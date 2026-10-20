@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-20.318';
+export const BUILD = '2026-10-20.326';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -363,6 +363,13 @@ export async function setup(ctx) {
   } catch (e) { console.error('[Voyage] land upgrades failed to load; the rest runs', e); state.land = undefined; }
   // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
   const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, log });
+  // The crew (phase 6c): Folks who go along with you, in berths, eating from the stores. A failure leaves them ashore.
+  let crew;
+  try {
+    const crewModel = await ctx.loadModule('src/crew-model.mjs');
+    crew = (await ctx.loadModule('src/crew.mjs')).install(ctx, { state, CM: crewModel, shipModel, terrainMod, helpLayout, log });
+    state.crewModel = crewModel;
+  } catch (e) { console.error('[Voyage] the crew failed to load; Folks stay ashore', e); state.crew = undefined; }
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.
   holdMod.install(ctx, { state, shipModel, helpLayout, log });
   const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
@@ -453,6 +460,10 @@ export async function setup(ctx) {
         if (!ignoreCosts) planned = stores.planFor(path);
         steps = planned?.steps ?? (Array.isArray(path) ? ship.stepsOf(path) : undefined);
       } catch (e) { log('travel steps failed', e); }
+      // Berths (phase 6c): a crew bigger than the vessel a step is sailed in stays put, the Provisions setting or not.
+      let berths;
+      try { if (!ignoreCosts && state.active()) berths = crew?.berthRefusal(steps); } catch (e) { log('berth check failed', e); }
+      if (berths !== undefined) { crew.refuseBerths(berths); return; }
       if (planned !== undefined && !planned.plan.ok) { stores.refuse(planned, path); return; }
       const gpBefore = game.gp.amount;
       const result = original(path, ignoreCosts, ...rest);
@@ -460,6 +471,8 @@ export async function setup(ctx) {
         const dest = path?.[0];
         if (dest !== undefined && from !== dest && this.activeMap?.playerPosition === dest) {
           stores.afterMove(planned);
+          // Hunger on the road (phase 6c): the hungry steps the stores just marked hurt the crew too.
+          try { if (!ignoreCosts) crew?.afterMove(steps); } catch (e) { log('crew hunger failed', e); }
           if (!ignoreCosts && steps !== undefined) {
             // Discovery XP (the balance pass): the hexes stepped onto, start excluded, none under cloud.
             const entered = path.slice(0, -1).filter((hex) => !terrainMod.isCloud(state.terrain?.get?.(hex.q, hex.r)));

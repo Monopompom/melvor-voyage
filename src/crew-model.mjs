@@ -1,0 +1,47 @@
+// The crew's pure rules (phase 6c): the Folks who go along with you. Berths per vessel, mouths at the stores, hunger
+// on the road. No game objects here; covered by tests/crew-model.test.mjs.
+
+/** How many Folks each hull carries besides you. On land the crew walks, and the crew is never more than berths. */
+export const BERTHS = { dinghy: 1, longboat: 2, brig: 6, galleon: 12 };
+export const berthsOf = (hullId) => BERTHS[hullId] ?? 0;
+
+/**
+ * How much of your food a Folk eats, by its rank: a Trainee half, a Foreman half again. Fuel is one share each (the
+ * fire warms them alike). An unknown rank eats as you do.
+ */
+export const FOOD_SHARE = { Newbie: 0.5, Junior: 0.75, Middle: 1, Senior: 1.25, Expert: 1.5 };
+export const foodShare = (tier) => FOOD_SHARE[tier] ?? 1;
+/** The crew's load on the stores: `count` Folks (fuel shares) and `food`, the sum of their food shares. */
+export const crewLoad = (folks) => {
+  const list = Array.isArray(folks) ? folks : [];
+  return { count: list.length, food: list.reduce((sum, f) => sum + foodShare(f?.tier), 0) };
+};
+
+/** Who eats from the stores and burns fuel on a step: you and every Folk with you. */
+export const mouths = (crew) => 1 + (Number.isFinite(crew) && crew > 0 ? Math.floor(crew) : 0);
+
+/** Each hex walked or rowed on empty stores costs every Folk with you a tenth of its max HP (at least 1); it can die. */
+export const HUNGER_SHARE = 0.1;
+export const hungerDamage = (maxHp) => Math.max(1, Math.ceil((Number.isFinite(maxHp) && maxHp > 0 ? maxHp : 0) * HUNGER_SHARE));
+/** How many hungry hexes a Folk at `hp` of `maxHp` lives through (null hp: full health); the next one kills it. */
+export const hungryHexes = (hp, maxHp) => {
+  const now = hp === null || hp === undefined ? maxHp : hp;
+  if (!(now > 0)) return 0;
+  return Math.floor((now - 1) / hungerDamage(maxHp));
+};
+
+/**
+ * The first step a crew of `crew` Folks can't take for want of berths: a sea step or a hop (free ones too: the boat
+ * still has to carry them) in a vessel whose berths (`berthsFor(kind)`) are fewer. { at, vessel, berths }, or undefined when they all fit.
+ */
+export function berthRefusal(steps, crew, berthsFor) {
+  if (!(crew > 0)) return undefined;
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    if (!(s.sea || s.hop > 0)) continue;
+    const vessel = s.vessel ?? 'boat';
+    const berths = berthsFor(vessel);
+    if (berths < crew) return { at: i, vessel, berths };
+  }
+  return undefined;
+}

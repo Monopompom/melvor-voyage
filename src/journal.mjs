@@ -435,9 +435,15 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       + (state.settings.strictness() === 'relaxed' ? `<p class="vj-p text-info">${esc(t('MOD_VOY_JOURNAL_CRAFTS_RELAXED'))}</p>` : '');
   };
 
-  /** Adventure's chapter only where skills are bought; the "?" chapters only with the Voyage page loaded. */
+  /**
+   * Adventure's chapter only where skills are bought; the "?" chapters only with the Voyage page loaded; the Crew's
+   * (phase 6c) only with Worker Folks driving Folks.
+   */
   const adventure = () => { try { return game.currentGamemode?.allowSkillUnlock === true; } catch { return false; } };
+  /** Worker Folks drives Folks here: the crew chapter and the book's `{folks}` lines show. */
+  const folksOn = () => state.crew !== undefined && state.folksGuarded === true;
   const chapters = () => jm.JOURNAL_CHAPTERS.filter((c) => (c === 'adventure' ? adventure()
+    : c === 'crew' ? folksOn() && typeof state.helpSections === 'function'
     : c === 'crafts' || jm.JOURNAL_WRITTEN[c] !== undefined || typeof state.helpSections === 'function'));
 
   /** A book-only chapter (journal-model.mjs JOURNAL_WRITTEN): its sections from en.json, plus the live parts. */
@@ -454,7 +460,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     if (spec === undefined) return '';
     const vars = bookVars();
     return spec.sections.map((sec) => {
-      const lines = t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_BODY`, vars).split('\n').filter((x) => x.trim() !== '');
+      const lines = jm.folksLines(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_BODY`, vars).split('\n').filter((x) => x.trim() !== ''), folksOn());
       return `<div class="vj-section"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_HEAD`))}</h3>${prose(lines)}</div>`;
     }).join('');
   };
@@ -462,7 +468,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const spec = jm.JOURNAL_WRITTEN[id];
     const key = id.toUpperCase();
     const vars = bookVars();
-    const line = (k) => t(k, vars).split('\n').filter((x) => x.trim() !== '');
+    const line = (k) => jm.folksLines(t(k, vars).split('\n').filter((x) => x.trim() !== ''), folksOn());
     let html = id === 'lighthouse' ? lighthouse() : '';
     for (const sec of spec.sections) {
       // The map's key line follows the setting: a cleared key turns the shortcut off.

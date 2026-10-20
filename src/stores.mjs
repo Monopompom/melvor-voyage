@@ -50,6 +50,9 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   /** What the stores hold at most (build .66): grows with the Voyage level. */
   const capacity = () => S.capacity(usable() ? skill().level : 1);
   const recOf = (hex) => state.ship?.recOf?.(hex) ?? state.recordAt(hex);
+  /** The Folks with you (phase 6c): they eat from the stores and burn fuel like you. */
+  // The crew's load (phase 6c): { count, food }, food by each Folk's rank.
+  const crew = () => { try { return state.crew?.load?.() ?? { count: 0, food: 0 }; } catch { return { count: 0, food: 0 }; } };
 
   const changed = () => {
     const s = skill();
@@ -102,7 +105,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
    */
   const priceSteps = (have, steps, dest) => {
     const ends = endKind(steps);
-    const opts = { fmLevel: fmLevel(), reserve: reserveAt(dest, ends) };
+    const opts = { fmLevel: fmLevel(), reserve: Math.ceil(reserveAt(dest, ends) * (1 + crew().food)), crew: crew() };
     if (state.ship?.big?.() != null) {
       const hulls = {};
       for (const kind of ['boat', 'ship']) {
@@ -180,7 +183,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     if (state.adrift?.here?.() === true) return undefined;
     const have = stores();
     const food = bankFood();
-    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}`;
+    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}|${crew().count}:${crew().food}`;
     if (rescueMemo?.key === key) return rescueMemo.value;
     let value;
     try { value = rescueFrom(pos, have, food); } catch (e) { log('provisions rescue failed', e); }
@@ -190,10 +193,10 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   const rescueFrom = (pos, have, food) => {
     if (safe(pos, food)) return undefined; // easy ground walks on hungry; a loading place loads
     const level = fmLevel();
-    const cost = (h) => { const c = S.stepCost({ cls: recOf(h)?.t, sea: shipModel.isSea(recOf(h)) }, level); return c.food + c.fuel * S.RATION_HP; };
+    const cost = (h) => { const c = S.stepCost({ cls: recOf(h)?.t, sea: shipModel.isSea(recOf(h)) }, level, crew()); return c.food + c.fuel * S.RATION_HP; };
     const found = stranded.cheapestRoute(pos, { neighbours, stepCost: cost, isGoal: (h) => safe(h, food), key: (h) => terrainMod.hexKey(h.q, h.r) });
     if (found === undefined) return undefined;
-    const need = S.pathCost(state.ship.stepsOf(found.path), level);
+    const need = S.pathCost(state.ship.stepsOf(found.path), level, crew());
     if (need.food <= have.food && need.fuel <= have.fuel + 1e-9) return undefined;
     return { path: found.path, steps: found.path.length - 1, dir: terrainMod.directionLabel(pos, found.path[0]) };
   };
@@ -216,7 +219,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       const have = stores();
       // The whole trip against the stores, and where it runs out (user report, build .58: "needs 20 HP, your stores
       // hold 160" named only the step that failed, after the stores had gone on the steps before it).
-      const total = S.pathCost(planned.steps, fmLevel());
+      const total = S.pathCost(planned.steps, fmLevel(), crew());
       const along = hexes(p.at + 1);
       const lines = [];
       // Message popup marks (build .259): the names and the amounts bold, what you are short of in red.
@@ -305,7 +308,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
         note.className = 'voyage-stores-note mb-1';
         this.travelBtn?.before(note);
       }
-      const cost = S.pathCost(planned.steps, fmLevel());
+      const cost = S.pathCost(planned.steps, fmLevel(), crew());
       const p = planned.plan;
       // One line each: provisions, each hull's wear, the night (the user, 19 Oct 2026: "put each on new line").
       // One row each, its first words an icon with them as its tooltip (the user, 19 Oct 2026: "put each on new line";
@@ -334,11 +337,15 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       } catch (e) { log('travel GP row failed', e); }
       own(gpOnly);
       // A row only when the trip takes some (build .275, the user: "hide if there are 0s.. no point to show them").
+      // With Folks along (phase 6c) the tooltip says the trip feeds them too.
+      const n = crew().count;
+      const costTip = n > 0 ? t(n === 1 ? 'MOD_VOY_STORES_PATH_COST_TIP_CREW_ONE' : 'MOD_VOY_STORES_PATH_COST_TIP_CREW', { count: `${n}` }) : t('MOD_VOY_STORES_PATH_COST_TIP');
+      const fuelTip = n > 0 ? t(n === 1 ? 'MOD_VOY_STORES_PATH_FUEL_TIP_CREW_ONE' : 'MOD_VOY_STORES_PATH_FUEL_TIP_CREW', { count: `${n}` }) : t('MOD_VOY_STORES_PATH_FUEL_TIP');
       if (Math.floor(cost.food) > 0) {
-        lines.push(row(`<img class="voyage-stores-lead-img" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt="">`, t('MOD_VOY_STORES_PATH_COST_TIP'),
+        lines.push(row(`<img class="voyage-stores-lead-img" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt="">`, costTip,
           `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}">${esc(hp(cost.food))} HP</span>`));
       }
-      if (cost.fuel >= 0.005) lines.push(row(fuelIcon, t('MOD_VOY_STORES_PATH_FUEL_TIP'), esc(fuelText(cost.fuel))));
+      if (cost.fuel >= 0.005) lines.push(row(fuelIcon, fuelTip, esc(fuelText(cost.fuel))));
       // Each vessel's own wear (two vessels, build .150: named in the tooltip when there are two).
       const two = state.ship?.big?.() != null;
       for (const kind of ['boat', 'ship']) {

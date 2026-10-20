@@ -4,7 +4,8 @@
 
 /** The page's blocks, by their `data-voyage` name, and where they start. */
 // Build .205: the Errands block went into the Hold; a saved layout that still names it drops it (clean()).
-export const DEFAULT = Object.freeze({ left: ['plan-block', 'hold-block'], right: ['stores-block', 'ship-block'] });
+// Phase 6c: the Crew block, under the ship.
+export const DEFAULT = Object.freeze({ left: ['plan-block', 'hold-block'], right: ['stores-block', 'ship-block', 'crew-block'] });
 export const BLOCKS = [...DEFAULT.left, ...DEFAULT.right];
 export const COLUMNS = ['left', 'right'];
 

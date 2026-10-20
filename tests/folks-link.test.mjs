@@ -13,5 +13,5 @@ test('Worker Folks API: used only when present and new enough; an older one is n
   assert.equal(folksApi({ mods: { api: { worker_folks: { version: 1, registerGuard() {} } } }, warn }), undefined);
   assert.equal(folksApi({ mods: { api: { worker_folks: { registerGuard() {} } } }, warn }), undefined);
   assert.equal(warnings.length, 2);
-  assert.match(warnings[0], /older than 2/);
+  assert.match(warnings[0], new RegExp(`older than ${FOLKS_API_MIN}`));
 });

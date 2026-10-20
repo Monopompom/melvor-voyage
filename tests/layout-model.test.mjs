@@ -11,9 +11,9 @@ test('layout: nothing saved or unreadable gives the default', () => {
 });
 
 test('layout: a saved order is kept, every block once, unknown names dropped', () => {
-  const l = clean({ left: ['ship-block', 'nope', 'plan-block', 'ship-block'], right: ['hold-block', 'stores-block'], folded: ['stores-block', 'stores-block', 'gone'] });
+  const l = clean({ left: ['ship-block', 'nope', 'plan-block', 'ship-block'], right: ['hold-block', 'stores-block', 'crew-block'], folded: ['stores-block', 'stores-block', 'gone'] });
   assert.deepEqual(l.left, ['ship-block', 'plan-block']);
-  assert.deepEqual(l.right, ['hold-block', 'stores-block']);
+  assert.deepEqual(l.right, ['hold-block', 'stores-block', 'crew-block']);
   assert.deepEqual(l.folded, ['stores-block']);
   assert.equal([...l.left, ...l.right].length, BLOCKS.length);
   assert.ok(!isDefault(l));
@@ -28,7 +28,8 @@ test('layout: a layout saved with the Errands block (before .205) drops it', () 
 test('layout: a block missing from a saved layout goes back to its column after its default neighbours', () => {
   const l = clean({ left: ['plan-block'], right: ['ship-block', 'stores-block'] });
   assert.deepEqual(l.left, ['plan-block', 'hold-block']);
-  assert.deepEqual(l.right, ['ship-block', 'stores-block']);
+  // The Crew block (6c), new to a layout saved before it: under the ship, its default neighbour.
+  assert.deepEqual(l.right, ['ship-block', 'crew-block', 'stores-block']);
   // Its neighbours moved away: it goes first.
   const m = clean({ left: [], right: ['ship-block', 'stores-block', 'plan-block'] });
   assert.deepEqual(m.left, ['hold-block']);

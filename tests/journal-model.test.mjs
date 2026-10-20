@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultSave, loadSave, serializeSave, emptyJournal, cleanJournal, JOURNAL_GUIDES, JOURNAL_LIMITS, FREE_CHART_LEVELS, GOLBIN_GIFT } from '../src/voyage-model.mjs';
-import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, parseHex, splitLinks, linkTargetExists, chart, chartChance, freeChartsLeft, markUnread, markRead, unreadCount, CHART_ITEMS, JOURNAL_GUIDE_SECTIONS, JOURNAL_CHAPTERS, JOURNAL_WRITTEN } from '../src/journal-model.mjs';
+import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, parseHex, splitLinks, linkTargetExists, folksLines, chart, chartChance, freeChartsLeft, markUnread, markRead, unreadCount, CHART_ITEMS, JOURNAL_GUIDE_SECTIONS, JOURNAL_CHAPTERS, JOURNAL_WRITTEN } from '../src/journal-model.mjs';
 
 test('v6 saves get an empty journal', () => {
   const v6 = { v: 6, landHexes: 3, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 10, fuel: 1 }, kitGiven: true, hold: [], unlockNotice: [] };
@@ -217,4 +217,11 @@ test('prose marks: a crosslink in a ledger cell keeps its bar', async () => {
   const { proseBlocks } = await import('../src/journal-model.mjs');
   const [t] = proseBlocks(['| Setting | What it does |', "| Timed travel off | Instant again ([[ch:clock|The ship's clock]]) |"]);
   assert.deepEqual(t.rows, [['Timed travel off', "Instant again ([[ch:clock|The ship's clock]])"]]);
+});
+
+test('folksLines: a {folks} line shows only with Folks on, its mark gone', () => {
+  const lines = ['- Trade says so.', '- {folks} Folks here names them.', 'Plain.'];
+  assert.deepEqual(folksLines(lines, false), ['- Trade says so.', 'Plain.']);
+  assert.deepEqual(folksLines(lines, true), ['- Trade says so.', '- Folks here names them.', 'Plain.']);
+  assert.deepEqual(folksLines(['{folks} Alone.'], true), ['Alone.']);
 });

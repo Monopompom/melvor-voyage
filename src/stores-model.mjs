@@ -116,30 +116,46 @@ export function loadingAt(rec, neighbours = []) {
 export const loadAmount = (unit, qty, rate) => unit * Math.max(0, Math.floor(qty)) * Math.max(0, rate);
 
 /**
- * The cost of one step. `step` is { cls, sea, hop, free, homeward, adrift, wx }:
+ * The multipliers on a step's food and fuel for you and the crew. `crew` is a count (each Folk eats as you do) or
+ * { count, food } (crew-model crewLoad: fuel one share each, food by rank).
+ */
+export function crewMul(crew) {
+  if (crew !== null && typeof crew === 'object') {
+    const n = Number.isFinite(crew.count) && crew.count > 0 ? Math.floor(crew.count) : 0;
+    const f = Number.isFinite(crew.food) && crew.food > 0 ? crew.food : 0;
+    return { food: 1 + f, fuel: 1 + n };
+  }
+  const n = Number.isFinite(crew) && crew > 0 ? Math.floor(crew) : 0;
+  return { food: 1 + n, fuel: 1 + n };
+}
+
+/**
+ * The cost of one step for you and `crew` Folks with you (phase 6c, crewMul). `step` is
+ * { cls, sea, hop, free, homeward, adrift, wx }:
  *  - `hop`: a fast-travel hop sailed between ports, its straight-line length in hexes (rations at the sea rate);
  *  - `free`: the homeward rule's moves, which cost nothing;
  *  - `homeward`: a sea step closer to a coast (the hunger floor at sea, below);
  *  - `wx`: the weather on the hex (phase 5c, weather-model.mjs effectsOf): its band multiplies the fuel and adds
  *    rations on land; in Lemon season rations at sea go further (`seaFood`, hops too).
  */
-export function stepCost(step, fmLevel) {
+export function stepCost(step, fmLevel, crew = 0) {
   if (step.free) return { food: 0, fuel: 0 };
+  const m = crewMul(crew);
   const wx = step.wx;
   const seaFood = Number.isFinite(wx?.seaFood) && wx.seaFood > 0 ? wx.seaFood : 1;
-  if (step.hop > 0) return { food: Math.round(step.hop * costOf('water').rations * RATION_HP * seaFood), fuel: 0 };
+  if (step.hop > 0) return { food: Math.round(Math.round(step.hop * costOf('water').rations * RATION_HP * seaFood) * m.food), fuel: 0 };
   const c = costOf(step.cls);
   const sea = step.sea === true || SEA.includes(step.cls);
   const rations = c.rations + (!sea && Number.isFinite(wx?.rations) ? wx.rations : 0);
   const fuelMul = !sea && Number.isFinite(wx?.fuel) && wx.fuel >= 0 ? wx.fuel : 1;
-  return { food: Math.round(rations * RATION_HP * (sea ? seaFood : 1)), fuel: roundFuel(c.fuel * fuelMul * fuelFactor(fmLevel)) };
+  return { food: Math.round(Math.round(rations * RATION_HP * (sea ? seaFood : 1)) * m.food), fuel: roundFuel(roundFuel(c.fuel * fuelMul * fuelFactor(fmLevel)) * m.fuel) };
 }
 
 /** Total cost of a move, ignoring what the stores hold (the hex overview line). */
-export function pathCost(steps, fmLevel) {
+export function pathCost(steps, fmLevel, crew = 0) {
   let food = 0;
   let fuel = 0;
-  for (const s of steps) { const c = stepCost(s, fmLevel); food += c.food; fuel += c.fuel; }
+  for (const s of steps) { const c = stepCost(s, fmLevel, crew); food += c.food; fuel += c.fuel; }
   return { food, fuel: roundFuel(fuel) };
 }
 
@@ -160,8 +176,9 @@ export function pathCost(steps, fmLevel) {
  * Two vessels (build .150): `hulls` = { boat?, ship? }, each { cond, reserve }, and
  * each step names the `vessel` it is sailed in ('boat' when it doesn't); a step wears its own vessel. The result then
  * has `conds` = { boat?, ship? }, a refusal names the `vessel`. `hull` alone is the boat's.
+ * `crew` (phase 6c): the Folks with you; every step costs them too (stepCost). `reserve` is given for all of you.
  */
-export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull, hulls } = {}) {
+export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull, hulls, crew = 0 } = {}) {
   let food = Math.max(0, stores?.food ?? 0);
   let fuel = Math.max(0, stores?.fuel ?? 0);
   const hs = hulls ?? (hull === undefined ? {} : { boat: hull });
@@ -171,7 +188,7 @@ export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull, hulls 
   let outward = false;
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i];
-    const c = stepCost(s, fmLevel);
+    const c = stepCost(s, fmLevel, crew);
     if (s.sea && !s.free && !s.homeward) outward = true;
     const v = s.vessel ?? 'boat';
     const cond = conds[v];

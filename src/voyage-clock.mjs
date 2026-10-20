@@ -452,6 +452,8 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   const confirmSetOff = (path, original, fog) => {
     const course = courseOf(path[0]);
     if (course === 'same') { alreadyThere(); return; }
+    // A crew the vessels have no berths for (phase 6c) goes the old way too: movePlayer says why.
+    try { if (state.crew?.berthRefusal?.(stepsOf(path)) !== undefined) { original(); return; } } catch (e) { log('berth check failed', e); }
     const info = routeInfo(path);
     const pl = info.plan?.plan;
     if (fog !== undefined) {
@@ -504,6 +506,9 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       costBits.push(`<span class="voyage-clock-cost">${img(res('ration.webp'))}${esc(t('MOD_VOY_UNIT_HP', { n: num(pl.spent.food) }))}</span>`);
       costBits.push(`<span class="voyage-clock-cost">${img(res('fuel.webp'))}${esc(t('MOD_VOY_UNIT_FUEL', { n: state.stores?.fuelText?.(pl.spent.fuel) ?? `${Math.round(pl.spent.fuel * 10) / 10}` }))}</span>`);
     }
+    // The Folks with you (phase 6c): the food and fuel above feed them too.
+    const crewN = state.crew?.count?.() ?? 0;
+    if (crewN > 0) costBits.push(`<span class="voyage-clock-cost" title="${esc(t('MOD_VOY_CLOCK_COST_CREW_TIP'))}"><i class="fa fa-users voyage-clock-icon" aria-hidden="true"></i>${esc(t(crewN === 1 ? 'MOD_VOY_CLOCK_COST_CREW_ONE' : 'MOD_VOY_CLOCK_COST_CREW', { count: `${crewN}` }))}</span>`);
     if (wear > 0 && fog === undefined) costBits.push(`<span class="voyage-clock-cost">${img(res('hull_condition.webp'))}${esc(t('MOD_VOY_CLOCK_COST_WEAR', { pct: `${Math.round(wear)}` }))}</span>`);
     // The route as a strip: land and sea legs in their colours, as long as they take (the user, 18 Oct 2026: "spice it up").
     const o = timeOpts();
@@ -701,7 +706,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     if (i + 1 >= v.walk.length - 1) return 0;
     const rest = pathOf(v.walk, i + 1, v.walk.length - 1);
     if (rest === undefined) return 0;
-    try { return S.pathCost(stepsOf(rest), state.stores?.fmLevel?.() ?? 1).fuel; } catch { return 0; }
+    try { return S.pathCost(stepsOf(rest), state.stores?.fmLevel?.() ?? 1, state.crew?.load?.() ?? 0).fuel; } catch { return 0; }
   };
   let stepping = false;
   let finalStep = false;
