@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -116,7 +116,7 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * one ended, for the page's note, or null. adrift-model.mjs cleanAdrift and cleanAdriftEnd check them in depth.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, wind: 0, jobs: {}, walks: {} };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, wind: 0, jobs: {}, walks: {}, outposts: {} };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -200,6 +200,8 @@ export const MIGRATIONS = {
   18: (rec) => ({ ...rec, v: 19, journal: { ...(rec.journal ?? {}), opened: true } }),
   // phase 6d: no Folk walking alone yet
   19: (rec) => ({ ...rec, v: 20, walks: {} }),
+  // phase 6e: no tent pitched yet
+  20: (rec) => ({ ...rec, v: 21, outposts: {} }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -344,6 +346,8 @@ function clean(rec) {
     jobs: cleanJobs(rec.jobs),
     // Folks walking alone (phase 6d): { folkId: walk }, checked by walk-model.mjs cleanWalks where it is read.
     walks: plainObject(rec.walks) ?? {},
+    // Pitched tents (phase 6e): { "q,r": { food, fuel, at } }, checked by outpost-model.mjs cleanOutposts where it is read.
+    outposts: plainObject(rec.outposts) ?? {},
   };
 }
 /** Folks the most a save keeps jobs for: Worker Folks never hires more than there are skills to hold. */

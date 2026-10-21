@@ -171,6 +171,19 @@
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
         "sellsFor": 500
+      },
+      {
+        "itemType": "Item",
+        "id": "Tent",
+        "name": "Tent",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/tent.webp",
+        "customDescription": "A canvas tent with poles and pegs. Pitch it from the Here panel on a land hex where one of your Folks stands: the hex becomes an outpost, a camp of your own with a store for rations and fuel.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 1
       }
     ],
     "skillData": [
@@ -538,6 +551,50 @@
         "defaultBuyLimit": 1,
         "buyLimitOverrides": [],
         "showBuyLimit": false
+      },
+      {
+        "id": "Tent",
+        "media": "assets/tent.webp",
+        "category": "voyage:Voyage",
+        "contains": {
+          "items": [
+            {
+              "id": "voyage:Tent",
+              "quantity": 1
+            }
+          ]
+        },
+        "cost": {
+          "items": [
+            {
+              "id": "melvorD:Leather",
+              "quantity": 100
+            },
+            {
+              "id": "melvorD:Willow_Logs",
+              "quantity": 100
+            }
+          ],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 100000
+            }
+          ]
+        },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          {
+            "type": "SkillLevel",
+            "skillID": "voyage:Voyage",
+            "level": 30
+          }
+        ],
+        "defaultBuyLimit": 0,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
       }
     ],
     "shopDisplayOrder": [
@@ -550,7 +607,8 @@
           "voyage:Riding_Horse",
           "voyage:Unicorn",
           "voyage:Crossroads_Sign",
-          "voyage:Walking_Orders"
+          "voyage:Walking_Orders",
+          "voyage:Tent"
         ]
       }
     ]

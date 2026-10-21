@@ -173,7 +173,24 @@ export function createTerrain(table) {
   // (weather-model.mjs icedRecord). get, neighbours and all() read through it; the indexes (withClass, withFeature,
   // poi, area, places) and the landmasses stay the table's, so island tiers and the places never move with the season.
   let layer;
-  const read = (k) => (layer !== undefined && layer.has(k) ? layer.get(k) : byKey.get(k));
+  // Additions over the table and the layer (phase 6e): features a hex gains, the camp of a pitched tent. A record with
+  // an addition is a new object built once per record under it (`merged`); neither the table's nor the layer's is
+  // changed.
+  let additions;
+  const merged = new Map();
+  const add = (k, rec) => {
+    const extra = additions.get(k);
+    const kept = merged.get(k);
+    if (kept !== undefined && kept.under === rec) return kept.rec;
+    const f = Array.isArray(rec.f) ? rec.f : [];
+    const out = { ...rec, ...extra, f: [...f, ...extra.f.filter((x) => !f.includes(x))] };
+    merged.set(k, { under: rec, rec: out });
+    return out;
+  };
+  const read = (k) => {
+    const rec = layer !== undefined && layer.has(k) ? layer.get(k) : byKey.get(k);
+    return rec === undefined || additions === undefined || !additions.has(k) ? rec : add(k, rec);
+  };
   const none = [];
   return {
     meta: table.meta,
@@ -184,6 +201,17 @@ export function createTerrain(table) {
     /** Puts a layer over the table: records keyed by their hex (any order), or undefined to lift it. */
     setLayer(records) {
       layer = records === undefined || records.length === 0 ? undefined : new Map(records.map((rec) => [hexKey(rec.q, rec.r), rec]));
+      merged.clear();
+      version++;
+    },
+    /**
+     * Sets the additions: `{ q, r, f: [features], ...props }` each, read over the table and any layer (the features
+     * joined, the props laid on), or undefined for none. Like the layer, the indexes never see them.
+     */
+    setAdditions(records) {
+      additions = records === undefined || records.length === 0 ? undefined
+        : new Map(records.map((rec) => [hexKey(rec.q, rec.r), { ...rec, f: Array.isArray(rec.f) ? rec.f : [] }]));
+      merged.clear();
       version++;
     },
     /** Moves whenever the layer does, for caches built on get(). */
@@ -203,7 +231,7 @@ export function createTerrain(table) {
     },
     /** Landmass number of a land hex, undefined for sea. */
     landmass(q, r) { return landmasses().get(hexKey(q, r)); },
-    all() { return layer === undefined ? byKey.values() : [...byKey.keys()].map(read).values(); },
+    all() { return layer === undefined && additions === undefined ? byKey.values() : [...byKey.keys()].map(read).values(); },
     withClass(cls) { return byClass.get(cls) ?? none; },
     withFeature(f) { return byFeature.get(f) ?? none; },
     poi(name) { return byPoi.get(name); },

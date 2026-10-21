@@ -42,7 +42,7 @@ export const BIG_SHIPS = {
     items: [{ id: 'melvorD:Teak_Logs', quantity: 400 }, { id: 'melvorD:Steel_Bar', quantity: 100 }, { id: 'voyage:Pitch', quantity: 75 },
       // Big Bones for the ribs, as the longboat's (build .177, the user): 250 for the first big ship.
       { id: 'melvorD:Big_Bones', quantity: 250 }],
-    milestone: 'Brig: bought at a port',
+    milestone: 'Brig: Bought at a port',
   },
 };
 /**
@@ -69,7 +69,7 @@ export const UPGRADES = {
       // Big Bones for the ribs of the bigger boat (build .158, the user): about fifty giants' worth of combat.
       { id: 'melvorD:Big_Bones', quantity: 50 }],
     /** data/skill.json's English name for its milestone (setup.mjs finds the milestone by it). */
-    milestone: 'Longboat: built at a port',
+    milestone: 'Longboat: Built at a port',
   },
   /** The big ship's upgrade (build .152): a placeholder price for the balance pass. */
   galleon: {
@@ -77,7 +77,7 @@ export const UPGRADES = {
     items: [{ id: 'melvorD:Yew_Logs', quantity: 500 }, { id: 'melvorD:Mithril_Bar', quantity: 150 }, { id: 'voyage:Pitch', quantity: 150 },
       // Big Bones (build .177, the user): 550 for the biggest.
       { id: 'melvorD:Big_Bones', quantity: 550 }],
-    milestone: 'Galleon: built at a port',
+    milestone: 'Galleon: Built at a port',
   },
 };
 /** The upgrade open to a ship's hull, as [id, upgrade], or undefined. */

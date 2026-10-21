@@ -1072,9 +1072,10 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
         + `<div class="${aboard ? 'text-info' : 'text-muted'}"><i class="fa fa-fw fa-${aboard ? 'ship' : 'walking'}" aria-hidden="true"></i>${esc(how)}</div>${towFact}</div></div></div>`
         + '<div class="voyage-section voyage-clock-bars">'
         + `<div class="voyage-clock-bar-row"><span data-voyage-clock="hex-label">${esc(t('MOD_VOY_CLOCK_THIS_HEX'))}</span><span class="text-muted" data-voyage-clock="hex-time"></span></div>`
-        + '<div class="progress voyage-clock-bar"><div class="progress-bar bg-info" data-voyage-clock="hex-bar"></div></div>'
+        // Progress bars with a value to read (build .367): the hex's share done, the voyage's hexes behind.
+        + `<div class="progress voyage-clock-bar"><div class="progress-bar bg-info" data-voyage-clock="hex-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(t('MOD_VOY_CLOCK_THIS_HEX'))}"></div></div>`
         + `<div class="voyage-clock-bar-row"><span>${esc(t('MOD_VOY_CLOCK_THE_VOYAGE'))}</span><span data-voyage-clock="left"></span></div>`
-        + '<div class="progress voyage-clock-bar"><div class="progress-bar bg-success" data-voyage-clock="bar"></div></div></div>'
+        + `<div class="progress voyage-clock-bar"><div class="progress-bar bg-success" data-voyage-clock="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(t('MOD_VOY_CLOCK_THE_VOYAGE'))}"></div></div></div>`
         + `<div class="voyage-section">${legs.join('')}</div>`
         + (tow === undefined
           ? `<div class="voyage-section"><div class="voyage-clock-head">${esc(t('MOD_VOY_CLOCK_ON_ARRIVAL'))}</div>${chain}</div>`
@@ -1122,6 +1123,18 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   };
   PHONE?.addEventListener?.('change', () => { try { place(); } catch (e) { log('under way placement failed', e); } });
   /** Draws the block when what it shows changed, then moves its bars (every frame while the page is open). */
+  // The ending is said once, politely, when it comes (build .367); one already there when the page opens is not.
+  let announced = null;
+  let primed = false;
+  const announce = (v, e) => {
+    const at = v === null && e !== null && !e.closed ? e.at : null;
+    if (!primed) { primed = true; announced = at; return; }
+    if (at === null || at === announced) return;
+    announced = at;
+    const live = wrapEl()?.querySelector('[data-voyage-live]');
+    const text = blockEl()?.querySelector('.voyage-clock-ended-text')?.textContent ?? '';
+    if (live != null && text !== '') live.textContent = text;
+  };
   const render = () => {
     const el = blockEl();
     if (el === null) return;
@@ -1138,6 +1151,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       place();
       state.tips?.apply?.(el);
     }
+    announce(v, e);
     if (v === null) { state.adrift?.renderBars?.(el); return; }
     const stepAll = v.of > 0 ? v.of : 1;
     const left = msLeft(v);
@@ -1149,10 +1163,11 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
         : t('MOD_VOY_FOG_SURVEYING', { at: at(surveying), level: `${surveying.surveyLevel}`, max: `${surveying.maxSurveyLevel}` });
       if (x.textContent !== text) x.textContent = text;
     });
-    set('hex-bar', (x) => { x.style.width = pct(1 - v.left / stepAll); x.classList.toggle('bg-warning', surveying !== undefined); x.classList.toggle('bg-info', surveying === undefined); });
+    const aria = (x, share, text) => { const n = `${Math.round(Math.max(0, Math.min(1, share)) * 100)}`; if (x.getAttribute('aria-valuenow') !== n) x.setAttribute('aria-valuenow', n); if (text !== undefined && x.getAttribute('aria-valuetext') !== text) x.setAttribute('aria-valuetext', text); };
+    set('hex-bar', (x) => { aria(x, 1 - v.left / stepAll); x.style.width = pct(1 - v.left / stepAll); x.classList.toggle('bg-warning', surveying !== undefined); x.classList.toggle('bg-info', surveying === undefined); });
     // Written only on change (.308: 1,400 DOM writes in 30 s for a dozen real changes, scan C-17); the hourglass as everywhere (A2-16).
     set('hex-time', (x) => { const h = helpLayout.timeHtml(t('MOD_VOY_CLOCK_OF_TIME', { done: C.clockText((stepAll - v.left) * C.TICK_MS), all: C.clockText(stepAll * C.TICK_MS) })); if (x.innerHTML !== h) x.innerHTML = h; });
-    set('bar', (x) => { const all = Math.max(v.total, v.spent + left / C.TICK_MS) || 1; x.style.width = pct(v.spent / all); });
+    set('bar', (x) => { const all = Math.max(v.total, v.spent + left / C.TICK_MS) || 1; x.style.width = pct(v.spent / all); aria(x, v.spent / all, t('MOD_VOY_CLOCK_HEX_OF', { at: `${v.at}`, of: `${v.walk.length - 1}` })); });
     set('left', (x) => { const h = esc(t('MOD_VOY_CLOCK_LEFT', { time: clockAt(Date.now() + left), left: '\u0001' })).replace('\u0001', helpLayout.timeHtml(duration(left))); if (x.innerHTML !== h) x.innerHTML = h; });
   };
   document.addEventListener('click', (ev) => {

@@ -159,3 +159,27 @@ test('phase 2 indexes: neighbours, places (areas, dungeons, POI-backed areas, In
   const herb = candidatesFor(terrain, rules, 'melvorD:Herblore');
   assert.ok(herb.some((h) => h.poi === 'FrostyHaven'));
 });
+
+test('additions: a camp over the table and over the ice, never in the indexes, lifted cleanly', () => {
+  const terrain = createTerrain(table);
+  const h = table.hexes.find((x) => x.t === 'grasslands' && !(x.f ?? []).length && x.cloud !== true);
+  const v0 = terrain.version;
+  terrain.setAdditions([{ q: h.q, r: h.r, f: ['camp'], outpost: true }]);
+  assert.ok(terrain.version > v0);
+  const rec = terrain.get(h.q, h.r);
+  assert.deepEqual(rec.f, ['camp']);
+  assert.equal(rec.outpost, true);
+  assert.equal(terrain.get(h.q, h.r), rec, 'built once');
+  assert.equal(terrain.base(h.q, h.r), h, 'the table is never changed');
+  assert.equal(h.f, undefined);
+  assert.ok(!terrain.withFeature('camp').includes(rec));
+  assert.ok([...terrain.all()].some((x) => x === rec));
+  assert.ok(terrain.neighbours(h.q + 1, h.r).includes(rec) || terrain.neighbours(h.q - 1, h.r).includes(rec));
+  // Under a layer (the ice) the camp joins the layer's record.
+  terrain.setLayer([{ ...h, t: 'snowlands', ice: true }]);
+  assert.equal(terrain.get(h.q, h.r).t, 'snowlands');
+  assert.deepEqual(terrain.get(h.q, h.r).f, ['camp']);
+  terrain.setLayer(undefined);
+  terrain.setAdditions(undefined);
+  assert.equal(terrain.get(h.q, h.r), h);
+});

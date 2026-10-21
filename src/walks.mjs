@@ -89,8 +89,9 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     return (state.journal?.finds?.() ?? []).filter((x) => skills.has(x.skillId));
   };
   /**
-   * The places this Folk may be sent for `actionId`: that resource's found hexes, the nearest few, each with its road,
-   * time, pack and, when it can't be picked, why. Sorted as the dialog lists them (walk-model sortPlaces).
+   * The places this Folk may be sent for `actionId`: that resource's found hexes, the nearest few, and your outposts
+   * (phase 6e), each with its road, time, pack and, when it can't be picked, why (an outpost where the work can't be
+   * done says so). Sorted as the dialog lists them (walk-model sortPlaces).
    */
   const places = (f, actionId) => {
     const find = works().find((x) => x.id === actionId);
@@ -98,9 +99,10 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     if (find === undefined || from == null) return [];
     const have = state.stores?.stores?.() ?? { food: 0, fuel: 0 };
     const near = find.found.map((h) => ({ ...h, distance: hexDistance(from, h) })).sort((a, b) => a.distance - b.distance).slice(0, PLACES_MAX);
+    for (const o of state.outposts?.list?.() ?? []) if (!near.some((h) => same(h, o))) near.push({ q: o.q, r: o.r, distance: hexDistance(from, o), outpost: o.name });
     return W.sortPlaces(near.map((h) => {
       const r = same(from, h) ? [] : road(from, h);
-      const p = { q: h.q, r: h.r, distance: h.distance, road: r, skillId: find.skillId, actionId: find.id, action: find.action };
+      const p = { q: h.q, r: h.r, distance: h.distance, road: r, skillId: find.skillId, actionId: find.id, action: find.action, outpost: h.outpost };
       if (r === undefined) return { ...p, why: t('MOD_VOY_WALK_ACROSS_WATER', { name: f.name }) };
       if (r.length === 0) return { ...p, ms: 0, pack: { food: 0, fuel: 0 }, why: t('MOD_VOY_WALK_THERE_ALREADY', { name: f.name }) };
       const pack = packFor(r, f);
@@ -367,7 +369,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
           : [esc(hexesText(p.road.length)), helpLayout.timeHtml(duration(p.ms)), ...(provisions() ? [helpLayout.marked(t, 'MOD_VOY_WALK_EATS', {}, { amounts: state.stores.icons(p.pack.food, p.pack.fuel, false) })] : [])];
         const cls = off ? 'btn-outline-secondary' : on ? 'btn-info' : 'btn-outline-info';
         return `<button type="button" class="btn ${cls} voyage-walk-place" data-walk-place="${esc(key)}" aria-pressed="${on}"${off ? ' disabled' : ''}>`
-          + `<span class="voyage-walk-place-name">${esc(`${state.landWords?.(p)?.text ?? ''} ${hexText(p)}`.trim())}</span>`
+          + `<span class="voyage-walk-place-name">${esc(p.outpost ?? `${state.landWords?.(p)?.text ?? ''} ${hexText(p)}`.trim())}</span>`
           + (facts.length === 0 ? '' : `<span class="voyage-walk-place-facts">${facts.join('<span class="voyage-walk-dot" aria-hidden="true">·</span>')}</span>`)
           + (off ? `<span class="voyage-walk-place-why text-warning">${esc(p.why)}</span>` : '')
           + '</button>';

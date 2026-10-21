@@ -112,12 +112,12 @@ test('walk: a saved walk keeps what it needs and drops junk', () => {
 });
 
 test('save v20: nobody walks yet, and a walk survives a save', () => {
-  assert.equal(SAVE_VERSION, 20);
+  assert.ok(SAVE_VERSION >= 20);
   assert.deepEqual(defaultSave().walks, {});
   const v19 = { ...JSON.parse(serializeSave(defaultSave())), v: 19 };
   delete v19.walks;
   const { save, report } = loadSave(JSON.stringify(v19));
-  assert.deepEqual(report.applied, [19]);
+  assert.deepEqual(report.applied, [19, 20]);
   assert.deepEqual(save.walks, {});
   const walks = { a: { from: { q: 0, r: 0 }, start: 1, road: [{ q: 1, r: 0, cls: 'grasslands', ms: 360000 }], skillId: null } };
   assert.deepEqual(loadSave(serializeSave({ ...defaultSave(), walks })).save.walks, walks);

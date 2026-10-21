@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-20.365';
+export const BUILD = '2026-10-21.367';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -56,6 +56,7 @@ export async function setup(ctx) {
   // leaves the skill out and everything else running.
   const model = await ctx.loadModule('src/voyage-model.mjs');
   const shipModel = await ctx.loadModule('src/ship-model.mjs');
+  const outpostModel = await ctx.loadModule('src/outpost-model.mjs');
   let voyageSkillOk = false;
   try {
     await ctx.loadTemplates('ui/templates.html');
@@ -74,14 +75,19 @@ export async function setup(ctx) {
           m._name = getLangString(`MOD_VOY_MILESTONE_${up[0].toUpperCase()}`);
           const url = ctx.getResourceUrl(shipModel.HULLS[up[0]].media);
           Object.defineProperty(m, 'media', { get: () => url, configurable: true });
+        } else if (m._name === outpostModel.OUTPOST_MILESTONES.first || m._name === outpostModel.OUTPOST_MILESTONES.more) {
+          // Phase 6e: one more tent pitched at a time at 30, 50, 70 and 90, matched by their English names.
+          m._name = getLangString(m._name === outpostModel.OUTPOST_MILESTONES.first ? 'MOD_VOY_MILESTONE_OUTPOST_FIRST' : 'MOD_VOY_MILESTONE_OUTPOST');
+          const url = ctx.getResourceUrl('assets/tent.webp');
+          Object.defineProperty(m, 'media', { get: () => url, configurable: true });
         } else if (i >= 0 && m._milestoneID === undefined && '_name' in m) m._name = getLangString(`MOD_VOY_MILESTONE_${i + 1}`);
         // The balance pass: 55 and 60 hold two milestones each, so these are matched by their English names too.
-        else if (model.FREE_CHART_LEVELS.includes(m.level) && m._name === 'Journal: chart one country') {
+        else if (model.FREE_CHART_LEVELS.includes(m.level) && m._name === 'Journal: Chart one country') {
           m._name = getLangString('MOD_VOY_MILESTONE_CHART');
           // The game resolves a custom milestone's media against its own CDN (assets.getURI): the journal icon is ours.
           const url = ctx.getResourceUrl('assets/journal.webp');
           Object.defineProperty(m, 'media', { get: () => url, configurable: true });
-        } else if (shipModel.HOLD_ROW_LEVELS.includes(m.level) && m._name === 'Hold: a new row of six crates') {
+        } else if (shipModel.HOLD_ROW_LEVELS.includes(m.level) && m._name === 'Hold: A new row of six crates') {
           // Build .134: the hold grows a row of six crates.
           m._name = getLangString('MOD_VOY_MILESTONE_HOLD');
           const url = ctx.getResourceUrl('assets/hull_dinghy.webp');
@@ -91,7 +97,7 @@ export async function setup(ctx) {
           m._name = getLangString('MOD_VOY_MILESTONE_PLAN');
           const url = ctx.getResourceUrl('assets/icon.webp');
           Object.defineProperty(m, 'media', { get: () => url, configurable: true });
-        } else if (m.level === model.NAVIGATOR_LEVEL && m._name === "Navigator's Charts: sold at ports") {
+        } else if (m.level === model.NAVIGATOR_LEVEL && m._name === "Navigator's Charts: Sold at ports") {
           // Build .119: Navigator's Charts, Plan a voyage's Sail!.
           m._name = getLangString('MOD_VOY_MILESTONE_NAVIGATOR');
           const url = ctx.getResourceUrl('assets/icon.webp');
@@ -128,8 +134,8 @@ export async function setup(ctx) {
       it._customDescription = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`);
       it._modifiedDescription = undefined;
     }
-    // The two rumours (build .210) and the Starlit Chart (.214), src/charts.mjs.
-    for (const [id, name, desc] of [['Tavern_Tale', 'MOD_VOY_ITEM_TAVERN_TALE_NAME', 'MOD_VOY_ITEM_TAVERN_TALE_DESC'], ['Sailors_Rumour', 'MOD_VOY_ITEM_SAILORS_RUMOUR_NAME', 'MOD_VOY_ITEM_SAILORS_RUMOUR_DESC'], ['Starlit_Chart', 'MOD_VOY_ITEM_STARLIT_CHART_NAME', 'MOD_VOY_ITEM_STARLIT_CHART_DESC']]) {
+    // The two rumours (build .210) and the Starlit Chart (.214), src/charts.mjs; the Tent (phase 6e), src/outposts.mjs.
+    for (const [id, name, desc] of [['Tavern_Tale', 'MOD_VOY_ITEM_TAVERN_TALE_NAME', 'MOD_VOY_ITEM_TAVERN_TALE_DESC'], ['Sailors_Rumour', 'MOD_VOY_ITEM_SAILORS_RUMOUR_NAME', 'MOD_VOY_ITEM_SAILORS_RUMOUR_DESC'], ['Starlit_Chart', 'MOD_VOY_ITEM_STARLIT_CHART_NAME', 'MOD_VOY_ITEM_STARLIT_CHART_DESC'], ['Tent', 'MOD_VOY_ITEM_TENT_NAME', 'MOD_VOY_ITEM_TENT_DESC']]) {
       const it = game.items.getObjectByID(`voyage:${id}`);
       if (it === undefined) continue;
       it._name = getLangString(name);
@@ -384,9 +390,14 @@ export async function setup(ctx) {
     const s = voyageSkill();
     if (s !== undefined) s.walks = state.walks;
   } catch (e) { console.error('[Voyage] walking failed to load; Folks stay put', e); state.walks = undefined; }
+  // Outposts (phase 6e): a Tent pitched where a Folk works makes the hex a camp with a store. A failure: no tents.
+  try {
+    (await ctx.loadModule('src/outposts.mjs')).install(ctx, { state, O: outpostModel, terrainMod, helpLayout, log });
+    state.outpostModel = outpostModel;
+  } catch (e) { console.error('[Voyage] outposts failed to load; no tents', e); state.outposts = undefined; }
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.
   holdMod.install(ctx, { state, shipModel, helpLayout, log });
-  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
+  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
   // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
   // popups and everything else as they were.
   state.helpSections = page?.helpSections;
@@ -522,6 +533,8 @@ export async function setup(ctx) {
       state.terrain = terrainMod.createTerrain(table);
       // The season's ice is laid before anything reads the sea (phase 5c-1).
       state.weather?.loaded?.();
+      // The tents' camps over the table and the ice (phase 6e): after the ice, which is found from the table alone.
+      state.outposts?.loaded?.();
       // Where you stand counts as visited, without XP (the balance pass; a new character or one moved by an event).
       try { const here = map?.playerPosition; if (here !== undefined && !terrainMod.isCloud(state.terrain.get(here.q, here.r))) voyageSkill()?.markHere(here); } catch (e) { log('visited mark failed', e); }
       const opts = () => state.ruleOpts();

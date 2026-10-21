@@ -483,11 +483,26 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       : `<button type="button" class="voyage-legend-toggle voyage-vessel-toggle" aria-expanded="${vesselOpen}" title="${esc(label)}" aria-label="${esc(label)}"><i class="fa fa-caret-${vesselOpen ? 'down' : 'right'} mr-1"></i></button>`;
     return `<div class="voyage-vessel-group"><div class="voyage-vessel-head">${toggle}${first}</div>${shown.join('')}</div>`;
   };
-  // What the place offers, in the panel's band (the user, 20 Oct 2026: "put BG from the boat row to the Trade/Combat
-  // part"): trade, the harbour, combat, the Folks on this hex and the sign.
+  // What the place offers: trade, the harbour, combat, the Folks on this hex, the sign and the outposts (6e). A block
+  // that folds like the weather's, no band (build .367, the user: "remove grayish BG from block and make it
+  // collapsible"); folded, a line of what there is.
+  const placeSum = (pos) => {
+    const parts = [];
+    if (state.active() && state.settings.trade() && !state.tradeLocked?.()) parts.push(getLangString('MOD_VOY_PANEL_PLACE_SUM_TRADE'));
+    if (state.active() && state.settings.combat() && (state.combatHere?.() ?? []).length > 0) parts.push(getLangString('MOD_VOY_PANEL_PLACE_SUM_COMBAT'));
+    const n = state.active() && state.folksGuarded
+      ? (state.folksApi?.()?.folks() ?? []).filter((f) => f.travel !== 'with' && f.place !== null && f.place.q === pos.q && f.place.r === pos.r).length : 0;
+    if (n > 0) parts.push(n === 1 ? getLangString('MOD_VOY_PANEL_PLACE_SUM_FOLK') : templateLangString('MOD_VOY_PANEL_PLACE_SUM_FOLKS', { count: `${n}` }));
+    if ((state.outposts?.list?.() ?? []).some((o) => o.q === pos.q && o.r === pos.r)) parts.push(getLangString('MOD_VOY_PANEL_PLACE_SUM_OUTPOST'));
+    return parts.join(' · ');
+  };
   const placeBox = (status, pos) => {
-    const inner = tradeLine(status) + harbourLine() + fightLine() + folksLine(pos) + signLine();
-    return inner === '' ? '' : `<div class="voyage-here-shipbox">${inner}</div>`;
+    const inner = tradeLine(status) + harbourLine() + fightLine() + folksLine(pos) + signLine() + (state.outposts?.panelHtml?.() ?? '');
+    if (inner === '') return '';
+    const toggle = `<button type="button" class="voyage-legend-toggle voyage-place-toggle" aria-expanded="${placeOpen}">` +
+      `<i class="fa fa-caret-${placeOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_PLACE_TITLE'))}</button>`;
+    if (!placeOpen) return `<div class="voyage-wx voyage-place"><div class="voyage-wx-head">${toggle}<span class="text-muted">${esc(placeSum(pos))}</span></div></div>`;
+    return `<div class="voyage-wx voyage-place"><div class="voyage-wx-head">${toggle}</div>${inner}</div>`;
   };
   /** The hour for the panel's head (3e): { text, night, hint }, or undefined while provisions don't apply. */
   const headTime = () => {
@@ -736,6 +751,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   let legendOpen = (() => { try { return localStorage.getItem(LEGEND_KEY) === '1'; } catch { return false; } })();
   const WEATHER_KEY = 'voyage-weather-open';
   let weatherOpen = (() => { try { return localStorage.getItem(WEATHER_KEY) !== '0'; } catch { return true; } })();
+  const PLACE_KEY = 'voyage-place-open';
+  let placeOpen = (() => { try { return localStorage.getItem(PLACE_KEY) !== '0'; } catch { return true; } })();
   // The whole panel folds behind "You are here" (open by default); folded it keeps the title, the terrain line and a
   // stranded warning.
   const PANEL_KEY = 'voyage-panel-open';
@@ -930,6 +947,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (e.target instanceof Element && e.target.closest('.voyage-adrift-link')) { e.preventDefault(); state.adrift?.explain(); }
       if (e.target instanceof Element && e.target.closest('.voyage-sign-place')) { e.preventDefault(); state.land?.place(); render(); return; }
       if (e.target instanceof Element && e.target.closest('.voyage-sign-pickup')) { e.preventDefault(); state.land?.pickup(); render(); return; }
+      // Outposts (6e): pitch, the store and Strike camp.
+      const outpostBtn = e.target instanceof Element ? e.target.closest('.voyage-outpost-btn') : null;
+      if (outpostBtn !== null) { e.preventDefault(); state.outposts?.click(outpostBtn); return; }
       if (e.target instanceof Element && e.target.closest('.voyage-locked-toggle')) {
         lockedOpen = !lockedOpen;
         try { localStorage.setItem(LOCKED_KEY, lockedOpen ? '1' : '0'); } catch {}
@@ -977,6 +997,12 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (e.target instanceof Element && e.target.closest('.voyage-weather-toggle')) {
         weatherOpen = !weatherOpen;
         try { localStorage.setItem(WEATHER_KEY, weatherOpen ? '1' : '0'); } catch {}
+        render();
+        return;
+      }
+      if (e.target instanceof Element && e.target.closest('.voyage-place-toggle')) {
+        placeOpen = !placeOpen;
+        try { localStorage.setItem(PLACE_KEY, placeOpen ? '1' : '0'); } catch {}
         render();
         return;
       }

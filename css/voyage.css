@@ -320,6 +320,12 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-status-row { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px 24px; padding: 4px 0; font-size: 1.25rem; } /* .207: bigger, level with Show map */
 .voyage-status-toggle { grid-column: 1; grid-row: 1; justify-self: start; min-height: 40px; font-size: .95rem; text-align: left; }
 .voyage-status-map { grid-column: 3; grid-row: 1; justify-self: end; }
+/* Build .367: a line of chips under the time, across the bar: the season and wind while Compass & Travels is shut,
+   and a warning from a folded block; a chip opens its block. */
+.voyage-status-top > .voyage-status-chips { grid-column: 1 / -1; grid-row: 2; display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 12px; padding-bottom: 4px; }
+.voyage-status-chip { border: 0; min-height: 32px; cursor: pointer; }
+.voyage-status-season { font-weight: 400; color: inherit; background: var(--voyage-band); }
+@media (hover: hover) { .voyage-status-chip:hover { filter: brightness(1.15); } }
 /* Build .156 (UI audit): the two bands sit 16px in from the block's edges like every block's content, 16px apart. */
 .voyage-status-more { border-top: 1px solid var(--voyage-rule); padding-top: 8px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; margin: 0; }
 /* The land tile (build .160, the user): a grey square between Compass and Travels, centred on their bands (the spacer
@@ -390,7 +396,8 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
   .voyage-status-top { row-gap: 4px; }
   /* The toggle spans the bar under a rule that closes the first line (the user, .207); it heads what it folds, so the
      folded part drops its own rule. */
-  .voyage-status-top > .voyage-status-toggle { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; white-space: nowrap; border-top: 1px solid var(--voyage-rule); padding-top: 4px; }
+  .voyage-status-top > .voyage-status-chips { grid-row: 2; justify-content: flex-start; }
+  .voyage-status-top > .voyage-status-toggle { grid-column: 1 / -1; grid-row: 3; justify-self: stretch; white-space: nowrap; border-top: 1px solid var(--voyage-rule); padding-top: 4px; }
   .voyage-status-more { border-top: 0; padding-top: 4px; }
 }
 /* Compass, the land squares and Travels go one under another by the block's own width, not the window's (the user,
@@ -955,9 +962,25 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 @media (hover: hover) { .voyage-block-fold:hover, .voyage-block-head:hover .voyage-block-grip { color: var(--voyage-label-hover); } }
 .voyage-folded .block-content > :not(.voyage-block-head) { display: none; }
 .voyage-folded .voyage-block-head { margin-bottom: 0; }
+/* Build .367: a folded block's title row keeps its number ("3 / 18 slots · 2 runs"); open, the block shows it. */
+.voyage-block-sum { display: none; font-size: .95rem; color: var(--voyage-label); text-align: right; }
+.voyage-folded .voyage-block-sum:not(:empty) { display: inline; }
+/* The grip is a button (its moves from the keyboard), and its menu drops under it. */
+.voyage-block-head { position: relative; }
+.voyage-block-grip { background: none; border: 0; min-width: 32px; min-height: 32px; }
+.voyage-move-menu { position: absolute; right: 0; top: 100%; z-index: 20; display: flex; flex-direction: column; min-width: 12rem; padding: 4px 0; border-radius: 6px; background: var(--voyage-tile); border: 1px solid var(--voyage-rule); box-shadow: 0 6px 16px rgba(0, 0, 0, .35); }
+.voyage-move-menu-up { top: auto; bottom: 100%; }
+.voyage-move-menu button { background: none; border: 0; text-align: left; padding: 8px 14px; min-height: 40px; color: inherit; font-size: .95rem; }
+.voyage-move-menu button:hover, .voyage-move-menu button:focus { background: var(--voyage-band); }
+/* A phone (build .367): one column, the blocks taken from the two in turn (layout-model phoneOrder). */
+@media (max-width: 991.98px) {
+  #voyage-container .voyage-col-left, #voyage-container .voyage-col-right { display: contents; }
+  #voyage-container .voyage-col-left > .voyage-block, #voyage-container .voyage-col-right > .voyage-block { order: var(--voyage-phone-order, 0); flex: 0 0 calc(100% - 12px); max-width: calc(100% - 12px); margin-left: 6px; margin-right: 6px; }
+  #voyage-container .voyage-col-bottom { order: 1000; }
+}
 .voyage-block-ghost { opacity: .4; }
 .voyage-layout-foot { text-align: center; margin: 0 0 12px; }
-@media (max-width: 767.98px) { .voyage-block-fold { min-width: 32px; min-height: 40px; } }
+@media (max-width: 767.98px) { .voyage-block-fold, .voyage-block-grip { min-width: 44px; min-height: 44px; } } /* 44px to the touch (.367) */
 /* Build .156 (UI audit): blocks 12px apart both ways (the game's .block keeps 30px under it, rows a 28px gutter). */
 #voyage-container > .voyage-status-block, #voyage-container > .row .block { margin-bottom: 12px; }
 #voyage-container > .row { margin-left: -6px; margin-right: -6px; }
@@ -967,11 +990,10 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 
 /* The hold's crates (build .133): each a cell pressed into the block with a crate drawn side-on; empty ones wait
    faintly, a stowed item sits inside its crate. Picked: the game's info blue. Build .355 (the user, 20 Oct 2026: they
-   grew and shrank with the block): the bank's cell, 64px at most, spread across the block's width (.357, the user:
-   "fixed but still fills whole width"). Always six to a row, as the hold grows in rows of six (.134), never wrapping
-   (.359, the user: "always 6 in a row + no wrap"): where six don't fit at 64px each takes what is left. */
-.voyage-crates { display: grid; grid-template-columns: repeat(6, minmax(0, 64px)); justify-content: space-between; gap: 8px; }
-.voyage-crate { position: relative; width: 100%; aspect-ratio: 1 / 1; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid var(--voyage-crate-line); background: var(--voyage-crate); box-shadow: inset 0 3px 7px var(--voyage-crate-shade), inset 0 -1px 0 rgba(255, 255, 255, .07); color: var(--voyage-crate-empty); }
+   grew and shrank with the block). Build .367 (the user: "drop fixed count rule, just make them fix sized … let them
+   wrap"): the bank's cell, 64px, a fixed gap, as many to a row as fit; the empty slots are one tile with their count. */
+.voyage-crates { display: flex; flex-wrap: wrap; gap: 8px; }
+.voyage-crate { position: relative; flex: 0 0 64px; width: 64px; height: 64px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid var(--voyage-crate-line); background: var(--voyage-crate); box-shadow: inset 0 3px 7px var(--voyage-crate-shade), inset 0 -1px 0 rgba(255, 255, 255, .07); color: var(--voyage-crate-empty); }
 .voyage-crate-art { position: absolute; inset: 14%; width: 72%; height: 72%; opacity: .32; }
 .voyage-crate-full { cursor: pointer; }
 .voyage-crate-full .voyage-crate-art { opacity: .5; }
@@ -990,6 +1012,11 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-cargo-art-cell { width: 80%; height: 80%; }
 .voyage-cargo-box { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .6)); }
 .voyage-cargo-goods { position: absolute; right: -4%; bottom: -4%; width: 50%; height: 50%; object-fit: contain; padding: 6%; border-radius: 50%; background: #7a2a24; box-shadow: 0 0 0 2px #b8423a, 0 1px 3px rgba(0, 0, 0, .6); }
+.voyage-crate-more { flex-direction: column; cursor: pointer; line-height: 1.05; }
+.voyage-crate-more .voyage-crate-art { opacity: .18; }
+.voyage-crate-more-n { position: relative; font-size: 1.15rem; font-weight: 600; color: var(--voyage-label); }
+.voyage-crate-more-word { position: relative; font-size: .75rem; color: var(--voyage-label); }
+@media (hover: hover) { .voyage-crate-more:hover { border-color: rgba(84, 166, 232, .6); } }
 .voyage-crate-sealed { border-color: rgba(184, 66, 58, .7); }
 .voyage-cargo-mini { width: 20px; height: 20px; object-fit: contain; margin: 0 2px 0 6px; vertical-align: -5px; }
 .voyage-cargo-sub { margin: 0 0 .75rem; }
@@ -1197,7 +1224,8 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-clock-dd .dropdown-menu { max-height: 40vh; }
 .voyage-clock-dd .dropdown-toggle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
 /* Over the popup's buttons too (Swal lifts .swal2-actions with z-index 1; build .233). */
-.voyage-swal-menus { overflow: visible; position: relative; z-index: 2; }
+/* Over the popup body's own scrolling (.voyage-ui .swal2-html-container), or the menus are cut at its edge (.367). */
+.voyage-ui .swal2-html-container.voyage-swal-menus, .voyage-swal-menus { overflow: visible; position: relative; z-index: 2; }
 .voyage-clock-pick-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
   border: 1px solid var(--voyage-ring); color: var(--voyage-gold); font-size: .9rem; font-weight: 700; } /* (.308, C-26) */
 .voyage-clock-pick-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--voyage-ring-bg); }
@@ -1229,7 +1257,9 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-crew-eats, .voyage-crew-lasts { display: inline-flex; align-items: center; margin-left: 4px; }
 .voyage-crew-skill { vertical-align: -2px; margin-right: 2px; }
 .voyage-crew-row + .voyage-crew-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
-.voyage-crew-work select { max-width: 320px; margin: 0 auto; }
+/* Put ashore's pick as wide as the popup's body, so a long choice ("Woodcutting (now X's)") keeps to one line (.367). */
+.voyage-crew-work .dropdown { max-width: 100%; margin: 0 auto; }
+.voyage-crew-work .dropdown-item { white-space: nowrap; }
 /* Walking alone (6d): the row's two buttons stacked, one width; the Send dialog's places as picker buttons. */
 .voyage-crew-buttons { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
 .voyage-crew-buttons .btn { width: 100%; }
@@ -1267,3 +1297,16 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-here-clock { font-weight: 400; }
 /* The sun or moon at its own width (the toggle's .7em is the caret's), a gap before the words. */
 .voyage-panel-toggle .voyage-here-clock i { width: auto; margin-right: .4em !important; }
+
+/* Outposts (phase 6e): the Here panel's two buttons side by side, wrapping under the line on a phone; the store
+   dialog's rows: the label, the amount you carry and what there is, the two quick buttons under the amount. */
+.voyage-outpost-btns { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.voyage-outpost-share { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.voyage-outpost-row { display: grid; grid-template-columns: 5.5rem minmax(96px, 140px) 1fr; align-items: center; gap: 6px 8px; }
+.voyage-outpost-row .voyage-outpost-qty { min-height: 40px; }
+.voyage-outpost-quick { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.voyage-outpost-quick .btn { min-height: 36px; }
+@media (max-width: 575.98px) { .voyage-outpost-row { grid-template-columns: 4.5rem 1fr; } .voyage-outpost-of { grid-column: 2; } }
+
+/* A refusal reads lower case after a colon elsewhere; on its own line it starts with a capital (build .367). */
+.voyage-plan-refused-why::first-letter { text-transform: uppercase; }

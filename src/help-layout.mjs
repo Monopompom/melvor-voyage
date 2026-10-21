@@ -41,6 +41,31 @@ export const mark = {
  * A place's name in a popup title (build .262): kept on one line when it fits the popup, else broken between its words
  * but never after "The" (skill-names.mjs fitTitle). Never cut with "…".
  */
+/**
+ * A pick as the game's own dropdown, the look every Voyage pick has (Bootstrap's data-toggle; the user, builds .233
+ * and .367: "unify dropdowns", never the browser's select): a toggle showing the picked choice's icon and words, a menu
+ * of choices each with its icon, the value in a hidden input under `id`. `choices`: [{ value, label, media? }], one
+ * with no media gets the pause icon (doing nothing). `labelId` names the pick. Wire it in the popup's didOpen with
+ * bindPick.
+ */
+const pickFace = (c) => `${c?.media ? `<img class="voyage-plan-pick-ico" src="${esc(c.media)}" alt="">` : '<i class="fa fa-pause-circle voyage-plan-pick-ico" aria-hidden="true"></i>'}<span>${esc(c?.label ?? '')}</span>`;
+export const pickHtml = (id, labelId, choices, value) => {
+  const on = choices.find((c) => c.value === value) ?? choices[0];
+  return `<div class="dropdown voyage-plan-arrival voyage-clock-dd"><input type="hidden" id="${id}" value="${esc(on?.value ?? '')}">`
+    + `<button type="button" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-labelledby="${labelId}" data-voyage-pick="${id}">${pickFace(on)}</button>`
+    + `<div class="dropdown-menu overflow-y-auto">${choices.map((c) => `<a class="dropdown-item pointer-enabled${c === on ? ' active' : ''}" role="button" data-voyage-pick-for="${id}" data-value="${esc(c.value)}">${pickFace(c)}</a>`).join('')}</div></div>`;
+};
+/** Wires a pickHtml inside `el`: a choice sets the hidden value, the toggle's face and the menu's active row. */
+export const bindPick = (el, id) => {
+  const input = el.querySelector(`#${id}`);
+  const toggle = el.querySelector(`[data-voyage-pick="${id}"]`);
+  el.querySelectorAll(`[data-voyage-pick-for="${id}"]`).forEach((a) => a.addEventListener('click', () => {
+    if (input !== null) input.value = a.dataset.value ?? '';
+    if (toggle !== null) toggle.innerHTML = a.innerHTML;
+    el.querySelectorAll(`[data-voyage-pick-for="${id}"]`).forEach((b) => b.classList.toggle('active', b === a));
+  }));
+};
+
 export const titleName = (s) => `<span class="voyage-title-name">${esc(s)}</span>`;
 /**
  * A lang string as one escaped HTML line, with some of its vars marked: `marks` maps a var to its HTML (from `mark`),

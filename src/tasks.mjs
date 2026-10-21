@@ -299,9 +299,10 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
   const errandWords = () => {
     const cur = data()?.cur;
     if (cur == null) return '';
-    if (cur.k === 'reach') return t('MOD_VOY_TASK_REACH');
+    // After the harbour line's colon, so lower case (the notice board's headline keeps its capital).
+    if (cur.k === 'reach') return t('MOD_VOY_TASK_REACH_AFTER');
     const item = game.items.getObjectByID(cur.item);
-    return t('MOD_VOY_TASK_BRING', { n: qty(cur.n), item: item?.name ?? cur.item, port: portName(cur.to) });
+    return t('MOD_VOY_TASK_BRING_AFTER', { n: qty(cur.n), item: item?.name ?? cur.item, port: portName(cur.to) });
   };
   const api = { html, onClick, errandHtml, errandWords, resetAsk: () => { dropAsk = false; }, has: () => data()?.cur != null };
   state.tasks = api;

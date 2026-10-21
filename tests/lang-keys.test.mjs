@@ -50,7 +50,7 @@ export const FAMILIES = {
   MOD_VOY_JOURNAL_GUIDE_: JOURNAL_GUIDES.flatMap((g) => ['TITLE', 'BODY', ...(JOURNAL_GUIDE_SECTIONS[g]?.points === false ? [] : ['POINTS'])].map((x) => `${g.toUpperCase()}_${x}`)),
   // the Did you know slips (journal-model.mjs JOURNAL_ASIDES)
   MOD_VOY_JOURNAL_ASIDE_: Object.values(JOURNAL_ASIDES).flatMap((k) => [`${k}_HEAD`, `${k}_BODY`]),
-  MOD_VOY_JOURNAL_PLACES_: ['COMBAT', 'TRADE', 'POI', 'PORT', 'ISLAND'],
+  MOD_VOY_JOURNAL_PLACES_: ['COMBAT', 'TRADE', 'POI', 'PORT', 'ISLAND', 'OUTPOST'],
   // Ports used (phase 4 wrap-up, journal.mjs portDeeds): voyage-model PORT_DEEDS
   MOD_VOY_JOURNAL_PORT_: ['LOAD', 'DELIVER', 'CHART', 'TAKE', 'HAND'],
   // The shipwright's bill (build .178, journal.mjs shipBill).

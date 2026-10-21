@@ -865,6 +865,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       if (w !== undefined) return line('MOD_VOY_WALK_CARD', { to: esc(w.to), left: esc(w.leftText) }).text;
     }
     if (folk.place === null) return getLangString('MOD_VOY_FOLK_NO_PLACE');
+    // Putting a tent up (build .367): its skill is set aside until the tent stands.
+    const tent = state.outposts?.builderText?.(folk.id);
+    if (tent !== undefined) return tent;
     const rec = state.recordAt(folk.place);
     const pos = state.position();
     if (rec === undefined || pos === undefined) return '';

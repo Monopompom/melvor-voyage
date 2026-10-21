@@ -1041,6 +1041,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const j = journal();
     const out = [];
     if (j === undefined) return out;
+    // Your outposts (phase 6e), first: the tents pitched now, from the save.
+    for (const o of state.outposts?.list?.() ?? []) out.push({ key: `outpost|${o.key}`, group: 'outpost', name: o.name, media: state.outposts.media(), q: o.q, r: o.r });
     for (const p of jm.placesOf(j, 'combat')) { const a = areaById(p.id); out.push({ key: `combat|${p.id}`, group: 'combat', name: a?.name ?? terrainMod.areaLabel(p.id), media: a?.media, q: p.q, r: p.r }); }
     // Ports used (phase 4 wrap-up): a port's board was used there; it is not listed again under Trading places.
     for (const p of jm.placesOf(j, 'port')) { const poi = poiAt(p.q, p.r); out.push({ key: `port|${p.id}`, group: 'port', name: poi?.name ?? p.id.replace(/([a-z])([A-Z])/g, '$1 $2'), media: poi?.media, q: p.q, r: p.r }); }
@@ -1179,7 +1181,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     const shown = all.filter((p) => hits.has(p.key));
     if (shown.length === 0) return (isGoblin ? golbin() : '') + `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_SEARCH_NONE', { query: view.placeQuery.trim() }))}</p>`;
     let list = isGoblin ? golbin() : '';
-    for (const g of ['combat', 'port', 'trade', 'island', 'poi']) {
+    for (const g of ['outpost', 'combat', 'port', 'trade', 'island', 'poi']) {
       const rows = shown.filter((p) => p.group === g);
       if (rows.length === 0) continue;
       list += `<div class="vj-group">${esc(t(`MOD_VOY_JOURNAL_PLACES_${g.toUpperCase()}`))}</div>`;
@@ -1252,6 +1254,12 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       + ledger([t('MOD_VOY_JOURNAL_COL_MARKET'), t('MOD_VOY_JOURNAL_COL_DEAR'), t('MOD_VOY_JOURNAL_COL_CHEAP')], rows)
       + `<p class="vj-p vj-faint">${esc(t(left > 0 ? 'MOD_VOY_JOURNAL_MARKETS_LEFT' : 'MOD_VOY_JOURNAL_MARKETS_ALL', { n: `${left}` }))}</p>`;
   };
+  /** What an outpost's tent holds (phase 6e), while provisions are on. */
+  const outpostStore = (p) => {
+    const o = state.outposts?.list?.().find((x) => `outpost|${x.key}` === p.key);
+    if (o === undefined || state.stores?.enabled?.() !== true) return '';
+    return `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_OUTPOST_STORE', { amounts: state.stores.amounts(o.food, o.fuel) }))}</p>`;
+  };
   const placesSpread = () => {
     const all = placeList();
     if (view.place === undefined || !all.some((p) => p.key === view.place)) view.place = all[0]?.key;
@@ -1267,6 +1275,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
         + `<div class="vj-entry-head">${p.media ? `<img src="${p.media}" alt="">` : ''}<h2 class="vj-h1">${esc(p.name)}</h2></div>`
         + ledger([t('MOD_VOY_JOURNAL_COL_HEX'), t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_FROM_HERE')], [[{ text: at(p.q, p.r) }, land(p.q, p.r), fromHere(p)]])
         + (p.group === 'port' ? portDeeds(p) : '')
+        + (p.group === 'outpost' ? outpostStore(p) : '')
         + (p.group === 'island' ? islandKnows(p, all) : '')
         + placeEffects(p)
         + (p.group === 'trade' || p.group === 'port' ? marketPrices(p) : '')

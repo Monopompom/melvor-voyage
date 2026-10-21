@@ -24,86 +24,110 @@
             {
               "type": "Custom",
               "level": 1,
-              "name": "Compass: how close and which way",
+              "name": "Compass: How close and which way",
               "media": "assets/media/skills/cartography/cartography.png"
             },
             {
               "type": "Custom",
               "level": 10,
-              "name": "Compass: how many hexes away",
+              "name": "Compass: How many hexes away",
               "media": "assets/media/skills/cartography/cartography.png"
             },
             {
               "type": "Custom",
               "level": 15,
-              "name": "Plan a voyage: the route, the stops, the cost",
+              "name": "Plan a voyage: The route, the stops, the cost",
               "media": "assets/icon.webp"
             },
             {
               "type": "Custom",
               "level": 25,
-              "name": "Compass: the name of the place",
+              "name": "Compass: The name of the place",
               "media": "assets/media/skills/cartography/cartography.png"
             },
             {
               "type": "Custom",
               "level": 30,
-              "name": "Longboat: built at a port",
+              "name": "Longboat: Built at a port",
               "media": "assets/hull_longboat.webp"
             },
             {
               "type": "Custom",
               "level": 30,
-              "name": "Journal: chart one country",
+              "name": "Journal: Chart one country",
               "media": "assets/journal.webp"
             },
             {
               "type": "Custom",
+              "level": 30,
+              "name": "Outposts: A Tent, pitched where a Folk works",
+              "media": "assets/tent.webp"
+            },
+            {
+              "type": "Custom",
               "level": 35,
-              "name": "Hold: a new row of six crates",
+              "name": "Hold: A new row of six crates",
               "media": "assets/hull_dinghy.webp"
             },
             {
               "type": "Custom",
               "level": 40,
-              "name": "Journal: chart one country",
+              "name": "Journal: Chart one country",
               "media": "assets/journal.webp"
             },
             {
               "type": "Custom",
               "level": 45,
-              "name": "Brig: bought at a port",
+              "name": "Brig: Bought at a port",
               "media": "assets/hull_brig.webp"
             },
             {
               "type": "Custom",
               "level": 50,
-              "name": "Navigator's Charts: sold at ports",
+              "name": "Navigator's Charts: Sold at ports",
               "media": "assets/icon.webp"
             },
             {
               "type": "Custom",
+              "level": 50,
+              "name": "Outposts: One more tent at a time",
+              "media": "assets/tent.webp"
+            },
+            {
+              "type": "Custom",
               "level": 55,
-              "name": "Journal: chart one country",
+              "name": "Journal: Chart one country",
               "media": "assets/journal.webp"
             },
             {
               "type": "Custom",
               "level": 55,
-              "name": "Hold: a new row of six crates",
+              "name": "Hold: A new row of six crates",
               "media": "assets/hull_dinghy.webp"
             },
             {
               "type": "Custom",
               "level": 60,
-              "name": "Galleon: built at a port",
+              "name": "Galleon: Built at a port",
               "media": "assets/hull_galleon.webp"
             },
             {
               "type": "Custom",
               "level": 60,
-              "name": "Journal: chart one country",
+              "name": "Journal: Chart one country",
               "media": "assets/journal.webp"
+            },
+            {
+              "type": "Custom",
+              "level": 70,
+              "name": "Outposts: One more tent at a time",
+              "media": "assets/tent.webp"
+            },
+            {
+              "type": "Custom",
+              "level": 90,
+              "name": "Outposts: One more tent at a time",
+              "media": "assets/tent.webp"
             }
           ]
         }

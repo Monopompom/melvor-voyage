@@ -90,20 +90,27 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
     const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const holderName = (hid) => api().folkById(hid)?.name ?? '';
     const skills = api().skills().filter((sk) => state.skillLockedHere?.(sk.id) !== true);
-    const options = [`<option value="">${esc(t('MOD_VOY_CREW_WORK_NOTHING'))}</option>`,
-      ...skills.map((sk) => `<option value="${esc(sk.id)}">${esc(sk.holder === null || sk.holder === id ? sk.name : t('MOD_VOY_CREW_WORK_HELD', { skill: sk.name, name: holderName(sk.holder) }))}</option>`)];
+    // The work as every Voyage pick (build .367, the user: "unify dropdowns"): the game's dropdown, each skill with its icon.
+    const choices = [{ value: '', label: t('MOD_VOY_CREW_WORK_NOTHING') },
+      ...skills.map((sk) => ({
+        value: sk.id,
+        label: sk.holder === null || sk.holder === id ? sk.name : t('MOD_VOY_CREW_WORK_HELD', { skill: sk.name, name: holderName(sk.holder) }),
+        media: (() => { try { return game.skills.getObjectByID(sk.id)?.media; } catch { return undefined; } })(),
+      }))];
     const html = helpLayout.msgHtml([t('MOD_VOY_CREW_ASHORE_TEXT', { name: `<b>${esc(f.name)}</b>` })]) +
-      `<div class="voyage-crew-work mt-2"><label for="voyage-crew-work" class="font-w600 mb-1">${esc(t('MOD_VOY_CREW_WORK_LABEL'))}</label>` +
-      `<select id="voyage-crew-work" class="form-control">${options.join('')}</select></div>` +
+      `<div class="voyage-crew-work mt-2"><div id="voyage-crew-work-label" class="font-w600 mb-1">${esc(t('MOD_VOY_CREW_WORK_LABEL'))}</div>` +
+      `${helpLayout.pickHtml('voyage-crew-work', 'voyage-crew-work-label', choices, '')}</div>` +
       (skills.length === 0 ? `<small class="d-block text-muted mt-1">${esc(t('MOD_VOY_CREW_WORK_NONE'))}</small>` : '');
     SwalLocale.fire({
       didRender: state.popupDidRender,
-      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
+      // The dropdown's menu reaches past the popup's body, as the Send… popup's (voyage-swal-menus).
+      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' }) : { ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' },
       title: t('MOD_VOY_CREW_ASHORE_TITLE'),
       html,
       showCancelButton: true,
       confirmButtonText: t('MOD_VOY_CREW_ASHORE_BUTTON'),
       cancelButtonText: t('MOD_VOY_CREW_ASHORE_CANCEL'),
+      didOpen: (el) => helpLayout.bindPick(el, 'voyage-crew-work'),
       preConfirm: () => document.getElementById('voyage-crew-work')?.value ?? '',
     }).then((r) => {
       if (!r.isConfirmed) return;

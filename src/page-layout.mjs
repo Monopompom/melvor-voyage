@@ -18,6 +18,9 @@ export function install(ctx, { container, L, t, tips, log }) {
 
   const read = () => { try { return L.clean(JSON.parse(localStorage.getItem(KEY) ?? 'null')); } catch { return L.clean(null); } };
   let layout = read();
+  // What the page is in (build .367): with no vessel yet the Ship block leads, while the layout is untouched.
+  let noVessel = false;
+  const shownLayout = () => L.situated(layout, { noVessel });
   const write = () => {
     try { if (L.isDefault(layout)) localStorage.removeItem(KEY); else localStorage.setItem(KEY, JSON.stringify(layout)); } catch {}
     footNow();
@@ -28,7 +31,7 @@ export function install(ctx, { container, L, t, tips, log }) {
     const b = block(id);
     const btn = b?.querySelector('.voyage-block-fold');
     if (b === null || btn == null) return;
-    const folded = layout.folded.includes(id);
+    const folded = shownLayout().folded.includes(id);
     b.classList.toggle('voyage-folded', folded);
     btn.setAttribute('aria-expanded', `${!folded}`);
     const name = b.querySelector('.voyage-block-head h5, .voyage-block-head h6')?.querySelector('lang-string, span')?.textContent.trim() ?? '';
@@ -37,9 +40,57 @@ export function install(ctx, { container, L, t, tips, log }) {
     if (tips !== undefined) tips.set(btn, label); else btn.title = label;
     btn.querySelector('i')?.classList.replace(folded ? 'fa-caret-down' : 'fa-caret-right', folded ? 'fa-caret-right' : 'fa-caret-down');
   };
-  const fold = (id, folded) => { layout = L.setFolded(layout, id, folded); showFold(id); write(); };
+  const fold = (id, folded) => { layout = L.setFolded(shownLayout(), id, folded); showFold(id); write(); };
 
   /** Every block's head gets its caret (left) and, with SortableJS, its grip (right). Idempotent. */
+  const nameOf = (id) => block(id)?.querySelector('.voyage-block-head h5, .voyage-block-head h6')?.querySelector('lang-string, span')?.textContent.trim() ?? '';
+
+  // ---- moving from the keyboard (build .367) -------------------------------------------------------------------------
+  let menu = null;
+  const closeMoves = (focusGrip) => {
+    if (menu === null) return;
+    const { el, grip } = menu;
+    menu = null;
+    el.remove();
+    grip.setAttribute('aria-expanded', 'false');
+    if (focusGrip) grip.focus({ preventScroll: true });
+  };
+  const MOVE_KEYS = { up: 'MOD_VOY_PAGE_MOVE_UP', down: 'MOD_VOY_PAGE_MOVE_DOWN', side: 'MOD_VOY_PAGE_MOVE_SIDE', wide: 'MOD_VOY_PAGE_MOVE_WIDE' };
+  const openMoves = (id, grip) => {
+    const again = menu?.grip === grip;
+    closeMoves(false);
+    if (again) return;
+    const el = document.createElement('div');
+    el.className = 'voyage-move-menu';
+    el.setAttribute('role', 'menu');
+    el.innerHTML = L.movesFor(shownLayout(), id).map((how) => `<button type="button" role="menuitem" data-move="${how}">${esc(t(MOVE_KEYS[how]))}</button>`).join('');
+    el.onclick = (e) => {
+      const how = e.target instanceof Element ? e.target.closest('[data-move]')?.dataset.move : undefined;
+      if (how === undefined) return;
+      e.stopPropagation();
+      closeMoves(false);
+      layout = L.moveBlock(shownLayout(), id, how);
+      place();
+      write();
+      block(id)?.querySelector('.voyage-block-grip')?.focus({ preventScroll: true });
+    };
+    el.onkeydown = (e) => {
+      const items = [...el.querySelectorAll('[data-move]')];
+      const i = items.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.preventDefault(); closeMoves(true); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+      else if (e.key === 'Tab') closeMoves(false);
+    };
+    grip.after(el);
+    // Opens upward when the screen has no room below it (the last block on the page).
+    if (el.getBoundingClientRect().bottom > window.innerHeight) el.classList.add('voyage-move-menu-up');
+    grip.setAttribute('aria-expanded', 'true');
+    menu = { el, grip };
+    el.querySelector('[data-move]')?.focus({ preventScroll: true });
+  };
+  document.addEventListener('click', (e) => { if (menu !== null && !(e.target instanceof Element && menu.el.contains(e.target))) closeMoves(false); });
+
   const dress = (id) => {
     const b = block(id);
     const head = b?.querySelector('.voyage-block-head');
@@ -48,21 +99,30 @@ export function install(ctx, { container, L, t, tips, log }) {
     btn.type = 'button';
     btn.className = 'voyage-block-fold';
     btn.innerHTML = '<i class="fa fa-caret-down"></i>';
-    btn.onclick = () => fold(id, !layout.folded.includes(id));
+    btn.onclick = () => fold(id, !shownLayout().folded.includes(id));
+    // Folded, the title row's summary is read with the caret (build .367).
+    if (b.querySelector(`#voyage-sum-${id}`) !== null) btn.setAttribute('aria-describedby', `voyage-sum-${id}`);
     head.prepend(btn);
-    if (typeof Sortable === 'function') {
-      const grip = document.createElement('span');
-      grip.className = 'voyage-block-grip';
-      grip.innerHTML = '<i class="fa fa-grip-vertical"></i>';
-      if (tips !== undefined) tips.set(grip, t('MOD_VOY_PAGE_DRAG')); else grip.title = t('MOD_VOY_PAGE_DRAG');
-      head.append(grip);
-    }
+    // The grip drags the block and, pressed (build .367: dragging takes a pointer), opens its moves.
+    const grip = document.createElement('button');
+    grip.type = 'button';
+    grip.className = 'voyage-block-grip';
+    grip.innerHTML = '<i class="fa fa-grip-vertical" aria-hidden="true"></i>';
+    grip.setAttribute('aria-haspopup', 'menu');
+    grip.setAttribute('aria-expanded', 'false');
+    grip.setAttribute('aria-label', t('MOD_VOY_PAGE_MOVE_MENU', { name: nameOf(id) }));
+    if (tips !== undefined) tips.set(grip, t('MOD_VOY_PAGE_DRAG')); else grip.title = t('MOD_VOY_PAGE_DRAG');
+    grip.onclick = (e) => { e.stopPropagation(); openMoves(id, grip); };
+    head.append(grip);
     showFold(id);
   };
 
   // ---- order --------------------------------------------------------------------------------------------------------
   const place = () => {
-    for (const col of L.COLUMNS) layout[col].forEach((id) => { const b = block(id); if (b !== null) cols[col].append(b); });
+    const shown = shownLayout();
+    for (const col of L.COLUMNS) shown[col].forEach((id) => { const b = block(id); if (b !== null) cols[col].append(b); });
+    // On a phone the columns are one, in turn (build .367): each block's place in it.
+    L.phoneOrder(shown).forEach((id, i) => block(id)?.style.setProperty('--voyage-phone-order', `${i + 1}`));
   };
   const fromPage = () => {
     const ids = (col) => [...cols[col].children].map((el) => el.dataset?.voyage).filter((id) => L.BLOCKS.includes(id));
@@ -131,13 +191,13 @@ export function install(ctx, { container, L, t, tips, log }) {
       handle: '.voyage-block-head',
       draggable: '.voyage-block',
       // The caret, "?" and anything else to press in a title row never starts a drag.
-      filter: 'button, a, input, select, textarea',
+      filter: 'button:not(.voyage-block-grip), a, input, select, textarea',
       preventOnFilter: false,
       delay: 200,
       delayOnTouchOnly: (() => { try { return getSortableDelayOnTouch(); } catch { return true; } })(),
       animation: 150,
       ghostClass: 'voyage-block-ghost',
-      onStart: () => { steady(() => { lateStart(); container.classList.add('voyage-dragging'); }); swipe(true); try { tippy.hideAll(); } catch {} },
+      onStart: () => { closeMoves(false); steady(() => { lateStart(); container.classList.add('voyage-dragging'); }); swipe(true); try { tippy.hideAll(); } catch {} },
       onEnd: () => { steady(() => { container.classList.remove('voyage-dragging'); lateEnd(); }); swipe(false); fromPage(); write(); },
     };
     try { L.COLUMNS.forEach((col) => new Sortable(cols[col], options)); } catch (e) { log('page drag failed', e); }
@@ -145,6 +205,15 @@ export function install(ctx, { container, L, t, tips, log }) {
 
   return {
     /** Opens a folded block (the planner opens the plan when it sets one). */
-    unfold: (id) => { if (layout.folded.includes(id)) fold(id, false); },
+    unfold: (id) => { if (shownLayout().folded.includes(id)) fold(id, false); },
+    /** The page's state (build .367): `noVessel` while there is no vessel yet. Redraws only on a change. */
+    situate: ({ noVessel: nv }) => {
+      if (nv === noVessel) return;
+      noVessel = nv;
+      place();
+      L.BLOCKS.forEach(showFold);
+    },
+    /** True while `id` is folded on the page. */
+    folded: (id) => shownLayout().folded.includes(id),
   };
 }

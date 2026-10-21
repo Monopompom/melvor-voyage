@@ -114,6 +114,11 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   work at a place your Journal found: pick the skill, the resource and the place, or press Send a Folk here on a
   Journal resource page. It walks on foot over land you know, packing its food and fuel from the stores, and starts
   the work when it arrives, offline too. The map shows it with a boot badge and its road dashed; Stop here halts it.
+  A Tent from the Voyage shop (Voyage level 30) makes an outpost: pitch it from the Here panel on a land hex where one
+  of your Folks works (not on a town, port, market or camp), and the hex counts as a camp for you and your Folks.
+  Smithing, Crafting and Fletching work there, and Thieving at 80%. One tent may stand at Voyage 30, up to four at 90.
+  The tent shows on the map and in the Journal's places, and its store keeps food and fuel outside your carry limit.
+  Strike camp puts the tent back in your bank. Your Folks stay there.
 
 ## Settings (Mod Settings, section Voyage)
 
