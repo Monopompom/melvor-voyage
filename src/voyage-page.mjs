@@ -761,6 +761,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
       const [one, two, three, four] = O.OUTPOST_LEVELS.map((l) => `${l}`);
       return [{ head: t('MOD_VOY_HELP_HEAD_CREW_OUTPOST'), body: [
         t('MOD_VOY_HELP_CREW_OUTPOST', { level: `${O.TENT.level}`, crafts, partial }),
+        t('MOD_VOY_HELP_CREW_OUTPOST_BUILD', { time: state.clock?.duration?.(O.BUILD_MS) ?? '' }),
         t('MOD_VOY_HELP_CREW_OUTPOST_COUNT', { one, two, three, four }),
         t('MOD_VOY_HELP_CREW_OUTPOST_STORE'),
         t('MOD_VOY_HELP_CREW_OUTPOST_STRIKE'),
