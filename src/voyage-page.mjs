@@ -82,13 +82,23 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         const kind = target.dataset.kind ?? 'boat';
         if (target.dataset.voyageAction === 'build') { if (state.ship?.build()) render(); }
         else if (target.dataset.voyageAction === 'shipwright') { shipwrightOpen(!shipwrightOpen()); render(); }
-        else if (target.dataset.voyageAction === 'upgrade') { if (state.ship?.upgrade(target.dataset.kind === 'ship' ? 'ship' : 'boat')) render(); }
-        else if (target.dataset.voyageAction === 'buy') { if (state.ship?.buy()) render(); }
+        else if (target.dataset.voyageAction === 'upgrade' || target.dataset.voyageAction === 'buy') {
+          // A hull purchase asks first, by the game's shop-confirm setting (build .386); a blocked one speaks its blocker.
+          const up = target.dataset.voyageAction === 'upgrade';
+          const k = target.dataset.kind === 'ship' ? 'ship' : 'boat';
+          const go = () => { if (up ? state.ship?.upgrade(k) : state.ship?.buy()) render(); };
+          const info = up ? state.ship?.upgradeInfo?.(k) : state.ship?.buyInfo?.();
+          if (info === undefined || info.blocker !== undefined) go();
+          else helpLayout.confirmBuy({ name: t(shipModel.tierNameKey(info.hull.tier)), picture: ctx.getResourceUrl(info.hull.media), didRender: state.popupDidRender, costs: up ? state.ship.upgradeCosts(k) : state.ship.buyCosts() }, go);
+        }
         else if (target.dataset.voyageAction === 'find') showMap(true, kind);
       });
       // The land and sign squares (build .162): the shop and the sign's place on the map (planting and picking it up: the
       // Here panel, builds .166 and .169).
       // A chip on the bar opens what it is about (build .367): Compass & Travels, or the folded block, scrolled to.
+      part('status')?.addEventListener('click', (e) => {
+        if (e.target instanceof Element && e.target.closest('[data-voyage-wait="cancel"]') !== null) { state.clock?.cancelWait?.(); render(); }
+      });
       part('status-chips')?.addEventListener('click', (e) => {
         const to = e.target instanceof Element ? e.target.closest('[data-voyage-open]')?.dataset.voyageOpen : undefined;
         if (to === undefined) return;
@@ -139,6 +149,8 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         const id = target.dataset.folk;
         if (target.dataset.voyageAction === 'crew-come') { if (state.crew.comeAlong(id)) render(); }
         else if (target.dataset.voyageAction === 'crew-ashore') state.crew.askAshore(id, render);
+        // A stowaway aboard (the flat mechanics): hired at the usual price.
+        else if (target.dataset.voyageAction === 'stow-hire') { if (state.events?.hire?.()) render(); }
         // Walking alone (6d): Send… and Stop here.
         else if (target.dataset.voyageAction === 'crew-send') state.walks?.askSend(id, render);
         else if (target.dataset.voyageAction === 'walk-stop') state.walks?.askStop(id, render);
@@ -150,6 +162,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         const action = target.dataset.voyageAction;
         if (action === 'pick') { picked = target.dataset.item; render(); return; }
         if (action === 'repair') { if (state.ship?.repair(target.dataset.kind ?? 'boat')) render(); return; }
+        if (action === 'careen-stop') { if (state.ship?.stopCareen?.(target.dataset.kind ?? 'boat')) render(); return; }
         if (action === 'load') {
           const item = game.items.getObjectByID(picked ?? '');
           const n = typed('load');
@@ -328,6 +341,17 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
       ? `<div class="text-muted mt-2">${esc(t('MOD_VOY_CREW_NONE'))}</div>`
       : `<div class="voyage-big-head">${esc(t('MOD_VOY_CREW_WITH_HEAD'))}</div>${crew.map((f) => row(f, '', ashoreBtn(f), true)).join('')}` +
         (ashoreWhy !== undefined && ashoreWhy !== busy ? `<small class="d-block text-warning mt-1">${esc(ashoreWhy)}</small>` : '');
+    // A stowaway aboard (the flat mechanics): Hire at its share of the Shop's price, or it goes ashore at the next land
+    // you stand on.
+    const stow = state.events?.stowaway?.();
+    if (stow !== undefined) {
+      // The Hire button stays, greyed with its reason under it (licence, slot or coin, build .386), so the price shows.
+      const why = state.events.hireRefusal();
+      const gp = numberWithCommas(state.events.price() ?? 0);
+      const btn = `<button type="button" class="btn btn-sm btn-success" data-voyage-action="stow-hire"${why !== undefined ? ' disabled' : ''}>${esc(t('MOD_VOY_STOW_HIRE', { name: stow.name, gp }))}</button>`;
+      const note = `<small class="d-block text-muted">${esc(t('MOD_VOY_STOW_LATER_LINE', { name: stow.name }))}</small>` + (why !== undefined && why !== '' ? `<small class="d-block text-warning">${esc(why)}</small>` : '');
+      html += `<div class="voyage-big-head">${esc(t('MOD_VOY_STOW_HEAD'))}</div>${row({ name: stow.name, tier: stow.tier, portrait: stow.portrait }, '', btn, false, '', note)}`;
+    }
     if (near.length > 0) {
       const statusWord = (f) => {
         if (f.status === 'idle') return t('MOD_VOY_PANEL_FOLK_IDLE');
@@ -354,10 +378,10 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     const walking = wk?.walking?.() ?? [];
     if (walking.length > 0) {
       html += `<div class="voyage-big-head">${esc(t('MOD_VOY_WALK_HEAD'))}</div>${walking.map(({ folk, walk }) => row(folk, '',
-        `<button type="button" class="btn btn-sm btn-outline-warning" data-voyage-action="walk-stop" data-folk="${esc(folk.id)}">${esc(t('MOD_VOY_WALK_STOP_BUTTON'))}</button>`,
+        `<button type="button" class="btn btn-sm btn-outline-danger" data-voyage-action="walk-stop" data-folk="${esc(folk.id)}">${esc(t('MOD_VOY_WALK_STOP_BUTTON'))}</button>`,
         false, '', `<small class="d-block text-muted voyage-walk-line">${esc(t('MOD_VOY_WALK_CARD', { to: walk.to, left: walk.leftText }))}</small>`)).join('')}`;
     }
-    return section(html) + `<small class="d-block text-muted mt-1">${esc(t('MOD_VOY_CREW_HINT'))}</small>`;
+    return section(html) + section(`<div class="text-muted">${esc(t('MOD_VOY_CREW_HINT'))}</div>`); // its own band (build .386)
   };
   /** The Shipwright row folds open (closed by default), per browser. */
   const SHIPWRIGHT_KEY = 'voyage-shipwright-open';
@@ -546,13 +570,24 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     // the costs (the user, build .176: the tooltip only names the item).
     const costs = [costIcon(logs?.media ?? '', info.plan.full.logs, info.logs, t('MOD_VOY_PAGE_HULL_LOGS'), logs?.id)];
     if (pitch !== undefined) costs.push(costIcon(pitch.media, info.plan.full.pitch, info.pitch, pitch.name, pitch.id));
+    // Careening (the flat mechanics): hauled out, the time left and Stop (the steps done so far stand).
+    if (info.careen != null) {
+      const left = state.clock?.duration?.(info.left) ?? '';
+      return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/hull_condition.webp')}" alt="">` +
+        `<div class="flex-grow-1"><div><b>${label}</b> ${c}% <span class="text-info">${esc(t('MOD_VOY_PAGE_HULL_CAREENING', { cond: `${info.careen.to}`, left }))}</span></div>` +
+        `<div class="progress voyage-hull-bar"><div class="progress-bar bg-info" style="width:${c}%"></div></div></div></div>` +
+        // Not muted: it says the ship can't sail and what Stop loses, and what matters is never muted.
+        `<div class="mt-2">${esc(t('MOD_VOY_PAGE_HULL_CAREEN_NOTE'))}</div>` +
+        `<div class="voyage-hold-main"><button type="button" class="btn btn-outline-danger" data-voyage-action="careen-stop" data-kind="${kind}">${esc(t('MOD_VOY_PAGE_HULL_CAREEN_STOP'))}</button></div>`);
+    }
+    const worn = c < storesModel.WORN ? `<div class="text-warning mt-2">${esc(t('MOD_VOY_PAGE_HULL_WORN', { worn: `${storesModel.WORN}`, pct: `${Math.round((shipModel.WORN_TIME - 1) * 100)}` }))}</div>` : '';
     const action = info.blocker === undefined
-      ? `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR', { cond: `${info.plan.to}` })}</button></div>`
+      ? `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR_TIME', { cond: `${info.plan.to}`, time: state.clock?.duration?.(info.ms) ?? '' })}</button></div>`
       : (c < 100 ? `<div class="text-warning mt-2">${esc(info.blocker)}</div>` : '');
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/hull_condition.webp')}" alt="">` +
       `<div class="flex-grow-1"><div><b>${label}</b> <span class="${c <= 0 ? 'text-danger' : c < storesModel.WORN ? 'text-warning' : ''}">${c}%</span></div>` +
       `<div class="progress voyage-hull-bar"><div class="progress-bar ${cls}" style="width:${c}%"></div></div></div></div>` +
-      (c < 100 ? `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` : '') + action);
+      worn + (c < 100 ? `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` : '') + action);
   };
 
   /** The item picked in the stores block (an id), kept while the page lives. */
@@ -566,6 +601,12 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
    */
   const statusItems = () => {
     const items = [];
+    // Waiting out a storm (the flat mechanics): the voyage, the time left, Cancel; it may wrap on a phone.
+    const ww = state.clock?.waitingStorm?.();
+    if (ww !== undefined) {
+      items.push(`<span class="voyage-status-item voyage-wait-chip text-info"><span><i class="fa fa-hourglass-half mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_STORM_WAIT_CHIP', { name: ww.name.replace(/\((-?\d+), (-?\d+)\)/g, '($1,\u00a0$2)'), left: state.clock.duration(ww.left) }))}</span>`
+        + `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-wait="cancel">${esc(t('MOD_VOY_STORM_WAIT_CANCEL'))}</button></span>`);
+    }
     const tod = state.stores?.enabled() ? state.stores.timeOfDay?.() : undefined;
     if (tod !== undefined) {
       const now = tod.season ? t('MOD_VOY_PANEL_NIGHT_SEASON') : t(tod.night ? 'MOD_VOY_PANEL_NIGHT' : 'MOD_VOY_PANEL_DAY', { time: tod.until });
@@ -739,14 +780,25 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
             { cells: [t('MOD_VOY_HELP_SEA_HEX'), `${storesModel.WEAR.near}%`] },
             { cells: [t('MOD_VOY_HELP_DEEP_HEX'), `${storesModel.WEAR.deep}%`], cls: ['text-warning'] },
           ] } },
-          { text: t('MOD_VOY_HELP_WORN', { worn: `${storesModel.WORN}` }), cls: 'text-warning' },
+          { text: t('MOD_VOY_HELP_WORN', { worn: `${storesModel.WORN}`, pct: `${Math.round((shipModel.WORN_TIME - 1) * 100)}` }), cls: 'text-warning' },
           { text: t('MOD_VOY_HELP_WORN_THROUGH'), cls: 'text-danger' },
         ] },
         { head: t('MOD_VOY_HELP_HEAD_REPAIR'), body: [
           t('MOD_VOY_HELP_REPAIR', { step: `${R.step}`, logs: `${R.logs}`, pitch: `${R.pitch}` }),
+          t('MOD_VOY_HELP_CAREEN', { step: `${R.step}`, time: state.clock?.duration?.(shipModel.CAREEN_STEP_MS) ?? '' }),
           t('MOD_VOY_HELP_REPAIR_LOGS'),
           t('MOD_VOY_HELP_PITCH', { chance: `${shipModel.pitchChance(1)}` }),
         ] },
+        // Pirates (the flat mechanics): the big ship on deep sea; a share of the hold, or run.
+        ...(state.events?.model === undefined ? [] : [(() => {
+          const EM = state.events.model;
+          return { head: t('MOD_VOY_HELP_HEAD_PIRATES'), body: [
+            t('MOD_VOY_HELP_PIRATES', { chance: `${Math.round(1 / EM.PIRATE_CHANCE)}` }),
+            { text: t('MOD_VOY_HELP_PIRATES_PAY', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: `${EM.PIRATE_COIN_SHARE * 100}`, hexes: `${EM.PIRATE_FLOOR_HEXES}` }), cls: 'text-warning' },
+            { text: t('MOD_VOY_HELP_PIRATES_RUN', { wear: `${EM.pirateRunWear(storesModel.WEAR.deep)}` }), cls: 'text-warning' },
+            t('MOD_VOY_HELP_PIRATES_AWAY', { sound: `${EM.PIRATE_SOUND}` }),
+          ] };
+        })()]),
       ];
     }
     // Outposts (phase 6e): the crafts a camp gives, read from the rule table, and the levels from the outpost model.
@@ -767,6 +819,25 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         t('MOD_VOY_HELP_CREW_OUTPOST_STRIKE'),
       ] }];
     };
+    // Travel traits (phase 6f): what the road teaches a Folk. As with Worker Folks' own traits, one shows only once a
+    // Folk of yours has learned it; Merchant's and Haggler's lines likewise.
+    const traitsHelp = () => {
+      const ft = state.folkTraits;
+      if (ft?.usable?.() !== true) return [];
+      const known = ft.known?.() ?? [];
+      const has = (id) => known.some((k) => k.id === id);
+      const vars = (id) => ft.vars?.(id) ?? {};
+      const does = (k) => t(`MOD_VOY_TRAIT_${k.id}_DESC`, vars(k.id)) + (k.fades ? `. ${t(`MOD_VOY_TRAIT_${k.id}_FADES`, vars(k.id))}` : '');
+      return [{ head: t('MOD_VOY_HELP_HEAD_CREW_TRAITS'), body: [
+        t('MOD_VOY_HELP_CREW_TRAITS'),
+        known.length === 0 ? t('MOD_VOY_HELP_CREW_TRAITS_NONE') : { table: { cols: [t('MOD_VOY_HELP_COL_TRAIT'), t('MOD_VOY_HELP_COL_DOES')], rows: known.map((k) => ({
+          cells: [t(`MOD_VOY_TRAIT_${k.id}`), does(k)], cls: k.kind === 'good' ? ['text-success'] : k.kind === 'bad' ? ['text-danger'] : [],
+        })) } },
+        ...(has('Merchant') ? [t('MOD_VOY_HELP_CREW_TRAITS_MERCHANT', { pct: vars('Merchant').sellAtOutpost ?? '' })] : []),
+        ...(has('Haggler') ? [t('MOD_VOY_HELP_CREW_TRAITS_HAGGLER', { pct: vars('Haggler').sales ?? '' })] : []),
+        ...(state.settings.night?.() === false ? [{ text: t('MOD_VOY_HELP_CREW_TRAITS_NO_NIGHT'), cls: 'text-warning' }] : []),
+      ] }];
+    };
     if (topic === 'crew') {
       return [
         { body: [t('MOD_VOY_HELP_CREW_WHAT')] },
@@ -785,6 +856,12 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         { head: t('MOD_VOY_HELP_HEAD_CREW_ASHORE'), body: [t('MOD_VOY_HELP_CREW_ASHORE'), t('MOD_VOY_HELP_CREW_FIXED')] },
         { head: t('MOD_VOY_HELP_HEAD_CREW_WALK'), body: [t('MOD_VOY_HELP_CREW_WALK'), t('MOD_VOY_HELP_CREW_WALK_PACK'), t('MOD_VOY_HELP_CREW_WALK_ARRIVE')] },
         ...outpostHelp(),
+        ...traitsHelp(),
+        // A stowaway (the flat mechanics): with Worker Folks' hire.
+        ...(state.events?.canHire?.() === true ? [{ head: t('MOD_VOY_HELP_HEAD_STOWAWAY'), body: [
+          t('MOD_VOY_HELP_STOWAWAY', { chance: `${Math.round(1 / state.events.model.STOWAWAY_CHANCE)}`, hexes: `${state.events.model.STOWAWAY_MIN_SEA}` }),
+          { text: t('MOD_VOY_HELP_STOWAWAY_COST', { rank: state.events.rank(), share: `${Math.round(state.events.model.STOWAWAY_PRICE_SHARE * 100)}` }), cls: 'text-warning' },
+        ] }] : []),
       ];
     }
     if (topic === 'hold') {
@@ -834,6 +911,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
             { cells: [t('MOD_VOY_HELP_SEA_HEX'), `${storesModel.LIGHT.sea}`] },
           ] } },
           { text: t('MOD_VOY_HELP_NIGHT_XP', { bonus: `${Math.round(model.STAR_XP * 100)}` }), cls: 'text-success' },
+          { text: t('MOD_VOY_HELP_NIGHT_SIGHT', { hexes: t(storesModel.NIGHT_SIGHT === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${storesModel.NIGHT_SIGHT}` }) }), cls: 'text-warning' },
           t('MOD_VOY_HELP_NIGHT_STARS'),
         ] });
       }
@@ -862,7 +940,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
           t('MOD_VOY_HELP_DISCOUNT', { per: `${model.TRAVEL_DISCOUNT_PER_LEVEL}`, pct: `${model.travelDiscount(skill()?.level ?? 1)}`, max: `${model.travelDiscount(99)}` }),
         ] },
         { head: t('MOD_VOY_HELP_HEAD_NO_XP'), body: [
-          { text: t('MOD_VOY_HELP_NO_XP_HUNGRY'), cls: 'text-warning' },
+          { text: t('MOD_VOY_HELP_NO_XP_HUNGRY', { pct: `${Math.round(storesModel.HUNGRY_GP * 100)}` }), cls: 'text-warning' },
           { text: t('MOD_VOY_HELP_NO_XP_REACH'), cls: 'text-warning' },
         ] },
       ];
@@ -899,7 +977,8 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     // What you carry against what fits: 600 / 620 HP, 15 / 15.5 fuel. Amber when low, red when empty.
     // Red when empty, amber when low or over the limit (.308, A-10), and the word beside the colour (B-20/B-47).
     const level = (kind) => (have[kind] <= 0 ? 'text-danger' : have[kind] < storesModel.LOW[kind] || have[kind] > cap[kind] ? 'text-warning' : '');
-    const word = (kind) => (have[kind] <= 0 ? ` <small>(${esc(t('MOD_VOY_PAGE_STORES_EMPTY_WORD'))})</small>` : have[kind] < storesModel.LOW[kind] ? ` <small>(${esc(t('MOD_VOY_PAGE_STORES_LOW_WORD'))})</small>` : '');
+    const word = (kind) => (have[kind] <= 0 ? ` <small>(${esc(t('MOD_VOY_PAGE_STORES_EMPTY_WORD'))})</small>` : have[kind] < storesModel.LOW[kind] ? ` <small>(${esc(t('MOD_VOY_PAGE_STORES_LOW_WORD'))})</small>`
+      : have[kind] > cap[kind] ? ` <small>(${esc(t('MOD_VOY_PAGE_STORES_OVER_WORD'))})</small>` : '');
     const of = (n) => `<small class="text-muted">/ ${n}</small>`;
     // Food and fuel each never split; the fuel drops under the food where both don't fit (build .360, the user, an
     // iPhone SE: it ran past the band).

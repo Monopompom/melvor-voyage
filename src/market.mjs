@@ -109,13 +109,28 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
   };
 
   // ---- the sale price -------------------------------------------------------------------------------------------
-  // Bank.getItemSalePrice is what the Sell block, the sale dialogs and the sale itself read; the trader's half price
-  // (src/trader.mjs) composes with it, though he only comes where no market is.
+  // Bank.getItemSalePrice is what the Sell block, the sale dialogs and the sale itself read. The one patch (build .386;
+  // three patches composed in load order): the market's rate and a Haggler's percent, then a Merchant's rate at an
+  // outpost where trade is locked (src/folk-traits.mjs outpostSale), then the trader's half while he is here
+  // (src/trader.mjs): he sets the price himself, over any Merchant.
   ctx.patch(Bank, 'getItemSalePrice').after((price, item) => {
     try {
-      if (!enabled() || !Number.isFinite(price)) return undefined;
-      const p = percent(here(), item);
-      return p === 100 ? undefined : MM.marketPrice(price, p);
+      if (!Number.isFinite(price)) return undefined;
+      let out = price;
+      if (enabled()) {
+        const m = here();
+        const p = percent(m, item);
+        // Haggler within a hex (travel traits, 6f-3): its percent on top of the market's.
+        const h = m === undefined ? undefined : state.folkTraits?.haggle?.();
+        const atMarket = p === 100 ? out : MM.marketPrice(out, p);
+        out = h === undefined ? atMarket : Math.floor((atMarket * (100 + h.pct)) / 100);
+      }
+      if (state.trader?.present?.() === true) out = Math.floor(out * (state.trader.HALF ?? 0.5));
+      else if (state.tradeLocked?.() === true) {
+        const s = state.folkTraits?.outpostSale?.();
+        if (s !== undefined) out = Math.floor(out * s.rate);
+      }
+      return out === price ? undefined : out;
     } catch { return undefined; }
   });
 
@@ -189,6 +204,13 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
       }
       // At the wandering trader the bank says why the price is half (.308, scan B-65).
       try { if (m === undefined && state.trader?.present?.() === true) parts.push(`<div>${esc(t('MOD_VOY_MARKET_TRADER'))}</div>`); } catch {}
+      // A Merchant at an outpost, a Haggler at a market (travel traits, 6f-3).
+      try {
+        const sale = m === undefined && state.trader?.present?.() !== true ? state.folkTraits?.outpostSale?.() : undefined;
+        if (sale !== undefined) parts.push(`<div>${t('MOD_VOY_MARKET_MERCHANT', { name: `<b>${esc(sale.folk.name)}</b>`, pct: pctHtml(Math.round(sale.rate * 100)), outpost: esc(sale.outpost.name ?? '') })}</div>`);
+        const h = m === undefined ? undefined : state.folkTraits?.haggle?.();
+        if (h !== undefined) parts.push(`<div>${t('MOD_VOY_MARKET_HAGGLER', { name: `<b>${esc(h.folk.name)}</b>`, pct: `<span class="text-success font-w600">+${h.pct}%</span>` })}</div>`);
+      } catch {}
       const bw = MM.bestAndWorst(known(), c[0], c[1]);
       if (bw !== undefined) {
         parts.push(`<div>${t('MOD_VOY_MARKET_BEST', { market: `<b>${esc(name(bw.best.id))}</b>`, pct: pctHtml(bw.best.percent) })}</div>`);

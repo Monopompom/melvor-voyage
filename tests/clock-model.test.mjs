@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { TOW_KINDS as ADRIFT_TOWS } from '../src/adrift-model.mjs';
 import {
   TICK_MS, LAND_MS, SEA_MS, groundFactor, seaMs, stepMs, ticksOf, routeMs, durationParts, clockText, clockNow,
-  cleanChoice, sameChoice, cleanChain, cleanVoyage, cleanEnding, ticksLeft, TOW_KINDS,
+  cleanChoice, sameChoice, cleanChain, cleanVoyage, cleanEnding, ticksLeft, TOW_KINDS, STORM_WAIT_STEP_MS, STORM_WAIT_MAX_MS, stormWaitMs,
 } from '../src/clock-model.mjs';
 
 const MIN = 60000;
@@ -149,4 +149,30 @@ test('a tow (5b part two): kept on the voyage, junk dropped; the adrift ending a
   assert.equal(cleanEnding({ how: 'adrift', why: 'food' }).how, 'adrift');
   assert.equal(cleanEnding({ how: 'arrived', tow: 'pushy' }).tow, 'pushy');
   assert.equal(cleanEnding({ how: 'arrived', tow: 'whale' }).tow, '');
+});
+
+test('a worn hull: the sailed steps of its vessel take longer, land and the other vessel as before', () => {
+  const slowOf = (kind) => (kind === 'ship' ? 1.25 : 1);
+  const hullOf = (kind) => (kind === 'ship' ? 'brig' : 'dinghy');
+  assert.equal(stepMs({ sea: true, vessel: 'ship' }, { hullOf, slowOf }), Math.round(SEA_MS.brig * 1.25));
+  assert.equal(stepMs({ sea: true, vessel: 'boat' }, { hullOf, slowOf }), SEA_MS.dinghy);
+  assert.equal(stepMs({ fastTravel: true, hop: 4, vessel: 'ship' }, { hullOf, slowOf }), Math.round(4 * SEA_MS.brig * 1.25));
+  assert.equal(stepMs({ cls: 'grasslands' }, { hullOf, slowOf }), LAND_MS);
+  const walk = [{ q: 0, r: 0 }, { q: 1, r: 0 }];
+  assert.deepEqual(cleanVoyage({ walk, worn: ['ship', 'ship', 'x'] }).worn, ['ship']);
+  assert.deepEqual(cleanVoyage({ walk }).worn, []);
+});
+
+test('waiting out a storm: the first set-off whose route meets no storm, only when the route now meets one', () => {
+  const clearFrom = (ms) => (w) => (w >= ms ? 0 : 2);
+  assert.equal(stormWaitMs(2, clearFrom(25 * MIN)), 30 * MIN, 'tried every step, the first clear one');
+  assert.equal(stormWaitMs(2, clearFrom(0)), STORM_WAIT_STEP_MS, 'never a wait of nothing');
+  assert.equal(stormWaitMs(2, clearFrom(STORM_WAIT_MAX_MS)), STORM_WAIT_MAX_MS, 'the last try counts');
+  assert.equal(stormWaitMs(2, clearFrom(STORM_WAIT_MAX_MS + 1)), undefined, 'no clear set-off near enough');
+  assert.equal(stormWaitMs(0, clearFrom(0)), undefined, 'no storm on the route, nothing to wait out');
+  assert.equal(stormWaitMs(1, () => 1), undefined, 'one storm for another is no way out');
+  assert.equal(stormWaitMs(3, undefined), undefined);
+  const tried = [];
+  stormWaitMs(1, (w) => { tried.push(w); return 1; });
+  assert.equal(tried.length, STORM_WAIT_MAX_MS / STORM_WAIT_STEP_MS);
 });

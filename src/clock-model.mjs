@@ -24,15 +24,17 @@ export const seaMs = (hull) => SEA_MS[hull] ?? SEA_MS.dinghy;
 /**
  * Milliseconds for one step of ship.stepsOf ({ sea, cls, fastTravel, hop, vessel, wx }). `hullOf(kind)` names the hull of
  * the vessel kind ('boat' or 'ship'); `mountSpeed` the land speed (4.27). A fast-travel hop takes its straight-line
- * hexes (`hop`, or `dist` when the rules leave it vanilla) at the vessel's speed.
+ * hexes (`hop`, or `dist` when the rules leave it vanilla) at the vessel's speed. `slowOf(kind)` multiplies a sailed
+ * step's time (a worn hull, the flat mechanics: ship-model wornTime; 1 when absent).
  */
-export function stepMs(step, { hullOf = () => undefined, mountSpeed = 1 } = {}) {
+export function stepMs(step, { hullOf = () => undefined, mountSpeed = 1, slowOf = () => 1 } = {}) {
   if (step == null) return 0;
+  const slow = (kind) => { const f = slowOf(kind); return Number.isFinite(f) && f > 0 ? f : 1; };
   if (step.fastTravel) {
     const n = step.hop > 0 ? step.hop : Math.max(1, Math.round(step.dist ?? 1));
-    return n * seaMs(hullOf(step.vessel ?? 'boat'));
+    return Math.round(n * seaMs(hullOf(step.vessel ?? 'boat')) * slow(step.vessel ?? 'boat'));
   }
-  if (step.sea || SEA_CLASSES.includes(step.cls)) return seaMs(hullOf(step.vessel ?? 'boat'));
+  if (step.sea || SEA_CLASSES.includes(step.cls)) return Math.round(seaMs(hullOf(step.vessel ?? 'boat')) * slow(step.vessel ?? 'boat'));
   const speed = Number.isFinite(mountSpeed) && mountSpeed > 0 ? mountSpeed : 1;
   // The weather's band (phase 5c): snowdrifts in the bitter cold, resting at noon in the scorching heat.
   const wx = Number.isFinite(step.wx?.time) && step.wx.time > 0 ? step.wx.time : 1;
@@ -70,6 +72,19 @@ export function routeTicks(steps, opts, t0, windOf, stormOf) {
     at += ticks * TICK_MS;
   }
   return out;
+}
+/**
+ * Waiting out a storm (the flat mechanics): a route set off now that meets `stormsNow` stormy hexes is tried again every
+ * STORM_WAIT_STEP_MS, up to STORM_WAIT_MAX_MS ahead; the first wait whose route meets none (`stormsAfter(waitMs)` counts
+ * them) is offered. A wait for the wind alone never paid: each hex takes the wind it is entered in, so going now is
+ * always ahead when the wind turns. [BALANCE]
+ */
+export const STORM_WAIT_STEP_MS = 10 * 60000;
+export const STORM_WAIT_MAX_MS = 3 * 60 * 60000;
+export function stormWaitMs(stormsNow, stormsAfter) {
+  if (!(stormsNow > 0) || typeof stormsAfter !== 'function') return undefined;
+  for (let w = STORM_WAIT_STEP_MS; w <= STORM_WAIT_MAX_MS; w += STORM_WAIT_STEP_MS) if (stormsAfter(w) === 0) return w;
+  return undefined;
 }
 /** Milliseconds of a list of steps. */
 export const routeMs = (steps, opts) => (steps ?? []).reduce((sum, s) => sum + stepMs(s, opts), 0);
@@ -157,7 +172,21 @@ export function cleanVoyage(v) {
     of: isInt(v.of) && v.of > 0 ? v.of : (isInt(v.left) && v.left > 0 ? v.left : 1),
     ...(v.fog === true ? { fog: true, side: isInt(v.side) && v.side >= 0 && v.side <= 3 ? v.side : 0, sv: cleanQueue(v.sv) } : {}),
     ...(cleanTow(v.tow) === undefined ? {} : { tow: cleanTow(v.tow) }),
+    // The vessels worn below 50% when it set off (the flat mechanics): their hexes take longer for the whole voyage.
+    worn: (Array.isArray(v.worn) ? v.worn : []).filter((k, i, a) => (k === 'boat' || k === 'ship') && a.indexOf(k) === i),
+    // Pirates waiting for an answer (events-model.mjs): the toll and the run's wear; the voyage holds until answered.
+    ...(cleanPirates(v.pir) === undefined ? {} : { pir: cleanPirates(v.pir) }),
+    // The walk index where a stowaway climbs out (events-model stowawayAt), until it does.
+    ...(isInt(v.stw) && v.stw > at && v.stw < walk.length ? { stw: v.stw } : {}),
   };
+}
+
+/** A pirate encounter waiting on a voyage ({ toll, wear }), or undefined. */
+function cleanPirates(p) {
+  if (p == null || typeof p !== 'object') return undefined;
+  const toll = Number.isFinite(p.toll) && p.toll > 0 ? Math.round(p.toll) : undefined;
+  const wear = Number.isFinite(p.wear) && p.wear > 0 ? p.wear : undefined;
+  return toll === undefined || wear === undefined ? undefined : { toll, wear };
 }
 /** What may tow you (adrift-model.mjs TOW_KINDS; modules here can't import each other). */
 export const TOW_KINDS = ['pay', 'fisherman', 'bottle', 'pushy'];

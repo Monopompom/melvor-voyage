@@ -99,8 +99,22 @@ export function makeNotices(post, season, { places = [], goods = [], ports = [],
   return out;
 }
 
-/** Taking a notice: the task, with the count of its goods found so far (`base`) and the port it was taken at. */
-export const takeTask = (notice, from, base = 0, at = 0) => ({ ...notice, from, base: Math.max(0, Math.floor(base) || 0), at });
+/** Taking a notice: the task, with the count of its goods found so far (`base`), the port it was taken at, and when
+ * it is due (`due`, 0: no deadline). */
+export const takeTask = (notice, from, base = 0, at = 0, due = 0) => ({ ...notice, from, base: Math.max(0, Math.floor(base) || 0), at, due: Math.max(0, Math.floor(due) || 0) });
+
+// ---- the deadline (the user, 21 Oct 2026: stakes for the flat mechanics) -----------------------------------------
+// A Bring task is due DUE_SHARE times its plain trip after it is taken, online or offline; Reach has none. Late, the
+// hand-in pays the goods once at their price: no pay for the way, no XP, no rumour.
+export const DUE_SHARE = 1.5;
+/** A Bring task's plain trip: out to the goods and on to the port (at most twice its hexes) at `hexMs` a hex, plus the
+ * work of gathering them (WORK_MS). */
+export const plainTripMs = (notice, hexMs) => 2 * Math.max(1, notice.hexes) * hexMs + WORK_MS;
+/** When a notice taken at `now` is due; 0 for Reach, or without a pace (timed travel off). */
+export const dueAt = (notice, hexMs, now) => (notice?.k === 'bring' && Number.isFinite(hexMs) && hexMs > 0 ? now + Math.round(DUE_SHARE * plainTripMs(notice, hexMs)) : 0);
+export const isLate = (task, now) => Number.isFinite(task?.due) && task.due > 0 && now > task.due;
+/** What a late hand-in pays: the goods once (the pay for the way and the doubling taken off). */
+export const lateGp = (task) => Math.max(0, Math.round((task.gp - task.hexes * BRING_PAY.gp) / GOODS_PAY));
 
 /** A Bring task's progress: goods found since it was taken, never above its count. */
 export const progressOf = (task, foundNow) => (task?.k !== 'bring' ? 0 : Math.min(task.n, Math.max(0, (Math.floor(foundNow) || 0) - task.base)));
@@ -130,7 +144,7 @@ export function cleanTasks(t) {
     out.boards[poi] = { s: b.s, list: b.list.map(cleanNotice).filter(Boolean) };
   }
   const cur = t.cur === null ? undefined : cleanNotice(t.cur);
-  if (cur !== undefined && str(t.cur.from)) out.cur = { ...cur, from: t.cur.from, base: whole(t.cur.base), at: whole(t.cur.at) };
+  if (cur !== undefined && str(t.cur.from)) out.cur = { ...cur, from: t.cur.from, base: whole(t.cur.base), at: whole(t.cur.at), due: whole(t.cur.due) };
   out.wait = whole(t.wait);
   return out;
 }

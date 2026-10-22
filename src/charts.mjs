@@ -108,8 +108,19 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
     return `${out}<div class="voyage-cargo-foot text-muted">${esc(t('MOD_VOY_CHARTS_FOOT'))}</div>`;
   };
 
-  /** Buys the chart of `sea` at the board of `poi` (you stand there). */
+  /** Buys the chart of `sea` at the board of `poi` (you stand there): asks first, by the game's shop-confirm setting. */
   const buy = (sea, poi) => {
+    if (!usable() || state.cargo?.portHere?.()?.poi !== poi || !CM.chartsAt(poi, seaMap, neighbours).includes(sea)) return false;
+    const fog = fogOf(sea);
+    if (fog.length === 0) return false;
+    const price = priceOf(fog);
+    if (game.gp.amount < price) { notify(t('MOD_VOY_CHARTS_SHORT'), 'danger'); return false; }
+    const costs = new Costs(game);
+    costs.addCurrency(game.gp, price);
+    helpLayout.confirmBuy({ name: chartName(sea), picture: ctx.getResourceUrl(CHART_ART), didRender: state.popupDidRender, costs }, () => buyNow(sea, poi));
+    return true;
+  };
+  const buyNow = (sea, poi) => {
     if (!usable() || state.cargo?.portHere?.()?.poi !== poi || !CM.chartsAt(poi, seaMap, neighbours).includes(sea)) return false;
     const fog = fogOf(sea);
     if (fog.length === 0) return false;

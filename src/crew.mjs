@@ -16,9 +16,11 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
 
   /** The Folks with you, as Worker Folks views. */
   const list = () => (on() ? api().folks().filter((f) => f.travel === 'with') : []);
-  const count = () => list().length;
-  /** The crew's load on the stores: { count, food } (food by rank, crew-model FOOD_SHARE). */
-  const load = () => CM.crewLoad(list());
+  /** A stowaway aboard (events.mjs) is no Folk yet, but it takes a berth and eats as a Newbie. */
+  const stowaway = () => (on() ? state.events?.stowaway?.() : undefined);
+  const count = () => list().length + (stowaway() === undefined ? 0 : 1);
+  /** The crew's load on the stores (crew-model crewLoad: food by rank, fuel shares, with their travel traits). */
+  const load = () => { const s = stowaway(); return CM.crewLoad(s === undefined ? list() : [...list(), { tier: s.tier }], (f, on) => (f.id === undefined ? undefined : state.folkTraits?.effectsOf?.(f, on))); };
   /** Berths in a vessel kind ('boat' | 'ship'), 0 without it. */
   const berthsFor = (kind) => CM.berthsOf(state.ship?.vessel?.(kind)?.hull);
   /** The vessel you are in now, or undefined ashore. */
@@ -97,8 +99,9 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
         label: sk.holder === null || sk.holder === id ? sk.name : t('MOD_VOY_CREW_WORK_HELD', { skill: sk.name, name: holderName(sk.holder) }),
         media: (() => { try { return game.skills.getObjectByID(sk.id)?.media; } catch { return undefined; } })(),
       }))];
+    // The Folk's portrait on top and the work pick in a band (build .386).
     const html = helpLayout.msgHtml([t('MOD_VOY_CREW_ASHORE_TEXT', { name: `<b>${esc(f.name)}</b>` })]) +
-      `<div class="voyage-crew-work mt-2"><div id="voyage-crew-work-label" class="font-w600 mb-1">${esc(t('MOD_VOY_CREW_WORK_LABEL'))}</div>` +
+      `<div class="voyage-section voyage-crew-work mt-2"><div id="voyage-crew-work-label" class="font-w600 mb-1">${esc(t('MOD_VOY_CREW_WORK_LABEL'))}</div>` +
       `${helpLayout.pickHtml('voyage-crew-work', 'voyage-crew-work-label', choices, '')}</div>` +
       (skills.length === 0 ? `<small class="d-block text-muted mt-1">${esc(t('MOD_VOY_CREW_WORK_NONE'))}</small>` : '');
     SwalLocale.fire({
@@ -107,6 +110,7 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
       customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' }) : { ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' },
       title: t('MOD_VOY_CREW_ASHORE_TITLE'),
       html,
+      ...(f.portrait ? { imageUrl: f.portrait, ...helpLayout.MSG_IMAGE } : {}),
       showCancelButton: true,
       confirmButtonText: t('MOD_VOY_CREW_ASHORE_BUTTON'),
       cancelButtonText: t('MOD_VOY_CREW_ASHORE_CANCEL'),
@@ -121,13 +125,19 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
   /** The first step of a move the crew has no berths for, or undefined. Checked before the stores (movePlayer). */
   const berthRefusal = (steps) => {
     const n = count();
-    return n > 0 && Array.isArray(steps) ? CM.berthRefusal(steps, n, berthsFor) : undefined;
+    // The stowaway takes a berth only in the vessel it hides in (build .386): a row ashore in the boat is not refused for
+    // it. The crew keeps a berth each everywhere.
+    const s = stowaway();
+    const inKind = (kind) => list().length + (s !== undefined && (s.v ?? 'ship') === kind ? 1 : 0);
+    return n > 0 && Array.isArray(steps) ? CM.berthRefusal(steps, s === undefined ? n : inKind, berthsFor) : undefined;
   };
-  const refuseBerths = (r) => {
+  /** The berth refusal in words: the plan block's verdict and a voyage's ending say it too. */
+  const berthWhy = (r) => {
     const v = state.ship?.vessel?.(r.vessel);
     const hull = v == null ? t('MOD_VOY_SHIP_BOAT') : state.ship.hullName(v);
-    notify(t(r.berths === 1 ? 'MOD_VOY_CREW_REFUSE_BERTHS_ONE' : 'MOD_VOY_CREW_REFUSE_BERTHS', { hull, berths: `${r.berths}`, crew: `${count()}` }), 'danger');
+    return t(r.berths === 1 ? 'MOD_VOY_CREW_REFUSE_BERTHS_ONE' : 'MOD_VOY_CREW_REFUSE_BERTHS', { hull, berths: `${r.berths}`, crew: `${count()}` });
   };
+  const refuseBerths = (r) => notify(berthWhy(r), 'danger');
   /** After a move landed: every hungry step costs each Folk with you a tenth of its max HP; hunger can kill. */
   const afterMove = (steps) => {
     if (!on() || !Array.isArray(steps)) return;
@@ -149,7 +159,7 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
     } catch {}
   };
 
-  const out = { list, count, load, berthsFor, inVessel, near, busy, comeRefusal, comeAlong, ashoreRefusal, putAshore, askAshore, berthRefusal, refuseBerths, afterMove };
+  const out = { list, count, load, berthsFor, inVessel, near, busy, comeRefusal, comeAlong, ashoreRefusal, putAshore, askAshore, berthRefusal, berthWhy, refuseBerths, afterMove };
   state.crew = out;
   return out;
 }

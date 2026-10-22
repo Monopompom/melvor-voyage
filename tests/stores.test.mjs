@@ -4,6 +4,7 @@ import {
   RATION_HP, HEX_COST, isEasy, fuelFactor, foodHP, loadingAt, loadAmount, stepCost, pathCost, planMove, ashoreReserve, STARTER_KIT,
   capacity, loadCount, wearOf, pathWear, hullReserve, WORN, crewMul, roundFuel,
   isNight, nextTurn, nightHours, lightCost, planLight, lightFactor, lightable,
+  HUNGRY_GP, hungrySurcharge, hungryRouteGp, hungryMoveGp, NIGHT_SIGHT, nightSight,
 } from '../src/stores-model.mjs';
 import * as terrainMod from '../src/terrain.mjs';
 
@@ -246,5 +247,61 @@ test('crew by rank: food follows the shares, fuel one per Folk', () => {
   assert.equal(two.food, Math.round(you.food * 2.25));
   assert.equal(two.fuel, roundFuel(you.fuel * 3));
   assert.deepEqual(stepCost(step, 1, { count: 1, food: 1 }), stepCost(step, 1, 1));
-  assert.deepEqual(crewMul(undefined), { food: 1, fuel: 1 });
+  assert.deepEqual(crewMul(undefined), { food: 1, foodRough: 1, seaFood: 1, fuel: 1 });
+});
+
+test('crew with travel traits: rough ground and the sea eat by their own sums, fuel one share each', () => {
+  const crew = { count: 2, food: 2, foodRough: 1.5, seaFood: 3 };
+  const you = (cls, sea = false) => stepCost({ cls, sea }, 1);
+  assert.equal(stepCost({ cls: 'grasslands' }, 1, crew).food, Math.round(you('grasslands').food * 3));
+  assert.equal(stepCost({ cls: 'mountain' }, 1, crew).food, Math.round(you('mountain').food * 2.5));
+  assert.equal(stepCost({ cls: 'water', sea: true }, 1, crew).food, Math.round(you('water', true).food * 4));
+  assert.equal(stepCost({ hop: 2 }, 1, crew).food, Math.round(stepCost({ hop: 2 }, 1).food * 4));
+  assert.equal(stepCost({ cls: 'grasslands' }, 1, crew).fuel, roundFuel(you('grasslands').fuel * 3));
+});
+
+test('a hungry hex costs 30% more of the GP its move took, never more than you have left', () => {
+  assert.equal(HUNGRY_GP, 0.3);
+  assert.equal(hungrySurcharge(1000, 1, 1), 300);
+  assert.equal(hungrySurcharge(1000, 4, 1), 75, 'its share of the move');
+  assert.equal(hungrySurcharge(1000, 2, 5), 300, 'no more hungry steps than steps');
+  assert.equal(hungrySurcharge(1000, 1, 1, 120.7), 120, 'what is left, so a hungry walk home is never refused');
+  assert.equal(hungrySurcharge(1000, 3, 0), 0);
+  assert.equal(hungrySurcharge(0, 1, 1), 0, 'a free move');
+  assert.equal(hungrySurcharge(NaN, 1, 1), 0);
+});
+
+test('night sight: the sea hex a move ends on sees one hex further lit, one less dark; land and day as is', () => {
+  const sea = [{ cls: 'grasslands' }, { sea: true, cls: 'water' }];
+  const ok = { ok: true, lit: [1] };
+  assert.equal(nightSight(sea, ok, true), NIGHT_SIGHT);
+  assert.equal(nightSight(sea, { ok: true, lit: [0] }, true), -NIGHT_SIGHT, 'the last hex dark');
+  assert.equal(nightSight(sea, { ok: true }, true), -NIGHT_SIGHT, 'no light at all');
+  assert.equal(nightSight(sea, ok, false), 0, 'by day');
+  assert.equal(nightSight([{ sea: true }, { cls: 'grasslands' }], ok, true), 0, 'ending on land');
+  assert.equal(nightSight([{ hop: 4 }], { ok: true, lit: [0] }, true), NIGHT_SIGHT, 'a lit hop');
+  assert.equal(nightSight([{ sea: true, free: true }], { ok: true, lit: [] }, true), 0, 'a free move');
+  assert.equal(nightSight(sea, { ok: false }, true), 0);
+});
+
+test('the hungry surcharge of a route: each hungry hex its own share, as a voyage pays hex by hex', () => {
+  const gp = [1000, 2000, 3042];
+  assert.equal(hungryRouteGp((i) => gp[i], []), 0);
+  assert.equal(hungryRouteGp((i) => gp[i], [2]), Math.round(3042 * HUNGRY_GP));
+  assert.equal(hungryRouteGp((i) => gp[i], [0, 1, 1]), Math.round(1000 * HUNGRY_GP) + Math.round(2000 * HUNGRY_GP), 'a step counted once');
+  assert.equal(hungryRouteGp((i) => gp[i], [7]), 0, 'no such step');
+  assert.equal(hungryRouteGp(undefined, [0]), 0);
+});
+
+test('an instant move of many steps: the hungry steps pay their own price, not an even share', () => {
+  const gp = [1000, 2000, 3042];
+  const all = 6042;
+  assert.equal(hungryMoveGp(all, gp, [1, 2]), Math.round(5042 * HUNGRY_GP), 'the dear steps, as the popup counts them');
+  assert.ok(Math.abs(hungryMoveGp(all, gp, [1, 2]) - hungryRouteGp((i) => gp[i], [1, 2])) <= 1);
+  assert.equal(hungryMoveGp(all, gp, [1, 1]), Math.round(2000 * HUNGRY_GP), 'a step counted once');
+  assert.equal(hungryMoveGp(all, gp, [2], 100.5), 100, 'never more than is left');
+  assert.equal(hungryMoveGp(all, gp, []), 0);
+  assert.equal(hungryMoveGp(0, gp, [0]), 0, 'a free move');
+  assert.equal(hungryMoveGp(900, [0, 0, 0], [0]), hungrySurcharge(900, 3, 1), 'no step priced: an even share');
+  assert.equal(hungryMoveGp(900, [], [0]), 0, 'no steps');
 });

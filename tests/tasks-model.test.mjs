@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   NOTICES, REACH_MIN, REACH_MAX, BRING_MIN, REACH_PAY, REACH_SHARE, reachGp, BRING_PAY, GOODS_PAY, bringCount, makeReach, makeBring, makeNotices,
   takeTask, progressOf, canHandIn, waitLeft, WAIT_MS, cleanTasks, hexDist,
+  DUE_SHARE, WORK_MS, plainTripMs, dueAt, isLate, lateGp,
 } from '../src/tasks-model.mjs';
 
 const rng = (seed) => { let a = seed >>> 0; return () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296; }; };
@@ -104,4 +105,20 @@ test('the save: unreadable notices and tasks are dropped', () => {
   assert.equal(clean.wait, 0);
   assert.deepEqual(cleanTasks(null), { boards: {}, cur: null, wait: 0 });
   assert.equal(cleanTasks({ cur: { id: 'c', k: 'bring', item: 'ore', n: 10, to: 'P' } }).cur, null); // no `from`
+});
+
+test('a Bring task is due one and a half plain trips after it is taken; Reach has no deadline; late pays the goods once', () => {
+  const MIN = 60000;
+  const bring = { id: 'b', k: 'bring', item: 'ore', n: 100, to: 'P', hexes: 9, gp: Math.round(100 * 3 * GOODS_PAY) + 9 * BRING_PAY.gp, xp: 9 * BRING_PAY.xp };
+  assert.equal(plainTripMs(bring, 6 * MIN), 2 * 9 * 6 * MIN + WORK_MS);
+  assert.equal(dueAt(bring, 6 * MIN, 500), 500 + DUE_SHARE * (108 * MIN + WORK_MS));
+  assert.equal(dueAt({ ...bring, k: 'reach' }, 6 * MIN, 500), 0);
+  assert.equal(dueAt(bring, undefined, 500), 0);
+  const t = takeTask(bring, 'P', 0, 500, dueAt(bring, 6 * MIN, 500));
+  assert.equal(isLate(t, t.due), false);
+  assert.equal(isLate(t, t.due + 1), true);
+  assert.equal(isLate(takeTask(bring, 'P', 0, 500), 1e15), false);
+  assert.equal(lateGp(t), 300);
+  const clean = cleanTasks({ cur: { ...t, due: 77.5 } });
+  assert.equal(clean.cur.due, 77);
 });

@@ -5,6 +5,7 @@ import {
   HULLS, PLANNED_HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, dockSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach, isPlace,
   canHop, shipAfterHops, laneTier, hexDist, condOf, repairPlan, canRepair, pitchChance, REPAIR,
   holdSlots, atShip, stow, takeOut, UPGRADES, upgradeFor, upgradeBlocker, HOLD_SLOTS, BIG_SHIPS, shipBill, dinghyBuild, OLD_HAT,
+  CAREEN_STEP_MS, careenOf, careenLeft, careenDone, cleanCareen, WORN_COND, WORN_TIME, wornTime,
 } from '../src/ship-model.mjs';
 import { HULL_IDS, loadSave, serializeSave, defaultSave, xpForSteps } from '../src/voyage-model.mjs';
 import { createTerrain, hexDistance, NEIGHBOURS } from '../src/terrain.mjs';
@@ -208,7 +209,7 @@ test('every water and shoal hex has a shore distance; land has none', async () =
 
 test('save v1 migrates up with no ship; a ship round-trips; a bad ship is dropped', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 1, landHexes: 4, waterHexes: 0, backfilled: true }));
-  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]);
   // An old character has long since started, and has opened its journal.
   assert.deepEqual(save, { ...defaultSave(), landHexes: 4, backfilled: true, start: 'game', journal: { ...defaultSave().journal, opened: true } });
   const withShip = { ...defaultSave(), boat: { ...dinghy(3, 7), cond: 64, hold: [], aboard: false }, ship: { hull: 'brig', q: 9, r: 1, cond: 70, hold: [] }, shipChecked: true };
@@ -506,4 +507,34 @@ test('the shipwright\'s bill lists every hull at the price the code charges', ()
   assert.deepEqual(bill.map((b) => b.hold), [6, 12, 18, 24]);
   // Big Bones in every hull after the dinghy (builds .148 and .177).
   assert.deepEqual(bill.map((b) => b.items.find((i) => i.id === 'melvorD:Big_Bones')?.quantity), [undefined, 50, 250, 550]);
+});
+
+test('careening: six minutes for every 10% it mends; stopped early, the whole steps done stand', () => {
+  const c = careenOf(42, 92, 1000);
+  assert.equal(CAREEN_STEP_MS, 6 * 60000);
+  assert.deepEqual(c, { at: 1000, until: 1000 + 5 * CAREEN_STEP_MS, from: 42, to: 92 });
+  assert.equal(careenLeft({ careen: c }, 1000), 5 * CAREEN_STEP_MS);
+  assert.equal(careenLeft({ careen: c }, c.until + 5), 0);
+  assert.equal(careenLeft({}, 0), 0);
+  assert.equal(careenDone(c, 1000 + CAREEN_STEP_MS - 1), 42);
+  assert.equal(careenDone(c, 1000 + 2 * CAREEN_STEP_MS), 62);
+  assert.equal(careenDone(c, 1e12), 92);
+  assert.deepEqual(cleanCareen({ ...c, at: 1000.4 }), c);
+  assert.equal(cleanCareen({ ...c, to: 30 }), undefined);
+  assert.equal(cleanCareen(null), undefined);
+});
+
+test('a hull below half sails each hex a quarter longer; a sound one, or none, as before', () => {
+  assert.equal(WORN_COND, 50);
+  assert.equal(wornTime({ cond: 49 }), WORN_TIME);
+  assert.equal(wornTime({ cond: 50 }), 1);
+  assert.equal(wornTime({}), 1, 'a save without a condition is sound');
+  assert.equal(wornTime(null), 1);
+});
+
+test('the save keeps a careen, and drops a broken one', () => {
+  const careen = careenOf(30, 60, 5);
+  const boat = { hull: 'dinghy', q: 3, r: -2, cond: 30, hold: [], aboard: false, careen };
+  assert.deepEqual(loadSave(JSON.stringify({ ...defaultSave(), boat })).save.boat, boat);
+  assert.equal(loadSave(JSON.stringify({ ...defaultSave(), boat: { ...boat, careen: { at: 'x' } } })).save.boat.careen, undefined);
 });

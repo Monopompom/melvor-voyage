@@ -156,6 +156,28 @@ export function repairPlan(cond, logs, pitch) {
     full: { logs: want * REPAIR.logs, pitch: want * REPAIR.pitch },
   };
 }
+// ---- careening (the user, 21 Oct 2026: stakes for the flat mechanics) -------------------------------------------
+// A repair takes time: the vessel is hauled out for CAREEN_STEP_MS every 10% it mends, out of use meanwhile (you walk
+// on, Folks work on), online and offline. The logs and Pitch go when it begins. Stopped early, the steps done stand.
+export const CAREEN_STEP_MS = 6 * 60 * 1000;
+/** A careen begun at `now`, from `from`% to `to`%: { at, until, from, to }. */
+export const careenOf = (from, to, now) => ({ at: now, until: now + Math.ceil(Math.max(0, to - from) / REPAIR.step) * CAREEN_STEP_MS, from, to });
+/** Ms left of a vessel's careen at `now`; 0 with none (or one that is over). */
+export const careenLeft = (v, now) => (v?.careen == null ? 0 : Math.max(0, v.careen.until - now));
+/** The condition a careen has reached by `now`: its whole steps done, all of them once it is over. */
+export const careenDone = (c, now) => Math.min(c.to, c.from + Math.floor(Math.max(0, now - c.at) / CAREEN_STEP_MS) * REPAIR.step);
+/** A saved careen, or undefined when it is missing or malformed. */
+export function cleanCareen(c) {
+  if (c === null || typeof c !== 'object') return undefined;
+  const { at, until, from, to } = c;
+  if (![at, until, from, to].every(Number.isFinite) || until < at || from < 0 || to > 100 || to <= from) return undefined;
+  return { at: Math.round(at), until: Math.round(until), from: Math.round(from), to: Math.round(to) };
+}
+/** Below this condition (stores-model WORN, the same 50%) a hull sails WORN_TIME as long a hex. */
+export const WORN_COND = 50;
+export const WORN_TIME = 1.25;
+export const wornTime = (v) => (v != null && condOf(v) < WORN_COND ? WORN_TIME : 1);
+
 /**
  * Where a hull is repaired: a small boat (tiers 1 and 2) is beached on a coast, as careening was done, so the ship
  * sits next to land and you stand on it or next to it. A sailing ship (tiers 3 and 4) needs a port (`portNear`).
@@ -469,6 +491,20 @@ export const atShip = (playerRec, ship) => ship != null && playerRec !== undefin
  * Puts `qty` of item `id` in the hold. Returns the new hold, or undefined when it needs a new slot and none is free.
  * Pure: the hold given is not changed.
  */
+/**
+ * `k` entries of a hold thrown overboard at random (the pirates, build .387): `roll()` in [0, 1) picks each. Returns
+ * { hold, dropped } with the hold's order kept; never more than the hold holds.
+ */
+export function jettison(hold, k, roll = Math.random) {
+  const left = [...hold];
+  const dropped = [];
+  for (let i = 0; i < k && left.length > 0; i++) {
+    const r = roll();
+    const at = Math.min(left.length - 1, Math.max(0, Math.floor((Number.isFinite(r) ? r : 0) * left.length)));
+    dropped.push(...left.splice(at, 1));
+  }
+  return { hold: left, dropped };
+}
 export function stow(hold, id, qty, slots) {
   const n = Math.max(0, Math.floor(qty));
   if (n <= 0) return hold;

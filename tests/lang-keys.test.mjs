@@ -8,6 +8,7 @@ import * as rules from '../src/rules.mjs';
 import { JOURNAL_GUIDES } from '../src/voyage-model.mjs';
 import { RESCUES, TOW_KINDS } from '../src/adrift-model.mjs';
 import { SEASONS, BANDS } from '../src/weather-model.mjs';
+import { TRAITS as TRAVEL_TRAITS } from '../src/folk-traits-model.mjs';
 import { JOURNAL_CHAPTERS, JOURNAL_CREW, JOURNAL_WRITTEN, JOURNAL_GUIDE_SECTIONS, JOURNAL_ASIDES, JOURNAL_NOTES, CHART_ITEMS, splitLinks, linkTargetExists } from '../src/journal-model.mjs';
 
 const root = new URL('../', import.meta.url);
@@ -20,6 +21,8 @@ const sources = [
 const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const localIds = Object.keys(rules.SKILL_RULES).map((id) => id.split(':').pop());
 export const FAMILIES = {
+  // the travel traits (phase 6f, src/folk-traits.mjs): name, effect, and how a bad one fades
+  MOD_VOY_TRAIT_: TRAVEL_TRAITS.flatMap((tr) => [tr.id, `${tr.id}_DESC`, ...(tr.fade === undefined ? [] : [`${tr.id}_FADES`])]),
   MOD_VOY_DIR_: DIRS,
   MOD_VOY_DIR_SHORT_: DIRS,
   MOD_VOY_TERRAIN_: [...Object.keys(terrain.CLASS_INFO), 'CLOUD', 'ICE'],
@@ -57,7 +60,7 @@ export const FAMILIES = {
   MOD_VOY_JOURNAL_BILL_WHERE_: ['DINGHY', 'LONGBOAT', 'BRIG', 'GALLEON'],
   MOD_VOY_JOURNAL_BILL_REBUILT_: ['LONGBOAT', 'GALLEON'],
   // Plan a voyage (src/planner.mjs VERDICT): the verdicts named by a plan's reason
-  MOD_VOY_PLAN_VERDICT_: ['SHORT', 'ASHORE', 'HULL', 'NOWAY', 'UNCHARTED', 'HERE'],
+  MOD_VOY_PLAN_VERDICT_: ['SHORT', 'FOOD', 'FUEL', 'ASHORE', 'HULL', 'NOWAY', 'UNCHARTED', 'HERE'],
   // Rumours (src/charts.mjs): the tales by kind, and the bank's Read line
   MOD_VOY_RUMOUR_TALE_: ['TAVERN', 'SAILOR'].flatMap((k) => [1, 2, 3, 4].map((n) => `${k}_${n}`)),
   MOD_VOY_RUMOUR_READ_: ['TAVERN', 'SAILOR', 'TITLE'],

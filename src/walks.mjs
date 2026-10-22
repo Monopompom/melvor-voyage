@@ -14,6 +14,8 @@ export const PURCHASE_ID = 'voyage:Walking_Orders';
 const PLACES_MAX = 12;
 // Modal buttons as the rest of Voyage's: confirm green, cancel blue outline.
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
+// Stop here loses the food packed for the rest of the road: red, as the row's button (build .386).
+const SWAL_STOP = { ...SWAL_CLASS, confirmButton: 'btn btn-danger m-1' };
 
 export function install(ctx, { state, W, S, C, helpLayout, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
@@ -67,7 +69,11 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
 
   // ---- what a walk costs, and the places --------------------------------------------------------------------------
   const provisions = () => state.stores?.enabled?.() === true;
-  const stepCost = (step, f) => W.folkStepCost(S.stepCost({ cls: step.cls }, state.stores?.fmLevel?.() ?? 1, 0), state.crewModel?.foodShare?.(f.tier) ?? 1);
+  /** A Folk's travel-trait factors on a hex (phase 6f; all 1 without them). */
+  const traitFx = (f, cls) => state.folkTraits?.effectsOf?.(f, { rough: S.ROUGH_GROUND.includes(cls), night: null });
+  const stepCost = (step, f) => W.folkStepCost(S.stepCost({ cls: step.cls }, state.stores?.fmLevel?.() ?? 1, 0), (state.crewModel?.foodShare?.(f.tier) ?? 1) * (traitFx(f, step.cls)?.roadFood ?? 1));
+  /** The road at this Folk's own pace from now (its travel traits: Navigator, Hardy, Stargazer and the like). */
+  const paced = (r, f) => state.folkTraits?.pace?.(r, f, now()) ?? r;
   /** The food and fuel a road takes from the stores for this Folk; nothing with provisions off. */
   const packFor = (r, f) => (provisions() ? W.roadPack(r, (s) => stepCost(s, f)) : { food: 0, fuel: 0 });
   const hexText = (h) => { try { const o = new HexCoords(h.q, h.r).to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${h.q}, ${h.r})`; } };
@@ -101,7 +107,8 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     const near = find.found.map((h) => ({ ...h, distance: hexDistance(from, h) })).sort((a, b) => a.distance - b.distance).slice(0, PLACES_MAX);
     for (const o of state.outposts?.list?.() ?? []) if (!near.some((h) => same(h, o))) near.push({ q: o.q, r: o.r, distance: hexDistance(from, o), outpost: o.name });
     return W.sortPlaces(near.map((h) => {
-      const r = same(from, h) ? [] : road(from, h);
+      const r0 = same(from, h) ? [] : road(from, h);
+      const r = r0 === undefined || r0.length === 0 ? r0 : paced(r0, f);
       const p = { q: h.q, r: h.r, distance: h.distance, road: r, skillId: find.skillId, actionId: find.id, action: find.action, outpost: h.outpost };
       if (r === undefined) return { ...p, why: t('MOD_VOY_WALK_ACROSS_WATER', { name: f.name }) };
       if (r.length === 0) return { ...p, ms: 0, pack: { food: 0, fuel: 0 }, why: t('MOD_VOY_WALK_THERE_ALREADY', { name: f.name }) };
@@ -149,6 +156,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     const holder = a.skills().find((s) => s.id === p.skillId)?.holder ?? null;
     const walk = W.cleanWalk({ from, road: p.road, start: now(), skillId: p.skillId, actionId: p.actionId, holder: holder === id ? null : holder });
     setWalks({ ...walks(), [id]: walk });
+    counted.set(id, 0);
     log(`${f.name} walks to (${hex.q},${hex.r}) for ${actionId}: ${p.road.length} hexes, ${Math.round(p.ms / 60000)} min, pack ${p.pack.food} food ${p.pack.fuel} fuel`);
     notify(t('MOD_VOY_WALK_SENT', { name: f.name, to: placeText(hex, p.skillId, p.actionId), time: duration(p.ms) }), 'success');
     changed();
@@ -157,7 +165,26 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
 
   /** The Folk arriving now (its work is given from afar: the guards let it through), or undefined. */
   let arrivingId;
-  const ending = (id) => { const { [id]: _gone, ...rest } = walks(); setWalks(rest); };
+  const ending = (id) => { counted.delete(id); const { [id]: _gone, ...rest } = walks(); setWalks(rest); };
+
+  /**
+   * The hexes each walk has been counted for (travel traits, phase 6f), this session: a walk found on load starts
+   * from where it stands, so nothing is counted twice.
+   */
+  const counted = new Map();
+  const countWalked = (id, w, reached) => {
+    const from = counted.get(id);
+    counted.set(id, reached);
+    if (from === undefined || reached <= from) return;
+    let at = w.start;
+    for (let i = 0; i < from; i++) at += w.road[i].ms;
+    const entered = w.road.slice(from, reached).map((s) => {
+      const out = { cls: s.cls, ms: s.ms, night: state.stores?.nightAt?.(at) ?? null };
+      at += s.ms;
+      return out;
+    });
+    try { state.folkTraits?.walked?.(id, entered); } catch (e) { log('walk trait count failed', e); }
+  };
 
   /** Stop here: the Folk stands on the hex it has reached, with no work. The food packed for the rest is gone. */
   const stopHere = (id) => {
@@ -243,6 +270,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     // Worker Folks set it back (an assignment, or the mod without Voyage for a while): the walk is over where it stands.
     if (f.travel !== 'walking') { ending(id); log(`${f.name}'s walk ended outside Voyage`); return; }
     const pos = W.walkAt(w, at);
+    countWalked(id, w, pos.reached);
     if (pos.done) { arrive(id, w); return; }
     if (pos.at !== undefined && !same(f.place, pos.at)) a.setPlace(id, pos.at);
   };
@@ -260,6 +288,18 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
       changed();
     }
     if (!offline() && at - shown >= 60000) { shown = at; changed(); }
+  };
+
+  /** The Folk learned or lost a travel trait on the road: the rest of its road at its new pace. */
+  const repace = (id) => {
+    const w = walks()[id];
+    const f = api()?.folkById(id);
+    if (w === undefined || f === undefined || f.travel !== 'walking') return;
+    const next = W.cleanWalk(W.repaceRest(w, now(), (rest, at) => state.folkTraits?.pace?.(rest, f, at) ?? rest));
+    if (next === undefined || W.roadMs(next.road) === W.roadMs(w.road)) return;
+    setWalks({ ...walks(), [id]: next });
+    log(`${f.name}'s road timed again: ${Math.round(W.walkAt(next, now()).left / 60000)} min left`);
+    changed();
   };
 
   /** A walk for the card and the Crew block: { to, leftText, left, at, reached, hexes }, or undefined. */
@@ -360,7 +400,11 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
       if (list.length === 0) { picked = undefined; return `<div class="text-muted">${esc(t('MOD_VOY_WALK_NO_PLACES'))}</div>`; }
       const firstOk = list.find((p) => p.why === undefined);
       picked = firstOk === undefined ? undefined : `${firstOk.q},${firstOk.r}`;
-      return list.map((p) => {
+      // "Take it along in a berth" once above the list when more than one place has no road (build .386; it
+      // repeated on every entry).
+      const acrossText = t('MOD_VOY_WALK_ACROSS_WATER', { name: f.name });
+      const across = list.filter((p) => p.why === acrossText).length > 1;
+      return (across ? `<div class="voyage-walk-across text-warning">${esc(acrossText)}</div>` : '') + list.map((p) => {
         const key = `${p.q},${p.r}`;
         const off = p.why !== undefined;
         const on = key === picked;
@@ -371,7 +415,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
         return `<button type="button" class="btn ${cls} voyage-walk-place" data-walk-place="${esc(key)}" aria-pressed="${on}"${off ? ' disabled' : ''}>`
           + `<span class="voyage-walk-place-name">${esc(p.outpost ?? `${state.landWords?.(p)?.text ?? ''} ${hexText(p)}`.trim())}</span>`
           + (facts.length === 0 ? '' : `<span class="voyage-walk-place-facts">${facts.join('<span class="voyage-walk-dot" aria-hidden="true">·</span>')}</span>`)
-          + (off ? `<span class="voyage-walk-place-why text-warning">${esc(p.why)}</span>` : '')
+          + (off && !(across && p.why === acrossText) ? `<span class="voyage-walk-place-why text-warning">${esc(p.why)}</span>` : '')
           + '</button>';
       }).join('');
     };
@@ -442,7 +486,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     if (f === undefined || w === undefined) return;
     SwalLocale.fire({
       didRender: state.popupDidRender,
-      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
+      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_STOP) : SWAL_STOP,
       title: t('MOD_VOY_WALK_STOP_TITLE', { name: f.name }),
       html: helpLayout.msgHtml([t('MOD_VOY_WALK_STOP_TEXT', { name: `<b>${esc(f.name)}</b>`, to: esc(w.to) })]),
       showCancelButton: true,
@@ -455,7 +499,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
   ctx.patch(Shop, 'buyItemOnClick').after(function (_ret, p) { try { if (p?.id === PURCHASE_ID) changed(); } catch {} });
 
   const out = {
-    ground, road, canWalk, walks, owned, usable, sendRefusal, works, places, send, stopHere, askSend, askStop, tick, describe, walking, routes,
+    ground, road, canWalk, walks, owned, usable, sendRefusal, works, places, send, stopHere, askSend, askStop, tick, describe, walking, routes, repace,
     canSendFor,
     /** The Journal's door: the work set, the Folk picked in the dialog. */
     askHere: (actionId, done) => askSend(undefined, done, actionId),

@@ -68,6 +68,15 @@ export const bindPick = (el, id) => {
 
 export const titleName = (s) => `<span class="voyage-title-name">${esc(s)}</span>`;
 /**
+ * A band of ways to choose from in a popup (build .386; the user, 21 Oct 2026: the pirates' and the stowaway's popups
+ * were three plain centred lines): the Adrift block's "Ways out" look, one row a way, its icon, a bold lead and the
+ * rest. `rows`: [{ icon (a Font Awesome class such as 'fa-coins', or an <img> string), lead, html (trusted), cls? }].
+ * The rows read left (a list of options, as the requirement rows do); the popup around them stays centred.
+ */
+export const waysHtml = (head, rows) => `<div class="voyage-section voyage-ways text-left">${head ? `<div class="voyage-clock-head">${esc(head)}</div>` : ''}`
+  + rows.map((r) => `<div class="voyage-adrift-way${r.cls ? ` ${r.cls}` : ''}">${r.icon.startsWith('<') ? r.icon : `<i class="fa fa-fw ${r.icon} text-muted" aria-hidden="true"></i>`}<span><b>${esc(r.lead)}</b> ${r.html}</span></div>`).join('')
+  + '</div>';
+/**
  * A lang string as one escaped HTML line, with some of its vars marked: `marks` maps a var to its HTML (from `mark`),
  * the other vars go in as plain text. `tf` is the file's `t(key, vars)`.
  */
@@ -103,3 +112,37 @@ const item = (it) => {
 export const helpHtml = (sections, { notice = false } = {}) => `<div class="text-center voyage-help-body${notice ? ' voyage-help-notice' : ''}">` + sections.map((s) =>
   `<div class="voyage-section voyage-help-section${s.warn ? ' voyage-help-warn' : ''}">`
   + `${s.head ? `<div class="voyage-help-head">${esc(s.head)}</div>` : ''}${s.body.map(item).join('')}</div>`).join('') + '</div>';
+
+/**
+ * A purchase on the Voyage page asks first (build .386; the user, 21 Oct 2026: Navigator's Charts, 300,000 GP and
+ * 100 Pitch, went at once from a button beside the Shipwright's fold). The game's own "Show Shop Purchase
+ * Confirmations" setting decides: off, `yes` runs at once; on, a message popup with the price in a band, each cost as
+ * its icon, the amount (bold amber, red when short) and its name; Buy green, Not now blue outline, the thing bought on
+ * top. `costs` is a game Costs; `picture` its picture; `didRender` the mod's popup pass.
+ */
+export const confirmBuy = ({ name, picture, didRender, costs }, yes) => {
+  let ask = true;
+  try { ask = game.settings.showShopConfirmations !== false; } catch {}
+  if (!ask) { yes(); return; }
+  const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
+  const num = (n) => { try { return numberWithCommas(Math.floor(n)); } catch { return `${Math.floor(n)}`; } };
+  const row = (media, need, have, label) => `<span class="voyage-buy-cost">${mark.gp(media, num(need), have < need)}<span>${esc(label)}</span></span>`;
+  const rows = [];
+  try {
+    for (const { currency, quantity } of costs.getCurrencyQuantityArray()) if (quantity > 0) rows.push(row(currency.media, quantity, currency.amount, currency.name));
+    for (const { item, quantity } of costs.getItemQuantityArray()) if (quantity > 0) rows.push(row(item.media, quantity, game.bank.getQty(item), item.name));
+  } catch {}
+  const cls = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
+  SwalLocale.fire({
+    title: marked(t, 'MOD_VOY_BUY_TITLE', {}, { name: titleName(name) }),
+    imageUrl: picture,
+    ...MSG_IMAGE,
+    html: msgHtml([mark.name(name)])
+      + `<div class="voyage-section voyage-buy-band"><div class="voyage-clock-head">${esc(t('MOD_VOY_BUY_PRICE'))}</div><div class="voyage-buy-costs">${rows.join('')}</div></div>`,
+    showCancelButton: true,
+    confirmButtonText: t('MOD_VOY_BUY_CONFIRM'),
+    cancelButtonText: t('MOD_VOY_BUY_CANCEL'),
+    didRender,
+    customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(cls) : cls,
+  }).then((r) => { if (r.isConfirmed) yes(); });
+};

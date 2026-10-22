@@ -36,6 +36,9 @@ test('crew: berths are checked on water steps only, each in its own vessel', () 
   assert.deepEqual(berthRefusal([{ ...boat, free: true }], 2, berthsFor), { at: 0, vessel: 'boat', berths: 1 }, 'a free step still carries them');
   assert.deepEqual(berthRefusal([{ cls: 'water', sea: true }], 2, berthsFor), { at: 0, vessel: 'boat', berths: 1 }, 'no vessel named: the small boat');
   assert.equal(berthRefusal([boat], 0, berthsFor), undefined, 'no crew, no check');
+  // The crew by vessel: a stowaway hiding in the ship takes no berth in the boat (build .386).
+  assert.equal(berthRefusal([ship, boat], (v) => (v === 'ship' ? 2 : 1), berthsFor), undefined);
+  assert.deepEqual(berthRefusal([ship, boat], (v) => (v === 'ship' ? 7 : 1), berthsFor), { at: 0, vessel: 'ship', berths: 6 });
 });
 
 test('hungryHexes: full health lives through nine, the tenth kills; a hurt Folk fewer', () => {
@@ -51,10 +54,10 @@ test('food by rank: a Trainee eats half, a Foreman half again; fuel one share ea
   assert.deepEqual(FOOD_SHARE, { Newbie: 0.5, Junior: 0.75, Middle: 1, Senior: 1.25, Expert: 1.5 });
   assert.equal(foodShare('Newbie'), 0.5);
   assert.equal(foodShare('Nobody'), 1);
-  assert.deepEqual(crewLoad([{ tier: 'Newbie' }, { tier: 'Expert' }, { tier: 'Middle' }]), { count: 3, food: 3 });
-  assert.deepEqual(crewLoad([{ tier: 'Newbie' }, { tier: 'Junior' }]), { count: 2, food: 1.25 });
-  assert.deepEqual(crewLoad([]), { count: 0, food: 0 });
-  assert.deepEqual(crewLoad(undefined), { count: 0, food: 0 });
+  assert.deepEqual(crewLoad([{ tier: 'Newbie' }, { tier: 'Expert' }, { tier: 'Middle' }]), { count: 3, food: 3, foodRough: 3, seaFood: 3 });
+  assert.deepEqual(crewLoad([{ tier: 'Newbie' }, { tier: 'Junior' }]), { count: 2, food: 1.25, foodRough: 1.25, seaFood: 1.25 });
+  assert.deepEqual(crewLoad([]), { count: 0, food: 0, foodRough: 0, seaFood: 0 });
+  assert.deepEqual(crewLoad(undefined), { count: 0, food: 0, foodRough: 0, seaFood: 0 });
 });
 
 test('kept job: losing a job keeps it; another job, a new holder or leaving drops it', () => {
@@ -74,4 +77,11 @@ test('kept job: losing a job keeps it; another job, a new holder or leaving drop
   assert.deepEqual(jobsAfterAssign({}, { folkId: 'a', previous: null, skillId: null }), {});
   assert.deepEqual(jobsWithout(jobs, 'a'), {});
   assert.equal(jobsWithout(jobs, 'z'), jobs);
+});
+
+test('crew load with travel traits: road food on easy and rough ground, and sea food', () => {
+  const fx = { a: (on) => ({ roadFood: on.rough ? 1 : 1.25, seaFood: 0.75 }), b: () => ({ roadFood: 1, seaFood: 1.5 }) };
+  const load = crewLoad([{ id: 'a', tier: 'Middle' }, { id: 'b', tier: 'Newbie' }], (f, on) => fx[f.id](on));
+  assert.deepEqual(load, { count: 2, food: 1.75, foodRough: 1.5, seaFood: 1.5 });
+  assert.deepEqual(crewLoad([{ tier: 'Middle' }], () => undefined), { count: 1, food: 1, foodRough: 1, seaFood: 1 });
 });

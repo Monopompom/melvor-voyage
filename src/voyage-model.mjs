@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 23;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -116,7 +116,7 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * one ended, for the page's note, or null. adrift-model.mjs cleanAdrift and cleanAdriftEnd check them in depth.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, wind: 0, jobs: {}, walks: {}, outposts: {} };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {} };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -202,6 +202,10 @@ export const MIGRATIONS = {
   19: (rec) => ({ ...rec, v: 20, walks: {} }),
   // phase 6e: no tent pitched yet
   20: (rec) => ({ ...rec, v: 21, outposts: {} }),
+  // phase 6f: no Folk has counted a travel trait yet (everyone starts from zero, as in Worker Folks)
+  21: (rec) => ({ ...rec, v: 22, folkTraits: {} }),
+  // build .378 (events that ask): no stowaway aboard yet
+  22: (rec) => ({ ...rec, v: 23, events: {} }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -230,7 +234,13 @@ function cleanVessel(v, hulls) {
   if (v === null || typeof v !== 'object') return null;
   if (!hulls.includes(v.hull) || !Number.isInteger(v.q) || !Number.isInteger(v.r)) return null;
   const cond = Number.isFinite(v.cond) ? Math.min(100, Math.max(0, Math.round(v.cond))) : 100;
-  return { hull: v.hull, q: v.q, r: v.r, cond, hold: cleanHold(v.hold) };
+  const out = { hull: v.hull, q: v.q, r: v.r, cond, hold: cleanHold(v.hold) };
+  // Careening (the flat mechanics): hauled out until `until`; the same rules as ship-model cleanCareen.
+  const c = v.careen;
+  if (c !== null && typeof c === 'object' && [c.at, c.until, c.from, c.to].every(Number.isFinite) && c.until >= c.at && c.from >= 0 && c.to <= 100 && c.to > c.from) {
+    out.careen = { at: Math.round(c.at), until: Math.round(c.until), from: Math.round(c.from), to: Math.round(c.to) };
+  }
+  return out;
 }
 /** The boat: aboard only with a big ship to ride on, and then on its hex. */
 function cleanBoat(v, ship) {
@@ -341,6 +351,9 @@ function clean(rec) {
     ending: plainObject(rec.ending),
     adrift: plainObject(rec.adrift),
     adriftEnd: plainObject(rec.adriftEnd),
+    // A voyage waiting out a storm (build .386): { walk, name, chain, loads, until, from }, checked by voyage-clock.mjs
+    // where it is read; before, a reload dropped the wait without a word.
+    waiting: plainObject(rec.waiting),
     // The wind's seed (weather-model.mjs createWind): 1 to 2^31 - 1, or 0 for none rolled yet.
     wind: Number.isInteger(rec.wind) && rec.wind > 0 && rec.wind < 0x80000000 ? rec.wind : 0,
     jobs: cleanJobs(rec.jobs),
@@ -348,6 +361,10 @@ function clean(rec) {
     walks: plainObject(rec.walks) ?? {},
     // Pitched tents (phase 6e): { "q,r": { food, fuel, at } }, checked by outpost-model.mjs cleanOutposts where it is read.
     outposts: plainObject(rec.outposts) ?? {},
+    // Travel traits counted (phase 6f): { folkId: { counts, home } }, checked by folk-traits-model.mjs cleanFolkTraits where it is read.
+    folkTraits: plainObject(rec.folkTraits) ?? {},
+    // Events that ask (build .378): { stow }, checked by events-model.mjs cleanEvents where it is read.
+    events: plainObject(rec.events) ?? {},
   };
 }
 /** Folks the most a save keeps jobs for: Worker Folks never hires more than there are skills to hold. */

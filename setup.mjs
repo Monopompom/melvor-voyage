@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-21.368';
+export const BUILD = '2026-10-22.387';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -148,7 +148,14 @@ export async function setup(ctx) {
 
   // The loader calls a setting's onChange(newValue, oldValue) BEFORE it stores newValue, so section.get()
   // inside the handler still returns the old value. Each handler therefore records the new value itself.
-  const section = ctx.settings.section('Voyage');
+  // Four sections (build .387, the user; the alpha report: 17 entries in one 1,929 px list): Rules, Travel, Display,
+  // Keys. The game stores a value under its section's name, so the split set the test saves back to the defaults
+  // once (Voyage had no release). The names stay English: they key the save.
+  const SECTION_OF = { rules: 'Rules', strictness: 'Rules', zones: 'Rules', combat: 'Rules', trade: 'Rules', provisions: 'Rules',
+    timedTravel: 'Travel', weather: 'Travel', night: 'Travel', nightShift: 'Travel',
+    overlay: 'Display', mapMotion: 'Display', bookOpening: 'Display', journalKey: 'Keys', centreKey: 'Keys', mapKey: 'Keys' };
+  const sections = Object.fromEntries(['Rules', 'Travel', 'Display', 'Keys'].map((n) => [n, ctx.settings.section(n)]));
+  const sectionOf = (name) => sections[SECTION_OF[name]] ?? sections.Rules;
   const live = {};
   // Dev builds only: a Creator Toolkit zip is not in the game save (confirmed with voyageDev.saveCheck(),
   // 15 Oct 2026), so its settings reset on every reload. A mirror in localStorage, one entry per character (save slot + character name), restores
@@ -169,15 +176,14 @@ export async function setup(ctx) {
     },
   };
   const onChange = (name) => (newValue) => { live[name] = newValue; devSettings.write(name, newValue); state.onSettingsChange(); };
-  const value = (name) => live[name] ?? section.get(name);
+  const value = (name) => live[name] ?? sectionOf(name).get(name);
   const flag = (name) => value(name) !== false;
   // A hint may be a DOM node (the loader appends it): the Strictness hint puts each mode on its own line, and its
   // class lets css/voyage.css space the dropdown below it.
   const strictnessHint = document.createElement('span');
   strictnessHint.className = 'voyage-setting-hint';
   strictnessHint.append(getLangString('MOD_VOY_SETTING_STRICTNESS_HINT_STRICT'), document.createElement('br'), getLangString('MOD_VOY_SETTING_STRICTNESS_HINT_RELAXED'));
-  section.add([
-    { type: 'switch', name: 'overlay', label: getLangString('MOD_VOY_SETTING_OVERLAY'), hint: getLangString('MOD_VOY_SETTING_OVERLAY_HINT'), default: true, onChange: onChange('overlay') },
+  const entries = [
     { type: 'switch', name: 'rules', label: getLangString('MOD_VOY_SETTING_RULES'), hint: getLangString('MOD_VOY_SETTING_RULES_HINT'), default: true, onChange: onChange('rules') },
     { type: 'dropdown', name: 'strictness', label: getLangString('MOD_VOY_SETTING_STRICTNESS'), hint: strictnessHint,
       options: [{ value: 'strict', display: getLangString('MOD_VOY_SETTING_STRICTNESS_STRICT') }, { value: 'relaxed', display: getLangString('MOD_VOY_SETTING_STRICTNESS_RELAXED') }], default: 'strict', onChange: onChange('strictness') },
@@ -186,15 +192,17 @@ export async function setup(ctx) {
     { type: 'switch', name: 'trade', label: getLangString('MOD_VOY_SETTING_TRADE'), hint: getLangString('MOD_VOY_SETTING_TRADE_HINT'), default: true, onChange: onChange('trade') },
     { type: 'switch', name: 'provisions', label: getLangString('MOD_VOY_SETTING_PROVISIONS'), hint: getLangString('MOD_VOY_SETTING_PROVISIONS_HINT'), default: true, onChange: onChange('provisions') },
     { type: 'switch', name: 'timedTravel', label: getLangString('MOD_VOY_SETTING_TIMED'), hint: getLangString('MOD_VOY_SETTING_TIMED_HINT'), default: true, onChange: onChange('timedTravel') },
-    { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
     { type: 'switch', name: 'weather', label: getLangString('MOD_VOY_SETTING_WEATHER'), hint: getLangString('MOD_VOY_SETTING_WEATHER_HINT'), default: true, onChange: onChange('weather') },
+    { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
     { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
+    { type: 'switch', name: 'overlay', label: getLangString('MOD_VOY_SETTING_OVERLAY'), hint: getLangString('MOD_VOY_SETTING_OVERLAY_HINT'), default: true, onChange: onChange('overlay') },
     { type: 'switch', name: 'mapMotion', label: getLangString('MOD_VOY_SETTING_MAP_MOTION'), hint: getLangString('MOD_VOY_SETTING_MAP_MOTION_HINT'), default: true, onChange: onChange('mapMotion') },
     { type: 'switch', name: 'bookOpening', label: getLangString('MOD_VOY_SETTING_BOOK_OPENING'), hint: getLangString('MOD_VOY_SETTING_BOOK_OPENING_HINT'), default: false, onChange: onChange('bookOpening') },
     { type: 'text', name: 'journalKey', label: getLangString('MOD_VOY_SETTING_JOURNAL_KEY'), hint: getLangString('MOD_VOY_SETTING_JOURNAL_KEY_HINT'), default: 'J', maxLength: 1, onChange: onChange('journalKey') },
     { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
     { type: 'text', name: 'mapKey', label: getLangString('MOD_VOY_SETTING_MAP_KEY'), hint: getLangString('MOD_VOY_SETTING_MAP_KEY_HINT'), default: 'M', maxLength: 1, onChange: onChange('mapKey') },
-  ]);
+  ];
+  for (const name of Object.keys(sections)) sections[name].add(entries.filter((e) => SECTION_OF[e.name] === name));
 
   /** The game's offline loop (tab in the background, or back after a while): see state.onSettingsChange. */
   const offline = {
@@ -368,6 +376,8 @@ export async function setup(ctx) {
   unlocks.install(ctx, { state, log });
   // The ship keeps its state in the skill's save, so without the skill it stays inert and travel is vanilla.
   const ship = shipMod.install(ctx, { state, model, shipModel, terrainMod, helpLayout, log });
+  // Careening (the flat mechanics) ends on the skill's passive tick, online and offline.
+  { const s = voyageSkill(); if (s !== undefined) s.shipTick = () => ship.careenTick(); }
   state.markers = markers.install(ctx, { state, log });
   // Land upgrades and the Crossroads Sign (build .162). A failure leaves the game's prices and buffs.
   try {
@@ -395,15 +405,27 @@ export async function setup(ctx) {
     (await ctx.loadModule('src/outposts.mjs')).install(ctx, { state, O: outpostModel, terrainMod, helpLayout, log });
     state.outpostModel = outpostModel;
   } catch (e) { console.error('[Voyage] outposts failed to load; no tents', e); state.outposts = undefined; }
+  // Travel traits (phase 6f): Voyage's ten traits in Worker Folks' slots (its API 5). A failure: no travel traits.
+  try {
+    const traits = (await ctx.loadModule('src/folk-traits.mjs')).install(ctx, { state, FT: await ctx.loadModule('src/folk-traits-model.mjs'), S: storesModel, log });
+    const s = voyageSkill();
+    if (s !== undefined) s.folkTraits = traits;
+  } catch (e) { console.error('[Voyage] travel traits failed to load', e); state.folkTraits = undefined; }
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.
   holdMod.install(ctx, { state, shipModel, helpLayout, log });
+  // Events that ask (the flat mechanics): pirates on the open sea, a stowaway aboard. A failure: no events.
+  try {
+    const events = (await ctx.loadModule('src/events.mjs')).install(ctx, { state, EM: await ctx.loadModule('src/events-model.mjs'), S: storesModel, shipModel, helpLayout, rankName: folksLink.rankName, log });
+    const s = voyageSkill();
+    if (s !== undefined) s.events = events;
+  } catch (e) { console.error('[Voyage] events failed to load', e); state.events = undefined; }
   const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
   // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
   // popups and everything else as they were.
   state.helpSections = page?.helpSections;
   try {
     const journalModel = await ctx.loadModule('src/journal-model.mjs');
-    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, shipModel, rules, terrainMod, log });
+    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, shipModel, storesModel, rules, terrainMod, log });
   } catch (e) { console.error('[Voyage] the journal failed to load; the rest runs', e); state.journal = undefined; }
   // The journal's heat maps (build .114); without them the entries simply have no heat map button.
   try { (await ctx.loadModule('src/heatmap.mjs')).install(ctx, { state, terrainMod, log }); } catch (e) { log('heat maps failed to load', e); state.heatmap = undefined; }
@@ -416,7 +438,7 @@ export async function setup(ctx) {
     // The ship's clock (phase 5a): travel takes time. A failure leaves phase 4's instant travel.
     try {
       const clockModel = await ctx.loadModule('src/clock-model.mjs');
-      const clock = (await ctx.loadModule('src/voyage-clock.mjs')).install(ctx, { state, C: clockModel, storesModel, rules, terrainMod, helpLayout, log });
+      const clock = (await ctx.loadModule('src/voyage-clock.mjs')).install(ctx, { state, C: clockModel, storesModel, shipModel, rules, terrainMod, helpLayout, log });
       const s = voyageSkill();
       if (s !== undefined) s.clock = clock;
       // The route line on the map (build .272): what is left to sail, a light running along it, the walked part dim.
@@ -480,6 +502,20 @@ export async function setup(ctx) {
   // (ignoreCosts: game events, dev teleports) cost no provisions and give no XP but still carry the ship. The path
   // runs from the destination (index 0) back to the start. The steps are read before the move: the homeward rule
   // depends on the ship's reach where the move began.
+  // Night sight (the flat mechanics): at night, on the sea hex a move ended on, the game's sight range is one more
+  // when that hex was lit and one less when it was dark (stores-model nightSight). Day, land or another hex: as is.
+  let nightSight;
+  try {
+    ctx.patch(WorldMap, 'sightRange').get(function (next) {
+      const base = next();
+      try {
+        const ns = nightSight;
+        const pos = this.playerPosition;
+        if (ns === undefined || pos === undefined || pos.q !== ns.q || pos.r !== ns.r || state.stores?.night?.() !== true) return base;
+        return Math.max(0, base + ns.d);
+      } catch { return base; }
+    });
+  } catch (e) { log('night sight not patched', e); }
   if (voyageSkillOk) {
     ctx.patch(Cartography, 'movePlayer').replace(function (original, path, ignoreCosts, ...rest) {
       const from = this.activeMap?.playerPosition;
@@ -493,15 +529,40 @@ export async function setup(ctx) {
       let berths;
       try { if (!ignoreCosts && state.active()) berths = crew?.berthRefusal(steps); } catch (e) { log('berth check failed', e); }
       if (berths !== undefined) { crew.refuseBerths(berths); return; }
+      // A vessel hauled out to careen (the flat mechanics) can't sail.
+      let careen;
+      try { if (!ignoreCosts && state.active()) careen = ship.careenRefusal(steps); } catch (e) { log('careen check failed', e); }
+      if (careen !== undefined) { ship.refuseCareen(careen); return; }
       if (planned !== undefined && !planned.plan.ok) { stores.refuse(planned, path); return; }
       const gpBefore = game.gp.amount;
+      // Night sight (the flat mechanics): set before the move, so the game draws the new hex's sight with it.
+      const sightBefore = nightSight;
+      try { if (!ignoreCosts) { const d = stores.sightOf(planned); const dest = path?.[0]; nightSight = d !== 0 && dest !== undefined ? { q: dest.q, r: dest.r, d } : undefined; } } catch (e) { log('night sight failed', e); }
       const result = original(path, ignoreCosts, ...rest);
+      if (this.activeMap?.playerPosition !== path?.[0]) nightSight = sightBefore;
       try {
         const dest = path?.[0];
         if (dest !== undefined && from !== dest && this.activeMap?.playerPosition === dest) {
           stores.afterMove(planned);
+          // A hungry hex costs more of the game's GP (the flat mechanics): its own share of what the move just took, by
+          // each step's price (an instant move of many steps), as the Set off popup counts it.
+          try {
+            const hungry = planned?.plan.hungry ?? [];
+            const n = steps?.length ?? 0;
+            const gpOf = (a, b) => { try { return this.getTravelCosts([a, b]).getCurrencyQuantityArray().reduce((s, { currency, quantity }) => s + (currency === game.gp ? quantity : 0), 0); } catch { return 0; } };
+            // Step i runs from path[n - i] to path[n - 1 - i] (the path from the destination back); a hop is one step
+            // over many hexes, so only a path of one hex a step is priced step by step.
+            // Charged as the Set off popup counts it (build .387, the user): each hungry step at its own price, by the
+            // same pairs of path hexes the popup prices (voyage-clock routeInfo), a free or folded step included. Until
+            // .387 it was the hungry steps' share of the GP the move took, so a free step paid nothing.
+            const stepGp = (i) => { const a = path?.[path.length - 2 - i]; const b = path?.[path.length - 1 - i]; return a === undefined || b === undefined ? 0 : gpOf(a, b); };
+            const extra = n > 0 ? Math.min(game.gp.amount, storesModel.hungryRouteGp(stepGp, hungry)) : 0;
+            if (extra > 0) { game.gp.remove(extra); log(`${hungry.length} hungry hex(es): ${extra} GP more`); }
+          } catch (e) { log('hungry surcharge failed', e); }
           // Hunger on the road (phase 6c): the hungry steps the stores just marked hurt the crew too.
           try { if (!ignoreCosts) crew?.afterMove(steps); } catch (e) { log('crew hunger failed', e); }
+          // Travel traits (phase 6f): what the move teaches the Folks with you (a drift or a tow teaches nothing).
+          try { if (!ignoreCosts) state.folkTraits?.moved?.(steps); } catch (e) { log('travel trait count failed', e); }
           if (!ignoreCosts && steps !== undefined) {
             // Discovery XP (the balance pass): the hexes stepped onto, start excluded, none under cloud.
             const entered = path.slice(0, -1).filter((hex) => !terrainMod.isCloud(state.terrain?.get?.(hex.q, hex.r)));
@@ -522,7 +583,7 @@ export async function setup(ctx) {
   ctx.onCharacterLoaded(() => {
     if (DEV) {
       for (const [name, v] of Object.entries(devSettings.read())) {
-        try { if (section.get(name) !== v) { section.set(name, v); log(`dev setting restored for ${devSettingsKey()}: ${name} = ${v}`); } } catch (e) { log(`dev setting ${name} not restored`, e); }
+        try { if (sectionOf(name).get(name) !== v) { sectionOf(name).set(name, v); log(`dev setting restored for ${devSettingsKey()}: ${name} = ${v}`); } } catch (e) { log(`dev setting ${name} not restored`, e); }
       }
     }
     try {

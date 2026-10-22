@@ -27,6 +27,9 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   /** A hull named mid-sentence ("your dinghy"): its tier name, lower case in English. */
   const hullWord = (hull) => (hull === undefined ? t('MOD_VOY_SHIP_BOAT') : t(shipModel.tierNameKey(hull.tier)));
+  // Careening (the flat mechanics) runs on the game's clock, as a tent going up does; its times read as the clock's.
+  const now = () => { try { return state.clockNow?.() ?? Date.now(); } catch { return Date.now(); } };
+  const duration = (ms) => state.clock?.duration?.(ms) ?? `${Math.ceil(ms / 60000)} min`;
 
   /** Terrain record of a game hex; hexes outside the table count as land unless the game marks them water. */
   const recOf = (hex) => state.recordAt(hex) ?? { q: hex.q, r: hex.r, t: hex.isWater ? 'water' : 'grasslands' };
@@ -389,14 +392,16 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     const plan = shipModel.repairPlan(c, logs, pitch);
     let blocker;
     const p = player();
-    if (c >= 100) blocker = t('MOD_VOY_HULL_BLOCK_SOUND');
+    if (s.careen != null) blocker = t('MOD_VOY_HULL_CAREENING', { left: duration(shipModel.careenLeft(s, now())) });
+    else if (c >= 100) blocker = t('MOD_VOY_HULL_BLOCK_SOUND');
     else if (kind === 'ship' && (p === undefined || !shipModel.canRepair(recOf(p), s, recOf({ q: s.q, r: s.r, isWater: true }), atPort() && shipModel.hexDist(recOf(p), s) <= 1))) blocker = t('MOD_VOY_HULL_BLOCK_PORT', { hull: hullWord(HULLS[s.hull]) });
     // A boat on the big ship's deck is mended there while you are aboard the big ship.
     else if (kind !== 'ship' && s.aboard === true && inVessel() !== 'ship') blocker = t('MOD_VOY_HULL_BLOCK_DECK', { hull: hullWord(HULLS[s.hull]), ship: hullWord(HULLS[big()?.hull]) });
     else if (kind !== 'ship' && s.aboard !== true && (p === undefined || !shipModel.canRepair(recOf(p), s, recOf({ q: s.q, r: s.r, isWater: true })))) blocker = t('MOD_VOY_HULL_BLOCK_BEACH', { hull: hullWord(HULLS[s.hull]) });
     else if (plan.steps === 0) blocker = t('MOD_VOY_HULL_BLOCK_MATERIALS', { logs: `${shipModel.REPAIR.logs}`, pitch: `${shipModel.REPAIR.pitch}`, step: `${shipModel.REPAIR.step}` });
-    return { cond: c, plan, logs, pitch, blocker };
+    return { cond: c, plan, logs, pitch, blocker, careen: s.careen, left: shipModel.careenLeft(s, now()), ms: shipModel.careenOf(c, plan.to, 0).until };
   };
+  /** Repairing is careening (the flat mechanics): the materials go now, the hull mends over time, the vessel hauled out. */
   const repair = (kind = 'boat') => {
     const info = repairInfo(kind);
     if (info === undefined) return false;
@@ -409,10 +414,47 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       logs -= n;
     }
     game.bank.removeItemQuantity(pitchItem(), info.plan.pitch, true);
-    setVessel(kind, { ...vessel(kind), cond: info.plan.to }, `repaired to ${info.plan.to}%`);
-    try { game.notifications.createSuccessNotification('voyage:hull', t('MOD_VOY_HULL_REPAIRED', { cond: `${info.plan.to}` }), ctx.getResourceUrl('assets/hull_condition.webp')); } catch {}
+    const careen = shipModel.careenOf(info.cond, info.plan.to, now());
+    setVessel(kind, { ...vessel(kind), careen }, `careening to ${info.plan.to}%`);
+    try { game.notifications.createInfoNotification('voyage:hull', t('MOD_VOY_HULL_CAREEN_BEGUN', { hull: hullWord(HULLS[vessel(kind).hull]), cond: `${info.plan.to}`, time: duration(careen.until - careen.at) }), ctx.getResourceUrl('assets/hull_condition.webp')); } catch {}
     return true;
   };
+  /** Ends a careen: done (its time is up) or stopped early, the whole steps done kept. */
+  const endCareen = (kind, stopped) => {
+    const s = vessel(kind);
+    if (s?.careen == null) return false;
+    const to = shipModel.careenDone(s.careen, now());
+    const { careen, ...rest } = s;
+    setVessel(kind, { ...rest, cond: Math.max(shipModel.condOf(s), to) }, `careen ${stopped ? 'stopped' : 'done'} at ${to}%`);
+    const key = stopped ? 'MOD_VOY_HULL_CAREEN_STOPPED' : 'MOD_VOY_HULL_REPAIRED';
+    const text = t(key, { cond: `${to}`, hull: hullWord(HULLS[s.hull]) });
+    try { game.notifications.createSuccessNotification('voyage:hull', text, ctx.getResourceUrl('assets/hull_condition.webp')); } catch {}
+    return true;
+  };
+  const stopCareen = (kind = 'boat') => endCareen(kind, true);
+  let careenTicks = 0;
+  /** Every passive tick (online and offline), once a second: a careen whose time is up is done. */
+  const careenTick = () => {
+    careenTicks += 1;
+    if (careenTicks < 20) return;
+    careenTicks = 0;
+    for (const kind of ['boat', 'ship']) { const s = vessel(kind); if (s?.careen != null && shipModel.careenLeft(s, now()) <= 0) endCareen(kind, false); }
+  };
+  /** The first sailed step of a move in a vessel hauled out to careen: { vessel, left }, or undefined. */
+  const careenRefusal = (steps) => {
+    for (const st of steps ?? []) {
+      const sailed = st?.fastTravel === true || st?.sea === true || shipModel.SEA_CLASSES.includes(st?.cls);
+      if (!sailed) continue;
+      const kind = st.vessel ?? 'boat';
+      const s = vessel(kind);
+      if (s?.careen != null) return { vessel: kind, left: shipModel.careenLeft(s, now()) };
+      // The boat aboard the big ship sails only with it.
+      if (kind === 'boat' && s?.aboard === true && vessel('ship')?.careen != null) return { vessel: 'ship', left: shipModel.careenLeft(vessel('ship'), now()) };
+    }
+    return undefined;
+  };
+  const careenWhy = (r) => t('MOD_VOY_HULL_CAREEN_REFUSED', { hull: hullWord(HULLS[vessel(r.vessel)?.hull]), left: duration(r.left) });
+  const refuseCareen = (r) => notifyPlayer(skill(), careenWhy(r), 'danger');
 
   // ---- existing characters ----------------------------------------------------------------------
   /** The notice, in the help-popup layout: what happened, then how ships work, then any warning. */
@@ -579,7 +621,8 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   const api = {
     boat: ship, big, vessel, inVessel, aboard, enabled, setShip, setVessel, demoNotice,
     hullName: (s) => hullWord(HULLS[s?.hull]), stepsOf, afterMove, homeOf, dockOf, isHop, build, buildBlocker, buildCosts, canFish, launchSpot, whereIs, recOf,
-    startOverseas, cond, setCond, repairInfo, repair, upgradeInfo, upgrade, buyInfo, buy, buyCosts: () => costsOf(BIG_SHIPS.brig),
+    startOverseas, cond, setCond, repairInfo, repair, stopCareen, careenTick, careenRefusal, careenWhy, refuseCareen, upgradeInfo, upgrade, buyInfo, buy, buyCosts: () => costsOf(BIG_SHIPS.brig),
+    upgradeCosts: (kind = 'boat') => { const i = upgradeInfo(kind); return i === undefined ? undefined : costsOf(i.upgrade); },
     onChange: (fn) => listeners.push(fn),
     /** The step rule's map facts (ship-model seaIndex), or undefined before a character is loaded. */
     geo: geoNow,

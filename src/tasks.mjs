@@ -124,11 +124,11 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
   const found = (id) => { try { return game.stats.itemFindCount(game.items.getObjectByID(id)); } catch { return 0; } };
   const bankQty = (id) => { try { return game.bank.getQty(game.items.getObjectByID(id)); } catch { return 0; } };
   const here = () => state.cargo?.portHere?.()?.poi;
-  const pay = (task, why) => {
+  const pay = (task, why, rumour = true) => {
     game.gp.add(task.gp);
-    try { skill().addXP(task.xp); } catch (e) { log('task XP failed', e); }
+    if (task.xp > 0) try { skill().addXP(task.xp); } catch (e) { log('task XP failed', e); }
     let extra = '';
-    if (Math.random() < CM.TASK_RUMOUR) {
+    if (rumour && Math.random() < CM.TASK_RUMOUR) {
       const item = state.charts?.giveRumour?.();
       if (item !== undefined) extra = ` ${t('MOD_VOY_TASK_AND_RUMOUR', { name: item.name })}`;
     }
@@ -143,7 +143,8 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     const list = board(poi);
     const n = list.find((x) => x.id === id);
     if (n === undefined) return false;
-    d.cur = TM.takeTask(n, poi, n.k === 'bring' ? found(n.item) : 0, Date.now());
+    const now = Date.now();
+    d.cur = TM.takeTask(n, poi, n.k === 'bring' ? found(n.item) : 0, now, TM.dueAt(n, state.clock?.landHexMs?.(), now));
     d.boards[poi].list = list.filter((x) => x.id !== id);
     changed();
     notify(t('MOD_VOY_TASK_TAKEN'), 'info');
@@ -161,7 +162,9 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     d.cur = null;
     changed();
     try { state.journal?.portUsed?.(poi, 'hand', portRec.get(poi)); } catch (e) { log('journal port failed', e); }
-    pay(cur, 'MOD_VOY_TASK_HANDED_IN');
+    // Late (the deadline): the goods once, no pay for the way, no XP, no rumour.
+    if (TM.isLate(cur, Date.now())) pay({ ...cur, gp: TM.lateGp(cur), xp: 0 }, 'MOD_VOY_TASK_HANDED_IN_LATE', false);
+    else pay(cur, 'MOD_VOY_TASK_HANDED_IN');
     return true;
   };
   let dropAsk = false;
@@ -211,7 +214,7 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
   const icon = (src) => (src ? `<img class="voyage-skill-name-icon" src="${src}" alt="">` : '');
   const button = (cls, label, attrs, why) => (why === undefined
     ? `<button type="button" class="btn ${cls}" ${attrs}>${esc(label)}</button>`
-    : `<button type="button" class="btn btn-outline-secondary" disabled title="${esc(why)}">${esc(label)}</button>`);
+    : `<button type="button" class="btn btn-outline-secondary" disabled>${esc(label)}</button><span class="voyage-board-why text-warning">${esc(why)}</span>`); // the reason in sight, not a title (build .386)
   const dirWord = (dir) => (dir ? getLangString(`MOD_VOY_DIR_${dir}`) : '');
   /** "about 18 hexes south-east" from where you stand, inside a sentence; `line`: on a line of its own, "About ...". */
   const way = (to, line = false) => {
@@ -234,8 +237,14 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     `<div>${icon(skill()?.media)}<b class="text-success">${qty(n.xp)}</b> <span data-no-skill-names>${esc(t('MOD_VOY_CARGO_XP'))}</span></div></div>`;
   const row = (n, lines, act, cls = '') => `<div class="voyage-cargo-row ${cls}">${art(n)}<div class="voyage-cargo-mid">${lines.join('')}</div>${payBlock(n)}<div class="voyage-cargo-act">${act}</div></div>`;
 
+  /** The task's deadline line: the time left, or late in red; '' with none. */
+  const dueLine = (cur) => {
+    if (!(cur.due > 0)) return '';
+    if (TM.isLate(cur, Date.now())) return `<div class="text-danger">${esc(t('MOD_VOY_TASK_LATE'))}</div>`;
+    return `<div class="text-warning">${esc(t('MOD_VOY_CARGO_DUE_IN', { time: state.clock?.duration?.(cur.due - Date.now()) ?? '' }))}</div>`;
+  };
   const curRow = (cur, poi) => {
-    const lines = [`<div>${what(cur)}</div>`];
+    const lines = [`<div>${what(cur)}</div>`, dueLine(cur)];
     const acts = [];
     if (cur.k === 'reach') {
       lines.push(`<div>${esc(way(cur, true))}</div>`, `<div class="text-muted">${esc(t('MOD_VOY_TASK_REACH_NOTE'))}</div>`);
@@ -256,12 +265,14 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
       // A pair: Keep it first, Drop it last.
       acts.push(button('btn-outline-info', t('MOD_VOY_CARGO_DROP_NO'), 'data-task="drop-no"'), button('btn-danger', t('MOD_VOY_CARGO_DROP_YES'), 'data-task="drop-yes"'));
     } else acts.push(button('btn-outline-danger btn-sm', t('MOD_VOY_CARGO_DROP'), 'data-task="drop"'));
-    return row(cur, lines, acts.join(''), 'voyage-task-cur');
+    return row(TM.isLate(cur, Date.now()) ? { ...cur, gp: TM.lateGp(cur), xp: 0 } : cur, lines, acts.join(''), 'voyage-task-cur');
   };
   const noticeRow = (n, poi, why) => {
     const lines = [`<div>${what(n)}</div>`];
     if (n.k === 'reach') lines.push(`<div class="text-muted">${esc(t('MOD_VOY_TASK_REACH_LINE', { way: way(n) }))}</div>`);
     else lines.push(`<div class="text-muted">${esc(t(n.to === poi ? 'MOD_VOY_TASK_BRING_HERE' : 'MOD_VOY_TASK_BRING_THERE', { port: portName(n.to) }))}</div>`);
+    const due = TM.dueAt(n, state.clock?.landHexMs?.(), 0);
+    if (due > 0) lines.push(`<div class="text-warning">${esc(t('MOD_VOY_TASK_DUE_WITHIN', { time: state.clock?.duration?.(due) ?? '' }))}</div>`);
     return row(n, lines, button('btn-success', t('MOD_VOY_TASK_TAKE'), `data-task="take" data-id="${esc(n.id)}"`, why));
   };
   /** The Notices tab of the port `poi`'s harbour board. */
@@ -293,7 +304,7 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     if (cur == null) return '';
     const status = cur.k === 'reach' ? way(cur, true)
       : t('MOD_VOY_TASK_GOT', { got: qty(TM.progressOf(cur, found(cur.item))), n: qty(cur.n) });
-    return `<div class="voyage-errand">${art(cur).replace('voyage-cargo-art', 'voyage-cargo-art voyage-cargo-art-sm')}<div class="voyage-cargo-mid"><div>${what(cur)}</div><div class="text-muted">${esc(status)}</div></div></div>`;
+    return `<div class="voyage-errand">${art(cur).replace('voyage-cargo-art', 'voyage-cargo-art voyage-cargo-art-sm')}<div class="voyage-cargo-mid"><div>${what(cur)}</div>${dueLine(cur)}<div class="text-muted">${esc(status)}</div></div></div>`;
   };
   /** The notice taken, in plain words for the Here panel's harbour line (.309, scan B-29). */
   const errandWords = () => {

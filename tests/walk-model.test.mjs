@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WALK_MS, hexMs, findRoad, roadMs, roadPack, walkAt, nextAt, folkStepCost, sortPlaces, cleanWalk, cleanWalks, WALKS_MAX, ROAD_MAX } from '../src/walk-model.mjs';
+import { WALK_MS, hexMs, findRoad, roadMs, roadPack, walkAt, nextAt, folkStepCost, sortPlaces, cleanWalk, cleanWalks, WALKS_MAX, ROAD_MAX, repaceRest } from '../src/walk-model.mjs';
 import { stepCost } from '../src/stores-model.mjs';
 import { foodShare } from '../src/crew-model.mjs';
 import { stepMs } from '../src/clock-model.mjs';
@@ -117,9 +117,30 @@ test('save v20: nobody walks yet, and a walk survives a save', () => {
   const v19 = { ...JSON.parse(serializeSave(defaultSave())), v: 19 };
   delete v19.walks;
   const { save, report } = loadSave(JSON.stringify(v19));
-  assert.deepEqual(report.applied, [19, 20]);
+  assert.deepEqual(report.applied, [19, 20, 21, 22]);
   assert.deepEqual(save.walks, {});
   const walks = { a: { from: { q: 0, r: 0 }, start: 1, road: [{ q: 1, r: 0, cls: 'grasslands', ms: 360000 }], skillId: null } };
   assert.deepEqual(loadSave(serializeSave({ ...defaultSave(), walks })).save.walks, walks);
   for (const junk of [null, [1], 'x']) assert.deepEqual(loadSave(serializeSave({ ...defaultSave(), walks: junk })).save.walks, {});
+});
+
+test('walks: a trait learned on the road times the rest of it again, from the hex after the one being crossed', () => {
+  const g = hexMs('grasslands');
+  const h = hexMs('highlands');
+  const walk = { from: { q: 0, r: 0 }, start: 1000, skillId: null, road: [
+    { q: 0, r: 1, cls: 'grasslands', ms: g }, { q: 0, r: 2, cls: 'grasslands', ms: g }, { q: 0, r: 3, cls: 'highlands', ms: h }, { q: 0, r: 4, cls: 'grasslands', ms: g },
+  ] };
+  const seen = [];
+  const fast = (rest, at) => { seen.push(at); return rest.map((s) => ({ ...s, ms: s.ms / 2 })); };
+  // Halfway through the second hex: the first two keep their times, the last two go at double speed.
+  const next = repaceRest(walk, 1000 + g * 1.5, fast);
+  assert.deepEqual(next.road.map((s) => s.ms), [g, g, h / 2, g / 2]);
+  assert.deepEqual(seen, [1000 + 2 * g]);
+  assert.equal(walkAt(next, 1000 + g * 1.5).reached, 1, 'where it stands does not change');
+  // A trait lost: the rest goes back to its ground's time.
+  const slow = { ...walk, road: walk.road.map((s) => ({ ...s, ms: s.ms * 2 })) };
+  assert.deepEqual(repaceRest(slow, 1000, (rest) => rest).road.map((s) => s.ms), [g * 2, g, h, g]);
+  // Arrived, or on its last hex: nothing to time.
+  assert.equal(repaceRest(walk, 1e12, fast), walk);
+  assert.equal(repaceRest(walk, 1000 + 3 * g + h + 1, fast), walk);
 });

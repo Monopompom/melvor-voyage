@@ -17,7 +17,7 @@ const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', c
 const STARTABLE = ['melvorD:Woodcutting', 'melvorD:Mining', 'melvorD:Fishing', 'melvorD:Thieving', 'melvorD:Astrology'];
 const CARTOGRAPHY_ID = 'melvorAoD:Cartography';
 
-export function install(ctx, { state, C, storesModel: S, rules, terrainMod, helpLayout, log }) {
+export function install(ctx, { state, C, storesModel: S, shipModel, rules, terrainMod, helpLayout, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const num = (n) => numberWithCommas(Math.floor(n));
@@ -57,7 +57,11 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
 
   // ---- steps and their times ---------------------------------------------------------------------------------------
   const hullOf = (kind) => (kind === 'ship' ? state.ship?.big?.() : state.ship?.boat?.())?.hull;
-  const timeOpts = () => ({ hullOf, mountSpeed: state.land?.speed?.() ?? 1 });
+  const vesselOf = (kind) => (kind === 'ship' ? state.ship?.big?.() : state.ship?.boat?.());
+  /** The vessels worn below 50% now (the flat mechanics): a voyage keeps the list it set off with (`worn`). */
+  const wornNow = () => ['boat', 'ship'].filter((k) => (shipModel?.wornTime?.(vesselOf(k)) ?? 1) > 1);
+  // A worn hull sails each hex a quarter longer; `worn` fixes which, so a voyage's schedule stays as it set off.
+  const timeOpts = (worn = wornNow()) => ({ hullOf, mountSpeed: state.land?.speed?.() ?? 1, slowOf: (kind) => (worn.includes(kind) ? shipModel?.WORN_TIME ?? 1 : 1) });
   /** A message popup's picture during a voyage (build .259): what carries you now, the hull at sea, the mount on land. */
   const herePicture = () => {
     const res = (file) => ctx.getResourceUrl(`assets/${file}`);
@@ -97,17 +101,17 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
    * Ticks of each step of the walk (index i: from walk[i] to walk[i + 1]), the route begun at `t0`: each sea step in
    * the wind blowing as it begins (phase 5c-2), so a voyage's schedule is fixed when it sets off.
    */
-  const stepTicksOf = (walk, tow, t0) => {
+  const stepTicksOf = (walk, tow, t0, worn) => {
     // A tow (5b part two) sails at the towing ship's pace, every hex alike.
     if (tow !== undefined) return walk.slice(1).map(() => C.ticksOf(state.adrift?.towMs?.(tow.kind) ?? 3 * 60000));
     const path = pathOf(walk, 0, walk.length - 1);
     if (path === undefined) return walk.slice(1).map(() => C.ticksOf(C.LAND_MS));
-    return C.routeTicks(stepsOf(path), timeOpts(), t0 ?? state.clockNow(), windOf(), stormOf());
+    return C.routeTicks(stepsOf(path), timeOpts(worn), t0 ?? state.clockNow(), windOf(), stormOf());
   };
   let ticksMemo;
   const stepTicks = (v) => {
     const key = `${v.walk.length}|${v.walk[0].q},${v.walk[0].r}|${hullOf('boat')}|${hullOf('ship')}|${state.land?.speed?.() ?? 1}|${state.weather?.key?.() ?? ''}|${v.began}|${state.weather?.windKey?.() ?? ''}`;
-    if (ticksMemo?.v !== v || ticksMemo.key !== key) ticksMemo = { v, key, ticks: stepTicksOf(v.walk, v.tow, v.began) };
+    if (ticksMemo?.v !== v || ticksMemo.key !== key) ticksMemo = { v, key, ticks: stepTicksOf(v.walk, v.tow, v.began, v.worn) };
     return ticksMemo.ticks;
   };
   /** Ticks still to go: the timer in progress, the steps after it and, in the fog, the surveys still to make. */
@@ -174,6 +178,20 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       if (c.k === 'dungeon') return dungeonById(c.area)?.media;
       return skillById(c.skill)?.media;
     } catch { return undefined; }
+  };
+  /** A choice in words with icons (the user, 21 Oct 2026): the skill's before its name, the item's before the item. */
+  const chainIco = (src) => (src ? `<img class="voyage-chain-ico" src="${esc(src)}" alt="">` : '');
+  const labelHtml = (c) => {
+    try {
+      const sk = c.skill !== undefined ? skillById(c.skill) : undefined;
+      const a = sk !== undefined && c.action !== undefined ? actionOf(sk, c.action) : undefined;
+      if ((c.k === 'skill' || (c.k === 'resume' && c.area === undefined)) && sk !== undefined) {
+        const what = a === undefined ? `${chainIco(sk.media)}${esc(sk.name)}`
+          : marked(t, 'MOD_VOY_CLOCK_DO_SKILL', {}, { skill: `${chainIco(sk.media)}${esc(sk.name)}`, name: `${chainIco(a.media)}${esc(a.name)}` });
+        return c.k === 'resume' ? marked(t, 'MOD_VOY_CLOCK_DO_WERE', {}, { what }) : what;
+      }
+      return `${chainIco(mediaOf(c))}${esc(labelOf(c))}`;
+    } catch { return esc(labelOf(c)); }
   };
   /** Why a choice can't start where you stand now, in words, or undefined (asked quietly: no popup, no toast). */
   const whyNot = (c) => {
@@ -320,7 +338,16 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   const gpOf = (path) => {
     try { return cart().getTravelCosts(path).getCurrencyQuantityArray().reduce((sum, { currency, quantity }) => sum + (currency === game.gp ? quantity : 0), 0); } catch { return 0; }
   };
-  /** The route's numbers for the Set off popup and the planner: { hexes, land, sea, ms, gp, plan } (plan: stores). */
+  /** GP of step `i` of a game path (steps run from the start; the path from the destination back). */
+  const stepGpOf = (path, i) => {
+    const a = path[path.length - 2 - i];
+    const b = path[path.length - 1 - i];
+    return a === undefined || b === undefined ? 0 : gpOf([a, b]);
+  };
+  /**
+   * The route's numbers for the Set off popup and the planner: { hexes, land, sea, ms, gp, hungryGp, plan } (plan:
+   * stores; `hungryGp` the surcharge of the hexes it plans walked hungry, on top of `gp`).
+   */
   const routeInfo = (path) => {
     const steps = stepsOf(path);
     const o = timeOpts();
@@ -339,7 +366,111 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     const sea = steps.filter((s) => s.sea || s.hop > 0).length;
     let plan;
     try { plan = state.stores?.planFor?.(path); } catch (e) { log('route plan failed', e); }
-    return { hexes: steps.length, land: steps.length - sea, sea, ms, calm, stepMs, gp: gpOf(path), plan, storms, stormMs };
+    let hungryGp = 0;
+    try { hungryGp = S.hungryRouteGp((i) => stepGpOf(path, i), plan?.plan?.hungry ?? []); } catch (e) { log('hungry GP failed', e); }
+    return { hexes: steps.length, land: steps.length - sea, sea, ms, calm, stepMs, gp: gpOf(path), hungryGp, plan, storms, stormMs };
+  };
+  // ---- waiting out a storm (the flat mechanics; the user, 21 Oct 2026: the wind alone never made a wait pay) ---------
+  /**
+   * When the route set off now meets a storm (a plain voyage from where you stand, Timed travel and storms on): the
+   * first set-off within C.STORM_WAIT_MAX_MS whose route meets none, { at (that moment on the game clock), waitMs, ms
+   * (the trip then), total (both) }; else undefined. Any vessel: a storm wears every hull alike.
+   */
+  const stormWait = (path, info) => {
+    try {
+      const so = stormOf();
+      if (so === undefined || !(info?.storms?.length > 0)) return undefined;
+      const steps = stepsOf(path);
+      const o = timeOpts();
+      const t0 = state.clockNow();
+      let ms = 0;
+      const waitMs = C.stormWaitMs(info.storms.length, (w) => {
+        let n = 0;
+        const ticks = C.routeTicks(steps, o, t0 + w, windOf(), (st, at, i) => { const r = so(st, at, i); if (r !== undefined) n += 1; return r; });
+        if (n === 0) ms = ticks.reduce((a, b) => a + b, 0) * C.TICK_MS;
+        return n;
+      });
+      return waitMs === undefined ? undefined : { at: t0 + waitMs, waitMs, ms, total: waitMs + ms };
+    } catch (e) { log('storm wait failed', e); return undefined; }
+  };
+  const redrawPage = () => { try { const sk = skill(); if (sk !== undefined) sk.renderQueue.page = true; } catch {} };
+  /**
+   * The voyage waiting out a storm: { path, name, chain, loads, until (the game clock), from: { q, r } }. The save
+   * keeps it as `waiting` (build .386: a reload dropped the wait without a word): the path as a walk of { q, r, m }
+   * like a voyage's, read back into map hexes when the page is next ticked.
+   */
+  let waiting;
+  const waitWalkOf = (path) => {
+    const modes = path.voyageModes;
+    return path.map((h, i) => (i === path.length - 1 || modes?.[i] === undefined ? { q: h.q, r: h.r } : { q: h.q, r: h.r, m: JSON.parse(JSON.stringify(modes[i])) }));
+  };
+  const waitPathOf = (walk) => {
+    const path = walk.map((w) => hexAt(w.q, w.r));
+    if (path.some((h) => h === undefined)) return undefined;
+    path.voyageModes = walk.map((w) => w.m);
+    return path;
+  };
+  const saveWaiting = () => {
+    const s = skill();
+    if (s === undefined) return;
+    s.record.waiting = waiting === undefined ? null
+      : { walk: waitWalkOf(waiting.path), name: waiting.name, chain: waiting.chain ?? [], loads: waiting.loads ?? [], until: waiting.until, from: waiting.from };
+    try { game.scheduleSave(); } catch {}
+  };
+  let waitingRead = false;
+  const readWaiting = () => {
+    waitingRead = true;
+    const s = skill();
+    const w = s?.record?.waiting;
+    if (w === null || w === undefined) return;
+    try {
+      const path = Array.isArray(w.walk) && w.walk.length >= 2 ? waitPathOf(w.walk) : undefined;
+      if (path !== undefined && typeof w.name === 'string' && Number.isFinite(w.until) && w.from !== null && typeof w.from === 'object') {
+        waiting = { path, name: w.name, chain: Array.isArray(w.chain) ? w.chain : [], loads: Array.isArray(w.loads) ? w.loads : [], until: w.until, from: { q: w.from.q, r: w.from.r } };
+        return;
+      }
+    } catch (e) { log('the saved storm wait could not be read', e); }
+    s.record.waiting = null;
+  };
+  const waitStorm = (path, name, chain, wait, loads = []) => {
+    const from = map()?.playerPosition;
+    if (from === undefined) return;
+    waiting = { path, name, chain, loads, until: wait.at, from: { q: from.q, r: from.r } };
+    saveWaiting();
+    notify(t('MOD_VOY_STORM_WAITING', { name, time: duration(Math.max(0, wait.at - state.clockNow())) }), 'info');
+    redrawPage();
+  };
+  const cancelWait = (quiet = false) => {
+    if (waiting === undefined) return false;
+    waiting = undefined;
+    saveWaiting();
+    if (!quiet) notify(t('MOD_VOY_STORM_WAIT_CANCELLED'), 'info');
+    redrawPage();
+    return true;
+  };
+  /** Every passive tick: the clear moment has come, so set off; moved meanwhile, or a voyage begun, the wait is off. */
+  const waitTick = () => {
+    if (waiting === undefined && !waitingRead) readWaiting();
+    if (waiting === undefined) return;
+    const pos = map()?.playerPosition;
+    if (cur() !== null || pos === undefined || pos.q !== waiting.from.q || pos.r !== waiting.from.r) { cancelWait(true); return; }
+    if (state.clockNow() < waiting.until) return;
+    // A fight is never cut short for it (build .386: the set-off ran the idle checker and stopped a fight or fishing
+    // without a word): the voyage waits, told once; any other action stopped is named.
+    let fighting = false;
+    try { fighting = game.combat?.isActive === true; } catch {}
+    if (fighting) {
+      if (waiting.told !== true) { waiting.told = true; notify(t('MOD_VOY_STORM_WAIT_FIGHT', { name: waiting.name }), 'info'); }
+      return;
+    }
+    const w = waiting;
+    waiting = undefined;
+    saveWaiting();
+    let was;
+    try { const a = game.activeAction; was = a !== undefined && a !== skill() ? a.name : undefined; } catch {}
+    if (!setOff({ path: w.path, name: w.name, chain: w.chain, loads: w.loads ?? [] })) notify(t('MOD_VOY_STORM_WAIT_FAILED', { name: w.name }), 'danger');
+    else if (was !== undefined && was !== '') notify(t('MOD_VOY_STORM_WAIT_STOPPED', { name: w.name, action: was }), 'info');
+    redrawPage();
   };
   const hexes = (n) => t(n === 1 ? 'MOD_VOY_CLOCK_HEX_ONE' : 'MOD_VOY_CLOCK_HEX_MANY', { count: `${n}` });
   /**
@@ -377,10 +508,12 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       walk.push(m === undefined ? { q: h.q, r: h.r } : { q: h.q, r: h.r, m: JSON.parse(JSON.stringify(m)) });
     }
     const fogged = fog !== undefined && state.fog !== undefined;
-    const v = C.cleanVoyage({ walk, at: 0, left: 1, total: 1, name, chain, loads, began: state.clockNow(), xp: s.xp, gp: game.gp.amount,
+    const v = C.cleanVoyage({ walk, at: 0, left: 1, total: 1, name, chain, loads, began: state.clockNow(), xp: s.xp, gp: game.gp.amount, worn: wornNow(),
       ...(fogged ? { fog: true, side: fog.side ?? 0, sv: [] } : {}), ...(tow !== undefined ? { tow } : {}) });
     if (v === null) return false;
-    const ticks = stepTicksOf(v.walk, v.tow, v.began);
+    // A stowaway may be hiding aboard for a long crossing (events.mjs): the hex where it climbs out.
+    if (v.tow === undefined) { const stw = state.events?.stowRoll?.(v.walk) ?? -1; if (stw > 0) v.stw = stw; }
+    const ticks = stepTicksOf(v.walk, v.tow, v.began, v.worn);
     v.left = ticks[0] ?? 1;
     if (fogged) {
       // A voyage into the fog surveys first (5b): the first timer is a survey's while there is one to make.
@@ -433,6 +566,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
    * Cancel keeps the voyage). The planner's Set off comes here; the map's Travel has the whole Set off popup.
    */
   const changeCourse = (dest, name, go) => {
+    if (cur()?.pir !== undefined) { state.events?.refuseWhileAsked?.(); return; }
     const c = courseOf(dest);
     if (c === undefined) { go(); return; }
     if (c === 'same') { alreadyThere(); return; }
@@ -449,23 +583,31 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
     }).then((r) => { if (r.isConfirmed && cur() === c.v) go(); });
   };
-  const confirmSetOff = (path, original, fog) => {
+  /**
+   * `extra` (the Plan block's Set off, build .386; the user, 21 Oct 2026: it skipped every check): { name, loads (walk
+   * indexes where the route loads the stores; the planner vouches for the stores through its stops), prefer (the arrival
+   * pick to put first), started() (after the voyage set off) }.
+   */
+  const confirmSetOff = (path, original, fog, extra = {}) => {
+    if (cur()?.pir !== undefined) { state.events?.refuseWhileAsked?.(); return; }
     const course = courseOf(path[0]);
     if (course === 'same') { alreadyThere(); return; }
     // A crew the vessels have no berths for (phase 6c) goes the old way too: movePlayer says why.
     try { if (state.crew?.berthRefusal?.(stepsOf(path)) !== undefined) { original(); return; } } catch (e) { log('berth check failed', e); }
+    // So does a vessel hauled out to careen (the flat mechanics).
+    try { if (state.ship?.careenRefusal?.(stepsOf(path)) !== undefined) { original(); return; } } catch (e) { log('careen check failed', e); }
     const info = routeInfo(path);
     const pl = info.plan?.plan;
     if (fog !== undefined) {
       // Pay as you reveal: only the known part is checked now; the fog's GP, food and fuel when each hex is reached.
       info.gp = knownGpOf(path);
       if (info.gp > game.gp.amount) { notify(t('MOD_VOY_FOG_NO_GP', { gp: num(info.gp) }), 'danger'); return; }
-    } else if ((pl !== undefined && !pl.ok) || info.gp > game.gp.amount) {
+    } else if ((pl !== undefined && !pl.ok && extra.loads === undefined) || info.gp > game.gp.amount) {
       // A trip the stores or the purse refuse goes the old way, so the refusal speaks as before.
       original(); return;
     }
     const dest = path[0];
-    const name = nameOfHex(dest);
+    const name = extra.name ?? nameOfHex(dest);
     // A place not known yet (4.15: never surveyed nor charted) tells nothing of what can be done there (the user,
     // build .234: "a gating gap"): only what you were doing, tried on arrival as any pick.
     const known = state.knowledge?.isKnown(dest) !== false;
@@ -493,7 +635,9 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     const now = doingNow();
     const nowChoice = now === undefined ? undefined : C.cleanChoice(now);
     const isNow = (o) => nowChoice !== undefined && C.sameChoice(o.choice, nowChoice);
-    const defaults = [...opts.keys()].filter((i) => opts[i].choice.k !== 'fight' || isNow(opts[i])).slice(0, 2);
+    // The planner's own arrival pick goes first (its block's dropdown).
+    const preferred = extra.prefer === undefined ? -1 : ([...opts.keys()].find((i) => C.sameChoice(opts[i].choice, extra.prefer)) ?? -1);
+    const defaults = [...(preferred >= 0 ? [preferred] : []), ...[...opts.keys()].filter((i) => i !== preferred && (opts[i].choice.k !== 'fight' || isNow(opts[i])))].slice(0, 2);
     // Hull wear: the condition now less the condition the plan leaves, per vessel.
     let wear = 0;
     if (pl?.cond !== undefined) wear += Math.max(0, (state.ship?.cond?.('boat') ?? pl.cond) - pl.cond);
@@ -569,9 +713,16 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       fogBlock = `<div class="voyage-fog-level"><i class="fa fa-check text-success mr-2" aria-hidden="true"></i><span>${esc(level)}</span></div>`
         + `<div class="voyage-section voyage-fog-side"><div class="voyage-clock-head"><i class="fa fa-binoculars voyage-clock-fa" aria-hidden="true"></i>${esc(t('MOD_VOY_FOG_SIDE_HEAD'))}</div>${opts.join('')}</div>`;
     }
+    // Wait out the storm (the flat mechanics): only a plain voyage, set off from where you stand; a band under Storm ahead.
+    const wait = fog === undefined && course === undefined ? stormWait(path, info) : undefined;
+    const waitHtml = wait === undefined ? '' : `<div class="voyage-storm-wait"><i class="fa fa-hourglass-half" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_STORM_WAIT_HEAD'))}</b> `
+      + `${marked(t, 'MOD_VOY_STORM_WAIT_OFFER', {}, { wait: mark.time(duration(wait.waitMs)), total: mark.time(duration(wait.total)) })}</span></div>`;
     const fogChip = fog !== undefined && fog.fog > 0 ? `<span class="voyage-travel-chip voyage-fog-chip"><i class="fa fa-cloud mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_FOG_N_FOG', { n: `${fog.fog}` }))}</span>` : '';
-    const gpText = fog === undefined ? num(info.gp) : t('MOD_VOY_FOG_GP', { gp: num(info.gp) }); // the coin is the tile's icon, as the planner's (.309, scan A2-26)
+    // Hexes walked hungry cost 30% more GP (the flat mechanics): in the cost, and a line saying why.
+    const hungryGp = fog === undefined ? info.hungryGp ?? 0 : 0;
+    const gpText = fog === undefined ? num(info.gp + hungryGp) : t('MOD_VOY_FOG_GP', { gp: num(info.gp) }); // the coin is the tile's icon, as the planner's (.309, scan A2-26)
     const fogCostNote = fog === undefined ? '' : `<div class="voyage-clock-costs text-muted">${esc(t('MOD_VOY_FOG_COST_NOTE'))}</div>`;
+    const hungryNote = hungryGp > 0 ? `<div class="voyage-clock-costs text-warning">${esc(t('MOD_VOY_CLOCK_HUNGRY_GP', { gp: num(hungryGp), hexes: hexes(info.plan?.plan?.hungry?.length ?? 0), pct: `${Math.round(S.HUNGRY_GP * 100)}` }))}</div>` : '';
     const html = '<div class="voyage-clock-setoff text-left">'
       + (course === undefined ? '' : course.band)
       + fogTop
@@ -582,9 +733,10 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       + `<div class="voyage-clock-tile">${head('<i class="fa fa-route voyage-clock-fa" aria-hidden="true"></i>', 'MOD_VOY_CLOCK_HEXES')}`
       + `<div class="voyage-clock-tile-value">${esc(hexes(info.hexes))}</div><div class="voyage-clock-chips">${chip('land', info.land, 'MOD_VOY_CLOCK_N_LAND')}${chip('sea', info.sea, 'MOD_VOY_CLOCK_N_SEA')}${fogChip}</div></div>`
       + `<div class="voyage-clock-tile">${head(img(game.gp.media, 'voyage-clock-icon voyage-clock-head-icon'), 'MOD_VOY_CLOCK_COSTS')}`
-      + `<div class="voyage-clock-tile-value voyage-clock-gp">${esc(gpText)}</div>${costBits.length > 0 ? `<div class="voyage-clock-costs">${costBits.join('')}</div>` : ''}${fogCostNote}</div>`
+      + `<div class="voyage-clock-tile-value voyage-clock-gp">${esc(gpText)}</div>${costBits.length > 0 ? `<div class="voyage-clock-costs">${costBits.join('')}</div>` : ''}${hungryNote}${fogCostNote}</div>`
       + '</div>'
       + stormHtml(info)
+      + waitHtml
       + fogBlock
       + `<div class="voyage-section voyage-clock-arrival"><div class="voyage-clock-head"><i class="fa fa-anchor voyage-clock-fa" aria-hidden="true"></i>${esc(t('MOD_VOY_CLOCK_ON_ARRIVAL'))}</div>`
       + select('voyage-clock-a1', 1, 'MOD_VOY_CLOCK_FIRST', defaults[0] ?? -1)
@@ -611,6 +763,8 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       html,
       width: helpLayout.HELP_WIDTH,
       showCancelButton: true,
+      showDenyButton: wait !== undefined,
+      denyButtonText: t('MOD_VOY_STORM_WAIT_BTN'),
       confirmButtonText: t(course === undefined ? 'MOD_VOY_CLOCK_SETOFF' : 'MOD_VOY_CLOCK_CHANGE_BTN'),
       cancelButtonText: t('MOD_VOY_CLOCK_CANCEL'),
       didRender: state.popupDidRender,
@@ -643,13 +797,24 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
         }));
       },
       // The popup's body lets the arrival dropdowns' menus out (Swal clips its html container).
-      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' }) : { ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' },
+      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ ...SWAL_CLASS, denyButton: 'btn btn-success m-1', htmlContainer: 'voyage-swal-menus' }) : { ...SWAL_CLASS, denyButton: 'btn btn-success m-1', htmlContainer: 'voyage-swal-menus' }, // Wait out the storm commits too (build .386)
+      // Wait out the storm keeps the arrival picks too.
+      preDeny: () => ({ picks: ['voyage-clock-a1', 'voyage-clock-a2', 'voyage-clock-a3'].map((id) => Number(document.getElementById(id)?.value ?? -1)) }),
       preConfirm: () => ({
         picks: ['voyage-clock-a1', 'voyage-clock-a2', 'voyage-clock-a3'].map((id) => Number(document.getElementById(id)?.value ?? -1)),
         side: Number(document.querySelector('input[name="voyage-fog-side"]:checked')?.value ?? 0),
       }),
     }).then((r) => {
+      if (r.isDenied && wait !== undefined) {
+        const picks = (r.value?.picks ?? []).filter((i) => i >= 0 && i < opts.length).map((i) => opts[i].choice);
+        // Worked out again at the press: the popup may have stood open while the storms drifted.
+        const fresh = stormWait(path, routeInfo(path));
+        if (fresh === undefined) { notify(t('MOD_VOY_STORM_WAIT_GONE'), 'danger'); return; }
+        waitStorm(path, name, picks, fresh, extra.loads ?? []);
+        return;
+      }
       if (!r.isConfirmed) return;
+      cancelWait(true);
       const chain = (r.value?.picks ?? []).filter((i) => i >= 0 && i < opts.length).map((i) => opts[i].choice);
       if (fog !== undefined) {
         // Never an instant move through the fog: refused, it says so.
@@ -658,8 +823,10 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
         return;
       }
       // The selection may be gone by now (the map redrew): the path is the one priced above. Refused (Golbin Raid
-      // began), it goes as an ordinary move, which speaks its own refusal.
-      if (!setOff({ path, name, chain })) { try { cart().movePlayer(path, false); } catch (e) { log('instant fallback failed', e); } }
+      // began), it goes as an ordinary move, which speaks its own refusal; the planner's goes leg by leg (original).
+      if (setOff({ path, name, chain, loads: extra.loads ?? [] })) extra.started?.();
+      else if (extra.loads !== undefined) original();
+      else { try { cart().movePlayer(path, false); } catch (e) { log('instant fallback failed', e); } }
       try { cart().render(); } catch {}
     });
   };
@@ -700,6 +867,23 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   const loadHere = () => {
     const st = state.stores;
     for (const x of st?.loadable?.() ?? []) { try { st.load(x.item, x.qty); } catch (e) { log('voyage loading failed', e); } }
+  };
+  /**
+   * Why a step was refused, in movePlayer's own order (berths, careening, the stores, then the coin), for the ending
+   * (build .386; the user, 21 Oct 2026: a berth refusal ended as "the next hex could not be paid" with 5 B GP aboard).
+   */
+  const refusedWhy = (path) => {
+    const plain = (s) => String(s).replace(/\.$/, '');
+    try {
+      const steps = stepsOf(path);
+      const b = state.crew?.berthRefusal?.(steps);
+      if (b !== undefined && state.crew.berthWhy !== undefined) return plain(state.crew.berthWhy(b));
+      const c = state.ship?.careenRefusal?.(steps);
+      if (c !== undefined && state.ship.careenWhy !== undefined) return plain(state.ship.careenWhy(c));
+      const p = state.stores?.planFor?.(path);
+      if (p !== undefined && !p.plan.ok) return t('MOD_VOY_CLOCK_WHY_STORES');
+    } catch (e) { log('refusal reason failed', e); }
+    return t('MOD_VOY_CLOCK_WHY_UNPAID');
   };
   /** Fuel the rest of the walk after step `i` needs: never spent on light for this hex (stores-model planLight). */
   const holdAfter = (v, i) => {
@@ -751,6 +935,9 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     // A storm on the sea hex entered (phase 5c-3): the step pays its ×3 wear (stepsOf `storm`); told after it lands.
     let met;
     try { met = towed ? undefined : stepsOf(path)[0]; } catch {}
+    // Pirates (events.mjs): rolled for the big ship's deep-sea hex, never the last; the toll counts this hex's GP.
+    let pirates;
+    try { if (!towed && !finalStep && state.events?.meet?.(met) === true) pirates = state.events.offer(gpOf(path)); } catch (e) { log('pirates roll failed', e); }
     try { cart().movePlayer(path, towed); } catch (e) { log('voyage step failed', e); } finally { stepping = false; finalStep = false; state.lightHold = 0; }
     putBack();
     const now = map()?.playerPosition;
@@ -760,7 +947,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       const why = towed ? undefined : state.adrift?.cause?.();
       if (why !== undefined) { const name = v.name; end('adrift', { why, quiet: true }); state.adrift.begin(why, name); return; }
       // The why in the ending, so it is marked as one (red in Welcome Back, as a fog refusal's; build .233).
-      end('refused', { why: t('MOD_VOY_CLOCK_WHY_UNPAID') });
+      end('refused', { why: refusedWhy(path) });
       return;
     }
     if (met?.storm !== undefined) {
@@ -770,6 +957,16 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       } catch (e) { log('storm note failed', e); }
     }
     v.at = i + 1;
+    // The voyage holds for an answer from the next tick (pirateHold); a stowaway climbs out where it was rolled.
+    if (pirates !== undefined) { v.pir = pirates; log(`pirates at step ${v.at}: ${pirates.toll} GP or run`); }
+    if (v.stw !== undefined && v.stw <= v.at) {
+      delete v.stw;
+      // It needs a berth in every vessel the rest of the voyage sails or rows (a boat leg ashore refused for it otherwise).
+      try {
+        const rest = v.at < v.walk.length - 1 ? stepsOf(pathOf(v.walk, v.at, v.walk.length - 1) ?? []) : [];
+        state.events?.stowFound?.([...new Set(rest.map((x) => x.vessel).filter((k) => k === 'boat' || k === 'ship'))]);
+      } catch (e) { log('stowaway failed', e); }
+    }
     if (v.loads.includes(v.at)) loadHere();
     if (v.at >= v.walk.length - 1) { arrive(v); return; }
     if (v.fog === true) v.sv = state.fog?.queueAt?.(v, v.at) ?? [];
@@ -802,9 +999,25 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     if (cur() !== v) return;
     nextTimer(v);
   };
+  /**
+   * Pirates wait for an answer (events.mjs): the clock stands still until it comes. Paying costs the toll; running, the
+   * hull's wear and one hex more of sailing (the next step's time again).
+   */
+  const pirateHold = (v) => {
+    if (state.events === undefined) { delete v.pir; return; }
+    state.events.ask(v.pir, (how) => {
+      if (cur() !== v || v.pir === undefined) return;
+      const ok = how === 'pay' ? state.events.pay(v.pir) : state.events.run(v.pir);
+      if (!ok) return;
+      if (how === 'run') { const extra = stepTicks(v)[v.at] ?? v.of; v.left += extra; v.of += extra; }
+      delete v.pir;
+      changed();
+    });
+  };
   const tick = () => {
     const v = cur();
     if (v === null) { clearAction(); return; }
+    if (v.pir !== undefined) { pirateHold(v); return; }
     v.spent++;
     v.left--;
     if (v.left > 0) return;
@@ -853,11 +1066,14 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       changed();
       return;
     }
+    // The name as the hex is known on arrival (build .386: a point of interest discovered that second kept its "Hex (q, r)").
+    try { const last = v.walk[v.walk.length - 1]; const g = hexAt(last.q, last.r); const nm = g === undefined ? '' : nameOfHex(g); if (nm) e.name = nm; } catch {}
     const r = chain.length > 0 ? runChain(chain) : { started: '', failed: [] };
     e.started = r.started;
     e.failed = r.failed.slice(0, 3);
     e.asked = chain.length > 0;
     setEnding(e);
+    try { state.adrift?.closeEnd?.(); } catch {} // one ending notice at a time (build .386)
     if (!offlineNow()) notify(r.started !== '' ? t('MOD_VOY_CLOCK_ARRIVED_START', { name: e.name, what: r.started }) : t('MOD_VOY_PLAN_ARRIVED', { name: e.name }), r.started === '' && r.failed.length > 0 ? 'danger' : 'success');
     log(`arrived at ${e.name}${r.started ? `, started ${r.started}` : ''}${r.failed.length ? `; could not start ${r.failed.map((f) => `${f.name} (${f.why})`).join(', ')}` : ''}`);
     changed();
@@ -883,6 +1099,8 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
   /** Stop here: the voyage ends on the hex reached. A tow has none: you go where the tow goes. */
   const stopHere = () => {
     if (cur()?.tow !== undefined) { state.adrift?.refuseUnderTow?.(); return; }
+    // Pirates in sight: no anchoring to slip away; offline their answer comes first.
+    if (cur()?.pir !== undefined) { if (!offlineNow()) { state.events?.refuseWhileAsked?.(); return; } pirateHold(cur()); }
     forcing = true; try { end('stopped'); } finally { forcing = false; }
   };
   /** A tow docks at once (timed travel turned off under tow): one free move to the quay. */
@@ -932,7 +1150,8 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       confirmButtonText: retry !== undefined ? t('MOD_VOY_CLOCK_ASK_GO', { what }) : t('MOD_VOY_CLOCK_STOP_HERE'),
       cancelButtonText: t('MOD_VOY_CLOCK_KEEP'),
       didRender: state.popupDidRender,
-      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
+      // Stop here loses the voyage: red filled in a popup, red outline on the page (build .386).
+      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(retry !== undefined ? SWAL_CLASS : { ...SWAL_CLASS, confirmButton: 'btn btn-danger m-1' }) : (retry !== undefined ? SWAL_CLASS : { ...SWAL_CLASS, confirmButton: 'btn btn-danger m-1' }),
     }).then((r) => {
       if (!r.isConfirmed || cur() === null) return;
       stopHere();
@@ -1061,7 +1280,7 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
       const tow = v.tow;
       const towFact = tow === undefined ? '' : `<div class="text-info"><i class="fa fa-fw fa-anchor" aria-hidden="true"></i>${esc(t(`MOD_VOY_ADRIFT_TOW_BY_${tow.kind.toUpperCase()}`))}</div>`;
       const chain = v.chain.length === 0 ? `<div>${esc(t('MOD_VOY_CLOCK_DO_NOTHING'))}</div>`
-        : `<div><b>${esc(labelOf(v.chain[0]))}</b></div>${v.chain.length > 1 ? `<div class="text-muted">${esc(t('MOD_VOY_CLOCK_THEN', { list: v.chain.slice(1).map(labelOf).join(' · ') }))}</div>` : ''}`;
+        : `<div class="voyage-chain-line"><b>${labelHtml(v.chain[0])}</b></div>${v.chain.length > 1 ? `<div class="voyage-chain-line text-muted">${marked(t, 'MOD_VOY_CLOCK_THEN', {}, { list: v.chain.slice(1).map(labelHtml).join(' · ') })}</div>` : ''}`;
       return `<div class="voyage-clock-top"><img class="voyage-clock-pic" src="${ctx.getResourceUrl('assets/icon.webp')}" alt="">`
         + `<div><h5 class="font-w600 mb-0">${esc(t(tow === undefined ? 'MOD_VOY_CLOCK_UNDERWAY' : 'MOD_VOY_ADRIFT_TOW_UNDERWAY', { name: v.name }))}</h5>`
         // One per line under the title: the ground (its map colour), the hexes behind you, how you go (the user,
@@ -1212,10 +1431,21 @@ export function install(ctx, { state, C, storesModel: S, rules, terrainMod, help
     } catch (e) { log('voyage load check failed', e); }
   });
 
-  const api = { on, setOff, changeCourse, tick, stop, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog,
+  const api = { on, setOff, changeCourse, tick, stop, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog, confirmSetOff,
     /** A tow is under way (5b part two). */
     towing: () => cur()?.tow !== undefined,
     msLeft: () => { const v = cur(); return v === null ? 0 : msLeft(v); },
+    /** Waiting out a storm (the flat mechanics): { name, left } or undefined; the look-ahead; Cancel; the passive tick. */
+    stormWaitMax: C.STORM_WAIT_MAX_MS,
+    /** The last ending's notice closed (the adrift one took its place, build .386). */
+    closeEnding: () => { const e = ending(); if (e !== null && e.closed !== true) { setEnding({ ...e, closed: true }); blockSig = undefined; } },
+    waitingStorm: () => (waiting === undefined ? undefined : { name: waiting.name, left: Math.max(0, waiting.until - state.clockNow()) }),
+    cancelWait: () => cancelWait(false),
+    waitTick,
+    /** A plain hex for the cargo and task deadlines: your fastest vessel's sea hex, an easy land hex at your mount's
+     * speed; undefined while timed travel is off (no deadlines then). */
+    seaHexMs: () => { if (!on()) return undefined; const hulls = [hullOf('ship'), hullOf('boat')].filter(Boolean); return hulls.length === 0 ? undefined : Math.min(...hulls.map(C.seaMs)); },
+    landHexMs: () => (on() ? C.LAND_MS / Math.max(0.1, state.land?.speed?.() ?? 1) : undefined),
     // The map's route line (route-line.mjs, build .272): the walk split at the hex you are on, or null.
     route: () => C.routeParts(cur()) };
   state.clock = api;

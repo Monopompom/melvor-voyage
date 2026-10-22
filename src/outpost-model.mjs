@@ -8,7 +8,7 @@ export const TENT = { id: 'Tent', level: 30 };
 export const OUTPOST_LEVELS = [30, 50, 70, 90];
 export const MAX_OUTPOSTS = OUTPOST_LEVELS.length;
 /** The skill milestones at those levels, by their English names (data/skill.json; setup.mjs finds them by these). */
-export const OUTPOST_MILESTONES = { first: 'Outposts: A Tent, pitched where a Folk works', more: 'Outposts: One more tent at a time' };
+export const OUTPOST_MILESTONES = { first: 'Outposts: A Tent where a Folk works; a Merchant there sells for you', more: 'Outposts: One more tent at a time' };
 /** Features that make a hex a place already: no tent goes there. */
 export const PLACE_FEATURES = ['city', 'capital', 'port', 'market', 'camp'];
 /** What a pitched tent adds to its hex's features. */
@@ -76,8 +76,20 @@ export const newOutpost = (now, folk, skill = null) => (folk === undefined
   : { food: 0, fuel: 0, at: whole(now), build: { folk: String(folk), until: whole(now) + BUILD_MS, skill: skill ?? null } });
 /** True while the tent is still going up. */
 export const isBuilding = (o) => o?.build !== undefined;
-/** Ms of work left on a tent going up at `now` (0 when it is up). */
-export const buildLeft = (o, now) => (isBuilding(o) ? Math.max(0, o.build.until - whole(now)) : 0);
+/** The builder's statuses (Worker Folks' view `status`) that pause the work (build .387, the user: a Folk on strike built on). */
+export const BUILD_PAUSE = ['strike', 'debt', 'cooldown'];
+/** Ms of work left on a tent going up at `now` (0 when it is up); a paused build keeps what it had when it paused. */
+export const buildLeft = (o, now) => (isBuilding(o) ? Math.max(0, o.build.until - (o.build.pausedAt ?? whole(now))) : 0);
+/** True while the work is paused. */
+export const isPaused = (o) => isBuilding(o) && o.build.pausedAt !== undefined;
+/** The record with its work paused at `now` (unchanged when it is paused already). */
+export const pauseBuild = (o, now) => (isBuilding(o) && o.build.pausedAt === undefined ? { ...o, build: { ...o.build, pausedAt: whole(now) } } : o);
+/** The record with its work resumed at `now`: the pause's length is added to `until` (unchanged when not paused). */
+export const resumeBuild = (o, now) => {
+  if (!isPaused(o)) return o;
+  const { pausedAt, ...b } = o.build;
+  return { ...o, build: { ...b, until: b.until + Math.max(0, whole(now) - pausedAt) } };
+};
 /** The outposts that count as camps: the tents that are up. */
 export const standing = (outposts) => Object.fromEntries(Object.entries(outposts).filter(([, o]) => !isBuilding(o)));
 /**
@@ -90,13 +102,15 @@ export function pickBuilder(folks) {
 }
 /**
  * What happens to a tent going up: 'up' (the work is done), 'stop' (the builder is gone, moved away, walking or given
- * a skill: the tent goes back to the bank) or 'going'. `folk` is the builder's view, undefined when it is gone.
+ * a skill: the tent goes back to the bank), 'paused' (the builder is on strike, owed wages or cooling down, BUILD_PAUSE)
+ * or 'going'. `folk` is the builder's view, undefined when it is gone.
  */
 export function buildStep(o, key, folk, now) {
   if (!isBuilding(o)) return 'up';
   const at = parseKey(key);
   if (folk === undefined || folk.travel !== 'idle' || folk.skillId !== null || folk.place == null || at === undefined
     || folk.place.q !== at.q || folk.place.r !== at.r) return 'stop';
+  if (BUILD_PAUSE.includes(folk.status)) return 'paused';
   return buildLeft(o, now) === 0 ? 'up' : 'going';
 }
 
@@ -146,7 +160,7 @@ export function cleanOutposts(raw) {
     if (at === undefined || o === null || typeof o !== 'object') continue;
     const b = o.build;
     const build = b !== null && typeof b === 'object' && typeof b.folk === 'string' && b.folk !== ''
-      ? { folk: b.folk, until: whole(b.until), skill: typeof b.skill === 'string' ? b.skill : null } : undefined;
+      ? { folk: b.folk, until: whole(b.until), skill: typeof b.skill === 'string' ? b.skill : null, ...(Number.isFinite(b.pausedAt) && b.pausedAt > 0 ? { pausedAt: whole(b.pausedAt) } : {}) } : undefined;
     out[keyOf(at.q, at.r)] = { food: whole(o.food), fuel: fuelOf(o.fuel), at: whole(o.at), ...(build === undefined ? {} : { build }) };
   }
   return out;

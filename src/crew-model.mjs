@@ -11,10 +11,24 @@ export const berthsOf = (hullId) => BERTHS[hullId] ?? 0;
  */
 export const FOOD_SHARE = { Newbie: 0.5, Junior: 0.75, Middle: 1, Senior: 1.25, Expert: 1.5 };
 export const foodShare = (tier) => FOOD_SHARE[tier] ?? 1;
-/** The crew's load on the stores: `count` Folks (fuel shares) and `food`, the sum of their food shares. */
-export const crewLoad = (folks) => {
+/**
+ * The crew's load on the stores: `count` Folks, `food` the sum of their food shares on easy land, `foodRough` on rough
+ * ground and `seaFood` at sea (fuel is one share each). `effectsOf(folk, { rough })` gives a Folk's travel-trait
+ * factors (folk-traits-model travelEffects: roadFood, seaFood; phase 6f); without it every factor is 1.
+ */
+export const crewLoad = (folks, effectsOf) => {
   const list = Array.isArray(folks) ? folks : [];
-  return { count: list.length, food: list.reduce((sum, f) => sum + foodShare(f?.tier), 0) };
+  const fx = (f, rough) => (typeof effectsOf === 'function' ? effectsOf(f, { rough, night: null }) : undefined) ?? {};
+  const k = (x) => (Number.isFinite(x) && x > 0 ? x : 1);
+  const out = { count: list.length, food: 0, foodRough: 0, seaFood: 0 };
+  for (const f of list) {
+    const share = foodShare(f?.tier);
+    const easy = fx(f, false);
+    out.food += share * k(easy.roadFood);
+    out.foodRough += share * k(fx(f, true).roadFood);
+    out.seaFood += share * k(easy.seaFood);
+  }
+  return out;
 };
 
 /** Who eats from the stores and burns fuel on a step: you and every Folk with you. */
@@ -35,13 +49,16 @@ export const hungryHexes = (hp, maxHp) => {
  * still has to carry them) in a vessel whose berths (`berthsFor(kind)`) are fewer. { at, vessel, berths }, or undefined when they all fit.
  */
 export function berthRefusal(steps, crew, berthsFor) {
-  if (!(crew > 0)) return undefined;
+  const aboard = typeof crew === 'function' ? crew : () => crew;
+  if (typeof crew !== 'function' && !(crew > 0)) return undefined;
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i];
     if (!(s.sea || s.hop > 0)) continue;
     const vessel = s.vessel ?? 'boat';
+    const n = aboard(vessel);
+    if (!(n > 0)) continue;
     const berths = berthsFor(vessel);
-    if (berths < crew) return { at: i, vessel, berths };
+    if (berths < n) return { at: i, vessel, berths };
   }
   return undefined;
 }

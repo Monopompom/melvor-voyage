@@ -300,16 +300,15 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
     return true;
   };
 
-  // Half price while he is here: the sale dialogs and the sale itself read Bank.getItemSalePrice.
-  ctx.patch(Bank, 'getItemSalePrice').after((price) => {
-    try { return present() ? Math.floor(price * HALF) : undefined; } catch { return undefined; }
-  });
+  // Half price while he is here: the sale dialogs and the sale itself read Bank.getItemSalePrice, patched once in
+  // src/market.mjs (build .386), which reads `present` and `HALF` from state.trader.
   ctx.patch(Bank, 'processItemSale').after(() => { checkLeave(); });
   (state.saleListeners ??= []).push(checkLeave); // a sale from the hold (build .265)
   ctx.patch(WorldMap, 'setPlayerPosition').after(() => { checkLeave(); });
   state.listeners.push(checkLeave);
 
   state.trader = {
+    HALF,
     present,
     offer,
     /** His portrait, for the provisions rescue popup (stores.mjs; the same face on every popup he is in, build .259). */

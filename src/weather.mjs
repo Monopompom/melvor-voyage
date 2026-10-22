@@ -491,6 +491,8 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
 
   const api = {
     on,
+    // A line for this catch-up's Welcome Back (events.mjs: pirates, the stowaway), with the season's and the storms'.
+    tellAway,
     describe,
     nextWords,
     nextHtml,

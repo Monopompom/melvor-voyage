@@ -26,6 +26,8 @@ export const HEX_COST = {
   shoal: { rations: 1, fuel: 0 },
 };
 const SEA = ['water', 'shoal'];
+/** Rough, snow and lava ground (walk-model ROUGH and HARD): where Hardy walks faster and eats less (phase 6f). */
+export const ROUGH_GROUND = ['desert', 'highlands', 'mountain', 'badlands', 'wastelands', 'cursedlands', 'snowlands', 'lavalands'];
 /** A hex the table does not know costs like grasslands. */
 const costOf = (cls) => HEX_COST[cls] ?? HEX_COST.grasslands;
 /**
@@ -117,16 +119,19 @@ export const loadAmount = (unit, qty, rate) => unit * Math.max(0, Math.floor(qty
 
 /**
  * The multipliers on a step's food and fuel for you and the crew. `crew` is a count (each Folk eats as you do) or
- * { count, food } (crew-model crewLoad: fuel one share each, food by rank).
+ * crew-model crewLoad's { count, food, foodRough, seaFood }: fuel one share a Folk, food by rank on easy land, on
+ * rough ground and at sea, each with the Folks' travel traits in (phase 6f); a load without the rough and sea sums
+ * eats `food` everywhere.
  */
 export function crewMul(crew) {
+  const num = (x, d) => (Number.isFinite(x) && x > 0 ? x : d);
   if (crew !== null && typeof crew === 'object') {
     const n = Number.isFinite(crew.count) && crew.count > 0 ? Math.floor(crew.count) : 0;
-    const f = Number.isFinite(crew.food) && crew.food > 0 ? crew.food : 0;
-    return { food: 1 + f, fuel: 1 + n };
+    const f = num(crew.food, 0);
+    return { food: 1 + f, foodRough: 1 + num(crew.foodRough, f), seaFood: 1 + num(crew.seaFood, f), fuel: 1 + n };
   }
   const n = Number.isFinite(crew) && crew > 0 ? Math.floor(crew) : 0;
-  return { food: 1 + n, fuel: 1 + n };
+  return { food: 1 + n, foodRough: 1 + n, seaFood: 1 + n, fuel: 1 + n };
 }
 
 /**
@@ -143,12 +148,13 @@ export function stepCost(step, fmLevel, crew = 0) {
   const m = crewMul(crew);
   const wx = step.wx;
   const seaFood = Number.isFinite(wx?.seaFood) && wx.seaFood > 0 ? wx.seaFood : 1;
-  if (step.hop > 0) return { food: Math.round(Math.round(step.hop * costOf('water').rations * RATION_HP * seaFood) * m.food), fuel: 0 };
+  if (step.hop > 0) return { food: Math.round(Math.round(step.hop * costOf('water').rations * RATION_HP * seaFood) * m.seaFood), fuel: 0 };
   const c = costOf(step.cls);
   const sea = step.sea === true || SEA.includes(step.cls);
   const rations = c.rations + (!sea && Number.isFinite(wx?.rations) ? wx.rations : 0);
   const fuelMul = !sea && Number.isFinite(wx?.fuel) && wx.fuel >= 0 ? wx.fuel : 1;
-  return { food: Math.round(Math.round(rations * RATION_HP * (sea ? seaFood : 1)) * m.food), fuel: roundFuel(roundFuel(c.fuel * fuelMul * fuelFactor(fmLevel)) * m.fuel) };
+  const mFood = sea ? m.seaFood : ROUGH_GROUND.includes(step.cls) ? m.foodRough : m.food;
+  return { food: Math.round(Math.round(rations * RATION_HP * (sea ? seaFood : 1)) * mFood), fuel: roundFuel(roundFuel(c.fuel * fuelMul * fuelFactor(fmLevel)) * m.fuel) };
 }
 
 /** Total cost of a move, ignoring what the stores hold (the hex overview line). */
@@ -234,6 +240,42 @@ export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull, hulls,
  * from land), 1 per hex of a fast-travel hop. The homeward rule's free moves wear nothing. Below WORN % a hull keeps
  * out of deep water; at 0 it only limps home (sea steps closer to a coast, which may always be taken).
  */
+/**
+ * A hex the stores can't pay for (walked or rowed hungry) costs this much more of the game's own GP (the user, 21 Oct
+ * 2026: stakes for the flat mechanics; [BALANCE]). A provisioned hex costs what it did; Provisions off, nothing changes.
+ */
+export const HUNGRY_GP = 0.3;
+/**
+ * The extra GP for a move of `steps` steps that cost `gp` together, `hungry` of them hungry: their share of the GP
+ * times HUNGRY_GP, never more than the `left` you still have (a hungry walk is how you get home, so it is never refused).
+ */
+export function hungrySurcharge(gp, steps, hungry, left = Infinity) {
+  if (!(gp > 0) || !(steps > 0) || !(hungry > 0)) return 0;
+  return Math.max(0, Math.min(Math.floor(left), Math.round((gp * HUNGRY_GP * Math.min(hungry, steps)) / steps)));
+}
+/**
+ * The surcharge a voyage will pay, hex by hex as it is charged: `stepGp(i)` the GP of step `i`, `hungry` the indices
+ * of the steps walked hungry (planMove). The Set off popup shows it in the cost, so the GP it names is what goes.
+ */
+export function hungryRouteGp(stepGp, hungry) {
+  if (typeof stepGp !== 'function' || !Array.isArray(hungry)) return 0;
+  return [...new Set(hungry)].reduce((sum, i) => sum + hungrySurcharge(stepGp(i), 1, 1), 0);
+}
+/**
+ * The surcharge of one move that took `gp` in all (an instant move can be many steps): the hungry steps' own share of
+ * it, `stepGp` each step's price as hungryRouteGp counts them, so a dear hungry hex costs what the popup said. Without
+ * the step prices (or none priced), an even share per step. Never more than the `left` you still have.
+ * Not the move's charge since build .387 (hungryRouteGp is, so a free step pays too); kept for a caller that has only the sum.
+ */
+export function hungryMoveGp(gp, stepGp, hungry, left = Infinity) {
+  if (!(gp > 0) || !Array.isArray(hungry) || hungry.length === 0) return 0;
+  const priced = Array.isArray(stepGp) ? stepGp.map((x) => (x > 0 ? x : 0)) : [];
+  const all = priced.reduce((a, b) => a + b, 0);
+  if (!(all > 0)) return hungrySurcharge(gp, priced.length, hungry.length, left);
+  const share = [...new Set(hungry)].reduce((a, i) => a + (priced[i] ?? 0), 0);
+  return Math.max(0, Math.min(Math.floor(left), Math.round((gp * HUNGRY_GP * share) / all)));
+}
+
 export const WEAR = { near: 1, deep: 2 };
 export const WORN = 50;
 export const wearOf = (step) => {
@@ -319,5 +361,19 @@ export function planLight(plan, steps, { fmLevel = 1, astroLevel = 1, hold = 0 }
   }
   return { ...plan, fuel, lit, light, spent: { ...plan.spent, fuel: roundFuel(plan.spent.fuel + light) } };
 }
+/**
+ * Night sight (the user, 21 Oct 2026: stakes for the flat mechanics): at night the sea hex a move ends on sees
+ * NIGHT_SIGHT hexes further into the fog when it was lit, as much less when it was dark (no spare fuel, or hungry).
+ * Land, a free move or the day: 0. `plan` is a planned move's (planLight's `lit`), `steps` its steps.
+ */
+export const NIGHT_SIGHT = 1;
+export function nightSight(steps, plan, night) {
+  if (night !== true || !Array.isArray(steps) || steps.length === 0 || plan?.ok !== true) return 0;
+  const i = steps.length - 1;
+  const last = steps[i];
+  if (last.free || !(last.sea === true || last.hop > 0)) return 0;
+  return (plan.lit ?? []).includes(i) ? NIGHT_SIGHT : -NIGHT_SIGHT;
+}
+
 /** How many steps of a move could be lit at all (not free, not hungry). */
 export const lightable = (steps, plan) => steps.filter((s, i) => !s.free && !(plan?.hungry ?? []).includes(i)).length;

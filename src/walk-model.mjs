@@ -106,6 +106,20 @@ export function nextAt(walk, now) {
 }
 
 /**
+ * A walk under way with the rest of its road timed again (the Folk learned or lost a travel trait, phase 6f): the hexes
+ * walked and the one it is crossing keep their times; every hex after it starts again from its ground's time
+ * (hexMs) and goes through `pace(rest, at)`, `at` the moment the first of them is entered. An arrived walk stays.
+ */
+export function repaceRest(walk, now, pace) {
+  const { reached, done } = walkAt(walk, now);
+  if (done) return walk;
+  const keep = walk.road.slice(0, reached + 1);
+  const rest = walk.road.slice(reached + 1).map((s) => ({ ...s, ms: hexMs(s.cls) }));
+  if (rest.length === 0) return walk;
+  return { ...walk, road: [...keep, ...pace(rest, walk.start + roadMs(keep))] };
+}
+
+/**
  * What a Folk eats on a hex walked alone (6d): your cost for the hex (stores-model stepCost, no crew) with the food
  * by its rank's share (crew-model foodShare); the fuel as yours.
  */

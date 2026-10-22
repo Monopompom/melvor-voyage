@@ -86,10 +86,12 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const skillLabel = (skillId, fallback) => { const k = rules.ruleLabelKey(skillId); return k === undefined ? fallback : getLangString(k); };
   const join = (list) => {
     const sep = getLangString('MOD_VOY_GATE_LIST_OR');
+    const comma = getLangString('MOD_VOY_GATE_LIST_SEP'); // "City, Capital or Port", not "or ... or" (build .386)
+    const seq = (xs) => (xs.length <= 2 ? xs.join(sep) : `${xs.slice(0, -1).join(comma)}${sep}${xs[xs.length - 1]}`);
     // One name once: Mining's Snowlands-with-mountain combo adds a "mountain" feature labelled like the Mountain
     // class, so the lock popup read "... or Rock or Mountain" after "Mountain or Highlands" (16 Oct 2026).
     const parts = list.filter((p, i) => list.findIndex((o) => o.text === p.text) === i);
-    return { text: parts.map((p) => p.text).join(sep), html: parts.map((p) => p.html).join(sep) };
+    return { text: seq(parts.map((p) => p.text)), html: seq(parts.map((p) => p.html)) };
   };
   /**
    * One modal line from a language key: `vars` are HTML-safe (escaped or coloured() html); the plain text for the
@@ -231,6 +233,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     const name = skillLabel(skillId, skill?.name ?? skillId);
     const lines = [line('MOD_VOY_GATE_NEEDS', { name: esc(name), need: n.html, here: h.html })];
     const near = state.nearestFor(skillId, pos);
+    let where;
     if (near !== undefined) {
       const terms = rules.ruleTerms(skillId);
       const matchOf = (hex) => (terms.classes.includes(hex.t) ? biome(hex.t)
@@ -238,7 +241,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
           : hex.poi && terms.pois.includes(hex.poi) ? placeName(hex.poi)
             : hex.area && terms.areas.includes(hex.area) ? placeName(hex.area) : undefined);
       const match = matchOf(near.hex);
-      const where = whereIs(pos, near.hex, near.distance);
+      where = whereIs(pos, near.hex, near.distance);
       if (match !== undefined) lines.push(line('MOD_VOY_GATE_NEAREST', { match: match.html, where }));
       else {
         // The nearest hex works by grace: name what is next door (phase 2 re-run, 16 Oct 2026: the noun made "Nearest
@@ -254,7 +257,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       const compass = compassLine(state.compass?.readingFor(skillId, pos));
       if (compass !== undefined) lines.push(compass);
     }
-    return { name, lines };
+    // `need` and `where` as plain text, for a short line elsewhere (the Shop's hire card, build .386).
+    return { name, lines, need: n.text, where: where === undefined ? undefined : unesc(where.replace(/<[^>]*>/g, '')) };
   };
 
   /** The action a skill's entry point was about to start, for Plan a voyage's "on arrival" (build .119). */
@@ -693,6 +697,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       if (locked !== undefined) {
         // Selling while stranded: the wandering trader (src/trader.mjs) buys at half price.
         if (what === 'sell' && state.trader?.present()) return run();
+        // A Merchant Folk on an outpost within a hex buys at its rate (travel traits, 6f-3).
+        if (what === 'sell' && state.folkTraits?.outpostSale?.() !== undefined) return run();
         if (what === 'sell' && !quiet && state.trader?.offer(run)) return undefined;
         if (!quiet) showNoTrade(what, locked);
         return undefined;
@@ -716,7 +722,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     const locked = lockedHere(HIRING_ID);
     if (locked === undefined) return undefined;
     const d = describe(game.skills.getObjectByID(HIRING_ID), HIRING_ID, locked);
-    return { reason: d.lines.slice(0, 2).map((l) => l.text).join(' ') };
+    // One short line on the Shop's hire card (build .386; the full sentences wrapped one word a line at 375 px).
+    return { reason: d.where === undefined ? templateLangString('MOD_VOY_GATE_HIRE_SHORT_NONE', { need: d.need }) : templateLangString('MOD_VOY_GATE_HIRE_SHORT', { need: d.need, where: d.where }) };
   };
   ctx.onModsLoaded(() => {
     const api = state.folksApi?.();
@@ -872,7 +879,10 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     const pos = state.position();
     if (rec === undefined || pos === undefined) return '';
     const d = hexDistance(pos, folk.place);
-    const at = d === 0 ? line('MOD_VOY_FOLK_AT_HERE', { here: here(rec).html }).text : line('MOD_VOY_FOLK_AT', { here: here(rec).html, where: whereIs(pos, rec, d) }).text;
+    // A Folk on a standing outpost (6f-4): the card names the tent.
+    const camp = state.outposts?.list?.().find((o) => o.q === folk.place.q && o.r === folk.place.r);
+    const at = camp !== undefined ? (d === 0 ? line('MOD_VOY_FOLK_AT_OUTPOST_HERE', { name: `<b>${esc(camp.name)}</b>` }).text : line('MOD_VOY_FOLK_AT_OUTPOST', { name: `<b>${esc(camp.name)}</b>`, where: whereIs(pos, rec, d) }).text)
+      : d === 0 ? line('MOD_VOY_FOLK_AT_HERE', { here: here(rec).html }).text : line('MOD_VOY_FOLK_AT', { here: here(rec).html, where: whereIs(pos, rec, d) }).text;
     const job = folk.skillId === null ? jobsRecord()?.jobs[folk.id] : undefined;
     if (job === undefined) return at;
     return `${at}. ${line('MOD_VOY_FOLK_JOB_KEPT', { skill: esc(skillLabel(job, game.skills.getObjectByID(job)?.name ?? job)) }).text}`;

@@ -91,7 +91,11 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       counts.wears[s.vessel === 'ship' ? 'ship' : 'boat'] += S.wearOf(s);
     }
     if (steps.length !== n) counts.land = n;
-    return { ...r, walk, steps, split, costs, counts };
+    // The crew's berths and a hull hauled out to careen (build .386): refused here, with the reason, never mid-sea.
+    let refused;
+    try { const b = state.crew?.berthRefusal?.(steps); if (b !== undefined) refused = state.crew.berthWhy?.(b); } catch (e) { log('plan berth check failed', e); }
+    try { if (refused === undefined) { const c = state.ship?.careenRefusal?.(steps); if (c !== undefined) refused = state.ship.careenWhy?.(c); } } catch (e) { log('plan careen check failed', e); }
+    return { ...r, walk, steps, split, costs, counts, refused };
   };
 
   // ---- arrival -----------------------------------------------------------------------------------------------------
@@ -162,6 +166,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     return undefined;
   };
   const refusal = (fn) => { try { return fn(); } catch (e) { log('arrival check failed', e); return undefined; } };
+  /** A reason as a sentence of its own: first letter up (build .386; CSS ::first-letter bit a name's first letter). */
+  const capFirst = (s) => (typeof s === 'string' ? s.charAt(0).toUpperCase() + s.slice(1) : s);
   /** What can be started on arrival: [{ value, label, media?, why? }], 'none' first; `why`: the game would refuse it. */
   const arrivalOptions = () => {
     const out = [{ value: 'none', label: t('MOD_VOY_PLAN_ARRIVAL_NONE') }];
@@ -232,31 +238,36 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     const st = state.stores;
     for (const x of st.loadable()) { try { st.load(x.item, x.qty); } catch (e) { log('plan loading failed', e); } }
   };
-  let confirmedCourse = false;
   const sail = () => {
     const plan = compute();
-    if (plan?.path === undefined || !plan.split.ok || !owned() || !(plan.costs?.checkIfOwned() ?? true)) return;
-    const cart = game.cartography;
+    if (plan?.path === undefined || !plan.split.ok || plan.refused !== undefined || !owned() || !(plan.costs?.checkIfOwned() ?? true)) return;
     const name = target.name;
-    if (plan.split.depart !== undefined) loadHere();
     // Timed travel (phase 5a): the whole route becomes one voyage, loading at the planned stops, the pick started on
-    // arrival, then what you were doing (voyage-clock.mjs).
+    // arrival, then what you were doing (voyage-clock.mjs). It goes through the one Set off popup, the map's Travel's
+    // (build .386; the user, 21 Oct 2026: the block's own Set off skipped berths, careening, the purse, the storm wait
+    // and the arrival picks, and sailed through a storm without a word).
     const clock = state.clock;
-    // Under way, Set off asks first (a change of course), and the same destination is refused with a notice.
-    if (clock?.on?.() === true && clock.running?.() && !confirmedCourse) {
-      clock.changeCourse(plan.path[0], name, () => { confirmedCourse = true; try { sail(); } finally { confirmedCourse = false; } });
+    if (clock?.on?.() === true && typeof clock.confirmSetOff === 'function') {
+      const loads = plan.split.legs.filter((leg) => leg.load !== undefined).map((leg) => leg.to);
+      clock.confirmSetOff(plan.path, () => sailLegs(plan, name), undefined, {
+        name,
+        loads,
+        prefer: pickChoice(),
+        started: () => {
+          if (plan.split.depart !== undefined) loadHere();
+          target = undefined;
+          try { game.cartography.render(); } catch {}
+          refresh();
+        },
+      });
       return;
     }
-    if (clock?.on?.() === true) {
-      const chain = [pickChoice(), clock.doingNow()].filter((c) => c !== undefined);
-      const loads = plan.split.legs.filter((leg) => leg.load !== undefined).map((leg) => leg.to);
-      if (clock.setOff({ path: plan.path, name, chain, loads })) {
-        target = undefined;
-        try { cart.render(); } catch {}
-        refresh();
-        return;
-      }
-    }
+    sailLegs(plan, name);
+  };
+  /** The instant way (Timed travel off): leg by leg through movePlayer, loading here first and at the planned stops. */
+  const sailLegs = (plan, name) => {
+    const cart = game.cartography;
+    if (plan.split.depart !== undefined) loadHere();
     for (const leg of plan.split.legs) {
       const path = P.legPath(plan.walk, leg.from, leg.to, plan.path.voyageModes);
       try { cart.movePlayer(path, false); } catch (e) { log('plan leg failed', e); }
@@ -295,6 +306,11 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     if (navBlocker() !== undefined) return;
     const costs = navCosts();
     if (!costs.checkIfOwned()) return;
+    // Asks first, by the game's shop-confirm setting (build .386; the user, 21 Oct 2026: 300,000 GP went at once).
+    helpLayout.confirmBuy({ name: t('MOD_VOY_PLAN_NAV_TITLE'), picture: ctx.getResourceUrl('assets/chart.webp'), didRender: state.popupDidRender, costs }, () => buyNow(costs));
+  };
+  const buyNow = (costs) => {
+    if (navBlocker() !== undefined || !costs.checkIfOwned()) return;
     costs.consumeCosts();
     skill().record.navigator = true;
     log('Navigator\'s Charts bought');
@@ -320,7 +336,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     const fuel = l.used.filter((u) => u.kind === 'fuel').reduce((s, u) => s + u.added, 0);
     return amounts(food, S.roundFuel(fuel));
   };
-  const VERDICT = { food: 'SHORT', fuel: 'SHORT', ashore: 'ASHORE', deep: 'HULL', hull: 'HULL', hullAshore: 'HULL', noway: 'NOWAY', uncharted: 'UNCHARTED', here: 'HERE' };
+  const VERDICT = { food: 'FOOD', fuel: 'FUEL', ashore: 'ASHORE', deep: 'HULL', hull: 'HULL', hullAshore: 'HULL', noway: 'NOWAY', uncharted: 'UNCHARTED', here: 'HERE' };
 
   /** Navigator's Charts for sale: drawn in the Ship block's Shipwright row since build .205 (was under the plan). */
   const navHtml = () => {
@@ -346,7 +362,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     const plan = compute();
     const media = target.media ? `<img class="voyage-plan-icon mr-2" src="${esc(target.media)}" alt="">` : '';
     // Not after a bare hex: its name already is the coordinates (.308, scan A2-17).
-    const destAt = plan.dest !== undefined && target.name !== at(plan.dest) ? ` <span class="text-muted">${at(plan.dest)}</span>` : '';
+    const destAt = plan.dest !== undefined && !target.name.endsWith(at(plan.dest)) ? ` <span class="text-muted">${at(plan.dest)}</span>` : '';
     let out = section(`<div class="voyage-row"><div class="d-flex align-items-center">${media}<div><small class="text-muted d-block">${esc(t('MOD_VOY_PLAN_TO'))}</small><b>${esc(target.name)}</b>${destAt}</div></div>` +
       `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="clear">${esc(t('MOD_VOY_PLAN_CLEAR'))}</button></div>`);
     if (plan.path === undefined) {
@@ -420,13 +436,15 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     }
     const gpOk = plan.costs?.checkIfOwned() ?? true;
     const verdictKey = !sp.ok ? `MOD_VOY_PLAN_VERDICT_${VERDICT[sp.why] ?? 'SHORT'}` : !gpOk ? 'MOD_VOY_PLAN_VERDICT_COSTS' : owned() ? 'MOD_VOY_PLAN_VERDICT_OK' : 'MOD_VOY_PLAN_VERDICT_CLEAR';
-    const good = sp.ok && gpOk;
+    const good = sp.ok && gpOk && plan.refused === undefined;
+    // A crew the vessels have no berths for, or a hull hauled out: the refusal is the verdict (build .386).
+    const verdict = plan.refused ?? t(verdictKey);
     // On arrival: what the game would refuse is flagged in amber under the verdict (a hint; Set off still goes).
     const opts = arrivalOptions();
     const pick = arrivalNow(opts);
     const warn = arrivalWarning(opts);
     const warnHtml = warn === undefined ? '' : `<div class="text-warning mb-2">${esc(t('MOD_VOY_PLAN_REFUSE_WARN', { name: warn.label }))} ${warn.why}</div>`;
-    out += section(`<div class="font-w600 mb-2 ${good ? 'text-success' : 'text-danger'}">${esc(t(verdictKey))}</div>${warnHtml}` +
+    out += section(`<div class="font-w600 mb-2 ${good ? 'text-success' : 'text-danger'}">${esc(verdict)}</div>${warnHtml}` +
       `<div class="voyage-plan-ledger">${rows}</div>`);
     // Then the buttons: Set off green, the rest blue outline (confirm green, navigation blue).
     if (opts.length > 1) {
@@ -436,7 +454,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       const face = (o) => `${o.media === undefined ? '<i class="fa fa-flag voyage-plan-pick-ico"></i>' : `<img class="voyage-plan-pick-ico" src="${esc(o.media)}" alt="">`}<span>${esc(o.label)}</span>`;
       const item = (o) => o.why === undefined
         ? `<a class="dropdown-item pointer-enabled${o.value === pick ? ' active' : ''}" role="button" data-voyage-plan="pick" data-pick="${esc(o.value)}">${face(o)}</a>`
-        : `<div class="dropdown-item voyage-plan-refused" aria-disabled="true"><div class="voyage-plan-refused-name">${face(o)}</div><div class="voyage-plan-refused-why text-warning">${o.why}</div></div>`;
+        : `<div class="dropdown-item voyage-plan-refused" aria-disabled="true"><div class="voyage-plan-refused-name">${face(o)}</div><div class="voyage-plan-refused-why text-warning">${capFirst(o.why)}</div></div>`;
       const cur = opts.find((o) => o.value === pick) ?? opts[0];
       out += section(`<div class="font-w600 mb-1" id="voyage-plan-arrival-label">${esc(t('MOD_VOY_PLAN_ARRIVAL'))}</div>` +
         `<div class="dropdown voyage-plan-arrival"><button type="button" id="voyage-plan-arrival" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-describedby="voyage-plan-arrival-label">${face(cur)}</button>` +

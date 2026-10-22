@@ -23,7 +23,7 @@ const ROOT_ID = 'voyage-journal';
 /** Skills that work anywhere, named on the crafts page. */
 const ANYWHERE = ['melvorD:Agility', 'melvorD:Prayer', 'melvorAoD:Cartography', 'melvorD:Astrology'];
 
-export function install(ctx, { state, model, journalModel: jm, shipModel, rules, terrainMod, log }) {
+export function install(ctx, { state, model, journalModel: jm, shipModel, storesModel, rules, terrainMod, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const iconUrl = ctx.getResourceUrl('assets/journal.webp');
@@ -70,6 +70,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     if (j === undefined || action === undefined || action === null || !zoned.has(action.id) || !state.zonesOn?.()) return;
     const pos = state.position();
     if (pos === undefined) return;
+    // Only where the skill works (build .386): a Folk's action ticking while you sail put Water hexes in the journal.
+    try { if (state.skillLockedHere?.(skillId) === true) return; } catch {}
     const res = jm.addFound(j, action.id, pos.q, pos.r, start, model.JOURNAL_LIMITS.found);
     if (res === undefined) return;
     markKnown([pos]);
@@ -146,7 +148,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
       return result;
     });
   } catch (e) { log('journal: crops are not recorded', e); }
-  // Free charts at Voyage 30, 50, 70 and 90: a notice when one is reached (the count itself is worked out from the level).
+  // Free charts at FREE_CHART_LEVELS (30, 40, 55 and 60): a notice when one is reached (the count itself is worked out from the level).
   try {
     ctx.patch(Skill, 'onLevelUp').after(function (ret, oldLevel, newLevel) {
       try {
@@ -451,12 +453,33 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     : c === 'crafts' || jm.JOURNAL_WRITTEN[c] !== undefined || typeof state.helpSections === 'function'));
 
   /** A book-only chapter (journal-model.mjs JOURNAL_WRITTEN): its sections from en.json, plus the live parts. */
-  /** The live values the book's texts take: keys, the planner's levels and the charts' price, the sign's level. */
+  /**
+   * The live values the book's texts take: keys, the planner's levels and the charts' price, the sign's level, and the
+   * pirates' and the stowaway's numbers (events-model.mjs; blank without the events module).
+   */
   const bookVars = () => {
     const nav = state.planner?.NAV;
+    const em = state.events?.model;
+    const num = (x) => (Number.isFinite(x) ? `${Math.round(x)}` : '');
     return { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
       level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, gp: nav === undefined ? '' : numberWithCommas(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
-      signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '' };
+      signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '',
+      pirChance: num(1 / em?.PIRATE_CHANCE), pirShare: num(em?.PIRATE_SHARE * 100), pirFloor: num(em?.PIRATE_FLOOR_HEXES),
+      pirSound: num(em?.PIRATE_SOUND), stowShare: num(em?.STOWAWAY_PRICE_SHARE * 100), hungryPct: num(storesModel?.HUNGRY_GP * 100),
+      stormWaitH: num((state.clock?.stormWaitMax ?? NaN) / 3600000), ...crewVars() };
+  };
+  /**
+   * The Crew chapter's Worker Folks numbers from its API (build .386; they were typed): promotion's Hiring level, the
+   * mastery gates, the promotion cost share, the Shift Slot caps. Without the API (an older Worker Folks): the
+   * numbers as of its 1.2.0, so the page never shows a blank.
+   */
+  const crewVars = () => {
+    let r;
+    try { r = state.folksApi?.()?.rules?.(); } catch {}
+    const gates = r?.masteryGates?.length > 0 ? [...r.masteryGates] : [20, 40, 60, 80];
+    const caps = r?.slotCaps?.length > 0 ? [...r.slotCaps] : [2, 4, 7, 10];
+    const orList = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} ${t('MOD_VOY_JOURNAL_LIST_OR')} ${xs[xs.length - 1]}`);
+    return { promoLevel: `${r?.promotionLevel ?? 10}`, masteryGates: orList(gates), promoShare: `${Math.round((r?.promotionCostRate ?? 0.6) * 100)}`, slotCaps: caps.join(', ') };
   };
   /** A guide page's account under its lesson (journal-model.mjs JOURNAL_GUIDE_SECTIONS), drawn as a chapter's sections. */
   const guideSections = (id) => {
@@ -1296,7 +1319,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, rules,
     if (view.guide === undefined) return { left, right: runningHead(t('MOD_VOY_JOURNAL_TAB_GUIDE'), '') + empty('MOD_VOY_JOURNAL_GUIDE_NONE') };
     const key = view.guide.toUpperCase();
     const [lead, ...rest] = t(`MOD_VOY_JOURNAL_GUIDE_${key}_BODY`).split('\n');
-    const points = jm.JOURNAL_GUIDE_SECTIONS[view.guide]?.points === false ? [] : t(`MOD_VOY_JOURNAL_GUIDE_${key}_POINTS`).split('\n').filter((x) => x.trim() !== '');
+    // A guide's crate count from the hold table (build .386; it was typed in the text).
+    const points = jm.JOURNAL_GUIDE_SECTIONS[view.guide]?.points === false ? [] : t(`MOD_VOY_JOURNAL_GUIDE_${key}_POINTS`, { slots: `${shipModel.HOLD_SLOTS?.[view.guide] ?? ''}` }).split('\n').filter((x) => x.trim() !== '');
     const right = runningHead(t('MOD_VOY_JOURNAL_TAB_GUIDE'), guideTitle(view.guide))
       + `<h2 class="vj-h1">${esc(guideTitle(view.guide))}</h2>` + dropCap(lead) + prose(rest)
       + (points.length > 0 ? `<ul class="vj-points">${points.map((p) => `<li>${rich(p)}</li>`).join('')}</ul>` : '') + guideSections(view.guide)

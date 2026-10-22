@@ -276,6 +276,31 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
 
   /** The journal's Ports used (phase 4 wrap-up): a deed at the port `poi`. */
   const usedPort = (poi, deed) => { try { state.journal?.portUsed?.(poi, deed, portRec.get(poi)); } catch (e) { log('journal port failed', e); } };
+  /**
+   * One crossing of the lane from port `from` to the request's port as time (build .387): the road between them with
+   * the vessels you own, in calm (the deadline doesn't follow today's wind); undefined when no road is known.
+   */
+  const crossMs = (from, to) => {
+    try {
+      const a = portRec.get(from);
+      const b = portRec.get(to);
+      const ha = a === undefined ? undefined : gameHex(a);
+      const hb = b === undefined ? undefined : gameHex(b);
+      if (ha === undefined || hb === undefined) return undefined;
+      const path = game.cartography.activeMap.computePath(ha, hb);
+      if (!Array.isArray(path) || path.length < 2) return undefined;
+      const info = state.clock?.routeInfo?.(path);
+      return info !== undefined && info.calm > 0 ? info.calm : undefined;
+    } catch (e) { log('lane crossing failed', e); return undefined; }
+  };
+  /** When a request taken at `now` at port `from` is due (the deadline, 0 with timed travel off). */
+  const dueFrom = (req, now, from) => { const hexMs = state.clock?.seaHexMs?.(); return M.dueAt(req, maxSlots(), hexMs, now, hexMs === undefined ? undefined : crossMs(from, req.to)); };
+  /** The run's deadline line: the time left, or late in red; '' with none. */
+  const dueLine = (run) => {
+    if (!(run.due > 0)) return '';
+    if (M.isLate(run, Date.now())) return `<div class="text-danger">${esc(t('MOD_VOY_CARGO_LATE'))}</div>`;
+    return `<div class="text-warning">${esc(t('MOD_VOY_CARGO_DUE_IN', { time: state.clock?.duration?.(run.due - Date.now()) ?? '' }))}</div>`;
+  };
   /** Takes a request off this port's board and loads what fits. */
   const take = (reqId) => {
     const c = data();
@@ -285,7 +310,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     const reqs = board(poi);
     const req = reqs.find((q) => q.id === reqId);
     if (req === undefined) return false;
-    const run = M.takeRun(req, poi);
+    const run = M.takeRun(req, poi, dueFrom(req, Date.now(), poi));
     const info = loadInfo(run, poi);
     if (info.why !== undefined || info.k <= 0) { notify(info.why ?? t('MOD_VOY_CARGO_HOLD_FULL')); return false; }
     const k = pack(run, info);
@@ -319,8 +344,10 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     let k = 0;
     let gp = 0;
     let xp = 0;
+    const now = Date.now();
+    const late = M.isLate(run, now);
     for (const kind of reachable()) {
-      const d = M.deliver(holdOf(kind), run);
+      const d = M.deliver(holdOf(kind), run, now);
       if (d.k <= 0) continue;
       setHold(kind, d.hold);
       k += d.k; gp += d.gp; xp += d.xp;
@@ -330,14 +357,14 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     // The good steps back on the boards for a while (cargo-model RECENT).
     c.sent = M.noteSent(c.sent, run.item, M.seasonOf(Date.now()));
     game.gp.add(gp);
-    try { skill().addXP(xp); } catch (e) { log('cargo XP failed', e); }
+    if (xp > 0) try { skill().addXP(xp); } catch (e) { log('cargo XP failed', e); }
     if (M.finished(run)) c.runs = c.runs.filter((r) => r !== run);
     // Now and then the port's sea chart comes with the pay.
     try { state.charts?.rollDelivery?.(run.to); } catch (e) { log('delivery chart failed', e); }
     changed();
     usedPort(run.to, 'deliver');
-    notify(t(M.finished(run) ? 'MOD_VOY_CARGO_DELIVERED_DONE' : 'MOD_VOY_CARGO_DELIVERED', { n: `${k}`, what: containerWord(run.c, k), gp: qty(gp), xp: qty(xp) }), 'success');
-    log(`cargo ${run.id}: delivered ${k} for ${gp} GP, ${xp} XP`);
+    notify(t(late ? 'MOD_VOY_CARGO_DELIVERED_LATE' : M.finished(run) ? 'MOD_VOY_CARGO_DELIVERED_DONE' : 'MOD_VOY_CARGO_DELIVERED', { n: `${k}`, what: containerWord(run.c, k), gp: qty(gp), xp: qty(xp) }), late ? 'info' : 'success');
+    log(`cargo ${run.id}: delivered ${k} for ${gp} GP, ${xp} XP${late ? ' (late)' : ''}`);
     return true;
   };
   /** What dropping a run fetches, and why it can't be dropped here: { gp, k, why }. */
@@ -390,7 +417,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
   };
   const button = (cls, label, attrs, why) => (why === undefined
     ? `<button type="button" class="btn ${cls}" ${attrs}>${esc(label)}</button>`
-    : `<button type="button" class="btn btn-outline-secondary" disabled title="${esc(why)}">${esc(label)}</button>`);
+    : `<button type="button" class="btn btn-outline-secondary" disabled>${esc(label)}</button><span class="voyage-board-why text-warning">${esc(why)}</span>`); // the reason in sight, not a title (build .386)
   const row = (artHtml, mid, pay, act, cls = '') => `<div class="voyage-cargo-row ${cls}">${artHtml}<div class="voyage-cargo-mid">${mid}</div>${pay}<div class="voyage-cargo-act">${act}</div></div>`;
 
   /** Pending "drop?" confirmation: the run id whose Drop was pressed once. */
@@ -417,6 +444,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
         acts.push(button('btn-success', info.k > 0 ? t('MOD_VOY_CARGO_LOAD_N', { k: `${info.k}` }) : t('MOD_VOY_CARGO_LOAD'), `data-cargo="more" data-run="${esc(run.id)}"`, info.k > 0 ? undefined : info.why));
       }
     }
+    lines.push(dueLine(run));
     lines.push(`<div class="text-muted">${esc(progress(run, aboard, run.from === poi))}</div>`);
     const d = dropInfo(run);
     if (dropAsk === run.id) {
@@ -428,7 +456,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     } else {
       acts.push(button('btn-outline-danger btn-sm', t('MOD_VOY_CARGO_DROP'), `data-cargo="drop" data-run="${esc(run.id)}"`));
     }
-    return row(art(run.c, item), lines.join(''), payBlock(run), acts.join(''), cls);
+    // Late, what is left pays the goods once (cargo-model latePer), no XP.
+    return row(art(run.c, item), lines.join(''), payBlock(M.isLate(run, Date.now()) ? { ...run, gp: M.latePer(run), xp: 0 } : run), acts.join(''), cls);
   };
   /** "2 of 10 delivered · 4 in the hold"; `atFrom`: you stand where the next load is, so that goes unsaid. */
   const progress = (run, aboard, atFrom = false) => {
@@ -443,6 +472,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     const info = loadInfo(run, poi);
     const why = full ? t('MOD_VOY_CARGO_MAX_RUNS', { n: `${M.MAX_RUNS}` }) : info.why;
     const lines = [`<div>${whatLine(req, item)}</div>`, `<div>${t('MOD_VOY_CARGO_TO', { port: `<b>${esc(portName(req.to))}</b>`, hexes: `${req.hexes}` })}</div>`, hullWarning(poi, req.to)];
+    const due = dueFrom(req, 0, poi);
+    if (due > 0) lines.push(`<div class="text-warning">${esc(t('MOD_VOY_CARGO_DUE_WITHIN', { time: state.clock?.duration?.(due) ?? '' }))}</div>`);
     if (why === undefined && info.limit !== undefined) lines.push(`<div class="text-info">${esc(partLoad(info, req.c))}</div>`);
     if (why !== undefined) lines.push(`<div class="text-warning">${full ? esc(why) : info.whyHtml}</div>`);
     const label = why === undefined && info.k < req.n ? t('MOD_VOY_CARGO_LOAD_N', { k: `${info.k}` }) : t('MOD_VOY_CARGO_LOAD');
@@ -583,13 +614,13 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
         act = `<button type="button" class="btn btn-sm btn-outline-info" data-cargo-page="board">${esc(t('MOD_VOY_CARGO_BOARD'))}</button>`;
       } else {
         line = `<div>${toLoad ? esc(t('MOD_VOY_CARGO_TO_LOAD', { port: portName(run.from) }))
-          : `${t('MOD_VOY_CARGO_HEXES', { hexes: `${run.hexes}` })} · ${t('MOD_VOY_CARGO_PAYS', { gp: qty(aboard * run.gp), xp: qty(aboard * run.xp) })}`}</div>`;
+          : `${t('MOD_VOY_CARGO_HEXES', { hexes: `${run.hexes}` })} · ${t('MOD_VOY_CARGO_PAYS', M.isLate(run, Date.now()) ? { gp: qty(aboard * M.latePer(run)), xp: '0' } : { gp: qty(aboard * run.gp), xp: qty(aboard * run.xp) })}`}</div>`;
         act = `<button type="button" class="btn btn-sm btn-outline-info" data-cargo-page="plan" data-poi="${esc(goTo)}">${esc(planLabel)}</button>`;
       }
       const prog = progress(run, aboard, toLoad);
       return `<div class="voyage-errand">${art(run.c, item, 'voyage-cargo-art voyage-cargo-art-sm')}<div class="voyage-cargo-mid">` +
         `<div>${t('MOD_VOY_CARGO_ERRAND', { item: `<b>${esc(item?.name ?? run.item)}</b>`, n: qty(run.n * M.PER_CONTAINER), k: `${run.n}`, what: containerWord(run.c, run.n), port: `<b>${esc(portName(run.to))}</b>` })}</div>` +
-        `${line}${toLoad ? '' : hullWarning(run.from, run.to)}<div class="text-muted">${esc(prog)}</div></div>${act}</div>`;
+        `${line}${toLoad ? '' : hullWarning(run.from, run.to)}${dueLine(run)}<div class="text-muted">${esc(prog)}</div></div>${act}</div>`;
     });
     const task = state.tasks?.errandHtml?.() ?? '';
     if (task !== '') rows.unshift(task);
@@ -610,7 +641,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     const c = data();
     const due = c.runs.filter((r) => r.to === port.poi && packedIn(r, allKinds()) > 0).length;
     const task = state.tasks?.has?.() === true ? state.tasks.errandWords?.() ?? '' : '';
-    const note = due > 0 ? `<span class="text-success">${esc(t('MOD_VOY_CARGO_PANEL_DUE', { n: `${due}` }))}</span>`
+    const note = due > 0 ? `<span class="text-success">${esc(t(due === 1 ? 'MOD_VOY_CARGO_PANEL_DUE_ONE' : 'MOD_VOY_CARGO_PANEL_DUE', { n: `${due}` }))}</span>`
       : task !== '' ? `<span class="text-info">${esc(t('MOD_VOY_CARGO_PANEL_TASK', { what: task }))}</span>` // the notice you took, on the line (.309, scan B-29)
       : `<span class="text-muted">${esc(c.runs.length > 1 ? t('MOD_VOY_CARGO_PANEL_RUNS', { n: `${c.runs.length}` })
         : t(c.runs.length === 1 ? 'MOD_VOY_CARGO_PANEL_RUN' : !posts(port.poi) ? 'MOD_VOY_CARGO_PANEL_SHUT' : hasPartner(port.poi) || (c.boards[port.poi]?.reqs.length ?? 0) > 0 ? 'MOD_VOY_CARGO_PANEL_IDLE' : 'MOD_VOY_CARGO_PANEL_ALONE'))}</span>`;

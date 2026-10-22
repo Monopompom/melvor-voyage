@@ -28,6 +28,12 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   // Nightfall, Solar Eclipse and Eternal Darkness are night all season (phase 5c-1, weather.mjs).
   const allNight = () => state.weather?.allNight?.() === true;
   const night = () => state.settings.night?.() !== false && (allNight() || S.isNight(hourNow(), shift()));
+  /** Whether it is night at `ms` on the player's clock; null with the "Night" setting off (no night at all). */
+  const nightAt = (ms) => {
+    if (state.settings.night?.() === false) return null;
+    const d = new Date(ms);
+    return allNight() || S.isNight(d.getHours() + d.getMinutes() / 60, shift());
+  };
   const clock = (h) => `${String(h).padStart(2, '0')}:00`;
   /**
    * { night, until, season } for the panel and page: whether it is night and when it next turns ("05:00"); `season`
@@ -126,6 +132,8 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     const steps = state.ship.stepsOf(path);
     return { steps, plan: priceSteps(stores(), steps, path[0]) };
   };
+  /** Night sight of a planned move (stores-model nightSight): +1 lit, -1 dark, 0 otherwise. */
+  const sightOf = (planned) => (planned === undefined ? 0 : S.nightSight(planned.steps, planned.plan, night()));
   /** After a move landed: the stores keep what the plan left; hungry steps are marked for the XP; the hull wears. */
   const afterMove = (planned) => {
     if (planned === undefined || !planned.plan.ok) return;
@@ -380,7 +388,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       if (!p.ok) {
         cls = 'text-danger';
         verdict = t(HULL_WHY.includes(p.why) ? 'MOD_VOY_STORES_PATH_HULL' : p.why === 'ashore' ? 'MOD_VOY_STORES_PATH_ASHORE' : 'MOD_VOY_STORES_PATH_SHORT');
-      } else if (p.hungry.length > 0) { cls = 'text-warning'; verdict = t('MOD_VOY_STORES_PATH_HUNGRY', { hexes: hexes(p.hungry.length) }); }
+      } else if (p.hungry.length > 0) { cls = 'text-warning'; verdict = t('MOD_VOY_STORES_PATH_HUNGRY', { hexes: hexes(p.hungry.length), pct: `${Math.round(S.HUNGRY_GP * 100)}` }); }
       note.className = 'voyage-stores-note mb-1';
       note.innerHTML = (verdict === undefined ? '' : `<div class="font-w600 ${cls}">${esc(verdict)}</div>`) +
         // The rows as one block, left (phase 5c-1, the user's comment: they were centred): the leads in a column, each
@@ -471,7 +479,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       if (help === undefined) return false;
       offerRescue(help, []);
       return true;
-    }, loadingHere, loadable, load, amounts, icons, hp, fuelText, fmLevel, capacity, astroLevel, night, timeOfDay, shift,
+    }, loadingHere, loadable, load, amounts, icons, hp, fuelText, fmLevel, capacity, astroLevel, night, nightAt, sightOf, timeOfDay, shift,
     loaded() { try { state.afterTutorial?.(giveKit); } catch (e) { log('starter kit failed', e); } },
     /** For the dev console: set the stores outright. */
     set,

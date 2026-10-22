@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../src/stores-model.mjs';
-import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs, legPath } from '../src/plan-model.mjs';
+import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs, legPath, worthLoading } from '../src/plan-model.mjs';
 
 test('Navigator\'s Charts: owned, level, port, cost, then buyable', () => {
   const ok = { owned: false, level: NAVIGATOR.level, atPort: true, gp: NAVIGATOR.gp, items: Object.fromEntries(NAVIGATOR.items.map((x) => [x.id, x.quantity])) };
@@ -27,6 +27,20 @@ test('loading at a stop: best food first up to the limit, then fuel, at the plac
 const toy = (places) => ({
   price: (have, from, to) => (have.food >= to - from ? { ok: true, food: have.food - (to - from), fuel: have.fuel } : { ok: false, why: 'food', at: have.food }),
   loadAt: (i, have, bank) => (places.includes(i) && bank > 0 && have.food < 5 ? { stores: { food: 5, fuel: have.fuel }, bank: bank - 1, used: [{ id: 'x', n: 1 }], place: 'port' } : undefined),
+});
+
+test('legs: a stop that would load under one unit is no stop', () => {
+  assert.equal(worthLoading(undefined), false);
+  assert.equal(worthLoading({ used: [] }), false);
+  assert.equal(worthLoading({ used: [{ id: 'x', n: 1, kind: 'fuel', added: 0.06 }] }), false);
+  assert.equal(worthLoading({ used: [{ id: 'x', n: 1, kind: 'fuel', added: 0.06 }, { id: 'y', n: 1, kind: 'food', added: 20 }] }), true);
+  // A place with a near-full tank is passed by: the one leg goes on to the next place.
+  const price = (have, from, to) => (have.food >= to - from ? { ok: true, food: have.food - (to - from), fuel: have.fuel } : { ok: false, why: 'food', at: have.food });
+  const loadAt = (i, have, bank) => (i === 2 ? { stores: { food: have.food, fuel: have.fuel + 0.06 }, bank, used: [{ id: 'x', n: 1, kind: 'fuel', added: 0.06 }], place: 'port' }
+    : i === 3 && have.food < 5 ? { stores: { food: 5, fuel: have.fuel }, bank: bank - 1, used: [{ id: 'y', n: 1, kind: 'food', added: 5 }], place: 'port' } : undefined);
+  const r = splitLegs(6, { food: 4, fuel: 0 }, 9, price, loadAt);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.legs.map((l) => [l.from, l.to]), [[0, 3], [3, 6]]);
 });
 
 test('legs: one leg when the stores pay the whole way', () => {
@@ -64,7 +78,7 @@ test('save v9: Navigator\'s Charts start unbought and stay bought', async () => 
   const old = { ...defaultSave(), v: 8 };
   delete old.navigator;
   const { save, report } = loadSave(JSON.stringify(old));
-  assert.deepEqual(report.applied, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+  assert.deepEqual(report.applied, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]);
   assert.equal(save.navigator, false);
   const bought = loadSave(serializeSave({ ...save, navigator: true })).save;
   assert.equal(bought.navigator, true);

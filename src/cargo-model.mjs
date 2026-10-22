@@ -268,8 +268,32 @@ export function noteSent(sent, item, season) {
   return out;
 }
 
-/** A request taken from `from`'s board becomes a run; `packed` counts the sacks or crates loaded so far. */
-export const takeRun = (req, from) => ({ id: req.id, from, to: req.to, item: req.item, c: req.c, n: req.n, hexes: req.hexes, gp: req.gp, xp: req.xp, packed: 0, done: 0 });
+/** A request taken from `from`'s board becomes a run; `packed` counts the sacks or crates loaded so far, `due` when it
+ * must be delivered by (0: no deadline). */
+export const takeRun = (req, from, due = 0) => ({ id: req.id, from, to: req.to, item: req.item, c: req.c, n: req.n, hexes: req.hexes, gp: req.gp, xp: req.xp, packed: 0, done: 0, due });
+
+// ---- the deadline (the user, 21 Oct 2026: stakes for the flat mechanics) -----------------------------------------
+// A run is due DUE_SHARE times its plain trip after it is taken, online or offline. Late, a sack or crate pays its
+// goods once at their price: no run pay, no XP. Pay on time is as before.
+export const DUE_SHARE = 1.5;
+/** A run's plain trip when one crossing of its lane takes `crossMs`: every load over and, all but the last, back for the next. */
+export function plainTripMsOf(req, slots, crossMs) {
+  const loads = Math.ceil(Math.max(1, req.n) / Math.max(1, slots));
+  return (2 * loads - 1) * Math.max(0, crossMs);
+}
+/** A run's plain trip at `hexMs` a sea hex over the lane's straight length (the fallback when no road is known). */
+export const plainTripMs = (req, slots, hexMs) => plainTripMsOf(req, slots, Math.max(1, req.hexes) * hexMs);
+/**
+ * When a run taken at `now` is due; 0 (no deadline) without a pace (timed travel off). With `crossMs` (build .387, the
+ * user: a dinghy run across open sea was late with perfect play) the crossing is the real road between the ports with
+ * the vessels owned, else the lane's straight length at `hexMs`.
+ */
+export const dueAt = (req, slots, hexMs, now, crossMs) => (!(Number.isFinite(hexMs) && hexMs > 0) ? 0
+  : now + Math.round(DUE_SHARE * (Number.isFinite(crossMs) && crossMs > 0 ? plainTripMsOf(req, slots, crossMs) : plainTripMs(req, slots, hexMs))));
+/** Past its deadline at `now`. */
+export const isLate = (run, now) => Number.isFinite(run?.due) && run.due > 0 && now > run.due;
+/** What a sack or crate delivered late pays: its goods once (the run pay and the doubling taken off). */
+export const latePer = (run) => Math.max(0, Math.round((run.gp - GP_PER_HEX * run.hexes) / GOODS_PAY));
 
 /** Sacks or crates of a run in a hold. */
 export const inHold = (hold, runId) => hold.filter((e) => e.cargo === runId).length;
@@ -282,10 +306,11 @@ export function loadable(run, goods, empties, freeSlots) {
 /** The hold after loading `k` containers of a run (each a slot of its own). */
 export const load = (hold, run, k) => [...hold, ...Array.from({ length: k }, () => ({ id: run.item, qty: PER_CONTAINER, cargo: run.id, c: run.c }))];
 
-/** Delivers every container of a run in a hold: { hold, k, gp, xp }. */
-export function deliver(hold, run) {
+/** Delivers every container of a run in a hold at `now`: { hold, k, gp, xp, late }. */
+export function deliver(hold, run, now) {
   const k = inHold(hold, run.id);
-  return { hold: hold.filter((e) => e.cargo !== run.id), k, gp: k * run.gp, xp: k * run.xp };
+  const late = isLate(run, now);
+  return { hold: hold.filter((e) => e.cargo !== run.id), k, gp: k * (late ? latePer(run) : run.gp), xp: late ? 0 : k * run.xp, late };
 }
 
 /** Sells a run's packed cargo off at a harbour board: { hold, k, gp } at SALE_SHARE of the pay. */
@@ -310,7 +335,7 @@ function cleanRun(x) {
   const q = cleanRequest(x);
   if (q === undefined || !str(x.from)) return undefined;
   const packed = Math.min(q.n, whole(x.packed));
-  return { ...q, from: x.from, packed, done: Math.min(packed, whole(x.done)) };
+  return { ...q, from: x.from, packed, done: Math.min(packed, whole(x.done)), due: whole(x.due) };
 }
 /**
  * The cargo part of the Voyage save: { boards: { [poi]: { s, reqs } }, runs: [], posted: the season all open boards

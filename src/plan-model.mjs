@@ -52,6 +52,8 @@ export function simulateLoad(S, stores, cap, rates, bank) {
  * { ok, legs: [{ from, to, load? }], have (what is left at the end), why, at } with `load` the stop's loading at
  * hex `to`, and `depart` the loading at hex 0 when there is one; on failure `why`/`at` come from the leg that failed.
  */
+/** A loading worth a stop: at least one whole unit of food or fuel goes in (build .386; "Stock up (+0.06 fuel)" at a nearly full tank). */
+export const worthLoading = (l) => l !== undefined && l.used.some((u) => (u.added ?? u.n ?? 0) >= 1);
 export function splitLegs(n, have, bank, price, loadAt) {
   const legs = [];
   let from = 0;
@@ -61,7 +63,7 @@ export function splitLegs(n, have, bank, price, loadAt) {
   if (n <= 0) return { ok: true, legs, have: cur };
   if (!price(cur, 0, n).ok) {
     const l = loadAt(0, cur, stock);
-    if (l !== undefined && l.used.length > 0) { depart = l; cur = { ...cur, ...l.stores }; stock = l.bank; }
+    if (worthLoading(l)) { depart = l; cur = { ...cur, ...l.stores }; stock = l.bank; }
   }
   while (from < n) {
     const all = price(cur, from, n);
@@ -75,7 +77,7 @@ export function splitLegs(n, have, bank, price, loadAt) {
       if (!p.ok) continue;
       const after = { ...cur, food: p.food, fuel: p.fuel, ...(p.cond === undefined ? {} : { cond: p.cond }), ...(p.conds === undefined ? {} : { conds: p.conds }) };
       const l = loadAt(to, after, stock);
-      if (l === undefined || l.used.length === 0) continue;
+      if (!worthLoading(l)) continue;
       stop = { to, load: l, after };
       break;
     }

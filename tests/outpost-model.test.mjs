@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   TENT, OUTPOST_LEVELS, MAX_OUTPOSTS, OUTPOST_MILESTONES, maxOutposts, nextOutpostLevel, keyOf, parseKey, isPlace, pitchAction, campRecord,
-  newOutpost, share, strike, cleanOutposts, BUILD_MS, isBuilding, buildLeft, standing, pickBuilder, buildStep,
+  newOutpost, share, strike, cleanOutposts, BUILD_MS, isBuilding, buildLeft, standing, pickBuilder, buildStep, BUILD_PAUSE, isPaused, pauseBuild, resumeBuild,
 } from '../src/outpost-model.mjs';
 import { allowedAt, rateAt } from '../src/rules.mjs';
 
@@ -142,6 +142,26 @@ test('a tent goes up over an hour of one Folk\'s work, online or offline, and co
   assert.equal(isBuilding(newOutpost(0)), false);
   assert.equal(pitchAction({ ...ok, outposts: { '1,1': o } }), 'full');
   assert.deepEqual(Object.keys(standing({ '1,1': o, '2,2': newOutpost(0) })), ['2,2']);
+});
+
+test('the work pauses while the builder is on strike, owed wages or cooling down, and takes that much longer', () => {
+  const o = newOutpost(1000, 'f1', null);
+  const folk = { travel: 'idle', skillId: null, place: { q: 1, r: 1 }, status: 'idle' };
+  assert.equal(buildStep(o, '1,1', folk, 2000), 'going');
+  for (const status of BUILD_PAUSE) assert.equal(buildStep(o, '1,1', { ...folk, status }, 2000), 'paused', status);
+  assert.equal(buildStep(o, '1,1', { ...folk, status: 'strike' }, 1000 + BUILD_MS), 'paused', 'paused even when its hour has run');
+  const p = pauseBuild(o, 2000);
+  assert.equal(isPaused(p), true);
+  assert.equal(isPaused(o), false, 'the record given is not changed');
+  assert.equal(buildLeft(p, 2000 + 600000), BUILD_MS - 1000, 'what was left when it paused, however long since');
+  assert.equal(pauseBuild(p, 5000).build.pausedAt, 2000, 'pausing again keeps the first time');
+  const r = resumeBuild(p, 2000 + 600000);
+  assert.equal(isPaused(r), false);
+  assert.equal(r.build.until, 1000 + BUILD_MS + 600000, 'the pause added to the time');
+  assert.equal(buildLeft(r, 2000 + 600000), BUILD_MS - 1000);
+  assert.equal(resumeBuild(o, 5000), o, 'nothing to resume');
+  assert.equal(cleanOutposts({ '1,1': p })['1,1'].build.pausedAt, 2000, 'the save keeps the pause');
+  assert.equal(cleanOutposts({ '1,1': { ...p, build: { ...p.build, pausedAt: 'x' } } })['1,1'].build.pausedAt, undefined);
 });
 
 test('the builder is a Folk with no skill first, else the first by slot', () => {

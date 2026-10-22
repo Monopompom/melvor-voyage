@@ -48,12 +48,17 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   more on hills, mountains and wastes, most in snow and lava (Firemaking levels make the fuel go further). Load food
   and fuel from the bank on the Voyage page at a port (everything at full measure), a town or market, or a farm or camp
   (less), standing on it or next to it. The stores hold only so much, and every Voyage level adds room. You start with
-  a kit. With empty stores you can still walk easy ground, for no Voyage XP. At sea you always keep the food to get
+  a kit. With empty stores you can still walk easy ground, for no Voyage XP and 30% more GP a hex (Set off counts it in the cost). At sea you always keep the food to get
   back ashore, and fast travel between ports sails your ship, so it has to be waiting at the port.
 - **Hull wear.** Every sea hex wears your ship's hull a little. Repair it in the Voyage page's Stores block with logs
   and Pitch, which Firemaking now makes from time to time (more often from better logs): the small boat on a beach,
-  the big ship at a port. A worn-out hull can always limp back to the
-  coast.
+  the big ship at a port. Repairing is careening: the hull is hauled out 6 minutes for every 10% and can't sail
+  meanwhile (offline too; Stop keeps the work done so far, and the logs and Pitch for the rest are lost). Below 50% a
+  sea hex takes 25% longer and the hull keeps out of deep water. A worn-out hull can always limp back to the coast.
+- **Pirates.** On a timed voyage, pirates sometimes meet the big ship on deep sea, and the voyage waits for your
+  answer: pay them a quarter of what your hold would sell for (never less than what three hexes of travel cost), or
+  run, for a stormy hex's hull wear and one hex more at sea. Offline the choice is made for you: run while the hull
+  would stay at 50% or more, else pay if you can, told in Welcome Back.
 - **The hold.** Each vessel has a hold for bank items: one kind of item a slot, in any amount (dinghy 6, longboat 12,
   brig 18, galleon 24, and a row of six more at Voyage 35 and 55). Stow items from the bank's item panel and take them
   back on the Voyage page, standing on the vessel or next to it. The hold is kept in the mod's save data: take everything out before you remove the mod.
@@ -63,10 +68,14 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   grow with your level in their trade, and a big one goes in several loads. Delivering pays twice what the goods sell
   for, plus GP and Voyage XP for every hex. Boards change every 3 days; you can carry 3 runs at once, listed under the
   Hold on the Voyage page. Packed cargo stays in the hold until it is delivered. When the way needs a bigger hull
-  than yours (open sea, or an island your boat can't land on), the request says which one.
+  than yours (open sea, or an island your boat can't land on), the request says which one. With timed travel on, a
+  run is due half again its plain trip after you take it (every load there and back for the next at your fastest
+  ship's pace), and keeps that deadline if timed travel is turned off later; late, it pays only what its goods sell
+  for, and no XP.
 - **Notices.** Every harbour board posts a few tasks each season: set foot on a place you have not found yet and
   can reach today, or bring goods you gather after taking it to a port you know. One task at a time; it pays GP and Voyage XP, now and
-  then a rumour besides.
+  then a rumour besides. Goods to bring are on a deadline with timed travel on, as cargo is; late, it pays only what the
+  goods sell for, and no XP.
 - **Sea charts and rumours.** A board sells the chart of its port's sea and its neighbours': it clears the fog, and
   the price falls as you clear the fog yourself. Working near a town, port or market, you sometimes hear a Tavern
   Tale or a Sailor's Rumour; read it from the bank to lift the fog round a place you have not found. Surveying stays
@@ -83,7 +92,9 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
 - **Timed travel.** Travel is the work you are doing, like a skill: a land hex takes 6 minutes on foot (longer on
   rough ground, snow and lava), a sea hex 5 minutes in the dinghy down to 2 in the galleon. Each hex is paid as you
   enter it, and Stop here on the Voyage page keeps the hexes reached. Before setting off, pick up to three things to
-  do on arrival; the first that can start, starts. Starting something else under way asks first. The voyage goes on
+  do on arrival; the first that can start, starts. When the route meets a storm and a set-off up to 3 hours later
+  meets none, Set off offers Wait out the storm: the voyage then sets off by itself (moving, or Cancel on the Voyage
+  page, calls it off). Starting something else under way asks first. The voyage goes on
   while the game is closed, and Welcome Back tells where it ended. It is a setting, on by default; off, travel is
   instant as in the base game.
 - **Plan a voyage.** From Voyage 15, Plan voyage (on a journal page, a cargo run or a popup that sends you elsewhere)
@@ -100,7 +111,8 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   back. On the map, tap the panel's top line to fold it to a strip; on a phone, hold its triangle to shrink it to a
   small square, and tap the square to get it back as it was.
 - **Night.** From 21:00 to 05:00 on your own clock, the fuel a trip leaves over lights the way, and every lit hex gives
-  25% more Voyage XP. Light never takes the fuel a trip needs, so playing at night is never worse than by day.
+  25% more Voyage XP, and at sea it sees a hex further into the fog; a dark sea hex (no spare fuel) sees a hex less.
+  Light never takes the fuel a trip needs.
   Astrology levels make the light go further. You can move the night in the settings, or switch it off. Very rarely
   a lit hex at sea turns up a Steersman's Chart: read it from the bank to clear the fog of the sea you are on.
 - **Worker Folks.** With Worker Folks loaded, hiring needs a town or port, like Township. Every Folk stands on a hex:
@@ -120,8 +132,18 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   Smithing, Crafting and Fletching work there, and Thieving at 80%. One tent may stand at Voyage 30, up to four at 90.
   The tent shows on the map and in the Journal's places, and its store keeps food and fuel outside your carry limit.
   Strike camp puts the tent back in your bank. Your Folks stay there.
+  Folks learn travel traits from the road, through Worker Folks' trait slots: time at sea in a berth, rough ground and
+  long walks alone, the miles travelled, a week's work on one hex, work and sales near a market, nights on the road,
+  storms and hungry hexes each teach one. Some help (walk faster alone, eat less at sea), some trade one thing for
+  another, and two only hurt until they fade. You see a
+  trait once it is learned; the Crew help lists the ones your Folks have. A Folk with Merchant on an outpost lets you
+  sell there at half price, and a Haggler near a market adds to your sales. The card names the outpost a Folk is on.
+  Now and then on a long crossing a stowaway climbs out of the hold, when there is a berth for one more: hire it as a
+  Trainee at half the Shop's price while it is aboard, if you have the licence and a free crew slot (it still counts as
+  a hire, so the Shop's next one costs more), or it goes ashore at the next port or land you stop at. Until then it
+  takes a berth and eats from the stores like the crew.
 
-## Settings (Mod Settings, section Voyage)
+## Settings (Mod Settings, under Voyage: Rules, Travel, Display and Keys)
 
 - **Terrain overlay**: tint on or off.
 - **Voyage rules**: off turns every location lock off. The overlay and the panel stay.

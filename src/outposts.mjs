@@ -35,6 +35,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   const provisions = () => state.stores?.enabled?.() === true;
 
   const tentItem = () => { try { return game.items.getObjectByID(`voyage:${O.TENT.id}`); } catch { return undefined; } };
+  const skillNameOf = (id) => { try { return game.skills.getObjectByID(id)?.name ?? id; } catch { return id; } };
   const tents = () => { const it = tentItem(); try { return it === undefined ? 0 : game.bank.getQty(it); } catch { return 0; } };
 
   // ---- words ---------------------------------------------------------------------------------------------------------
@@ -134,7 +135,17 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     const name = nameOf(O.parseKey(key));
     log(`tent at ${key} not put up (${why})`);
     if (why === 'cancel') { giveBack(o.build); notify(t('MOD_VOY_OUTPOST_BUILD_CANCELLED', { name })); }
-    else notify(t('MOD_VOY_OUTPOST_BUILD_STOPPED', { name }), 'danger');
+    else {
+      // The builder that stepped off the hex got the Tent back but never its set-aside skill (build .386): given
+      // back while it is idle within a hex of the tent; from farther a skill would move it to your hex, so the
+      // notice says it keeps no work.
+      const f = folksApi()?.folkById(o.build.folk);
+      const at = O.parseKey(key);
+      const near = f !== undefined && f.travel === 'idle' && f.place != null && at !== undefined && hexDistance(f.place, at) <= 1;
+      if (near) giveBack(o.build);
+      notify(t('MOD_VOY_OUTPOST_BUILD_STOPPED', { name }), 'danger');
+      if (!near && f !== undefined && o.build.skill !== null) notify(t('MOD_VOY_OUTPOST_BUILD_NO_WORK', { folk: f.name, skill: skillNameOf(o.build.skill) }), 'danger');
+    }
     return true;
   };
   /** The tent is up: the hex is a camp now, and the builder goes back to its skill. */
@@ -149,9 +160,12 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     log(`tent up at ${key}`);
     notify(t('MOD_VOY_OUTPOST_PITCHED', { name: nameOf(O.parseKey(key)) }));
   };
-  /** The tents going up: [{ key, q, r, name, left, folk }]. */
+  /** The tents going up: [{ key, q, r, name, left, folk, paused }]. */
   const building = () => Object.entries(outposts()).filter(([, o]) => O.isBuilding(o))
-    .map(([key, o]) => ({ key, ...O.parseKey(key), name: nameOf(O.parseKey(key)), left: O.buildLeft(o, now()), folk: o.build.folk }));
+    .map(([key, o]) => ({ key, ...O.parseKey(key), name: nameOf(O.parseKey(key)), left: O.buildLeft(o, now()), folk: o.build.folk, paused: O.isPaused(o) }));
+  /** Why a paused build waits, from the builder's status: "on strike", "owed wages", "cooling down". */
+  const PAUSE_WORD = { strike: 'MOD_VOY_OUTPOST_PAUSE_STRIKE', debt: 'MOD_VOY_OUTPOST_PAUSE_DEBT', cooldown: 'MOD_VOY_OUTPOST_PAUSE_COOLDOWN' };
+  const pauseWord = (folkId) => t(PAUSE_WORD[folksApi()?.folkById(folkId)?.status] ?? 'MOD_VOY_OUTPOST_PAUSE_STRIKE');
   /** Each second: a tent whose work is done goes up, one whose builder left goes back to the bank. */
   let shown = '';
   const tick = () => {
@@ -163,16 +177,20 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
       const step = O.buildStep(o, key, api.folkById(o.build.folk), now());
       if (step === 'up') finishBuild(key);
       else if (step === 'stop') stopBuild(key, 'left');
+      // The work pauses while the builder is on strike, owed wages or cooling down (build .387), and goes on when it is
+      // back; the pause's length is added to the time. Offline only a pause begun before counts (the tick is online).
+      else if (step === 'paused') { if (!O.isPaused(o)) { setOutposts({ ...outposts(), [key]: O.pauseBuild(o, now()) }, false); log(`tent at ${key} paused: builder ${o.build.folk} is ${api.folkById(o.build.folk)?.status}`); } }
+      else if (O.isPaused(o)) { setOutposts({ ...outposts(), [key]: O.resumeBuild(o, now()) }, false); log(`tent at ${key} going on`); }
     }
-    // The Here panel's "N min left" follows the minutes.
-    const sig = building().map((b) => `${b.key}:${duration(b.left)}`).join('|');
+    // The Here panel's "N min left" follows the minutes, and the pause.
+    const sig = building().map((b) => `${b.key}:${b.paused ? 'p' : ''}${duration(b.left)}`).join('|');
     if (sig !== shown) { shown = sig; try { state.herePanel?.render?.(); } catch {} try { api.refresh(); } catch {} }
   };
   setInterval(() => { try { tick(); } catch (e) { log('tent building failed', e); } }, 1000);
   /** The card's line for a Folk putting a tent up, or undefined. */
   const builderText = (folkId) => {
     const b = building().find((x) => x.folk === folkId);
-    return b === undefined ? undefined : t('MOD_VOY_OUTPOST_BUILD_CARD', { time: duration(b.left) });
+    return b === undefined ? undefined : b.paused ? t('MOD_VOY_OUTPOST_BUILD_CARD_PAUSED', { why: pauseWord(b.folk), time: duration(b.left) }) : t('MOD_VOY_OUTPOST_BUILD_CARD', { time: duration(b.left) });
   };
 
   // ---- the outposts near you ---------------------------------------------------------------------------------------
@@ -307,9 +325,10 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     for (const b of building()) {
       if (hexDistance(pos, b) > 1) continue;
       const folk = folksApi()?.folkById(b.folk);
-      const text = t(same(pos, b) ? 'MOD_VOY_OUTPOST_BUILD_GOING' : 'MOD_VOY_OUTPOST_BUILD_GOING_NEXT', { name: folk?.name ?? '', time: duration(b.left) });
+      const text = b.paused ? t('MOD_VOY_OUTPOST_BUILD_PAUSED', { name: folk?.name ?? '', why: pauseWord(b.folk), time: duration(b.left) })
+        : t(same(pos, b) ? 'MOD_VOY_OUTPOST_BUILD_GOING' : 'MOD_VOY_OUTPOST_BUILD_GOING_NEXT', { name: folk?.name ?? '', time: duration(b.left) });
       html += `<div class="voyage-here-ship voyage-outpost-line"><span><span class="voyage-here-label">${esc(t('MOD_VOY_OUTPOST_TENT_LABEL'))}</span> ${esc(text)}</span>`
-        + `<span class="voyage-outpost-btns">${btn('cancel', b.key, 'btn-outline-info', t('MOD_VOY_OUTPOST_CANCEL'))}</span></div>`;
+        + `<span class="voyage-outpost-btns">${btn('cancel', b.key, 'btn-outline-danger', t('MOD_VOY_OUTPOST_BUILD_STOP'))}</span></div>`;
     }
     const act = pitchHere();
     if (['no-tent', 'unknown', 'sea', 'pitched'].includes(act)) return html;
@@ -322,7 +341,10 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     else if (act === 'full') {
       const max = O.maxOutposts(level());
       const next = O.nextOutpostLevel(level());
+      // A tent going up counts (build .386): say where, since none is in sight.
+      const going = building()[0];
       text = max === 0 ? t('MOD_VOY_OUTPOST_LEVEL', { level: `${O.OUTPOST_LEVELS[0]}` })
+        : going !== undefined ? t('MOD_VOY_OUTPOST_FULL_GOING', { n: `${max}`, place: nameOf(going) })
         : t(next === null ? 'MOD_VOY_OUTPOST_FULL' : 'MOD_VOY_OUTPOST_FULL_NEXT', { n: `${max}`, level: `${next}` });
     }
     const pitchBtn = act === 'pitch' ? btn('pitch', '', 'btn-success', t('MOD_VOY_OUTPOST_PITCH')) : '';
@@ -334,7 +356,21 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     const redraw = () => { try { state.herePanel?.render?.(); } catch {} };
     const key = el.dataset.outpostKey ?? '';
     if (el.dataset.outpostAct === 'pitch') { if (pitch()) redraw(); return; }
-    if (el.dataset.outpostAct === 'cancel') { if (stopBuild(key, 'cancel')) redraw(); return; }
+    if (el.dataset.outpostAct === 'cancel') {
+      // Stopping a build loses the work so far (build .386: a blue "Cancel" fired at once): red, and it asks first.
+      const b = building().find((x) => x.key === key);
+      if (b === undefined) return;
+      SwalLocale.fire({
+        didRender: state.popupDidRender,
+        customClass: swalClass({ ...SWAL_CLASS, confirmButton: 'btn btn-danger m-1' }),
+        title: t('MOD_VOY_OUTPOST_BUILD_STOP'),
+        html: `<div class="text-center">${esc(t('MOD_VOY_OUTPOST_BUILD_STOP_ASK', { place: b.name }))}</div>`,
+        showCancelButton: true,
+        confirmButtonText: t('MOD_VOY_OUTPOST_BUILD_STOP'),
+        cancelButtonText: t('MOD_VOY_OUTPOST_CANCEL'),
+      }).then((r) => { if (r.isConfirmed && stopBuild(key, 'cancel')) redraw(); });
+      return;
+    }
     if (el.dataset.outpostAct === 'store') { askStore(key, redraw); return; }
     if (el.dataset.outpostAct === 'strike') askStrike(key, redraw);
   };

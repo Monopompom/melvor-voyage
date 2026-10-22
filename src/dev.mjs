@@ -104,7 +104,8 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
     /**
      * What the next game save will hold for mods: runs the loader's own encoder (`mod.encode`, the call
      * Game.encode makes) into a recording writer and lists each entry's settings sections and characterStorage keys.
-     * Voyage is the entry with a "Voyage" settings section; Worker Folks has "Hiring" and "Wages".
+     * Voyage is the entry with the "Rules", "Travel", "Display" and "Keys" settings sections (one "Voyage" section
+     * until build .387); Worker Folks has "Hiring" and "Wages".
      */
     saveCheck() {
       const out = [];
@@ -547,6 +548,11 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       const now = state.clockNow?.() ?? Date.now();
       return { storms: w.stormsAt(now), near: p === undefined ? [] : w.stormsNear(p.q, p.r, 3), on: w.stormsOn() };
     },
+    /**
+     * voyageDev.event('pirates'): the next big-ship deep-sea hex of a voyage meets pirates; voyageDev.event('stowaway'):
+     * the next voyage with enough sea hexes carries a stowaway. Each fires once.
+     */
+    event(kind) { return state.events?.force?.(kind) ?? 'events not loaded'; },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },
     state,

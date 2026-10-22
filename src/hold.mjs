@@ -254,7 +254,16 @@ export function install(ctx, { state, shipModel, helpLayout, log }) {
     } catch (e) { log('hold stow block failed', e); }
   });
 
-  const api = { hold, slots, contents, blocker, stow: stowItem, take: takeItem, sell: sellItem, kinds, reachable, defaultKind, hullName };
+  /** `k` crates overboard at random (the pirates, build .387): what went, [{ item, qty, cargo }]; nothing from a hold that can't be used. */
+  const jettison = (k, kind = 'ship') => {
+    if (!(k > 0) || !usable()) return [];
+    const { hold: next, dropped } = shipModel.jettison(hold(kind), k);
+    if (dropped.length === 0) return [];
+    write(kind, next);
+    log(`${dropped.length} crate(s) overboard from the ${kind}'s hold: ${dropped.map((e) => `${e.qty} ${e.id}`).join(', ')}`);
+    return dropped.map((e) => ({ item: game.items.getObjectByID(e.id), qty: e.qty, cargo: e.cargo }));
+  };
+  const api = { hold, slots, contents, blocker, stow: stowItem, take: takeItem, sell: sellItem, jettison, kinds, reachable, defaultKind, hullName };
   state.hold = api;
   return api;
 }

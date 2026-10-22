@@ -231,6 +231,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
     const here = map()?.playerPosition;
     setCur(null);
     setEnd(A.cleanAdriftEnd({ how, by, at: state.clockNow?.() ?? Date.now(), drifted: a.drifted, where: here === undefined ? '' : placeWords(here) }));
+    try { state.clock?.closeEnding?.(); } catch {} // one ending notice at a time (build .386)
     // The voyage's own "adrift" ending is stale now: this note says how it ended.
     try { const s = skill(); if (s?.record.ending?.how === 'adrift') s.record.ending = { ...s.record.ending, closed: true, seen: true }; } catch {}
     log(`adrift ended: ${how}${by ? ` (${by})` : ''} after ${a.drifted} hexes`);
@@ -475,13 +476,16 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
     if (a === null) return;
     const lines = [esc(t('MOD_VOY_ADRIFT_POPUP_WHY', { why: '\u0001' })).replace('\u0001', `<b class="text-danger">${esc(whyWords(a.why))}</b>`)]; // what you are short of, bold red (.308, C2-09)
     const left = leftHexes();
-    lines.push(`<b>${esc(t('MOD_VOY_ADRIFT_WAY_DRIFT_HEAD'))}</b> ${marked(t, 'MOD_VOY_ADRIFT_WAY_DRIFT', { hexes: hexes(left) }, { time: mark.time(duration(Math.max(0, left - 1) * A.DRIFT_MS + a.left * C.TICK_MS)) })}`);
     const tow = paidTow();
-    lines.push(`<b>${esc(t('MOD_VOY_ADRIFT_WAY_TOW_HEAD'))}</b> ${tow === undefined ? esc(t('MOD_VOY_ADRIFT_WAY_TOW_NONE')) : marked(t, 'MOD_VOY_ADRIFT_WAY_TOW', {}, { name: mark.name(portName(tow.port)), gp: gpMark(tow.gp) })}`);
-    lines.push(`<b>${esc(t('MOD_VOY_ADRIFT_WAY_FISH_HEAD'))}</b> ${esc(t('MOD_VOY_ADRIFT_WAY_FISH'))}${fishLevelWords()}`);
+    // The three ways as the block's "Ways out" band (build .386; one thing drawn one way): icon, bold lead, the rest.
+    const ways = helpLayout.waysHtml(t('MOD_VOY_ADRIFT_WAYS_HEAD'), [
+      { icon: 'fa-water', lead: t('MOD_VOY_ADRIFT_WAY_DRIFT_HEAD'), html: marked(t, 'MOD_VOY_ADRIFT_WAY_DRIFT', { hexes: hexes(left) }, { time: mark.time(duration(Math.max(0, left - 1) * A.DRIFT_MS + a.left * C.TICK_MS)) }) },
+      { icon: 'fa-anchor', lead: t('MOD_VOY_ADRIFT_WAY_TOW_HEAD'), html: tow === undefined ? esc(t('MOD_VOY_ADRIFT_WAY_TOW_NONE')) : marked(t, 'MOD_VOY_ADRIFT_WAY_TOW', {}, { name: mark.name(portName(tow.port)), gp: gpMark(tow.gp) }), cls: tow === undefined ? 'text-warning' : '' },
+      { icon: 'fa-fish', lead: t('MOD_VOY_ADRIFT_WAY_FISH_HEAD'), html: `${esc(t('MOD_VOY_ADRIFT_WAY_FISH'))}${fishLevelWords()}` },
+    ]);
     swal({
       title: t('MOD_VOY_ADRIFT_TITLE'),
-      html: helpLayout.msgHtml(lines),
+      html: helpLayout.msgHtml(lines) + ways,
       imageUrl: hullArt(),
       ...helpLayout.MSG_IMAGE,
       showDenyButton: true,
@@ -593,7 +597,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
     const short = tow !== undefined && game.gp.amount < tow.gp;
     const payBtn = tow === undefined ? ''
       : short
-        ? `<button type="button" class="btn btn-secondary" disabled title="${esc(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(tow.gp), have: haveNum(game.gp.amount) }))}">${esc(t('MOD_VOY_ADRIFT_TOW_PAY_BTN'))}</button>`
+        ? `<button type="button" class="btn btn-outline-secondary" disabled>${esc(t('MOD_VOY_ADRIFT_TOW_PAY_BTN'))}</button>` // the red price on the Tow line says why (build .386: no title on a disabled button)
         : `<button type="button" class="btn btn-success" data-voyage-adrift-do="tow">${esc(t('MOD_VOY_ADRIFT_TOW_PAY_BTN'))}</button>`; // the price is on the Tow line above (main buttons have one width)
     return `<div class="voyage-clock-top"><img class="voyage-clock-pic" src="${esc(hullArt())}" alt="">`
       + `<div><h5 class="font-w600 mb-0 text-warning"><i class="fa fa-water mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_ADRIFT_TITLE'))}</h5>`
@@ -656,6 +660,8 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
     play: (id) => { if (cur() !== null) play(id); },
     paidTow,
   };
+  /** The last adrift notice closed (an arrival took its place, build .386). */
+  api.closeEnd = () => { const e = lastEnd(); if (e !== null && e.closed !== true) { setEnd({ ...e, closed: true }); changed(); } };
   state.adrift = api;
   return api;
 }

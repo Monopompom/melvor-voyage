@@ -5,6 +5,7 @@ import {
   PER_CONTAINER, FLOOR, NO_CARGO, MAX_LOADS, SALE_SHARE, REPEAT, portsOf, laneDistances, regions, rng, weighted, requestSize, sizeShare, SIZE_LEVEL, SIZE_MIN, payPer, makeRequest, makeBoard,
   damped, groupOfItem, byTrade, NEW_LEAN, THIN, thinShare, GLUT, RECENT, RECENT_SEASONS, FLOOR_SHARE, weigh, postSeason, recentGoods, noteSent,
   seasonOf, SEASON_MS, portOpen, portsNear, takeRun, loadable, load, inHold, deliver, sellOff, finished, cleanCargo, isCargo,
+  DUE_SHARE, plainTripMs, plainTripMsOf, dueAt, isLate, latePer, GP_PER_HEX, GOODS_PAY,
 } from '../src/cargo-model.mjs';
 
 const table = JSON.parse(readFileSync(new URL('../data/hex_terrain.json', import.meta.url), 'utf8'));
@@ -237,4 +238,32 @@ test('the save cleaner keeps good boards and runs, drops the rest', () => {
   const d = cleanCargo({ posted: 7, sent: { 'x:y': 6, bad: 'no', '': 3 } });
   assert.equal(d.posted, 7);
   assert.deepEqual(d.sent, { 'x:y': 6 });
+});
+
+test('a run is due one and a half plain trips after it is taken; late, it pays the goods once and no XP', () => {
+  const MIN = 60000;
+  const req = { id: 'q2', item: 'melvorD:Iron_Bar', c: 'crate', n: 5, to: 'PortOfNations', hexes: 18, gp: 50 * 20 * GOODS_PAY + GP_PER_HEX * 18, xp: 450 };
+  // One load: 18 hexes at 3 minutes; 13 crates in 6 slots: three loads there and two returns.
+  assert.equal(plainTripMs(req, 6, 3 * MIN), 54 * MIN);
+  assert.equal(plainTripMs({ ...req, n: 13 }, 6, 3 * MIN), 5 * 54 * MIN);
+  assert.equal(dueAt(req, 6, 3 * MIN, 1000), 1000 + DUE_SHARE * 54 * MIN);
+  assert.equal(dueAt(req, 6, undefined, 1000), 0, 'no pace (timed travel off): no deadline');
+  // The real road between the ports (build .387): a crossing of 40 minutes along the coast, not 18 hexes at 3.
+  assert.equal(plainTripMsOf(req, 6, 40 * MIN), 40 * MIN);
+  assert.equal(plainTripMsOf({ ...req, n: 13 }, 6, 40 * MIN), 5 * 40 * MIN);
+  assert.equal(dueAt(req, 6, 3 * MIN, 1000, 40 * MIN), 1000 + DUE_SHARE * 40 * MIN);
+  assert.equal(dueAt(req, 6, 3 * MIN, 1000, undefined), 1000 + DUE_SHARE * 54 * MIN, 'no road known: the straight lane');
+  assert.equal(dueAt(req, 6, undefined, 1000, 40 * MIN), 0, 'timed travel off: no deadline even with a road');
+  const run = takeRun(req, 'BeginningPort', dueAt(req, 6, 3 * MIN, 0));
+  assert.equal(isLate(run, run.due), false);
+  assert.equal(isLate(run, run.due + 1), true);
+  assert.equal(isLate({ ...run, due: 0 }, 1e15), false, 'an old run has none');
+  assert.equal(latePer(run), 50 * 20);
+  const hold = load([], run, 2);
+  const ok = deliver(hold, run, run.due);
+  assert.deepEqual([ok.gp, ok.xp, ok.late], [2 * req.gp, 900, false]);
+  const late = deliver(hold, run, run.due + 1);
+  assert.deepEqual([late.gp, late.xp, late.late, late.k], [2 * 1000, 0, true, 2]);
+  assert.equal(cleanCargo({ runs: [{ ...run, due: 123.9 }] }).runs[0].due, 123);
+  assert.equal(cleanCargo({ runs: [{ ...run, due: 'x' }] }).runs[0].due, 0);
 });

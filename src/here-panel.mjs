@@ -655,7 +655,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const dist = plan.distance === undefined ? '' : `<span class="voyage-chip-dist">${hexIcon}${plan.distance}</span>`;
       const tip = templateLangString('MOD_VOY_MINI_PLAN_HINT', { name: plan.name, hexes: plan.distance === undefined ? '?' : templateLangString(plan.distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${plan.distance}` }) });
       const icon = plan.media ? `<img class="voyage-chip-img" src="${esc(plan.media)}" alt="">` : '';
-      out.push(chip(`<i class="fa fa-route mr-1"></i>${icon}<span class="voyage-chip-name">${esc(plan.name)}</span>${dist}`, tip, 'btn btn-sm btn-outline-info', 'voyage-mini-plan'));
+      out.push(chip(`<i class="fa fa-route mr-1"></i>${icon}<span class="voyage-chip-name">${esc(plan.name)}</span>${dist}`, tip, 'text-info', 'voyage-chip-link voyage-mini-plan')); // one chip look (build .386)
     }
     // 7. What works here: four icons, then +N. Combat first when an area is in reach (build .278, the user: "we need
     // some indication that combat available at the place"): the Combat icon, its areas in the tooltip, a tap opens the
