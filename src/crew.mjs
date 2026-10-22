@@ -91,7 +91,7 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
     if (why !== undefined) { notify(why, 'danger'); return; }
     const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const holderName = (hid) => api().folkById(hid)?.name ?? '';
-    const skills = api().skills().filter((sk) => state.skillLockedHere?.(sk.id) !== true);
+    const skills = api().skills().filter((sk) => state.skillLockedHere?.(sk.id) !== true && state.folkSkillAllowed?.(sk.id) !== false);
     // The work as every Voyage pick (build .367, the user: "unify dropdowns"): the game's dropdown, each skill with its icon.
     const choices = [{ value: '', label: t('MOD_VOY_CREW_WORK_NOTHING') },
       ...skills.map((sk) => ({

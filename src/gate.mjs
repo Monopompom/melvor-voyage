@@ -221,6 +221,13 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   };
   /** A Folk's refusal is a toast with the reason, never the lock popup (its own Worker box says it before the click). */
   const toastFolk = (text) => { try { game.notifications.createErrorNotification('voyage:folk', text); } catch {} };
+  /** Cartography is yours alone (rules.FOLK_NEVER): { reason } for a Folk given it while the rules are on, else undefined. */
+  const yoursAlone = (folk, skillId) => {
+    if (!on() || folk === undefined || !rules.folkNever(skillId)) return undefined;
+    return { reason: line('MOD_VOY_FOLK_YOURS_ALONE', { name: esc(folk.name), skill: esc(skillLabel(skillId, game.skills.getObjectByID(skillId)?.name ?? skillId)) }).text };
+  };
+  /** The skills a Folk may be offered here: Worker Folks' list without those that are yours alone. */
+  state.folkSkillAllowed = (skillId) => yoursAlone({ name: '' }, skillId) === undefined;
   const folkWorkText = (skillId, { rec, folk }) => line('MOD_VOY_FOLK_WORK_NEEDS', {
     name: esc(folk.name), here: here(rec).html, skill: esc(skillLabel(skillId, game.skills.getObjectByID(skillId)?.name ?? skillId)), need: need(skillId).html,
   }).text;
@@ -366,7 +373,22 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     } catch { return ''; }
   };
   // Sidebar: a gated skill that is locked here is dimmed in the Non-Combat list (hover shows why).
+  /**
+   * Worker Folks' box on a page whose skill is yours alone (rules.FOLK_NEVER) is hidden while the rules are on (the
+   * user, 22 Oct 2026: the whole strip, not greyed tiles) and shown again when they go off. The box is mounted on
+   * character load, before this first runs on interface ready; on Cartography it sits in Worker Folks' own gutter.
+   */
+  const hideFolkBoxes = () => {
+    try {
+      for (const id of rules.FOLK_NEVER) {
+        const box = document.querySelector(`[data-wf-skill="${id}"]`);
+        if (box === null) continue;
+        (box.closest('.wf-ctrl-gutter') ?? box).classList.toggle('voyage-folk-box-hidden', on());
+      }
+    } catch (e) { log('folk box hide failed', e); }
+  };
   const dimSidebar = () => {
+    hideFolkBoxes();
     try {
       if (typeof sidebar === 'undefined') return;
       // sidebar.category(id) CREATES a missing category, so walk the existing ones instead.
@@ -734,6 +756,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     };
     api.registerGuard('staff', guard('staff', ({ action, folk, skillId }) => {
       if (action === 'hire') return hireRefusal();
+      // Cartography is yours alone, wherever the Folk stands (rules.FOLK_NEVER).
+      if (action === 'assign') { const yours = yoursAlone(folk, skillId); if (yours !== undefined) return yours; }
       // A Folk arriving from a walk (6d) is given the work it was sent for: only the hex it reached has to allow it.
       if (action === 'assign' && arriving(folk)) {
         const locked = lockedAt(skillId, folk.place);
@@ -753,7 +777,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       return locked === undefined ? undefined : { reason: describe(game.skills.getObjectByID(skillId), skillId, locked).lines[0].text };
     }));
     api.registerGuard('gear', guard('gear', ({ folk }) => walkingRefusal(folk) ?? farRefusal(folk)));
-    api.registerGuard('work', guard('work', ({ folk, skillId, skill }) => walkingRefusal(folk) ?? workRefusal(folk, skillId, skill)));
+    api.registerGuard('work', guard('work', ({ folk, skillId, skill }) => yoursAlone(folk, skillId) ?? walkingRefusal(folk) ?? workRefusal(folk, skillId, skill)));
     // A new Folk stands where it was hired; a Folk picked for a skill moves to your hex.
     const placeHere = (folk, why) => {
       const pos = state.position();
@@ -857,6 +881,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const arriving = (folk) => folk !== undefined && state.walks?.arriving?.() === folk.id;
   /** Why a Folk standing on `hex` can't do `action` of `skillId` there (6d's places), or undefined. Plain text. */
   state.folkWorkAt = (folk, skillId, action, hex) => {
+    const yours = yoursAlone(folk, skillId);
+    if (yours !== undefined) return yours.reason;
     const locked = lockedAt(skillId, hex);
     if (locked !== undefined) return folkWorkText(skillId, { ...locked, folk });
     const z = zoneLockedAt(action, hex);

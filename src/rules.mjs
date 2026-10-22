@@ -44,6 +44,19 @@ export const SKILL_RULES = {
   'melvorItA:Harvesting': { tier: 'terrain', areas: { IntoTheAbyss: 1 }, grace: 1, underCloud: true, noun: 'the Abyss' },
 };
 
+/**
+ * Skills a Folk is never given while Voyage runs (the user, 22 Oct 2026). Cartography: a voyage into the fog does
+ * the surveying itself, hex by hex at the survey's interval, and the game surveys around the player, not around the
+ * Folk's hex; a Folk surveying beside a voyage would reveal the map for free and skip the level gate on a trip.
+ * Without Voyage, Worker Folks hands Cartography out as any other skill.
+ */
+export const FOLK_NEVER = ['melvorAoD:Cartography'];
+
+/** True when `skillId` is yours alone: no Folk may hold it while the rules are on. */
+export function folkNever(skillId) {
+  return FOLK_NEVER.includes(skillId);
+}
+
 /** Features that mark a trading place: sell, buy and trade only here or one hex away. */
 export const TRADE_FEATURES = ['city', 'capital', 'port', 'market'];
 /** Combat areas, dungeons and trading places reach one hex around their tagged hex. */

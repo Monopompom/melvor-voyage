@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SKILL_RULES, gatedSkillIds, isGated, allowedAt, rateAt, appliesUnder, ruleNoun, ruleLabel, ruleTerms, combatAllowedAt, tradeAllowedAt, TRADE_FEATURES } from '../src/rules.mjs';
+import { SKILL_RULES, gatedSkillIds, isGated, allowedAt, rateAt, appliesUnder, ruleNoun, ruleLabel, ruleTerms, combatAllowedAt, tradeAllowedAt, TRADE_FEATURES, FOLK_NEVER, folkNever } from '../src/rules.mjs';
 
 const WC = 'melvorD:Woodcutting';
 const MINING = 'melvorD:Mining';
@@ -138,4 +138,12 @@ test('Harvesting works on the Abyss hex and next to it, at sea under cloud; nowh
   assert.equal(rateAt(H, cloudSea, { neighbours: () => [cloudSea] }), 0);
   assert.equal(rateAt(H, { t: 'grasslands', f: ['forest'] }, { neighbours: () => [{ t: 'grasslands' }] }), 0);
   assert.equal(rateAt(MINING, { t: 'mountain', cloud: true }), 0, 'other rules still stop under cloud');
+});
+
+test('Cartography is yours alone: no Folk holds it while Voyage runs (the user, 22 Oct 2026)', () => {
+  assert.deepEqual(FOLK_NEVER, ['melvorAoD:Cartography']);
+  assert.ok(folkNever('melvorAoD:Cartography'));
+  assert.ok(!folkNever(WC));
+  assert.ok(!folkNever('worker_folks:Hiring'));
+  assert.ok(!isGated('melvorAoD:Cartography'), 'the player keeps it anywhere: it is not a location rule');
 });

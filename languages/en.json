@@ -366,6 +366,7 @@
   "MOD_VOY_GATE_STOPPED": "${name} stopped: it does not work here.",
   "MOD_VOY_FOLK_TOO_FAR": "${name} is away: ${where}. Come within 1 hex to promote, gear, fire or settle.",
   "MOD_VOY_FOLK_WORK_NEEDS": "${name} stands on ${here}: ${skill} needs ${need}.",
+  "MOD_VOY_FOLK_YOURS_ALONE": "${skill} is yours alone: ${name} can't survey the map for you.",
   "MOD_VOY_FOLK_ZONE_NEEDS": "${name} stands on ${here}: no ${action} there.",
   "MOD_VOY_FOLK_NO_PLACE": "No place yet: picking this Folk for a skill puts it on your hex.",
   "MOD_VOY_FOLK_WITH_YOU": "With you on the road",

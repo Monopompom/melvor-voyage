@@ -117,7 +117,8 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   a lit hex at sea turns up a Steersman's Chart: read it from the bank to clear the fog of the sea you are on.
 - **Worker Folks.** With Worker Folks loaded, hiring needs a town or port, like Township. Every Folk stands on a hex:
   it is hired or picked for a skill on yours, works only what its hex allows, and you manage it from within a hex. A
-  Folk whose skill you take back keeps that job in mind, and you can give it back from anywhere.
+  Folk whose skill you take back keeps that job in mind, and you can give it back from anywhere. Cartography stays
+  yours: its page has no Worker box while Voyage's rules are on.
   Folks can also come along with you: each needs a berth on the water (dinghy 1, longboat 2, brig 6, galleon 12), and
   each eats from the stores by its rank and burns fuel as you do. On empty stores they go hungry and lose a tenth of
   their HP every hex, and hunger can kill. Put them ashore on land and pick their work there. The Crew block on the
