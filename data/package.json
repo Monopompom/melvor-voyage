@@ -310,7 +310,7 @@
             {
               "currency": "melvorD:GP",
               "type": "Fixed",
-              "cost": 5000
+              "cost": 50000
             }
           ]
         },
@@ -497,7 +497,7 @@
             {
               "currency": "melvorD:GP",
               "type": "Fixed",
-              "cost": 500000
+              "cost": 2500000
             }
           ]
         },
@@ -535,7 +535,7 @@
             {
               "currency": "melvorD:GP",
               "type": "Fixed",
-              "cost": 200000
+              "cost": 1000000
             }
           ]
         },

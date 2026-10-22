@@ -114,7 +114,8 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
    */
   const priceSteps = (have, steps, dest) => {
     const ends = endKind(steps);
-    const opts = { fmLevel: fmLevel(), reserve: Math.ceil(reserveAt(dest, ends) * (1 + crew().food)), crew: crew(), mods: mods() };
+    // The reserve feeds the crew at its sea share (build .399: the road share before, a Folk's sea trait left out).
+    const opts = { fmLevel: fmLevel(), reserve: Math.ceil(reserveAt(dest, ends) * (1 + (crew().seaFood ?? crew().food))), crew: crew(), mods: mods() };
     if (state.ship?.big?.() != null) {
       const hulls = {};
       for (const kind of ['boat', 'ship']) {

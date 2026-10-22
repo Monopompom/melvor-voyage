@@ -473,7 +473,11 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     let e = {};
     try { e = state.gear?.effects?.() ?? {}; } catch { e = {}; }
     const caps = state.gear?.CAPS ?? {};
-    return { gearPace: `${e.paceCut ?? 0}`, gearPaceCap: `${caps.paceCut ?? ''}`, gearPay: `${e.cargoPay ?? 0}`, gearPayCap: `${caps.cargoPay ?? ''}` };
+    // What the cut comes from: the relics are named only in Ancient Relics mode (the user, 22 Oct 2026: "drop if not on").
+    let on = false;
+    try { on = state.gear?.relicsOn?.() === true; } catch {}
+    return { gearPace: `${e.paceCut ?? 0}`, gearPaceCap: `${caps.paceCut ?? ''}`, gearPay: `${e.cargoPay ?? 0}`, gearPayCap: `${caps.cargoPay ?? ''}`,
+      gearPaceFrom: t(on ? 'MOD_VOY_JOURNAL_GEAR_PACE_FROM' : 'MOD_VOY_JOURNAL_GEAR_PACE_FROM_NR'), gearPayFrom: t(on ? 'MOD_VOY_JOURNAL_GEAR_PAY_FROM' : 'MOD_VOY_JOURNAL_GEAR_PAY_FROM_NR') };
   };
   /**
    * The Crew chapter's Worker Folks numbers from its API (build .386; they were typed): promotion's Hiring level, the

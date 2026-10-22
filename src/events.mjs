@@ -86,7 +86,7 @@ export function install(ctx, { state, EM, S, shipModel, helpLayout, rankName, lo
     const gone = state.hold?.jettison?.(EM.pirateRunLoss(crates()), 'ship') ?? [];
     log(`ran from pirates: -${pir.wear}% hull, now ${to}%, ${gone.length} crate(s) overboard`);
     const vars = { hull: state.ship?.hullName?.(state.ship?.vessel?.('ship')) ?? '', wear: `${pir.wear}`, cond: `${to}`, crates: `${gone.length}` };
-    const text = t(gone.length > 0 ? 'MOD_VOY_PIRATES_RAN_CRATES' : 'MOD_VOY_PIRATES_RAN', vars);
+    const text = t(gone.length === 1 ? 'MOD_VOY_PIRATES_RAN_CRATE' : gone.length > 1 ? 'MOD_VOY_PIRATES_RAN_CRATES' : 'MOD_VOY_PIRATES_RAN', vars);
     if (offlineNow()) away(`<span class="text-danger">${esc(t('MOD_VOY_PIRATES_AWAY_HEAD'))}</span>: ${esc(text)}`);
     else notify(text, to < EM.PIRATE_SOUND ? 'danger' : 'info');
     return true;
@@ -107,7 +107,7 @@ export function install(ctx, { state, EM, S, shipModel, helpLayout, rankName, lo
       // Ways out look, Pay with the coin and Run with the hull, the figures marked; the hold line plain under it.
       const ways = helpLayout.waysHtml('', [
         { icon: gpIcon(), lead: t('MOD_VOY_PIRATES_PAY_HEAD'), html: marked(t, 'MOD_VOY_PIRATES_PAY_LINE', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: `${EM.PIRATE_COIN_SHARE * 100}`, cap: `${EM.PIRATE_COIN_CAP / 1e6}`, hexes: `${EM.PIRATE_FLOOR_HEXES}` }, { gp: gpMark(pir.toll) }) },
-        { icon: hullIcon(), lead: t('MOD_VOY_PIRATES_RUN_HEAD'), html: marked(t, pir.loss > 0 ? 'MOD_VOY_PIRATES_RUN_LINE_CRATES' : 'MOD_VOY_PIRATES_RUN_LINE', { total: `${pir.crates}` }, { wear: `<b class="text-warning">${pir.wear}%</b>`, cond: `<b class="${to < EM.PIRATE_SOUND ? 'text-danger' : ''}">${to}%</b>`, crates: `<b class="text-warning">${pir.loss}</b>` }) },
+        { icon: hullIcon(), lead: t('MOD_VOY_PIRATES_RUN_HEAD'), html: marked(t, pir.loss > 0 ? (pir.crates === 1 ? 'MOD_VOY_PIRATES_RUN_LINE_CRATE' : 'MOD_VOY_PIRATES_RUN_LINE_CRATES') : 'MOD_VOY_PIRATES_RUN_LINE', { total: `${pir.crates}` }, { wear: `<b class="text-warning">${pir.wear}%</b>`, cond: `<b class="${to < EM.PIRATE_SOUND ? 'text-danger' : ''}">${to}%</b>`, crates: `<b class="text-warning">${pir.loss}</b>` }) },
       ]);
       fire({
         title: t('MOD_VOY_PIRATES_TITLE'),

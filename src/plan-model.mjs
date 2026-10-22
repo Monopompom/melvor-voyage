@@ -3,9 +3,12 @@
 // in the leg pricing (stores.mjs) and the loading places (stores-model.mjs loadingAt) as functions. Modules are
 // loaded one by one through ctx.loadModule, so stores-model.mjs comes in as the argument `S`, not an import.
 
-/** The unlock (decided 16 Oct 2026; numbers to tune in play): from this Voyage level, bought once at a port. */
+/**
+ * The unlock (decided 16 Oct 2026): from this Voyage level, bought once at a port. The GP is priced in days of the
+ * game's fares since build .399 (the brig's price, five levels before: 300,000 was a token beside them).
+ */
 export const NAVIGATOR = { level: 50, // voyage-model.mjs NAVIGATOR_LEVEL (the milestone)
-  gp: 300000, items: [{ id: 'voyage:Pitch', quantity: 100 }] };
+  gp: 10000000, items: [{ id: 'voyage:Pitch', quantity: 100 }] };
 
 /**
  * Why Navigator's Charts can't be bought now, or undefined when they can: 'owned', 'level', 'port' (not standing on

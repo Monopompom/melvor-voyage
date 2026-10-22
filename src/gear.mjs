@@ -126,6 +126,8 @@ export function install(ctx, { state, G, log }) {
     effects,
     /** The ceilings (gear-model.mjs CAPS), for the help and the Journal. */
     CAPS: G.CAPS,
+    /** Ancient Relics mode: the relics drop, and the help and the Journal name them (the user, 22 Oct 2026: "drop if not on"). */
+    relicsOn: () => { try { return game.currentGamemode?.allowAncientRelicDrops === true; } catch { return false; } },
     /** stores-model's { rations, fuel } percent changes. */
     costMods: () => G.costMods(effects()),
     /** The clock's factor on every hex's time. */

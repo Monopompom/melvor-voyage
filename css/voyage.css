@@ -1333,7 +1333,10 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 
 /* A refusal reads lower case after a colon elsewhere; on its own line it starts with a capital (build .367). */
 
-/* The purchase confirm's price band (help-layout confirmBuy, build .386): each cost its icon, amount and name. */
+/* The purchase confirm's price band (help-layout confirmBuy, build .386): each cost its icon, amount and name. The
+   label and the costs share one centred line (build .398; the user, 22 Oct 2026: "no common line"). */
+.voyage-buy-band { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px; }
+.voyage-buy-band .voyage-clock-head { margin-bottom: 0; }
 .voyage-buy-costs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; }
 .voyage-buy-cost { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
 /* A board's disabled button says why beside it (build .386): a short amber line under the button. */

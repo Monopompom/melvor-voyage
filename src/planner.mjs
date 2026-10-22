@@ -307,7 +307,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     const costs = navCosts();
     if (!costs.checkIfOwned()) return;
     // Asks first, by the game's shop-confirm setting (build .386; the user, 21 Oct 2026: 300,000 GP went at once).
-    helpLayout.confirmBuy({ name: t('MOD_VOY_PLAN_NAV_TITLE'), picture: ctx.getResourceUrl('assets/chart.webp'), didRender: state.popupDidRender, costs }, () => buyNow(costs));
+    // The charts' own art on top (build .398): the cover map drew nothing at the popup's 64 px (the user, 22 Oct 2026).
+    helpLayout.confirmBuy({ name: t('MOD_VOY_PLAN_NAV_TITLE'), picture: ctx.getResourceUrl('assets/sea_chart.webp'), didRender: state.popupDidRender, costs }, () => buyNow(costs));
   };
   const buyNow = (costs) => {
     if (navBlocker() !== undefined || !costs.checkIfOwned()) return;

@@ -773,10 +773,16 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     // The gear's cuts (4.31): what is worn now and the ceiling, from gear.mjs; no line without the gear module.
     const gear = state.gear;
     const ge = () => { try { return gear?.effects?.() ?? {}; } catch { return {}; } };
+    // Outside Ancient Relics mode the lines leave the relics out (the user, 22 Oct 2026: "drop if not on").
+    const relicsOn = () => { try { return gear?.relicsOn?.() === true; } catch { return false; } };
+    const NO_RELICS = {
+      MOD_VOY_HELP_GEAR_WEAR: 'MOD_VOY_HELP_GEAR_WEAR_NR', MOD_VOY_HELP_GEAR_PIRATES: 'MOD_VOY_HELP_GEAR_PIRATES_NR',
+      MOD_VOY_HELP_GEAR_SIGHT: 'MOD_VOY_HELP_GEAR_SIGHT_NR', MOD_VOY_HELP_GEAR_STORES: 'MOD_VOY_HELP_GEAR_STORES_NR',
+    };
     const gearLine = (key, id, vars = {}) => {
       if (gear === undefined) return [];
       const v = ge()[id] ?? 0;
-      const text = t(key, { ...vars, pct: `${v}`, cap: `${gear.CAPS?.[id] ?? ''}` });
+      const text = t(relicsOn() ? key : NO_RELICS[key] ?? key, { ...vars, pct: `${v}`, cap: `${gear.CAPS?.[id] ?? ''}` });
       return [v > 0 ? { text, cls: 'text-success' } : text];
     };
     if (topic === 'ship') {
@@ -954,7 +960,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
             { cells: [t('MOD_VOY_HELP_FIRST_HEX'), `+${model.DISCOVERY_XP}`], cls: ['text-success'] },
           ] } },
           t('MOD_VOY_HELP_XP_FAST_TRAVEL'),
-          ...(gear === undefined ? [] : [t('MOD_VOY_HELP_XP_GEAR')]),
+          ...(gear === undefined ? [] : [t(relicsOn() ? 'MOD_VOY_HELP_XP_GEAR' : 'MOD_VOY_HELP_XP_GEAR_NR')]),
         ] },
         { head: t('MOD_VOY_HELP_HEAD_DISCOUNT'), body: [
           t('MOD_VOY_HELP_DISCOUNT', { per: `${model.TRAVEL_DISCOUNT_PER_LEVEL}`, pct: `${model.travelDiscount(skill()?.level ?? 1)}`, max: `${model.travelDiscount(99)}` }),
