@@ -106,7 +106,7 @@ export function install(ctx, { state, EM, S, shipModel, helpLayout, rankName, lo
       // The two answers as a band (build .386; the user, 21 Oct 2026: "three plain centred lines"): the Adrift block's
       // Ways out look, Pay with the coin and Run with the hull, the figures marked; the hold line plain under it.
       const ways = helpLayout.waysHtml('', [
-        { icon: gpIcon(), lead: t('MOD_VOY_PIRATES_PAY_HEAD'), html: marked(t, 'MOD_VOY_PIRATES_PAY_LINE', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: `${EM.PIRATE_COIN_SHARE * 100}`, hexes: `${EM.PIRATE_FLOOR_HEXES}` }, { gp: gpMark(pir.toll) }) },
+        { icon: gpIcon(), lead: t('MOD_VOY_PIRATES_PAY_HEAD'), html: marked(t, 'MOD_VOY_PIRATES_PAY_LINE', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: `${EM.PIRATE_COIN_SHARE * 100}`, cap: `${EM.PIRATE_COIN_CAP / 1e6}`, hexes: `${EM.PIRATE_FLOOR_HEXES}` }, { gp: gpMark(pir.toll) }) },
         { icon: hullIcon(), lead: t('MOD_VOY_PIRATES_RUN_HEAD'), html: marked(t, pir.loss > 0 ? 'MOD_VOY_PIRATES_RUN_LINE_CRATES' : 'MOD_VOY_PIRATES_RUN_LINE', { total: `${pir.crates}` }, { wear: `<b class="text-warning">${pir.wear}%</b>`, cond: `<b class="${to < EM.PIRATE_SOUND ? 'text-danger' : ''}">${to}%</b>`, crates: `<b class="text-warning">${pir.loss}</b>` }) },
       ]);
       fire({

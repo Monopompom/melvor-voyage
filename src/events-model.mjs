@@ -9,6 +9,8 @@ export const PIRATE_SHARE = 0.25;
 export const PIRATE_FLOOR_HEXES = 3;
 /** …nor less than this share of the GP you carry (build .387, the user: at a 5 billion purse the toll was 1,419 GP, a non-event). */
 export const PIRATE_COIN_SHARE = 0.005;
+/** …that share capped at this many GP (build .396, the user: no toll scales without limit; at 0.5% the cap binds from a billion carried). */
+export const PIRATE_COIN_CAP = 5000000;
 /** Running throws this share of the hold's crates overboard, at least one when the hold holds any (build .387). */
 export const PIRATE_RUN_LOSS = 0.1;
 /** Running before the wind costs a stormy hex's wear (weather-model STORM_WEAR) and one more hex of sailing time. */
@@ -36,12 +38,12 @@ export function piratesMeet(step, roll) {
   return Number.isFinite(roll) && roll >= 0 && roll < PIRATE_CHANCE;
 }
 
-/** What paying them off costs: the most of PIRATE_SHARE of the hold's worth, PIRATE_FLOOR_HEXES hexes' GP and PIRATE_COIN_SHARE of `gp` carried; whole GP. */
+/** What paying them off costs: the most of PIRATE_SHARE of the hold's worth, PIRATE_FLOOR_HEXES hexes' GP and PIRATE_COIN_SHARE of `gp` carried (that share never over PIRATE_COIN_CAP); whole GP. */
 export function pirateToll(holdWorth, hexGp, gp = 0) {
   const worth = Number.isFinite(holdWorth) && holdWorth > 0 ? holdWorth : 0;
   const hex = Number.isFinite(hexGp) && hexGp > 0 ? hexGp : 0;
   const coin = Number.isFinite(gp) && gp > 0 ? gp : 0;
-  return Math.max(1, Math.round(Math.max(worth * PIRATE_SHARE, hex * PIRATE_FLOOR_HEXES, coin * PIRATE_COIN_SHARE)));
+  return Math.max(1, Math.round(Math.max(worth * PIRATE_SHARE, hex * PIRATE_FLOOR_HEXES, Math.min(coin * PIRATE_COIN_SHARE, PIRATE_COIN_CAP))));
 }
 /** How many of `crates` in the hold go overboard on a run: PIRATE_RUN_LOSS of them, rounded up (one of one). */
 export const pirateRunLoss = (crates) => (Number.isFinite(crates) && crates > 0 ? Math.ceil(crates * PIRATE_RUN_LOSS) : 0);

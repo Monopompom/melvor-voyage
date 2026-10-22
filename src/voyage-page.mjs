@@ -804,7 +804,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
           const EM = state.events.model;
           return { head: t('MOD_VOY_HELP_HEAD_PIRATES'), body: [
             t('MOD_VOY_HELP_PIRATES', { chance: `${Math.round(1 / EM.PIRATE_CHANCE)}` }),
-            { text: t('MOD_VOY_HELP_PIRATES_PAY', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: `${EM.PIRATE_COIN_SHARE * 100}`, hexes: `${EM.PIRATE_FLOOR_HEXES}` }), cls: 'text-warning' },
+            { text: t('MOD_VOY_HELP_PIRATES_PAY', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: `${EM.PIRATE_COIN_SHARE * 100}`, cap: `${EM.PIRATE_COIN_CAP / 1e6}`, hexes: `${EM.PIRATE_FLOOR_HEXES}` }), cls: 'text-warning' },
             { text: t('MOD_VOY_HELP_PIRATES_RUN', { wear: `${EM.pirateRunWear(storesModel.WEAR.deep)}` }), cls: 'text-warning' },
             t('MOD_VOY_HELP_PIRATES_AWAY', { sound: `${EM.PIRATE_SOUND}` }),
             ...gearLine('MOD_VOY_HELP_GEAR_PIRATES', 'pirateCut'),

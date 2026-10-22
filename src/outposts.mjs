@@ -48,7 +48,11 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     return t('MOD_VOY_OUTPOST_NAME', { land, hex: hexText(h) }).trim();
   };
   let noteN = 0;
+  const offlineNow = () => { try { return game._isInOnlineLoop === false; } catch { return false; } };
+  /** Offline (a tent up or stopped in the catch-up, build .396) the word goes to Welcome Back with the weather's lines. */
+  const away = (text, kind) => { try { state.weather?.tellAway?.(`<img class="skill-icon-xs mr-1" src="${esc(media())}" alt=""><span class="${kind === 'danger' ? 'text-danger' : ''}">${esc(text)}</span>`); } catch {} };
   const notify = (text, kind = 'success') => {
+    if (offlineNow()) { away(text, kind); return; }
     try {
       if (kind === 'danger') game.notifications.createErrorNotification(`voyage:outpost:${noteN++}`, text);
       else game.notifications.createSuccessNotification(`voyage:outpost:${noteN++}`, text, media());
@@ -166,10 +170,17 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   /** Why a paused build waits, from the builder's status: "on strike", "owed wages", "cooling down". */
   const PAUSE_WORD = { strike: 'MOD_VOY_OUTPOST_PAUSE_STRIKE', debt: 'MOD_VOY_OUTPOST_PAUSE_DEBT', cooldown: 'MOD_VOY_OUTPOST_PAUSE_COOLDOWN' };
   const pauseWord = (folkId) => t(PAUSE_WORD[folksApi()?.folkById(folkId)?.status] ?? 'MOD_VOY_OUTPOST_PAUSE_STRIKE');
-  /** Each second: a tent whose work is done goes up, one whose builder left goes back to the bank. */
-  let shown = '';
-  const tick = () => {
+  /**
+   * The build steps, on the skill's passive tick, online and offline (build .396; until then a one-second timer that
+   * ran online only, so a pause set before logout lasted the whole time away and a strike begun offline went unseen):
+   * a tent whose work is done goes up, one whose builder left goes back to the bank, one whose builder is on strike,
+   * owed wages or cooling down (build .387) pauses, and goes on when it is back, the pause's length added to the
+   * time. Worker Folks strikes and settles at the replayed moment offline, so the pause lasts as long as the strike.
+   */
+  const buildTick = () => {
     if (!usable()) return;
+    const raw = record()?.outposts;
+    if (raw == null || typeof raw !== 'object' || !Object.values(raw).some((o) => o?.build !== undefined)) return;
     const api = folksApi();
     if (api === undefined) return;
     for (const [key, o] of Object.entries(outposts())) {
@@ -177,14 +188,17 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
       const step = O.buildStep(o, key, api.folkById(o.build.folk), now());
       if (step === 'up') finishBuild(key);
       else if (step === 'stop') stopBuild(key, 'left');
-      // The work pauses while the builder is on strike, owed wages or cooling down (build .387), and goes on when it is
-      // back; the pause's length is added to the time. Offline only a pause begun before counts (the tick is online).
       else if (step === 'paused') { if (!O.isPaused(o)) { setOutposts({ ...outposts(), [key]: O.pauseBuild(o, now()) }, false); log(`tent at ${key} paused: builder ${o.build.folk} is ${api.folkById(o.build.folk)?.status}`); } }
       else if (O.isPaused(o)) { setOutposts({ ...outposts(), [key]: O.resumeBuild(o, now()) }, false); log(`tent at ${key} going on`); }
     }
-    // The Here panel's "N min left" follows the minutes, and the pause.
+  };
+  /** Each second online: the build steps again (harmless twice), and the Here panel's "N min left" follows the minutes, and the pause. */
+  let shown = '';
+  const tick = () => {
+    buildTick();
+    if (!usable() || folksApi() === undefined) return;
     const sig = building().map((b) => `${b.key}:${b.paused ? 'p' : ''}${duration(b.left)}`).join('|');
-    if (sig !== shown) { shown = sig; try { state.herePanel?.render?.(); } catch {} try { api.refresh(); } catch {} }
+    if (sig !== shown) { shown = sig; try { state.herePanel?.render?.(); } catch {} try { folksApi()?.refresh(); } catch {} }
   };
   setInterval(() => { try { tick(); } catch (e) { log('tent building failed', e); } }, 1000);
   /** The card's line for a Folk putting a tent up, or undefined. */
@@ -432,7 +446,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
 
   const api = {
     list, near, outposts, tents, pitchHere, pitch, share, strike, askStore, askStrike, panelHtml, click, nameOf,
-    media, refreshMarkers, building, stopBuild, builderText, tick,
+    media, refreshMarkers, building, stopBuild, builderText, tick, buildTick,
     /** On character load, after the terrain and its ice: lays the camps. */
     loaded() { try { sync(); tick(); } catch (e) { log('outposts failed to load', e); } },
   };

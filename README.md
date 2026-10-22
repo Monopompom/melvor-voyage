@@ -56,9 +56,10 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   meanwhile (offline too; Stop keeps the work done so far, and the logs and Pitch for the rest are lost). Below 50% a
   sea hex takes 25% longer and the hull keeps out of deep water. A worn-out hull can always limp back to the coast.
 - **Pirates.** On a timed voyage, pirates sometimes meet the big ship on deep sea, and the voyage waits for your
-  answer: pay them a quarter of what your hold would sell for (never less than what three hexes of travel cost), or
-  run, for a stormy hex's hull wear and one hex more at sea. Offline the choice is made for you: run while the hull
-  would stay at 50% or more, else pay if you can, told in Welcome Back.
+  answer: pay them a quarter of what your hold would sell for or 0.5% of the GP you carry (up to 5 million),
+  whichever is more and never less than what three hexes of travel cost, or run, for a stormy hex's hull wear, one
+  crate in ten overboard and one hex more at sea. Offline the choice is made for you: run while the hull would stay
+  at 50% or more, else pay if you can, told in Welcome Back.
 - **The hold.** Each vessel has a hold for bank items: one kind of item a slot, in any amount (dinghy 6, longboat 12,
   brig 18, galleon 24, and a row of six more at Voyage 35 and 55). Stow items from the bank's item panel and take them
   back on the Voyage page, standing on the vessel or next to it. The hold is kept in the mod's save data: take everything out before you remove the mod.

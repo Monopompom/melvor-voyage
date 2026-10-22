@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PIRATE_CHANCE, PIRATE_FLOOR_HEXES, PIRATE_SOUND, STOWAWAY_CHANCE, STOWAWAY_MIN_SEA, STOWAWAY_NAMES, STOWAWAY_PRICE_SHARE,
-  piratesMeet, pirateToll, PIRATE_COIN_SHARE, PIRATE_RUN_LOSS, pirateRunLoss, pirateRunWear, pirateChoice, condAfterRun, stowawayAt, stowawayName, stowawayPrice, cleanEvents,
+  piratesMeet, pirateToll, PIRATE_COIN_SHARE, PIRATE_COIN_CAP, PIRATE_RUN_LOSS, pirateRunLoss, pirateRunWear, pirateChoice, condAfterRun, stowawayAt, stowawayName, stowawayPrice, cleanEvents,
 } from '../src/events-model.mjs';
 import { STORM_WEAR } from '../src/weather-model.mjs';
 import { WEAR } from '../src/stores-model.mjs';
@@ -28,9 +28,13 @@ test('pirates: the toll is a share of the hold, never less than a few hexes of G
   assert.equal(pirateToll(0, 75000), 75000 * PIRATE_FLOOR_HEXES);
   assert.equal(pirateToll(100000, 75000), 225000, 'the floor wins over a small hold');
   assert.equal(pirateToll(undefined, undefined), 1);
-  // A share of the purse too (build .387): 5 billion carried makes a 1,419 GP floor 25 million.
+  // A share of the purse too (build .387): 500 million carried makes a 1,419 GP floor 2.5 million…
   assert.equal(PIRATE_COIN_SHARE, 0.005);
-  assert.equal(pirateToll(0, 473, 5e9), 25000000);
+  assert.equal(pirateToll(0, 473, 5e8), 2500000);
+  // …capped at 5 million (build .396): 5 billion carried pays the cap, not 25 million; the hold's share has no cap.
+  assert.equal(PIRATE_COIN_CAP, 5000000);
+  assert.equal(pirateToll(0, 473, 5e9), 5000000, 'the purse share is capped');
+  assert.equal(pirateToll(40000000, 473, 5e9), 10000000, 'the hold share is not');
   assert.equal(pirateToll(1000000, 75000, 1000), 250000, 'a small purse changes nothing');
   assert.equal(pirateToll(0, 75000, NaN), 75000 * PIRATE_FLOOR_HEXES);
 });

@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-22.395';
+export const BUILD = '2026-10-22.397';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -412,6 +412,8 @@ export async function setup(ctx) {
   try {
     (await ctx.loadModule('src/outposts.mjs')).install(ctx, { state, O: outpostModel, terrainMod, helpLayout, log });
     state.outpostModel = outpostModel;
+    // A tent's build steps run on the skill's passive tick, online and offline (build .396).
+    { const s = voyageSkill(); if (s !== undefined) s.outpostTick = () => state.outposts?.buildTick?.(); }
   } catch (e) { console.error('[Voyage] outposts failed to load; no tents', e); state.outposts = undefined; }
   // Travel traits (phase 6f): Voyage's ten traits in Worker Folks' slots (its API 5). A failure: no travel traits.
   try {

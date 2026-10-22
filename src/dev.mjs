@@ -401,17 +401,17 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       const h = map()?.getHex(new HexCoords(spot.q, spot.r));
       return `brig at ${h ? display(h) : `q ${spot.q}, r ${spot.r}`}`;
     },
-    /** The brig's price on top of what you have: 150,000 GP, 400 Teak Logs, 100 Steel Bars, 75 Pitch, 250 Big Bones. */
+    /** The brig's price on top of what you have: 10,000,000 GP, 400 Teak Logs, 100 Steel Bars, 75 Pitch, 250 Big Bones. */
     brigMaterials() {
-      game.gp.add(150000);
+      game.gp.add(10000000);
       for (const [id, q] of [['melvorD:Teak_Logs', 400], ['melvorD:Steel_Bar', 100], ['voyage:Pitch', 75], ['melvorD:Big_Bones', 250]]) game.bank.addItemByID(id, q, false, true, true);
-      return 'added 150,000 GP, 400 Teak Logs, 100 Steel Bars, 75 Pitch, 250 Big Bones';
+      return 'added 10,000,000 GP, 400 Teak Logs, 100 Steel Bars, 75 Pitch, 250 Big Bones';
     },
-    /** The galleon's price on top of what you have (build .152): 600,000 GP, 500 Yew Logs, 150 Mithril Bars, 150 Pitch, 550 Big Bones. */
+    /** The galleon's price on top of what you have (build .152): 50,000,000 GP, 500 Yew Logs, 150 Mithril Bars, 150 Pitch, 550 Big Bones. */
     galleonMaterials() {
-      game.gp.add(600000);
+      game.gp.add(50000000);
       for (const [id, q] of [['melvorD:Yew_Logs', 500], ['melvorD:Mithril_Bar', 150], ['voyage:Pitch', 150], ['melvorD:Big_Bones', 550]]) game.bank.addItemByID(id, q, false, true, true);
-      return 'added 600,000 GP, 500 Yew Logs, 150 Mithril Bars, 150 Pitch, 550 Big Bones';
+      return 'added 50,000,000 GP, 500 Yew Logs, 150 Mithril Bars, 150 Pitch, 550 Big Bones';
     },
     /** Turns the big ship into a galleon where it lies (`'brig'` turns it back), hold and condition kept. */
     galleon(hull = 'galleon') {

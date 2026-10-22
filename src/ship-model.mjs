@@ -33,12 +33,12 @@ export const BIG_TIER = 3;
 export const isBig = (v) => tierOf(v) >= BIG_TIER;
 
 /**
- * Big ships bought at a port: the user's price, 16 Oct 2026, a placeholder for the
- * balance pass like the longboat's.
+ * Big ships bought at a port. The GP was a placeholder (150,000) until build .397 (the user, 22 Oct 2026): priced in
+ * days of the game's fares, as the longboat's and the galleon's, so the GP gates as the items do.
  */
 export const BIG_SHIPS = {
   brig: {
-    level: 45, gp: 150000,
+    level: 45, gp: 10000000,
     items: [{ id: 'melvorD:Teak_Logs', quantity: 400 }, { id: 'melvorD:Steel_Bar', quantity: 100 }, { id: 'voyage:Pitch', quantity: 75 },
       // Big Bones for the ribs, as the longboat's (build .177, the user): 250 for the first big ship.
       { id: 'melvorD:Big_Bones', quantity: 250 }],
@@ -60,20 +60,20 @@ export function buyBlocker(spec, have) {
 
 /**
  * Upgrades of the hull you have: built on the Voyage page at a port with the
- * old hull at the quay, for a Voyage level, GP and items. Costs are placeholders for the balance pass (4.26).
+ * old hull at the quay, for a Voyage level, GP and items. The GP is priced in days of the game's fares since build .397 (the longboat was 25,000) (4.26).
  */
 export const UPGRADES = {
   longboat: {
-    from: 'dinghy', level: 30, gp: 25000,
+    from: 'dinghy', level: 30, gp: 2000000,
     items: [{ id: 'melvorD:Oak_Logs', quantity: 300 }, { id: 'melvorD:Iron_Bar', quantity: 50 }, { id: 'voyage:Pitch', quantity: 25 },
       // Big Bones for the ribs of the bigger boat (build .158, the user): about fifty giants' worth of combat.
       { id: 'melvorD:Big_Bones', quantity: 50 }],
     /** data/skill.json's English name for its milestone (setup.mjs finds the milestone by it). */
     milestone: 'Longboat: Built at a port',
   },
-  /** The big ship's upgrade (build .152): a placeholder price for the balance pass. */
+  /** The big ship's upgrade (build .152); the GP in days of fares since build .397 (was 600,000). */
   galleon: {
-    from: 'brig', level: 60, gp: 600000,
+    from: 'brig', level: 60, gp: 50000000,
     items: [{ id: 'melvorD:Yew_Logs', quantity: 500 }, { id: 'melvorD:Mithril_Bar', quantity: 150 }, { id: 'voyage:Pitch', quantity: 150 },
       // Big Bones (build .177, the user): 550 for the biggest.
       { id: 'melvorD:Big_Bones', quantity: 550 }],
