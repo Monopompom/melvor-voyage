@@ -147,7 +147,7 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   each eats from the stores by its rank and burns fuel as you do. On empty stores they go hungry and lose a tenth of
   their HP every hex, and hunger can kill. Put them ashore on land and pick their work there. The Crew block on the
   Voyage page lists them.
-  With Walking Orders from the Voyage shop (Voyage level 20), a Folk with you or within a hex can be sent alone to
+  With Walking Orders from the Voyage shop (Voyage level 30), a Folk with you or within a hex can be sent alone to
   work at a place your Journal found: pick the skill, the resource and the place, or press Send a Folk here on a
   Journal resource page. It walks on foot over land you know, packing its food and fuel from the stores, and starts
   the work when it arrives, offline too. The map shows it with a boot badge and its road dashed; Stop here halts it.
