@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-22.388';
+export const BUILD = '2026-10-22.393';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -111,6 +111,11 @@ export async function setup(ctx) {
   // Items and shop entries (the compass). Registered before any character loads, and after the skill (build .361):
   // the shop's Voyage-level requirements are resolved when this package registers, so the skill must be there first.
   try { await ctx.gameData.addPackage('data/package.json'); } catch (e) { console.error('[Voyage] data package failed; the compass is unavailable', e); }
+  // Gear, relics and the Albatross: its data after the package it draws on (the Sack and the Crate).
+  // A failure leaves the rest: no outfit in the shop, no relic set, no tablet.
+  const gearModel = await ctx.loadModule('src/gear-model.mjs');
+  const gearMod = await ctx.loadModule('src/gear.mjs');
+  try { await gearMod.register(ctx, { G: gearModel, log }); } catch (e) { console.error('[Voyage] gear data failed; no outfit, relics or Albatross', e); }
   // Names that live in the data files come from the language file too (the English there is the fallback). The shop
   // purchase takes its name and description from the item.
   try {
@@ -387,6 +392,9 @@ export async function setup(ctx) {
   } catch (e) { console.error('[Voyage] land upgrades failed to load; the rest runs', e); state.land = undefined; }
   // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
   const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, log });
+  // Gear, relics and the Albatross (4.31): the effects the stores, the clock, cargo and the pirates read, and the rolls
+  // after a landed move. A failure: the gear's items do nothing.
+  try { gearMod.install(ctx, { state, G: gearModel, log }); } catch (e) { console.error('[Voyage] gear failed to load; its effects are off', e); state.gear = undefined; }
   // The crew (phase 6c): Folks who go along with you, in berths, eating from the stores. A failure leaves them ashore.
   let crew;
   try {
@@ -570,6 +578,8 @@ export async function setup(ctx) {
             const paid = voyageSkill()?.onTravelled(steps, entered);
             if (paid !== undefined) state.pace?.({ ...paid, gp: Math.max(0, gpBefore - game.gp.amount), xpBefore });
             state.weather?.stepped?.(steps);
+            // Gear, relics and the Albatross (4.31): the relic and Lesser Relic rolls, the tablet charges and the mark rolls, one each per hex entered.
+            try { state.gear?.afterMove?.(steps); } catch (e) { log('gear after move failed', e); }
           }
           ship.afterMove(path);
         }

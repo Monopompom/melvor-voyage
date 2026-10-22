@@ -1,0 +1,433 @@
+{
+  "$schema": "https://melvoridle.com/assets/schema/gameData.json",
+  "namespace": "voyage",
+  "data": {
+    "modifiers": [
+      {
+        "id": "rationCut",
+        "allowedScopes": [
+          {
+            "scopes": {},
+            "descriptions": [
+              {
+                "text": "-${value}% rations per hex",
+                "includeSign": false,
+                "lang": "MOD_VOY_MODIFIER_rationCut"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "fuelCut",
+        "allowedScopes": [
+          {
+            "scopes": {},
+            "descriptions": [
+              {
+                "text": "-${value}% fuel per hex",
+                "includeSign": false,
+                "lang": "MOD_VOY_MODIFIER_fuelCut"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "wearCut",
+        "allowedScopes": [
+          {
+            "scopes": {},
+            "descriptions": [
+              {
+                "text": "-${value}% hull wear",
+                "includeSign": false,
+                "lang": "MOD_VOY_MODIFIER_wearCut"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "paceCut",
+        "allowedScopes": [
+          {
+            "scopes": {},
+            "descriptions": [
+              {
+                "text": "-${value}% time per hex on a timed voyage",
+                "includeSign": false,
+                "lang": "MOD_VOY_MODIFIER_paceCut"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pirateCut",
+        "allowedScopes": [
+          {
+            "scopes": {},
+            "descriptions": [
+              {
+                "text": "Pirates ask ${value}% less",
+                "includeSign": false,
+                "lang": "MOD_VOY_MODIFIER_pirateCut"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cargoPay",
+        "allowedScopes": [
+          {
+            "scopes": {},
+            "descriptions": [
+              {
+                "text": "+${value}% GP from cargo runs and harbour tasks",
+                "includeSign": false,
+                "lang": "MOD_VOY_MODIFIER_cargoPay"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "nightSight",
+        "allowedScopes": [
+          {
+            "scopes": {},
+            "descriptions": [
+              {
+                "text": "+${value} hex of sight on a lit sea hex at night",
+                "includeSign": false,
+                "lang": "MOD_VOY_MODIFIER_nightSight"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "itemType": "Equipment",
+        "id": "Seafarers_Hat",
+        "name": "Seafarer's Hat",
+        "category": "Voyage",
+        "type": "Equipment",
+        "media": "assets/seafarers_hat.webp",
+        "ignoreCompletion": false,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 2000,
+        "customDescription": "+2% Voyage Skill XP<br><span class=\"text-warning\">With all four Seafarer's Outfit equipped: -10% rations and fuel per hex</span>",
+        "tier": "none",
+        "validSlots": ["Helmet"],
+        "occupiesSlots": [],
+        "equipRequirements": [],
+        "equipmentStats": [],
+        "modifiers": { "skillXP": [{ "skillID": "voyage:Voyage", "value": 2 }] }
+      },
+      {
+        "itemType": "Equipment",
+        "id": "Seafarers_Coat",
+        "name": "Seafarer's Coat",
+        "category": "Voyage",
+        "type": "Equipment",
+        "media": "assets/seafarers_coat.webp",
+        "ignoreCompletion": false,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 2000,
+        "customDescription": "+2% Voyage Skill XP<br><span class=\"text-warning\">With all four Seafarer's Outfit equipped: -10% rations and fuel per hex</span>",
+        "tier": "none",
+        "validSlots": ["Platebody"],
+        "occupiesSlots": [],
+        "equipRequirements": [],
+        "equipmentStats": [],
+        "modifiers": { "skillXP": [{ "skillID": "voyage:Voyage", "value": 2 }] }
+      },
+      {
+        "itemType": "Equipment",
+        "id": "Seafarers_Breeches",
+        "name": "Seafarer's Breeches",
+        "category": "Voyage",
+        "type": "Equipment",
+        "media": "assets/seafarers_breeches.webp",
+        "ignoreCompletion": false,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 2000,
+        "customDescription": "+2% Voyage Skill XP<br><span class=\"text-warning\">With all four Seafarer's Outfit equipped: -10% rations and fuel per hex</span>",
+        "tier": "none",
+        "validSlots": ["Platelegs"],
+        "occupiesSlots": [],
+        "equipRequirements": [],
+        "equipmentStats": [],
+        "modifiers": { "skillXP": [{ "skillID": "voyage:Voyage", "value": 2 }] }
+      },
+      {
+        "itemType": "Equipment",
+        "id": "Seafarers_Boots",
+        "name": "Seafarer's Boots",
+        "category": "Voyage",
+        "type": "Equipment",
+        "media": "assets/seafarers_boots.webp",
+        "ignoreCompletion": false,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 2000,
+        "customDescription": "+2% Voyage Skill XP<br><span class=\"text-warning\">With all four Seafarer's Outfit equipped: -10% rations and fuel per hex</span>",
+        "tier": "none",
+        "validSlots": ["Boots"],
+        "occupiesSlots": [],
+        "equipRequirements": [],
+        "equipmentStats": [],
+        "modifiers": { "skillXP": [{ "skillID": "voyage:Voyage", "value": 2 }] }
+      },
+      {
+        "itemType": "Equipment",
+        "id": "Voyage_Lesser_Relic",
+        "name": "Voyage Lesser Relic",
+        "category": "Combat",
+        "type": "Consumable",
+        "media": "assets/lesser_relic.webp",
+        "tier": "none",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 1,
+        "validSlots": ["Consumable"],
+        "occupiesSlots": [],
+        "equipRequirements": [],
+        "equipmentStats": [],
+        "modifiers": {
+          "skillXP": [{ "skillID": "voyage:Voyage", "value": 5 }],
+          "voyage:rationCut": 5,
+          "voyage:fuelCut": 5,
+          "damageTaken": -5
+        },
+        "consumesOn": [{ "type": "PlayerAttack" }]
+      },
+      {
+        "itemType": "Equipment",
+        "id": "Summoning_Familiar_Albatross",
+        "name": "Albatross",
+        "category": "Summoning",
+        "type": "Familiar",
+        "media": "assets/albatross.webp",
+        "ignoreCompletion": false,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 0,
+        "tier": "Tier 2 Summon",
+        "validSlots": ["Summon1", "Summon2"],
+        "occupiesSlots": [],
+        "equipRequirements": [],
+        "equipmentStats": [],
+        "modifiers": { "voyage:rationCut": 10, "voyage:fuelCut": 10 },
+        "consumesOn": []
+      },
+      {
+        "itemType": "Equipment",
+        "id": "Voyage_Skillcape",
+        "name": "Voyage Skillcape",
+        "category": "Voyage",
+        "type": "Armour",
+        "media": "assets/skillcape.webp",
+        "ignoreCompletion": false,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 250000,
+        "tier": "Skillcape",
+        "validSlots": ["Cape"],
+        "occupiesSlots": [],
+        "equipRequirements": [{ "type": "SkillLevel", "skillID": "voyage:Voyage", "level": 99 }],
+        "equipmentStats": [
+          { "key": "meleeDefenceBonus", "value": 9 },
+          { "key": "rangedDefenceBonus", "value": 9 },
+          { "key": "magicDefenceBonus", "value": 9 }
+        ],
+        "modifiers": { "voyage:cargoPay": 15, "voyage:wearCut": 10, "voyage:paceCut": 5 }
+      }
+    ],
+    "pets": [
+      {
+        "id": "Barnacle",
+        "name": "Barnacle",
+        "media": "assets/pet.webp",
+        "hint": "Hint: Voyage",
+        "ignoreCompletion": false,
+        "activeInRaid": false,
+        "scaleChanceWithMasteryPool": false,
+        "skillID": "voyage:Voyage",
+        "modifiers": { "voyage:rationCut": 5, "voyage:wearCut": 5 }
+      }
+    ],
+    "itemSynergies": [
+      {
+        "itemIDs": ["voyage:Seafarers_Hat", "voyage:Seafarers_Coat", "voyage:Seafarers_Breeches", "voyage:Seafarers_Boots"],
+        "playerModifiers": { "voyage:rationCut": 10, "voyage:fuelCut": 10 }
+      }
+    ],
+    "ancientRelics": [
+      { "id": "VoyageRelic1", "name": "Voyage Relic 1", "skillID": "voyage:Voyage", "number": 1, "modifiers": { "voyage:rationCut": 10 } },
+      { "id": "VoyageRelic2", "name": "Voyage Relic 2", "skillID": "voyage:Voyage", "number": 2, "modifiers": { "voyage:fuelCut": 10 } },
+      { "id": "VoyageRelic3", "name": "Voyage Relic 3", "skillID": "voyage:Voyage", "number": 3, "modifiers": { "voyage:cargoPay": 10 } },
+      { "id": "VoyageRelic4", "name": "Voyage Relic 4", "skillID": "voyage:Voyage", "number": 4, "modifiers": { "voyage:wearCut": 20 } },
+      { "id": "VoyageRelic5", "name": "Voyage Relic 5", "skillID": "voyage:Voyage", "number": 5, "modifiers": { "skillXP": [{ "skillID": "voyage:Voyage", "value": 10 }], "voyage:paceCut": 10 } },
+      { "id": "VoyageMasterRelic", "name": "Voyage Master Relic", "skillID": "voyage:Voyage", "number": 6, "modifiers": { "nonCombatSkillXP": 5, "minHitBasedOnMaxHit": 5, "voyage:pirateCut": 50, "voyage:nightSight": 1 } }
+    ],
+    "ancientRelicsDisplayOrder": [{ "insertAt": "End", "ids": ["voyage:Voyage"] }],
+    "shopPurchases": [
+      {
+        "id": "Seafarers_Hat",
+        "media": "assets/seafarers_hat.webp",
+        "category": "melvorF:Township",
+        "contains": { "items": [{ "id": "voyage:Seafarers_Hat", "quantity": 1 }] },
+        "cost": { "items": [], "currencies": [{ "currency": "melvorD:GP", "type": "Fixed", "cost": 100000 }] },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          { "type": "SkillLevel", "skillID": "melvorD:Township", "level": 10 },
+          { "type": "TownshipTask", "count": 20 }
+        ],
+        "defaultBuyLimit": 0,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      },
+      {
+        "id": "Seafarers_Coat",
+        "media": "assets/seafarers_coat.webp",
+        "category": "melvorF:Township",
+        "contains": { "items": [{ "id": "voyage:Seafarers_Coat", "quantity": 1 }] },
+        "cost": { "items": [], "currencies": [{ "currency": "melvorD:GP", "type": "Fixed", "cost": 100000 }] },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          { "type": "SkillLevel", "skillID": "melvorD:Township", "level": 20 },
+          { "type": "TownshipTask", "count": 40 }
+        ],
+        "defaultBuyLimit": 0,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      },
+      {
+        "id": "Seafarers_Breeches",
+        "media": "assets/seafarers_breeches.webp",
+        "category": "melvorF:Township",
+        "contains": { "items": [{ "id": "voyage:Seafarers_Breeches", "quantity": 1 }] },
+        "cost": { "items": [], "currencies": [{ "currency": "melvorD:GP", "type": "Fixed", "cost": 100000 }] },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          { "type": "SkillLevel", "skillID": "melvorD:Township", "level": 40 },
+          { "type": "TownshipTask", "count": 60 }
+        ],
+        "defaultBuyLimit": 0,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      },
+      {
+        "id": "Seafarers_Boots",
+        "media": "assets/seafarers_boots.webp",
+        "category": "melvorF:Township",
+        "contains": { "items": [{ "id": "voyage:Seafarers_Boots", "quantity": 1 }] },
+        "cost": { "items": [], "currencies": [{ "currency": "melvorD:GP", "type": "Fixed", "cost": 100000 }] },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          { "type": "SkillLevel", "skillID": "melvorD:Township", "level": 60 },
+          { "type": "TownshipTask", "count": 80 }
+        ],
+        "defaultBuyLimit": 0,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      },
+      {
+        "id": "Voyage_Skillcape",
+        "media": "assets/skillcape.webp",
+        "category": "melvorD:Skillcapes",
+        "contains": { "items": [{ "id": "voyage:Voyage_Skillcape", "quantity": 1 }] },
+        "cost": { "items": [], "currencies": [{ "currency": "melvorD:GP", "type": "Fixed", "cost": 1000000 }] },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [{ "type": "SkillLevel", "skillID": "voyage:Voyage", "level": 99 }],
+        "defaultBuyLimit": 1,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      }
+    ],
+    "shopDisplayOrder": [
+      {
+        "insertAt": "Before",
+        "beforeID": "melvorF:Skilling_Outfit_Upgrade",
+        "ids": ["voyage:Seafarers_Hat", "voyage:Seafarers_Coat", "voyage:Seafarers_Breeches", "voyage:Seafarers_Boots"]
+      },
+      { "insertAt": "Before", "beforeID": "melvorF:Cape_of_Completion", "ids": ["voyage:Voyage_Skillcape"] }
+    ],
+    "skillData": [
+      {
+        "skillID": "voyage:Voyage",
+        "data": {
+          "pets": ["voyage:Barnacle"],
+          "ancientRelicSets": [
+            {
+              "realmID": "melvorD:Melvor",
+              "relicDrops": [
+                { "relicID": "voyage:VoyageRelic1", "requirements": [], "chance": { "type": "Fixed", "chance": 0.05 } },
+                { "relicID": "voyage:VoyageRelic2", "requirements": [], "chance": { "type": "Fixed", "chance": 0.05 } },
+                { "relicID": "voyage:VoyageRelic3", "requirements": [], "chance": { "type": "Fixed", "chance": 0.05 } },
+                { "relicID": "voyage:VoyageRelic4", "requirements": [], "chance": { "type": "Fixed", "chance": 0.05 } },
+                { "relicID": "voyage:VoyageRelic5", "requirements": [], "chance": { "type": "Fixed", "chance": 0.05 } }
+              ],
+              "completedRelicID": "voyage:VoyageMasterRelic",
+              "levelUpUnlocks": [20, 99]
+            }
+          ],
+          "rareDrops": [
+            {
+              "itemID": "voyage:Voyage_Lesser_Relic",
+              "quantity": 150,
+              "requirements": [],
+              "chance": { "type": "Fixed", "chance": 1 },
+              "gamemodes": ["melvorAoD:AncientRelics"]
+            }
+          ]
+        }
+      },
+      {
+        "skillID": "melvorD:Summoning",
+        "data": {
+          "recipes": [
+            {
+              "id": "Albatross",
+              "level": 40,
+              "productID": "voyage:Summoning_Familiar_Albatross",
+              "baseQuantity": 25,
+              "baseExperience": 21,
+              "categoryID": "melvorD:TabletsFamiliars",
+              "itemCosts": [
+                { "id": "melvorF:Summoning_Shard_Green", "quantity": 8 },
+                { "id": "melvorF:Summoning_Shard_Silver", "quantity": 6 }
+              ],
+              "currencyCosts": [],
+              "markMedia": "assets/mark_albatross.webp",
+              "nonShardItemCosts": ["voyage:Sack", "voyage:Crate"],
+              "tier": 2,
+              "skillIDs": ["voyage:Voyage"]
+            }
+          ],
+          "synergies": [
+            { "summonIDs": ["voyage:Albatross", "melvorF:Ent"], "modifiers": { "voyage:fuelCut": 20 }, "consumesOn": [] },
+            { "summonIDs": ["voyage:Albatross", "melvorF:Octopus"], "modifiers": { "voyage:rationCut": 20 }, "consumesOn": [] },
+            { "summonIDs": ["voyage:Albatross", "melvorF:Leprechaun"], "modifiers": { "voyage:cargoPay": 15 }, "consumesOn": [] },
+            { "summonIDs": ["voyage:Albatross", "melvorF:Salamander"], "modifiers": { "voyage:wearCut": 25 }, "consumesOn": [] },
+            { "summonIDs": ["voyage:Albatross", "melvorF:Minotaur"], "modifiers": { "voyage:pirateCut": 50 }, "consumesOn": [] }
+          ]
+        }
+      }
+    ]
+  }
+}

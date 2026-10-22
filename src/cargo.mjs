@@ -356,6 +356,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     run.done += k;
     // The good steps back on the boards for a while (cargo-model RECENT).
     c.sent = M.noteSent(c.sent, run.item, M.seasonOf(Date.now()));
+    // The gear's cargo pay (gear.mjs) goes on the GP, not the XP.
+    try { gp = state.gear?.payOf?.(gp) ?? gp; } catch {}
     game.gp.add(gp);
     if (xp > 0) try { skill().addXP(xp); } catch (e) { log('cargo XP failed', e); }
     if (M.finished(run)) c.runs = c.runs.filter((r) => r !== run);

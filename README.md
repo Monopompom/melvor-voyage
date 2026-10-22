@@ -102,6 +102,30 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   300,000 GP and 100 Pitch) Set off makes the whole trip in one go (in time, with Timed travel on), and On arrival starts the work you planned.
 - **On land.** The shop's Voyage tab sells Sturdy Boots, a Pack Yak, a Riding Horse and a Unicorn, each making land
   hexes quicker to cross (cheaper instead with Timed travel off), and from Voyage 35 a Crossroads sign that carries a place's gifts with you.
+- **The Seafarer's Outfit.** Hat, Coat, Breeches and Boots in the Shop's Township tab, right before the Skilling
+  Outfit Upgrade, at the game's outfit price and gating (100,000 GP each; Township 10 / 20 / 40 / 60 and 20 / 40 /
+  60 / 80 tasks). Each piece gives +2% Voyage XP; all four worn also cut the rations and fuel every hex costs by 10%.
+- **The Albatross.** A Summoning familiar of your own (Summoning 40, tier 2: 8 Green and 6 Silver shards and nine
+  Sacks or seven Crates). Worn, it cuts rations and fuel per hex by 10% and spends one charge every hex
+  you travel; its mark turns up while you travel with Summoning unlocked. Pair it with an Ent (-20% fuel), an Octopus
+  (-20% rations), a Leprechaun (+15% GP from cargo runs and harbour tasks), a Salamander (one hull-wear point in four
+  forgiven after each leg) or a Minotaur (pirates ask half). With Throne of the Herald, an Eagle makes a timed voyage
+  10% quicker and an Owl lights one hex further at night.
+- **The Voyage Skillcape.** At Voyage 99, in the Shop's Skillcapes tab before the Cape of Completion, 1,000,000 GP:
+  +15% GP from cargo runs and harbour tasks, one hull-wear point in ten forgiven, timed voyages 5% quicker. With
+  Throne of the Herald the Superior Voyage Skillcape follows at 120 (10,000,000 GP: +25% GP, three wear points in
+  twenty forgiven, 10% quicker, pirates ask 15% less).
+- **Barnacle.** Voyage's pet, a ship's cat found on the hexes you travel, likelier the higher your level: every hex
+  rolls as a six-minute action does for the game's own pets, so at 99 the cat turns up in some 700 hexes. Aboard, the
+  rats keep off the stores and the rigging: -5% rations a hex, one wear point in twenty forgiven.
+- **Ancient Relics.** In that game mode Voyage has its own relic set, found hex by hex at sea and on land (0.05% a
+  hex each) and on reaching Voyage 20 and 99: Relic 1 (-10% rations a hex), Relic 2 (-10% fuel), Relic 3 (+10% GP
+  from cargo runs and tasks), Relic 4 (one hull-wear point in five forgiven), Relic 5 (+10% Voyage XP, timed voyages
+  10% quicker) and, with all five, the Voyage Master Relic (+5% non-combat skill XP, +5% of your max hit added to
+  your min hit, pirates ask half, one hex more of sight on a lit hex at night). Hexes also have a 1% chance to drop 150 **Voyage Lesser Relics**, a consumable for
+  your Consumable slot (+5% Voyage XP, -5% rations and fuel a hex, -5% damage taken) that spends a charge every hex and
+  every attack of yours. Every cut has a ceiling, whatever you wear: rations, fuel and forgiven wear stop at 50%,
+  time at 25%, pirates at 75% off.
 - **The Captain's Journal.** The book button on the Voyage page (or the J key) opens a journal of chapters on every
   rule (notices, charts and rumours too), guide pages that turn up as you meet things, the markets' ledger and maps of where resources are.
   Its Places list where you fought, the ports you used and what you did there, the markets, and the islands you set

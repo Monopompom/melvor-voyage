@@ -61,7 +61,8 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
   /** The vessels worn below 50% now (the flat mechanics): a voyage keeps the list it set off with (`worn`). */
   const wornNow = () => ['boat', 'ship'].filter((k) => (shipModel?.wornTime?.(vesselOf(k)) ?? 1) > 1);
   // A worn hull sails each hex a quarter longer; `worn` fixes which, so a voyage's schedule stays as it set off.
-  const timeOpts = (worn = wornNow()) => ({ hullOf, mountSpeed: state.land?.speed?.() ?? 1, slowOf: (kind) => (worn.includes(kind) ? shipModel?.WORN_TIME ?? 1 : 1) });
+  // The gear's pace (gear.mjs): a factor on every hex's time.
+  const timeOpts = (worn = wornNow()) => ({ hullOf, mountSpeed: state.land?.speed?.() ?? 1, slowOf: (kind) => (worn.includes(kind) ? shipModel?.WORN_TIME ?? 1 : 1), pace: state.gear?.pace?.() ?? 1 });
   /** A message popup's picture during a voyage (build .259): what carries you now, the hull at sea, the mount on land. */
   const herePicture = () => {
     const res = (file) => ctx.getResourceUrl(`assets/${file}`);

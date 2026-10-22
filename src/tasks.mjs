@@ -125,7 +125,10 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
   const bankQty = (id) => { try { return game.bank.getQty(game.items.getObjectByID(id)); } catch { return 0; } };
   const here = () => state.cargo?.portHere?.()?.poi;
   const pay = (task, why, rumour = true) => {
-    game.gp.add(task.gp);
+    // The gear's cargo pay (gear.mjs) goes on a task's GP too.
+    let gp = task.gp;
+    try { gp = state.gear?.payOf?.(gp) ?? gp; } catch {}
+    game.gp.add(gp);
     if (task.xp > 0) try { skill().addXP(task.xp); } catch (e) { log('task XP failed', e); }
     let extra = '';
     if (rumour && Math.random() < CM.TASK_RUMOUR) {

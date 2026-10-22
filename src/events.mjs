@@ -65,7 +65,9 @@ export function install(ctx, { state, EM, S, shipModel, helpLayout, rankName, lo
   };
   /** What they ask: { toll, wear, crates, loss }, `hexGp` the GP the game charged for the hex; `loss` the crates a run throws overboard (build .387). */
   const crates = () => state.hold?.hold?.('ship')?.length ?? 0;
-  const offer = (hexGp) => { const n = crates(); return { toll: EM.pirateToll(holdWorth(), hexGp, game.gp.amount), wear: EM.pirateRunWear(S.WEAR.deep), crates: n, loss: EM.pirateRunLoss(n) }; };
+  // The gear's pirate cut (gear.mjs) lowers what they ask, never what a run costs.
+  const tollOf = (toll) => { try { return state.gear?.tollOf?.(toll) ?? toll; } catch { return toll; } };
+  const offer = (hexGp) => { const n = crates(); return { toll: tollOf(EM.pirateToll(holdWorth(), hexGp, game.gp.amount)), wear: EM.pirateRunWear(S.WEAR.deep), crates: n, loss: EM.pirateRunLoss(n) }; };
   const cond = () => state.ship?.cond?.('ship') ?? 0;
   /** Pays the toll; false (and a notice) when the GP falls short. */
   const pay = (pir) => {

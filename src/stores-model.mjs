@@ -143,25 +143,35 @@ export function crewMul(crew) {
  *  - `wx`: the weather on the hex (phase 5c, weather-model.mjs effectsOf): its band multiplies the fuel and adds
  *    rations on land; in Lemon season rations at sea go further (`seaFood`, hops too).
  */
-export function stepCost(step, fmLevel, crew = 0) {
+export function stepCost(step, fmLevel, crew = 0, mods) {
   if (step.free) return { food: 0, fuel: 0 };
   const m = crewMul(crew);
+  const g = gearMul(mods);
   const wx = step.wx;
   const seaFood = Number.isFinite(wx?.seaFood) && wx.seaFood > 0 ? wx.seaFood : 1;
-  if (step.hop > 0) return { food: Math.round(Math.round(step.hop * costOf('water').rations * RATION_HP * seaFood) * m.seaFood), fuel: 0 };
+  if (step.hop > 0) return { food: Math.round(Math.round(Math.round(step.hop * costOf('water').rations * RATION_HP * seaFood) * m.seaFood) * g.rations), fuel: 0 };
   const c = costOf(step.cls);
   const sea = step.sea === true || SEA.includes(step.cls);
   const rations = c.rations + (!sea && Number.isFinite(wx?.rations) ? wx.rations : 0);
   const fuelMul = !sea && Number.isFinite(wx?.fuel) && wx.fuel >= 0 ? wx.fuel : 1;
   const mFood = sea ? m.seaFood : ROUGH_GROUND.includes(step.cls) ? m.foodRough : m.food;
-  return { food: Math.round(Math.round(rations * RATION_HP * (sea ? seaFood : 1)) * mFood), fuel: roundFuel(roundFuel(c.fuel * fuelMul * fuelFactor(fmLevel)) * m.fuel) };
+  return { food: Math.round(Math.round(Math.round(rations * RATION_HP * (sea ? seaFood : 1)) * mFood) * g.rations), fuel: roundFuel(roundFuel(roundFuel(c.fuel * fuelMul * fuelFactor(fmLevel)) * m.fuel) * g.fuel) };
 }
 
+/**
+ * The gear's cuts (gear-model.mjs costMods): `mods` is { rations, fuel }, percent changes to a step's
+ * rations and fuel (negative is a cut), applied last, after the crew and the weather. Missing or not a number: none.
+ */
+export const gearMul = (mods) => {
+  const f = (v) => (Number.isFinite(v) ? Math.max(0, 1 + v / 100) : 1);
+  return { rations: f(mods?.rations), fuel: f(mods?.fuel) };
+};
+
 /** Total cost of a move, ignoring what the stores hold (the hex overview line). */
-export function pathCost(steps, fmLevel, crew = 0) {
+export function pathCost(steps, fmLevel, crew = 0, mods) {
   let food = 0;
   let fuel = 0;
-  for (const s of steps) { const c = stepCost(s, fmLevel, crew); food += c.food; fuel += c.fuel; }
+  for (const s of steps) { const c = stepCost(s, fmLevel, crew, mods); food += c.food; fuel += c.fuel; }
   return { food, fuel: roundFuel(fuel) };
 }
 
@@ -184,7 +194,7 @@ export function pathCost(steps, fmLevel, crew = 0) {
  * has `conds` = { boat?, ship? }, a refusal names the `vessel`. `hull` alone is the boat's.
  * `crew` (phase 6c): the Folks with you; every step costs them too (stepCost). `reserve` is given for all of you.
  */
-export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull, hulls, crew = 0 } = {}) {
+export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull, hulls, crew = 0, mods } = {}) {
   let food = Math.max(0, stores?.food ?? 0);
   let fuel = Math.max(0, stores?.fuel ?? 0);
   const hs = hulls ?? (hull === undefined ? {} : { boat: hull });
@@ -194,7 +204,7 @@ export function planMove(stores, steps, { fmLevel = 1, reserve = 0, hull, hulls,
   let outward = false;
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i];
-    const c = stepCost(s, fmLevel, crew);
+    const c = stepCost(s, fmLevel, crew, mods);
     if (s.sea && !s.free && !s.homeward) outward = true;
     const v = s.vessel ?? 'boat';
     const cond = conds[v];
@@ -331,10 +341,11 @@ export function nextTurn(hour, shift = 0) {
 export const nightHours = (shift = 0) => ({ start: (NIGHT.start + clampShift(shift) + 24) % 24, end: (NIGHT.end + clampShift(shift) + 24) % 24 });
 
 /** Light for one step: a hop counts its hexes at sea; free and hungry steps are not lit. */
-export function lightCost(step, fmLevel, astroLevel) {
+export function lightCost(step, fmLevel, astroLevel, mods) {
   if (step.free || step.hungry) return 0;
   const base = step.hop > 0 ? step.hop * LIGHT.sea : step.sea ? LIGHT.sea : LIGHT.land;
-  return roundFuel(base * fuelFactor(fmLevel) * lightFactor(astroLevel));
+  // The gear's fuel cut (4.31) lights the way as it feeds the fire.
+  return roundFuel(roundFuel(base * fuelFactor(fmLevel) * lightFactor(astroLevel)) * gearMul(mods).fuel);
 }
 /**
  * Lights a planned move at night. The day plan comes first and stands (planMove: pay, walk hungry, or refuse); only
@@ -342,7 +353,7 @@ export function lightCost(step, fmLevel, astroLevel) {
  * never takes fuel a later step needs, and an unlit hex is just a day hex. Returns the plan with `lit` (step indices),
  * the fuel left and spent updated, and `light` (the fuel burned); a refused plan comes back as it was.
  */
-export function planLight(plan, steps, { fmLevel = 1, astroLevel = 1, hold = 0 } = {}) {
+export function planLight(plan, steps, { fmLevel = 1, astroLevel = 1, hold = 0, mods } = {}) {
   if (!plan.ok) return plan;
   const hungry = new Set(plan.hungry);
   let fuel = plan.fuel;
@@ -351,7 +362,7 @@ export function planLight(plan, steps, { fmLevel = 1, astroLevel = 1, hold = 0 }
   let light = 0;
   const lit = [];
   for (let i = 0; i < steps.length; i++) {
-    const c = hungry.has(i) ? 0 : lightCost(steps[i], fmLevel, astroLevel);
+    const c = hungry.has(i) ? 0 : lightCost(steps[i], fmLevel, astroLevel, mods);
     if (c <= 0) continue;
     if (spare + 1e-9 < c) break;
     spare = roundFuel(Math.max(0, spare - c));

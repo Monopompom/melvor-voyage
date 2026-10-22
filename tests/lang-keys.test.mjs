@@ -10,6 +10,7 @@ import { RESCUES, TOW_KINDS } from '../src/adrift-model.mjs';
 import { SEASONS, BANDS } from '../src/weather-model.mjs';
 import { TRAITS as TRAVEL_TRAITS } from '../src/folk-traits-model.mjs';
 import { JOURNAL_CHAPTERS, JOURNAL_CREW, JOURNAL_WRITTEN, JOURNAL_GUIDE_SECTIONS, JOURNAL_ASIDES, JOURNAL_NOTES, CHART_ITEMS, splitLinks, linkTargetExists } from '../src/journal-model.mjs';
+import { OUTFIT, LESSER_RELIC, RELICS, MODIFIERS, SKILLCAPE, SUPERIOR_SKILLCAPE } from '../src/gear-model.mjs';
 
 const root = new URL('../', import.meta.url);
 const en = JSON.parse(readFileSync(new URL('languages/en.json', root), 'utf8'));
@@ -37,8 +38,18 @@ export const FAMILIES = {
   MOD_VOY_HULL_TIER_: ['1', '2', '3', '4'],
   MOD_VOY_ISLAND_: ['WESTERN', 'GOLDEN', 'FROST', 'CURSED', 'OMINOUS', 'MAINLAND'],
   MOD_VOY_MILESTONE_: ['1', '2', '3', 'LONGBOAT', 'BRIG', 'GALLEON'], // LONGBOAT, GALLEON, BRIG: shipModel.UPGRADES, BIG_SHIPS (setup.mjs)
-  // the six charts (build .116, setup.mjs): MOD_VOY_ITEM_<ID>_NAME / _DESC
-  MOD_VOY_ITEM_: Object.values(CHART_ITEMS).flatMap((id) => [`${id.toUpperCase()}_NAME`, `${id.toUpperCase()}_DESC`]),
+  // the six charts (build .116, setup.mjs): MOD_VOY_ITEM_<ID>_NAME / _DESC; the gear (src/gear.mjs): the outfit's
+  // names and their one description, the Lesser Relic's name and description, the Albatross's name
+  MOD_VOY_ITEM_: [
+    ...Object.values(CHART_ITEMS).flatMap((id) => [`${id.toUpperCase()}_NAME`, `${id.toUpperCase()}_DESC`]),
+    ...Object.keys(OUTFIT).map((id) => `${id.toUpperCase()}_NAME`), 'OUTFIT_DESC',
+    `${LESSER_RELIC.id.toUpperCase()}_NAME`, `${LESSER_RELIC.id.toUpperCase()}_DESC`, 'ALBATROSS_NAME',
+    `${SKILLCAPE.id.toUpperCase()}_NAME`, `${SUPERIOR_SKILLCAPE.id.toUpperCase()}_NAME`,
+  ],
+  // the relic set's names, the pet's name and hint, and the gear modifiers' descriptions (src/gear.mjs, data/gear.json)
+  MOD_VOY_RELIC_: RELICS,
+  MOD_VOY_PET_: ['NAME', 'HINT'],
+  MOD_VOY_MODIFIER_: MODIFIERS,
   MOD_VOY_PAGE_COMPASS_STAGE_: ['1', '2', '3'],
   // the Captain's Journal (src/journal.mjs): chapters, guide pages, place groups
   MOD_VOY_JOURNAL_CH_: [

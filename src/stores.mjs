@@ -19,6 +19,9 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   /** True while moves cost provisions: rules active and the "Provisions" setting on. */
   const enabled = () => usable() && state.active() && state.settings.provisions();
   const fmLevel = () => { try { return game.firemaking?.level ?? 1; } catch { return 1; } };
+  /** The gear's cuts on rations and fuel (gear.mjs): stores-model's `mods`, undefined without the gear. */
+  const mods = () => { try { return state.gear?.costMods?.(); } catch { return undefined; } };
+  const modsKey = () => { const m = mods(); return m === undefined ? '' : `${m.rations},${m.fuel}`; };
   const astroLevel = () => { try { return game.astrology?.level ?? 1; } catch { return 1; } };
   // ---- night (3e): the player's own clock ----------------------------------------------------------
   const shift = () => state.settings.nightShift?.() ?? 0;
@@ -111,7 +114,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
    */
   const priceSteps = (have, steps, dest) => {
     const ends = endKind(steps);
-    const opts = { fmLevel: fmLevel(), reserve: Math.ceil(reserveAt(dest, ends) * (1 + crew().food)), crew: crew() };
+    const opts = { fmLevel: fmLevel(), reserve: Math.ceil(reserveAt(dest, ends) * (1 + crew().food)), crew: crew(), mods: mods() };
     if (state.ship?.big?.() != null) {
       const hulls = {};
       for (const kind of ['boat', 'ship']) {
@@ -124,7 +127,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       opts.hull = hull === undefined || have.cond === undefined ? hull : { ...hull, cond: have.cond };
     }
     const plan = S.planMove(have, steps, opts);
-    return night() ? S.planLight(plan, steps, { fmLevel: fmLevel(), astroLevel: astroLevel(), hold: state.lightHold ?? 0 }) : plan;
+    return night() ? S.planLight(plan, steps, { fmLevel: fmLevel(), astroLevel: astroLevel(), hold: state.lightHold ?? 0, mods: mods() }) : plan;
   };
   /** { steps, plan } for a game path (destination first), or undefined when provisions are off. */
   const planFor = (path) => {
@@ -132,8 +135,12 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     const steps = state.ship.stepsOf(path);
     return { steps, plan: priceSteps(stores(), steps, path[0]) };
   };
-  /** Night sight of a planned move (stores-model nightSight): +1 lit, -1 dark, 0 otherwise. */
-  const sightOf = (planned) => (planned === undefined ? 0 : S.nightSight(planned.steps, planned.plan, night()));
+  /** Night sight of a planned move (stores-model nightSight): +1 lit (the gear's hexes on top, 4.31), -1 dark, 0 otherwise. */
+  const sightOf = (planned) => {
+    if (planned === undefined) return 0;
+    const d = S.nightSight(planned.steps, planned.plan, night());
+    try { return state.gear?.sightWith?.(d) ?? d; } catch { return d; }
+  };
   /** After a move landed: the stores keep what the plan left; hungry steps are marked for the XP; the hull wears. */
   const afterMove = (planned) => {
     if (planned === undefined || !planned.plan.ok) return;
@@ -144,8 +151,15 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     // The stars pay at sea: a lit sea hex may turn up a Starlit Chart (phase 4 wrap-up, charts.mjs rollStars).
     const seaLit = (planned.plan.lit ?? []).reduce((n, i) => n + (planned.steps[i].hop > 0 ? planned.steps[i].hop : planned.steps[i].sea ? 1 : 0), 0);
     if (seaLit > 0) { try { state.charts?.rollStars?.(seaLit); } catch (e) { log('star chart roll failed', e); } }
-    if (planned.plan.cond !== undefined) state.ship?.setCond?.(planned.plan.cond, 'boat');
-    for (const [kind, c] of Object.entries(planned.plan.conds ?? {})) state.ship?.setCond?.(c, kind);
+    // The gear's wear cut (4.31): the plan took the full wear; some of it is given back now, by luck, point by point.
+    const settle = (kind, to) => {
+      let back = 0;
+      try { const taken = (state.ship?.cond?.(kind) ?? to) - to; back = taken > 0 ? state.gear?.forgiveWear?.(taken) ?? 0 : 0; } catch { back = 0; }
+      if (back > 0) log(`${kind}: ${back}% of hull wear forgiven`);
+      state.ship?.setCond?.(to + back, kind);
+    };
+    if (planned.plan.cond !== undefined) settle('boat', planned.plan.cond);
+    for (const [kind, c] of Object.entries(planned.plan.conds ?? {})) settle(kind, c);
     if (planned.plan.hungry.length > 0) log(`walked ${planned.plan.hungry.length} hex(es) hungry`);
   };
 
@@ -191,7 +205,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     if (state.adrift?.here?.() === true) return undefined;
     const have = stores();
     const food = bankFood();
-    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}|${crew().count}:${crew().food}`;
+    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}|${crew().count}:${crew().food}|${modsKey()}`;
     if (rescueMemo?.key === key) return rescueMemo.value;
     let value;
     try { value = rescueFrom(pos, have, food); } catch (e) { log('provisions rescue failed', e); }
@@ -201,10 +215,10 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   const rescueFrom = (pos, have, food) => {
     if (safe(pos, food)) return undefined; // easy ground walks on hungry; a loading place loads
     const level = fmLevel();
-    const cost = (h) => { const c = S.stepCost({ cls: recOf(h)?.t, sea: shipModel.isSea(recOf(h)) }, level, crew()); return c.food + c.fuel * S.RATION_HP; };
+    const cost = (h) => { const c = S.stepCost({ cls: recOf(h)?.t, sea: shipModel.isSea(recOf(h)) }, level, crew(), mods()); return c.food + c.fuel * S.RATION_HP; };
     const found = stranded.cheapestRoute(pos, { neighbours, stepCost: cost, isGoal: (h) => safe(h, food), key: (h) => terrainMod.hexKey(h.q, h.r) });
     if (found === undefined) return undefined;
-    const need = S.pathCost(state.ship.stepsOf(found.path), level, crew());
+    const need = S.pathCost(state.ship.stepsOf(found.path), level, crew(), mods());
     if (need.food <= have.food && need.fuel <= have.fuel + 1e-9) return undefined;
     return { path: found.path, steps: found.path.length - 1, dir: terrainMod.directionLabel(pos, found.path[0]) };
   };
@@ -227,7 +241,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
       const have = stores();
       // The whole trip against the stores, and where it runs out (user report, build .58: "needs 20 HP, your stores
       // hold 160" named only the step that failed, after the stores had gone on the steps before it).
-      const total = S.pathCost(planned.steps, fmLevel(), crew());
+      const total = S.pathCost(planned.steps, fmLevel(), crew(), mods());
       const along = hexes(p.at + 1);
       const lines = [];
       // Message popup marks (build .259): the names and the amounts bold, what you are short of in red.
@@ -316,7 +330,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
         note.className = 'voyage-stores-note mb-1';
         this.travelBtn?.before(note);
       }
-      const cost = S.pathCost(planned.steps, fmLevel(), crew());
+      const cost = S.pathCost(planned.steps, fmLevel(), crew(), mods());
       const p = planned.plan;
       // One line each: provisions, each hull's wear, the night (the user, 19 Oct 2026: "put each on new line").
       // One row each, its first words an icon with them as its tooltip (the user, 19 Oct 2026: "put each on new line";
