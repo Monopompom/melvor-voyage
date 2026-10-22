@@ -124,6 +124,8 @@ export function install(ctx, { state, G, log }) {
   // ---- what the rest reads -----------------------------------------------------------------------------------------
   const api = {
     effects,
+    /** The ceilings (gear-model.mjs CAPS), for the help and the Journal. */
+    CAPS: G.CAPS,
     /** stores-model's { rations, fuel } percent changes. */
     costMods: () => G.costMods(effects()),
     /** The clock's factor on every hex's time. */

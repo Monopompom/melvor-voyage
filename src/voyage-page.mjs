@@ -770,6 +770,15 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     const R = shipModel.REPAIR;
     const st = state.stores;
     const xpCols = [t('MOD_VOY_HELP_COL_HEX'), t('MOD_VOY_HELP_COL_XP')];
+    // The gear's cuts (4.31): what is worn now and the ceiling, from gear.mjs; no line without the gear module.
+    const gear = state.gear;
+    const ge = () => { try { return gear?.effects?.() ?? {}; } catch { return {}; } };
+    const gearLine = (key, id, vars = {}) => {
+      if (gear === undefined) return [];
+      const v = ge()[id] ?? 0;
+      const text = t(key, { ...vars, pct: `${v}`, cap: `${gear.CAPS?.[id] ?? ''}` });
+      return [v > 0 ? { text, cls: 'text-success' } : text];
+    };
     if (topic === 'ship') {
       const s = state.ship?.boat();
       const hull = shipModel.HULLS[s?.hull ?? 'dinghy'];
@@ -782,6 +791,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
           ] } },
           { text: t('MOD_VOY_HELP_WORN', { worn: `${storesModel.WORN}`, pct: `${Math.round((shipModel.WORN_TIME - 1) * 100)}` }), cls: 'text-warning' },
           { text: t('MOD_VOY_HELP_WORN_THROUGH'), cls: 'text-danger' },
+          ...gearLine('MOD_VOY_HELP_GEAR_WEAR', 'wearCut'),
         ] },
         { head: t('MOD_VOY_HELP_HEAD_REPAIR'), body: [
           t('MOD_VOY_HELP_REPAIR', { step: `${R.step}`, logs: `${R.logs}`, pitch: `${R.pitch}` }),
@@ -797,6 +807,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
             { text: t('MOD_VOY_HELP_PIRATES_PAY', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: `${EM.PIRATE_COIN_SHARE * 100}`, hexes: `${EM.PIRATE_FLOOR_HEXES}` }), cls: 'text-warning' },
             { text: t('MOD_VOY_HELP_PIRATES_RUN', { wear: `${EM.pirateRunWear(storesModel.WEAR.deep)}` }), cls: 'text-warning' },
             t('MOD_VOY_HELP_PIRATES_AWAY', { sound: `${EM.PIRATE_SOUND}` }),
+            ...gearLine('MOD_VOY_HELP_GEAR_PIRATES', 'pirateCut'),
           ] };
         })()]),
       ];
@@ -838,6 +849,12 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         ...(state.settings.night?.() === false ? [{ text: t('MOD_VOY_HELP_CREW_TRAITS_NO_NIGHT'), cls: 'text-warning' }] : []),
       ] }];
     };
+    // Cartography is yours alone (build .388): the skills no Folk is given, named from the rule table.
+    const yoursAlone = () => (rules?.FOLK_NEVER ?? []).map((id) => {
+      let name = id;
+      try { name = game.skills.getObjectByID(id)?.name ?? id; } catch { name = id; }
+      return t('MOD_VOY_HELP_CREW_CARTOGRAPHY', { skill: name });
+    });
     if (topic === 'crew') {
       return [
         { body: [t('MOD_VOY_HELP_CREW_WHAT')] },
@@ -853,7 +870,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
           { text: t('MOD_VOY_HELP_CREW_HUNGER', { pct: `${Math.round((state.crewModel?.HUNGER_SHARE ?? 0.1) * 100)}` }), cls: 'text-danger' },
           t('MOD_VOY_HELP_CREW_BLOCK'),
         ] },
-        { head: t('MOD_VOY_HELP_HEAD_CREW_ASHORE'), body: [t('MOD_VOY_HELP_CREW_ASHORE'), t('MOD_VOY_HELP_CREW_FIXED')] },
+        { head: t('MOD_VOY_HELP_HEAD_CREW_ASHORE'), body: [t('MOD_VOY_HELP_CREW_ASHORE'), t('MOD_VOY_HELP_CREW_FIXED'), ...yoursAlone()] },
         { head: t('MOD_VOY_HELP_HEAD_CREW_WALK'), body: [t('MOD_VOY_HELP_CREW_WALK'), t('MOD_VOY_HELP_CREW_WALK_PACK'), t('MOD_VOY_HELP_CREW_WALK_ARRIVE')] },
         ...outpostHelp(),
         ...traitsHelp(),
@@ -912,6 +929,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
           ] } },
           { text: t('MOD_VOY_HELP_NIGHT_XP', { bonus: `${Math.round(model.STAR_XP * 100)}` }), cls: 'text-success' },
           { text: t('MOD_VOY_HELP_NIGHT_SIGHT', { hexes: t(storesModel.NIGHT_SIGHT === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${storesModel.NIGHT_SIGHT}` }) }), cls: 'text-warning' },
+          ...gearLine('MOD_VOY_HELP_GEAR_SIGHT', 'nightSight'),
           t('MOD_VOY_HELP_NIGHT_STARS'),
         ] });
       }
@@ -921,6 +939,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         out.push({ head: t('MOD_VOY_HELP_HEAD_SKILLS'), body: [
           { table: { cols: [t('MOD_VOY_HELP_COL_SKILL'), t('MOD_VOY_HELP_COL_BONUS')], rows } },
           t('MOD_VOY_HELP_SKILLS_PER_LEVEL', { cut: `${Math.round(storesModel.FIREMAKING_CUT * 1000) / 10}` }),
+          ...gearLine('MOD_VOY_HELP_GEAR_STORES', 'rationCut', { fuel: `${ge().fuelCut ?? 0}` }),
         ] });
       }
       return out;
@@ -935,6 +954,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
             { cells: [t('MOD_VOY_HELP_FIRST_HEX'), `+${model.DISCOVERY_XP}`], cls: ['text-success'] },
           ] } },
           t('MOD_VOY_HELP_XP_FAST_TRAVEL'),
+          ...(gear === undefined ? [] : [t('MOD_VOY_HELP_XP_GEAR')]),
         ] },
         { head: t('MOD_VOY_HELP_HEAD_DISCOUNT'), body: [
           t('MOD_VOY_HELP_DISCOUNT', { per: `${model.TRAVEL_DISCOUNT_PER_LEVEL}`, pct: `${model.travelDiscount(skill()?.level ?? 1)}`, max: `${model.travelDiscount(99)}` }),

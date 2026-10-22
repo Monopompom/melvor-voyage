@@ -466,7 +466,14 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '',
       pirChance: num(1 / em?.PIRATE_CHANCE), pirShare: num(em?.PIRATE_SHARE * 100), pirFloor: num(em?.PIRATE_FLOOR_HEXES),
       pirSound: num(em?.PIRATE_SOUND), stowShare: num(em?.STOWAWAY_PRICE_SHARE * 100), hungryPct: num(storesModel?.HUNGRY_GP * 100),
-      stormWaitH: num((state.clock?.stormWaitMax ?? NaN) / 3600000), ...crewVars() };
+      stormWaitH: num((state.clock?.stormWaitMax ?? NaN) / 3600000), ...gearVars(), ...crewVars() };
+  };
+  /** The gear's pace and cargo pay worn now, and their ceilings (gear.mjs, build .394); zeros without the gear module. */
+  const gearVars = () => {
+    let e = {};
+    try { e = state.gear?.effects?.() ?? {}; } catch { e = {}; }
+    const caps = state.gear?.CAPS ?? {};
+    return { gearPace: `${e.paceCut ?? 0}`, gearPaceCap: `${caps.paceCut ?? ''}`, gearPay: `${e.cargoPay ?? 0}`, gearPayCap: `${caps.cargoPay ?? ''}` };
   };
   /**
    * The Crew chapter's Worker Folks numbers from its API (build .386; they were typed): promotion's Hiring level, the
