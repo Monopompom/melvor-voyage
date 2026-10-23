@@ -145,7 +145,7 @@ the Seafarer's gear, and crews and outposts for Worker Folks (1.3.0 or later, op
   Worker Folks loaded, hiring needs a town or port, like Township. Every Folk stands on a hex:
   it is hired or picked for a skill on yours, works only what its hex allows, and you manage it from within a hex. A
   Folk whose skill you take back keeps that job in mind, and you can give it back from anywhere. Cartography stays
-  yours: its page has no Worker box while Voyage's rules are on.
+  yours: its page has no Worker box while Voyage is loaded, its rules on or off.
   Folks can also come along with you: each needs a berth on the water (dinghy 1, longboat 2, brig 6, galleon 12), and
   each eats from the stores by its rank and burns fuel as you do. On empty stores they go hungry and lose a tenth of
   their HP every hex, and hunger can kill. Put them ashore on land and pick their work there. The Crew block on the
@@ -231,6 +231,21 @@ The Captain's Journal is set in two open-source typefaces, with thanks to their 
   [fonts.google.com/specimen/IM+Fell+English](https://fonts.google.com/specimen/IM+Fell+English)
 
 Both are released under the SIL Open Font License 1.1; their licence texts ship beside the fonts in `assets/fonts/`.
-The mod's own code is under the MIT License (`LICENSE`); the fonts keep their own licence.
 
 Built by a developer using assistive AI.
+
+## License
+
+MIT. The source is included in the zip; see `LICENSE`.
+
+The MIT License covers the mod's code and its own art. Two kinds of files are not under it:
+
+- **The fonts** in `assets/fonts/` (EB Garamond and IM Fell English) keep the SIL Open Font License 1.1; their
+  licence texts ship beside them.
+- **Nine icons are built from Melvor Idle's own sprites**, recoloured or reassembled with the Voyage badge, and stay
+  the property of Games by Malcs: `assets/skillcape.webp`, `assets/skillcape_superior.webp`,
+  `assets/lesser_relic.webp`, the Seafarer's Outfit pieces `assets/seafarers_hat.webp`, `assets/seafarers_coat.webp`,
+  `assets/seafarers_breeches.webp`, `assets/seafarers_boots.webp`, and the Albatross tablet and mark
+  `assets/albatross.webp`, `assets/mark_albatross.webp`. They are included only so the mod looks at home in the game.
+
+Melvor Idle is a trademark of Games by Malcs; this mod is not affiliated with or endorsed by them.

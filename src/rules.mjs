@@ -45,15 +45,14 @@ export const SKILL_RULES = {
 };
 
 /**
- * Skills a Folk is never given while Voyage runs (the user, 22 Oct 2026). Cartography: a voyage into the fog does
+ * Skills a Folk is never given while Voyage is loaded, its rules on or off (the user, 22 and 23 Oct 2026). Cartography: a voyage into the fog does
  * the surveying itself, hex by hex at the survey's interval, and the game surveys around the player, not around the
  * Folk's hex; a Folk surveying beside a voyage would reveal the map for free and skip the level gate on a trip.
- * Worker Folks itself never hands Cartography out (since 23 Oct 2026), with or without Voyage; this stays as the
- * guard for an older Worker Folks.
+ * Without Voyage, Worker Folks hands Cartography out as any other skill.
  */
 export const FOLK_NEVER = ['melvorAoD:Cartography'];
 
-/** True when `skillId` is yours alone: no Folk may hold it while the rules are on. */
+/** True when `skillId` is yours alone: no Folk may hold it while Voyage is loaded. */
 export function folkNever(skillId) {
   return FOLK_NEVER.includes(skillId);
 }

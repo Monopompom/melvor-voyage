@@ -19,3 +19,14 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+This license does not cover the following images, which are derived from Melvor Idle's
+artwork and remain the property of Games by Malcs: assets/skillcape.webp,
+assets/skillcape_superior.webp, assets/lesser_relic.webp, assets/seafarers_hat.webp,
+assets/seafarers_coat.webp, assets/seafarers_breeches.webp, assets/seafarers_boots.webp,
+assets/albatross.webp, assets/mark_albatross.webp.
+
+Nor does it cover the fonts in assets/fonts/ (EB Garamond, IM Fell English), which are
+released under the SIL Open Font License 1.1; their licence texts are beside them.
