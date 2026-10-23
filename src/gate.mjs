@@ -401,7 +401,15 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
         for (const item of cat.items()) {
           const id = item.id;
           const zonedOnly = state.zonedUngated?.()?.includes(id) === true;
-          if ((!rules.isGated(id) && !zonedOnly) || !item.rootEl) continue;
+          if (!item.rootEl) continue;
+          if (!rules.isGated(id) && !zonedOnly) {
+            // Astrology is zoned only while the rules and zones are on: when they go off, its dim and tip go too.
+            if (item.rootEl.classList.contains('voyage-dim')) {
+              item.rootEl.classList.remove('voyage-dim');
+              if (state.tips !== undefined) state.tips.set(item.rootEl, '', { placement: 'right' }); else item.rootEl.title = '';
+            }
+            continue;
+          }
           const locked = !zonedOnly && lockedHere(id) !== undefined;
           // As the Here panel (build .280, the user: "menu bar skill is drawn as active"): a zoned skill with nothing
           // here for your level is locked too, its tooltip the panel's ("Fishing is locked here until level 20: …").
