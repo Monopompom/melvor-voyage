@@ -1246,7 +1246,9 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-clock-dd .dropdown-toggle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
 /* Over the popup's buttons too (Swal lifts .swal2-actions with z-index 1; build .233). */
 /* Over the popup body's own scrolling (.voyage-ui .swal2-html-container), or the menus are cut at its edge (.367). */
-.voyage-ui .swal2-html-container.voyage-swal-menus, .voyage-swal-menus { overflow: visible; position: relative; z-index: 2; }
+/* Its height cap goes with the scrolling: on a short window the body ran past the cap, under the buttons, and above
+   them by its z-index, so Set off and Cancel could not be clicked (.410). The whole popup scrolls instead. */
+.voyage-ui .swal2-html-container.voyage-swal-menus, .voyage-swal-menus { overflow: visible; max-height: none; position: relative; z-index: 2; }
 .voyage-clock-pick-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
   border: 1px solid var(--voyage-ring); color: var(--voyage-gold); font-size: .9rem; font-weight: 700; } /* (.308, C-26) */
 .voyage-clock-pick-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--voyage-ring-bg); }
