@@ -443,6 +443,9 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       // of the pass, since "Magic" there is the place, not the skill.
       rows.push([{ html: skillChip(id, skill) }, { text: full.join(', '), plain: true }, { text: slow.length > 0 ? slow.join(', ') : t('MOD_VOY_HELP_NONE'), plain: true }]);
     }
+    // Archaeology (the user, 23 Oct 2026): not a ground but a place, each dig site its own.
+    const arch = skillOf(rules.ARCHAEOLOGY_ID);
+    if (arch !== undefined) rows.push([{ html: skillChip(rules.ARCHAEOLOGY_ID, arch) }, { text: t('MOD_VOY_JOURNAL_DIG_WORKS'), plain: true }, { text: t('MOD_VOY_HELP_NONE'), plain: true }]);
     const anywhere = ANYWHERE.map(skillOf).filter((s) => s !== undefined).map((s) => s.name);
     return ledger([t('MOD_VOY_JOURNAL_COL_CRAFT'), t('MOD_VOY_JOURNAL_COL_WORKS'), t('MOD_VOY_JOURNAL_COL_SLOWER')], rows)
       + `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_CRAFTS_ANYWHERE', { skills: anywhere.join(', ') }))}</p>`

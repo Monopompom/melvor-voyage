@@ -21,9 +21,11 @@ the Seafarer's gear, and crews and outposts for Worker Folks (1.3.0 or later, op
   mountains, highlands or a mine (or the hex next to one), Fishing wants a river, lake, beach or coast, Farming wants
   grasslands or a farm, Thieving a town, market or port. Crafting skills need a workshop: a town, port, camp, forge,
   temple, magic site or monolith depending on the skill. Firemaking and Cooking work on any land. Astrology,
-  Cartography, Agility, Prayer and Archaeology work anywhere. Penalised hexes run slower, never faster.
+  Cartography, Agility and Prayer work anywhere. Penalised hexes run slower, never faster.
 - **Combat on the map.** Fighting an area, dungeon or stronghold needs you on its hex or next to it. Walking away ends
   the fight.
+- **Dig sites on the map.** Archaeology digs a dig site only from its place on the map, or the hex next to it, under
+  Strict and Relaxed alike. Walking away ends the dig.
 - **Trade near people.** Selling and buying work in a town, port or market, or next to one. Township, its trader
   included, works in a town or port.
   The bank is your cargo hold until you get there.
@@ -175,7 +177,7 @@ the Seafarer's gear, and crews and outposts for Worker Folks (1.3.0 or later, op
 
 - **Terrain overlay**: tint on or off.
 - **Voyage rules**: off turns every location lock off. The overlay and the panel stay.
-- **Strictness**: Strict locks gathering and crafting; Relaxed locks gathering only, and keeps Firemaking and Cooking on dry land.
+- **Strictness**: Strict locks gathering and crafting; Relaxed locks gathering only, and keeps Firemaking and Cooking on dry land and Archaeology at its dig sites.
 - **Resource zones**: each ore, tree, fish, crop, thieving target and constellation is found only in its own places (iron and copper
   are in different regions; the panel's skill icons list what is found on your hex). Off: the skill's terrain decides alone.
 - **Combat needs its area** and **Trade only near markets**: each can be switched off on its own.

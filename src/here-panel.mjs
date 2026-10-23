@@ -171,6 +171,34 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         locked.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKY_NONE', { skill: skill.name }), `<img class="skill-icon-xs voyage-skill-locked" src="${skill.media}" alt="">`, '', [lockedHead(skill, skill.name), getLangString('MOD_VOY_PANEL_SKY_NONE_ROW')]));
       }
     }
+    // Archaeology (the user, 23 Oct 2026): works where a dig site the game lists for you is in reach, named in the tip.
+    const arch = off ? undefined : game.archaeology;
+    if (arch !== undefined && arch.isUnlocked) {
+      const sites = state.digSitesHere?.() ?? [];
+      if (sites.length > 0) {
+        works.push(skillIcon(arch, templateLangString('MOD_VOY_PANEL_SKILL_WORKS_LIST', { skill: arch.name, names: sites.map((s) => s.name).join(', ') }), `<img class="skill-icon-xs" src="${arch.media}" alt="">`));
+      } else {
+        const sentences = [templateLangString('MOD_VOY_PANEL_NEEDS', { noun: getLangString('MOD_VOY_DIG_NOUN') })];
+        const lines = [lockedHead(arch, arch.name), sentences[0]];
+        const near = state.digNearest?.(pos);
+        if (near !== undefined) {
+          const dir = getLangString(`MOD_VOY_DIR_SHORT_${terrainMod.directionLabel(pos, near.hex)}`);
+          const hexes = templateLangString(near.distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${near.distance}` });
+          sentences.push(templateLangString('MOD_VOY_PANEL_NEAREST_KNOWN_AT', { hexes, dir, place: near.site.name }));
+          lines.push({ text: sentences[1], cls: 'text-info' });
+        } else {
+          sentences.push(getLangString('MOD_VOY_PANEL_DIG_NONE_KNOWN'));
+          lines.push({ text: sentences[1], cls: 'voyage-tip-dim' });
+          const reading = state.compass?.readingTo?.(state.digTargets?.() ?? [], pos);
+          const said = state.compass?.describe(reading);
+          if (said !== undefined) {
+            sentences.push(said.text);
+            lines.push({ text: said.text, item: 'voyage:Wayfinder_Compass', mark: said.word === undefined ? undefined : { text: said.word, cls: `voyage-compass-${reading.word}` } });
+          }
+        }
+        locked.push(skillIcon(arch, templateLangString('MOD_VOY_PANEL_SKILL_LOCKED', { skill: arch.name, hint: sentences.join('\n') }), `<img class="skill-icon-xs voyage-skill-locked" src="${arch.media}" alt="">`, '', lines));
+      }
+    }
     return { works, locked, off };
   };
   const skillRowsHtml = ({ works, locked, off }) => {

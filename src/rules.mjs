@@ -177,6 +177,16 @@ export function combatAllowedAt(places, pos, isKnown = () => true) {
   return { allowed, unplaced: false, nearest: best };
 }
 
+/**
+ * Archaeology (the user, 23 Oct 2026): a dig site is dug only at its own POI on the map, or one hex away once that hex
+ * is known, as a combat area is fought. Not a skill rule: the skill has no ground of its own, each dig site has its
+ * place. It holds under Strict and Relaxed alike. `places` is the POI's tagged hex (empty: not on the map, dug anywhere).
+ */
+export const ARCHAEOLOGY_ID = 'melvorAoD:Archaeology';
+export function digAllowedAt(places, pos, isKnown = () => true) {
+  return combatAllowedAt(places, pos, isKnown);
+}
+
 export const isTradePlace = (rec) => rec !== undefined && Array.isArray(rec.f) && rec.f.some((f) => TRADE_FEATURES.includes(f));
 
 /** Trade gate: on a trading hex or next to one. */

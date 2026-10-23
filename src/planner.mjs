@@ -139,6 +139,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
         case 'melvorD:Fishing': return game.fishing.isActive && game.fishing.activeFish === a;
         case 'melvorD:Thieving': return game.thieving.isActive && game.thieving.currentNPC === a;
         case 'melvorD:Astrology': return game.astrology.isActive && game.astrology.studiedConstellation === a;
+        case 'melvorAoD:Archaeology': return game.archaeology.isActive && game.archaeology.currentDigSite === a;
         default: return false;
       }
     } catch { return false; }
@@ -163,11 +164,12 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
         break;
       }
       case 'melvorD:Astrology': game.astrology.studyConstellationOnClick(a); break;
+      case 'melvorAoD:Archaeology': game.archaeology.startDigging(a); break;
       default: return false;
     }
     return isRunning(skillId, a);
   };
-  const startable = (skillId) => ['melvorD:Woodcutting', 'melvorD:Mining', 'melvorD:Fishing', 'melvorD:Thieving', 'melvorD:Astrology'].includes(skillId);
+  const startable = (skillId) => ['melvorD:Woodcutting', 'melvorD:Mining', 'melvorD:Fishing', 'melvorD:Thieving', 'melvorD:Astrology', 'melvorAoD:Archaeology'].includes(skillId);
   const isDungeon = (area) => { try { return game.dungeons.getObjectByID(area.id) === area; } catch { return false; } };
   const isFightArea = (area) => { try { return game.combatAreas.getObjectByID(area.id) === area || game.slayerAreas.getObjectByID(area.id) === area; } catch { return false; } };
   // What the game would refuse on arrival (build .130), asked quietly with the game's own tests:
@@ -195,6 +197,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     if (!sk.isUnlocked) return esc(t('MOD_VOY_PLAN_REFUSE_LEVEL', { skill: sk.name, level: action.level ?? 1 }));
     if ((action.level ?? 0) > sk.level) return esc(t('MOD_VOY_PLAN_REFUSE_LEVEL', { skill: sk.name, level: action.level }));
     if ((action.abyssalLevel ?? 0) > (sk.abyssalLevel ?? 0)) return esc(t('MOD_VOY_PLAN_REFUSE_ABYSSAL', { skill: sk.name, level: action.abyssalLevel }));
+    // A dig site digs only with a map that has charges and a tool picked (Archaeology.canExcavate).
+    if (sk.id === 'melvorAoD:Archaeology' && !sk.canExcavate(action)) return esc(t('MOD_VOY_PLAN_REFUSE_DIG', { name: action.name }));
     return undefined;
   };
   const refusal = (fn) => { try { return fn(); } catch (e) { log('arrival check failed', e); return undefined; } };

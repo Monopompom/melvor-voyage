@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SKILL_RULES, gatedSkillIds, isGated, allowedAt, rateAt, appliesUnder, ruleNoun, ruleLabel, ruleTerms, combatAllowedAt, tradeAllowedAt, TRADE_FEATURES, FOLK_NEVER, folkNever } from '../src/rules.mjs';
+import { readFileSync } from 'node:fs';
+import { SKILL_RULES, gatedSkillIds, isGated, allowedAt, rateAt, appliesUnder, ruleNoun, ruleLabel, ruleTerms, combatAllowedAt, tradeAllowedAt, TRADE_FEATURES, FOLK_NEVER, folkNever, ARCHAEOLOGY_ID, digAllowedAt } from '../src/rules.mjs';
+import { createTerrain, hexDistance } from '../src/terrain.mjs';
 
 const WC = 'melvorD:Woodcutting';
 const MINING = 'melvorD:Mining';
@@ -117,6 +119,43 @@ test('combat grace: an area one hex away counts only once you know its hex (the 
   assert.equal(combatAllowedAt(places, { q: 10, r: 10 }, unknown).allowed, true, 'standing on it always counts');
   assert.equal(combatAllowedAt(places, { q: 11, r: 9 }, (h) => h.q === 10).allowed, true);
   assert.equal(combatAllowedAt([], { q: 0, r: 0 }, unknown).unplaced, true, 'unplaced areas still fail open');
+});
+
+test('dig sites: dug on their POI or one known hex away, in Strict and Relaxed alike; unplaced ones anywhere (the user, 23 Oct 2026)', () => {
+  assert.ok(!isGated(ARCHAEOLOGY_ID), 'not a terrain rule: each dig site has its place');
+  const places = [{ q: 13, r: 11 }];
+  assert.equal(digAllowedAt(places, { q: 13, r: 11 }).allowed, true);
+  assert.equal(digAllowedAt(places, { q: 14, r: 10 }).allowed, true);
+  assert.equal(digAllowedAt(places, { q: 14, r: 10 }, () => false).allowed, false, 'grace only from a known hex');
+  assert.equal(digAllowedAt(places, { q: 13, r: 11 }, () => false).allowed, true, 'standing on it always counts');
+  const far = digAllowedAt(places, { q: 15, r: 11 });
+  assert.equal(far.allowed, false);
+  assert.deepEqual(far.nearest, { hex: places[0], distance: 2 });
+  assert.deepEqual(digAllowedAt([], { q: 0, r: 0 }), { allowed: true, unplaced: true });
+});
+
+// The game's dig sites and the POI each one links to (digSite.poi; the POI's digSiteID in the AoD data, v1.3.1).
+const DIG_SITE_POIS = {
+  OldVillage: 'OldVillage', AncientMarket: 'AncientMarket', SacrificialSite: 'SacrificialSite', Stoneworkers: 'Stoneworkers',
+  Monuments: 'Monuments', Bazaar: 'Bazaar', Mines: 'Mines', CoralWreckage: 'CoralWreckage', Quarry: 'Quarry',
+  RuinedCity: 'GlaciaDungeonRuins', AncientForge: 'AncientForge', RitualSite: 'RitualSite', LostTemple: 'LostTemple',
+  Watchtower: 'Watchtower', CastleRuins: 'CastleRuins', Cathedral: 'Cathedral', ShipwreckCove: 'ShipwreckCove', Melantis: 'Melantis',
+};
+
+test('every dig site of the game has its POI on the map, one hex each, none shared', () => {
+  const terrain = createTerrain(JSON.parse(readFileSync(new URL('../data/hex_terrain.json', import.meta.url), 'utf8')));
+  assert.equal(Object.keys(DIG_SITE_POIS).length, 18);
+  const seen = new Set();
+  for (const [site, poi] of Object.entries(DIG_SITE_POIS)) {
+    const rec = terrain.poi(poi);
+    assert.ok(rec !== undefined, `${site}: POI ${poi} is not tagged on the map`);
+    const key = `${rec.q},${rec.r}`;
+    assert.ok(!seen.has(key), `${site} shares its hex`);
+    seen.add(key);
+    assert.equal(digAllowedAt([rec], rec).allowed, true, site);
+    assert.equal(hexDistance(rec, { q: rec.q + 2, r: rec.r }), 2);
+    assert.equal(digAllowedAt([rec], { q: rec.q + 2, r: rec.r }).allowed, false, `${site} two hexes out`);
+  }
 });
 
 test('trade gate: on a town, port or market hex or next to one', () => {

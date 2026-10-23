@@ -405,6 +405,14 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
           const id = item.id;
           const zonedOnly = state.zonedUngated?.()?.includes(id) === true;
           if (!item.rootEl) continue;
+          // Archaeology: dimmed where no dig site the game lists for you is in reach (off with the rules, as Astrology).
+          if (id === ARCHAEOLOGY) {
+            const dim = state.digLockedHere();
+            item.rootEl.classList.toggle('voyage-dim', dim);
+            const tip = dim ? templateLangString('MOD_VOY_GATE_SIDEBAR_LOCKED', { need: getLangString('MOD_VOY_DIG_NOUN') }) : '';
+            if (state.tips !== undefined) state.tips.set(item.rootEl, tip, { placement: 'right' }); else item.rootEl.title = tip;
+            continue;
+          }
           if (!rules.isGated(id) && !zonedOnly) {
             // Astrology is zoned only while the rules and zones are on: when they go off, its dim and tip go too.
             if (item.rootEl.classList.contains('voyage-dim')) {
@@ -703,6 +711,102 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     return original(area);
   });
 
+  // ---------------------------------------------------------------------------------------------------- dig sites
+  // Archaeology (the user, 23 Oct 2026): a dig site is dug only at its own POI or one hex away once that hex is known,
+  // as a combat area is fought (rules.digAllowedAt). The game links the two (digSite.poi, the dig site's POI); the POI
+  // is tagged on its hex in the table (`poi`). A dig site whose POI is not on the map is dug anywhere (fail open), as an
+  // unplaced area. Strict and Relaxed alike. The game itself lists a dig site only once its POI is discovered.
+  const ARCHAEOLOGY = rules.ARCHAEOLOGY_ID;
+  const warnedUndug = new Set();
+  /** The table hex of a dig site's POI, as a list: empty when the site or its POI is not on the map. */
+  const digPlaces = (site) => {
+    const name = site?.poi?.localID;
+    const rec = typeof name === 'string' ? state.terrain?.poi(name) : undefined;
+    return rec === undefined ? [] : [rec];
+  };
+  /** undefined when the site may be dug from `pos` (or the gate is off); otherwise { pos, rec, site, nearest }. */
+  const digLockedAt = (site, pos) => {
+    if (!on() || site === undefined || site === null || pos === undefined || pos === null) return undefined;
+    const res = rules.digAllowedAt(digPlaces(site), pos, knownPlace);
+    if (res.unplaced) {
+      if (!warnedUndug.has(site.id)) { warnedUndug.add(site.id); log(`dig site ${site.id} is not placed on the map: dug anywhere`); }
+      return undefined;
+    }
+    return res.allowed ? undefined : { pos, rec: state.recordAt(pos), site, nearest: res.nearest };
+  };
+  /** digLockedAt your hex, or for a dig a Folk would do, where it stands ({ ..., folk }), as lockedFor judges a skill. */
+  const digLockedFor = (site) => {
+    const folk = folkActor(ARCHAEOLOGY);
+    if (folk === undefined) return digLockedAt(site, state.position());
+    const moves = folk.travel === 'with' || (folk.skillId !== ARCHAEOLOGY && !keptJob(folk, ARCHAEOLOGY));
+    const locked = digLockedAt(site, moves ? state.position() : folk.place);
+    return locked === undefined ? undefined : { ...locked, folk };
+  };
+  /** The dig sites the game lists for you (discovered, at your level), in its order. */
+  const openDigSites = () => {
+    const arch = game.archaeology;
+    if (arch === undefined || !arch.isUnlocked) return [];
+    return arch.actions.allObjects.filter((site) => site.isDiscovered && (site.level ?? 1) <= arch.level);
+  };
+  /** The dig sites you may dig from `pos` (placed on the map, in reach); empty while the gate is off. */
+  const digSitesAt = (pos) => (on() && pos !== undefined ? openDigSites().filter((site) => digLockedAt(site, pos) === undefined) : []);
+  /** The nearest known POI of a dig site the game lists for you: { hex, distance, site }, or undefined. */
+  const digNearest = (pos, sites = openDigSites()) => {
+    let best;
+    for (const site of sites) {
+      for (const h of digPlaces(site)) {
+        if (!knownPlace(h)) continue;
+        const d = hexDistance(pos, h);
+        if (best === undefined || d < best.distance) best = { hex: h, distance: d, site };
+      }
+    }
+    return best;
+  };
+  const folkDigText = (site, { folk }) => line('MOD_VOY_FOLK_DIG_NEEDS', { name: esc(folk.name), site: esc(site.name ?? site.id) }).text;
+  const showLockedDig = (site, { pos, nearest }) => {
+    const name = site.name ?? site.id;
+    const lines = [line('MOD_VOY_GATE_DIG_STAND', { name: esc(name) })];
+    const others = digSitesAt(pos);
+    if (others.length > 0) lines.push(line('MOD_VOY_GATE_DIG_HERE', { names: esc(others.map((s) => s.name).join(', ')) }));
+    if (nearest !== undefined && knownPlace(nearest.hex)) lines.push(line('MOD_VOY_GATE_AREA_WHERE', { where: whereIs(pos, nearest.hex, nearest.distance) }));
+    else {
+      lines.push(line('MOD_VOY_GATE_AREA_UNKNOWN', { name: esc(name) }));
+      const compass = compassLine(state.compass?.readingTo(digPlaces(site), pos));
+      if (compass !== undefined) lines.push(compass);
+    }
+    log(`refused digging ${site.id} at (${pos?.q},${pos?.r})`);
+    modal(helpLayout.marked(templateLangString, 'MOD_VOY_GATE_AREA_TITLE', {}, { name: helpLayout.titleName(name) }), site.media, lines,
+      { guide: 'dig', plan: () => state.planner?.forAction(ARCHAEOLOGY, site, digPlaces(site).filter(knownPlace)) });
+  };
+  // The Excavate button (archaeologyMenu: archaeology.startDigging(digSite)), checked before the game stops the dig
+  // that runs. A click on the site being dug stops it, which always works. The idleChecker backstop below covers the rest.
+  let ArchaeologyCls;
+  try { ArchaeologyCls = Archaeology; } catch { log('entry point Archaeology absent (expansion not loaded)'); }
+  if (typeof ArchaeologyCls?.prototype?.startDigging === 'function') {
+    ctx.patch(ArchaeologyCls, 'startDigging').replace(function (original, site, ...rest) {
+      try {
+        if (!(this.isActive && this.currentDigSite === site)) {
+          const locked = digLockedFor(site);
+          if (locked !== undefined) {
+            if (locked.folk !== undefined) toastFolk(folkDigText(site, locked)); else showLockedDig(site, locked);
+            return undefined;
+          }
+        }
+      } catch (e) { console.error('[Voyage] dig gate failed open', e); }
+      return original(site, ...rest);
+    });
+  } else if (ArchaeologyCls !== undefined) console.warn('[Voyage] entry point Archaeology.startDigging not found; gated by the backstop only');
+  /** The dig sites you may dig here, for the Here panel, the sidebar and the ship's clock. */
+  state.digSitesHere = () => { try { return digSitesAt(state.position()); } catch (e) { log('dig sites here failed', e); return []; } };
+  /** Archaeology is locked on your hex: the rules on, and no dig site the game lists for you in reach. */
+  state.digLockedHere = () => { try { return on() && game.archaeology?.isUnlocked === true && digSitesAt(state.position()).length === 0; } catch { return false; } };
+  /** The nearest known dig site POI from `pos`, for the lock tooltips. */
+  state.digNearest = (pos) => { try { return pos === undefined ? undefined : digNearest(pos); } catch { return undefined; } };
+  /** Every dig site POI the game lists for you, known or not (the compass's targets). */
+  state.digTargets = () => { try { return openDigSites().flatMap(digPlaces); } catch { return []; } };
+  /** True when this dig site can't be dug from your hex (the ship's clock asks quietly). */
+  state.digLocked = (site) => { try { return digLockedAt(site, state.position()) !== undefined; } catch { return false; } };
+
   // ---------------------------------------------------------------------------------------------------- trade
   const tradeLocked = () => {
     if (!on() || !state.settings.trade()) return undefined;
@@ -897,6 +1001,11 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     if (folk === undefined || place === null || place === undefined) return undefined;
     const locked = lockedAt(skillId, place);
     if (locked !== undefined) return { ...locked, folk };
+    // Archaeology: the dig site it is on (or about to start) must be in reach of its hex.
+    if (skillId === ARCHAEOLOGY && skill?.currentDigSite !== undefined) {
+      const dig = digLockedAt(skill.currentDigSite, place);
+      if (dig !== undefined) return { ...dig, folk, offDig: dig.site };
+    }
     const off = skill === undefined ? undefined : runningActions(skill).map((a) => [a, zoneLockedAt(a, place)]).find(([, z]) => z !== undefined);
     return off === undefined ? undefined : { ...off[1], folk, offAction: off[0] };
   };
@@ -904,10 +1013,13 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const workRefusal = (folk, skillId, skill) => {
     const lock = folkWorkLock(folk, skillId, skill);
     if (lock === undefined) return undefined;
+    if (lock.offDig !== undefined) return { reason: folkDigText(lock.offDig, lock) };
     return { reason: lock.offAction === undefined ? folkWorkText(skillId, lock) : folkZoneText(lock.offAction, lock) };
   };
   /** The toast when a Folk's work is stopped where it stands: the skill rule's, or the zone's for what it was on. */
-  const folkStoppedText = (skillId, lock) => (lock.offAction === undefined
+  const folkStoppedText = (skillId, lock) => (lock.offDig !== undefined
+    ? line('MOD_VOY_FOLK_STOPPED_DIG', { name: esc(lock.folk.name), site: esc(lock.offDig.name ?? lock.offDig.id) }).text
+    : lock.offAction === undefined
     ? line('MOD_VOY_FOLK_STOPPED_WORK', { name: esc(lock.folk.name), here: here(lock.rec).html, skill: esc(skillLabel(skillId, game.skills.getObjectByID(skillId)?.name ?? skillId)), need: need(skillId).html }).text
     : line('MOD_VOY_FOLK_STOPPED_ZONE', { name: esc(lock.folk.name), here: here(lock.rec).html, action: esc(lock.offAction.name ?? lock.offAction.id) }).text);
   /** A Folk walking alone (6d) takes no orders but Stop here until it arrives. */
@@ -923,6 +1035,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     if (yours !== undefined) return yours.reason;
     const locked = lockedAt(skillId, hex);
     if (locked !== undefined) return folkWorkText(skillId, { ...locked, folk });
+    if (skillId === ARCHAEOLOGY && action !== undefined && digLockedAt(action, hex) !== undefined) return folkDigText(action, { folk });
     const z = zoneLockedAt(action, hex);
     return z === undefined ? undefined : folkZoneText(action, { ...z, folk });
   };
@@ -960,9 +1073,13 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   // position changes), and whenever the rules tighten: a settings change (rules back on, Strict, combat switch), the
   // tutorial ending, and the first interface load. Without the last three, a skill started while the rules were off
   // kept running when they came back on. The Folks at work are judged the same way, each where it stands (build .400).
+  // Nothing is stopped before the interface is ready (build .408): the game replays the time away first, and the
+  // checks queued while the character loads (the settings pass, a move) ran before that replay and threw the time
+  // away of an action that no longer fit, such as a dig off its site after the update that locked Archaeology.
+  let ready = false;
   const stopWhatDoesNotFit = (cause) => {
     try {
-      if (!on()) return;
+      if (!on() || !ready) return;
       stopFolksThatDoNotFit(cause);
       const rec = state.recordAt(state.position());
       // Gated skills, plus Astrology (no rule of its own; ungated skills pass allowedAt, so only its zones stop it).
@@ -982,6 +1099,14 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
         if (skill.stop()) {
           log(`stopped ${id} (${cause}) at (${rec?.q},${rec?.r}) ${rec?.t}`);
           try { game.notifications.createErrorNotification('voyage:stopped', templateLangString('MOD_VOY_GATE_STOPPED', { name: skillLabel(id, skill.name) })); } catch {}
+        }
+      }
+      const arch = game.archaeology;
+      if (arch?.isActive && game.activeAction === arch && digLockedAt(arch.currentDigSite, state.position()) !== undefined) {
+        const name = arch.currentDigSite.name ?? arch.currentDigSite.id;
+        if (arch.stop()) {
+          log(`stopped digging ${name} (${cause})`);
+          try { game.notifications.createErrorNotification('voyage:stopped', templateLangString(cause === 'move' ? 'MOD_VOY_GATE_DIG_STOPPED' : 'MOD_VOY_GATE_DIG_OUT_OF_REACH', { name })); } catch {}
         }
       }
       const cm = game.combat;
@@ -1012,7 +1137,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
         if (skill === undefined || !skill.isActive || game.activeAction === skill) continue;
         const lock = folkWorkLock(f, f.skillId, skill);
         if (lock === undefined || !skill.stop()) continue;
-        log(`stopped ${f.name}'s ${f.skillId} (${cause}) at (${lock.pos.q},${lock.pos.r}): ${lock.offAction === undefined ? 'the skill rule' : `${lock.offAction.id} outside its zone`}`);
+        log(`stopped ${f.name}'s ${f.skillId} (${cause}) at (${lock.pos.q},${lock.pos.r}): ${lock.offDig !== undefined ? `${lock.offDig.id} out of reach` : lock.offAction === undefined ? 'the skill rule' : `${lock.offAction.id} outside its zone`}`);
         toastFolk(folkStoppedText(f.skillId, lock));
       } catch (e) { console.error(`[Voyage] stop check for ${f?.name} failed open`, e); }
     }
@@ -1036,8 +1161,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   // Deferred: settings handlers run inside the loader's onChange, before it stores the value.
   state.listeners.push(() => setTimeout(() => stopWhatDoesNotFit('rules'), 0), refreshRates, dimSidebar, () => setTimeout(refreshFolks, 0));
   // A level gained can open a zoned skill here (build .280): the sidebar follows at once.
-  ctx.patch(Skill, 'onLevelUp').after(function () { try { if (state.zoneTable?.skills?.[this.id] !== undefined) setTimeout(dimSidebar, 0); } catch {} });
-  ctx.onInterfaceReady(() => setTimeout(() => { stopWhatDoesNotFit('load'); dimSidebar(); }, 0));
+  ctx.patch(Skill, 'onLevelUp').after(function () { try { if (state.zoneTable?.skills?.[this.id] !== undefined || this.id === ARCHAEOLOGY) setTimeout(dimSidebar, 0); } catch {} });
+  // The game awaits the end of its offline catch-up before the interface is ready.
+  ctx.onInterfaceReady(() => setTimeout(() => { ready = true; stopWhatDoesNotFit('load'); dimSidebar(); }, 0));
   // The gates switch on when the tutorial ends (state.active). The entry gates read that live, but the sidebar and
   // the skill pages only redraw on a move or a settings change, so finishing the tutorial must trigger one.
   try {
@@ -1049,6 +1175,16 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     try {
       const skillId = action?.id;
       if (typeof skillId !== 'string') return original(action);
+      // Archaeology: the dig site it is about to start (startDigging sets it before start()).
+      if (skillId === ARCHAEOLOGY) {
+        const site = action.currentDigSite;
+        const dig = site === undefined ? undefined : digLockedFor(site);
+        if (dig !== undefined) {
+          if (dig.folk !== undefined) toastFolk(folkDigText(site, dig)); else showLockedDig(site, dig);
+          console.warn(`[Voyage] backstop refused digging ${site.id}: a start path bypassed startDigging`);
+          return true;
+        }
+      }
       const locked = lockedFor(skillId);
       if (locked === undefined) return original(action);
       if (locked.folk !== undefined) { toastFolk(folkWorkText(skillId, locked)); return true; }

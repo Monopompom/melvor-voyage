@@ -14,7 +14,8 @@
 // popup offers to drop anchor; on yes the voyage stops and the start is tried again where the game allows it.
 
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
-const STARTABLE = ['melvorD:Woodcutting', 'melvorD:Mining', 'melvorD:Fishing', 'melvorD:Thieving', 'melvorD:Astrology'];
+const STARTABLE = ['melvorD:Woodcutting', 'melvorD:Mining', 'melvorD:Fishing', 'melvorD:Thieving', 'melvorD:Astrology', 'melvorAoD:Archaeology'];
+const ARCHAEOLOGY_ID = 'melvorAoD:Archaeology';
 const CARTOGRAPHY_ID = 'melvorAoD:Cartography';
 
 export function install(ctx, { state, C, storesModel: S, shipModel, rules, terrainMod, helpLayout, log }) {
@@ -134,7 +135,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
   const currentOf = (a) => {
     try {
       if (a.activeTrees instanceof Set) return [...a.activeTrees][0];
-      return a.selectedRock ?? a.activeFish ?? a.currentNPC ?? a.studiedConstellation ?? a.selectedRecipe ?? undefined;
+      return a.selectedRock ?? a.activeFish ?? a.currentNPC ?? a.studiedConstellation ?? a.currentDigSite ?? a.selectedRecipe ?? undefined;
     } catch { return undefined; }
   };
   /** What you are doing now, as a choice for "what you were doing", or undefined. */
@@ -209,6 +210,10 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
           if ((a.abyssalLevel ?? 0) > (sk.abyssalLevel ?? 0)) return t('MOD_VOY_PLAN_REFUSE_ABYSSAL', { skill: sk.name, level: `${a.abyssalLevel}` });
           if (STARTABLE.includes(c.skill) && state.zonesOn?.() && state.zoneTable?.skills?.[c.skill]?.actions?.[a.id] !== undefined
             && !(state.zoneActionsHere?.(c.skill) ?? []).includes(a)) return t('MOD_VOY_CLOCK_WHY_ZONE', { name: a.name });
+          if (c.skill === ARCHAEOLOGY_ID) {
+            if (state.active() && state.digLocked?.(a)) return t('MOD_VOY_CLOCK_WHY_AREA', { name: a.name });
+            if (!sk.canExcavate(a)) return t('MOD_VOY_PLAN_REFUSE_DIG', { name: a.name });
+          }
         }
         return undefined;
       }
@@ -227,6 +232,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
         case 'melvorD:Fishing': return game.fishing.isActive && game.fishing.activeFish === a;
         case 'melvorD:Thieving': return game.thieving.isActive && game.thieving.currentNPC === a;
         case 'melvorD:Astrology': return game.astrology.isActive && game.astrology.studiedConstellation === a;
+        case ARCHAEOLOGY_ID: return game.archaeology.isActive && game.archaeology.currentDigSite === a;
         default: return false;
       }
     } catch { return false; }
@@ -268,6 +274,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
           break;
         }
         case 'melvorD:Astrology': game.astrology.studyConstellationOnClick(a); break;
+        case ARCHAEOLOGY_ID: game.archaeology.startDigging(a); break;
         default: return false;
       }
       return isRunning(c.skill, a);
@@ -322,6 +329,8 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
         if (rules.isGated(id) && state.active() && state.rateAt(id) === 0) continue;
         for (const a of state.zoneActionsHere?.(id) ?? []) add({ k: 'skill', skill: id, action: a.id });
       }
+      // The dig sites in reach there that can dig now (a map with charges, a tool picked).
+      for (const site of state.digSitesHere?.() ?? []) if (game.archaeology.canExcavate(site)) add({ k: 'skill', skill: ARCHAEOLOGY_ID, action: site.id });
     } catch (e) { log('arrival options failed', e); } finally { state.posOverride = before; }
     return out.slice(0, 40);
   };
