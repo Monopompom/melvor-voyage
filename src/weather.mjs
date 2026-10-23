@@ -362,7 +362,13 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
   };
   let lastEpoch;
   /** Each half-hour of game time: a vessel lying at sea in a storm (not one under way) wears STORM_LYING_WEAR %. */
+  let wearTicks = 0;
   const lyingWear = () => {
+    // Once a second of ticks (build .401): the epochs are half-hours and every one since the last look is counted below,
+    // so the clock need not be read twenty times a second (its read allocates).
+    wearTicks += 1;
+    if (wearTicks < 20) return;
+    wearTicks = 0;
     const now = state.clockNow?.() ?? Date.now();
     const epoch = Math.floor(now / W.STORM_STEP_MS);
     if (lastEpoch === undefined || epoch < lastEpoch) { lastEpoch = epoch; return; }

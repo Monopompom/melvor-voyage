@@ -81,8 +81,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
 
   /** One icon per gated skill: full, penalised (with a % badge) or locked (dimmed); a tap or the tooltip says why. */
   /** Works here and Locked here apart (build .296): what you can do sits high in the panel, what you can't at its foot. */
-  const worksRows = (pos) => skillRowsHtml({ ...skillLists(pos), locked: [] });
-  const lockedRows = (pos) => { const l = skillLists(pos); return l.locked.length > 0 ? skillRowsHtml({ ...l, works: null }) : ''; };
+  const worksRows = (lists) => skillRowsHtml({ ...lists, locked: [] });
+  const lockedRows = (lists) => (lists.locked.length > 0 ? skillRowsHtml({ ...lists, works: null }) : '');
   /** The working and locked skill icons for this hex: { works, locked, off }. */
   const skillLists = (pos) => {
     const works = [];
@@ -434,15 +434,19 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   // The bars and times move twice a second while under way, between the panel's own redraws.
   setInterval(() => {
     try {
-      const fills = document.querySelectorAll('[data-voyage-way="fill"]');
+      // Within the panel only (build .401): every element with these marks is the panel's, and the page's whole tree
+      // is thousands of nodes to search twice a second.
+      const root = document.getElementById(PANEL_ID);
+      if (root === null) return;
+      const fills = root.querySelectorAll('[data-voyage-way="fill"]');
       if (fills.length === 0) return;
       const way = state.clock?.chip?.();
       if (way === undefined) return;
       const w = `${(way.frac * 100).toFixed(1)}%`;
       fills.forEach((f) => { if (f.style.width !== w) f.style.width = w; });
       const left = templateLangString('MOD_VOY_PANEL_UNDERWAY_LEFT', { left: way.text });
-      document.querySelectorAll('[data-voyage-way="left"]').forEach((x) => { if (x.textContent !== left) x.textContent = left; });
-      document.querySelectorAll('[data-voyage-way="chip"]').forEach((x) => { if (x.textContent !== way.text) x.textContent = way.text; });
+      root.querySelectorAll('[data-voyage-way="left"]').forEach((x) => { if (x.textContent !== left) x.textContent = left; });
+      root.querySelectorAll('[data-voyage-way="chip"]').forEach((x) => { if (x.textContent !== way.text) x.textContent = way.text; });
     } catch {}
   }, 500);
   const underwayLine = () => {
@@ -768,7 +772,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     try { localStorage.setItem(TUCK_KEY, on ? (from === 'open' ? 'open' : '1') : '0'); } catch {}
   };
   /** Locked here, last (build .296), under a rule like the blocks above it. */
-  const lockedBlock = (pos) => { const html = lockedRows(pos); return html === '' ? '' : `<div class="voyage-skills voyage-locked-block">${html}</div>`; };
+  const lockedBlock = (lists) => { const html = lockedRows(lists); return html === '' ? '' : `<div class="voyage-skills voyage-locked-block">${html}</div>`; };
   /**
    * The legend on the map (the user, build .296: "move the legend, as a clickable badge that expands, to the place where
    * the wind badge was"): a round button under the zoom and centre buttons; a tap opens the colours in a card beside it,
@@ -1127,6 +1131,16 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return panel;
   };
 
+  // The HTML the panel was last given (on the element: a rebuilt panel starts empty). The same string is the same
+  // panel, so it is neither set again nor given its tooltips again (build .401): a render per move and per listener call
+  // destroyed and remade every tooltip in it.
+  let drew = false;
+  const put = (panel, html) => {
+    if (panel.voyageHtml === html && panel.childNodes.length > 0) return;
+    panel.voyageHtml = html;
+    panel.innerHTML = html;
+    drew = true;
+  };
   const draw = () => {
     try {
       const panel = ensurePanel();
@@ -1134,7 +1148,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (state.mode === 'dormant') { panel.classList.add('d-none'); return; }
       panel.classList.remove('d-none');
       const pos = state.position();
-      if (pos === undefined) { panel.innerHTML = `<div class="font-w600">${esc(getLangString('SKILL_NAME_Voyage'))}</div><small class="text-muted">${esc(getLangString('MOD_VOY_PANEL_NO_POSITION'))}</small>`; return; }
+      if (pos === undefined) { put(panel, `<div class="font-w600">${esc(getLangString('SKILL_NAME_Voyage'))}</div><small class="text-muted">${esc(getLangString('MOD_VOY_PANEL_NO_POSITION'))}</small>`); return; }
       const rec = state.recordAt(pos);
       const d = describe(rec);
       const poi = poiNameOf(pos);
@@ -1153,17 +1167,18 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       panel.classList.toggle('voyage-tucked', tucked);
       if (!panelOpen) {
         const tip = `${d.label}${d.features.length > 0 ? ` · ${d.features.join(', ')}` : ''}${place ? ` · ${[poi, d.area].filter(Boolean).join(', ')}` : ''} ${coordsOf(pos)}`;
-        panel.innerHTML = tucked ? tuckHtml(tip, status) : miniHtml(pos, d, tip, status) + mode;
+        put(panel, tucked ? tuckHtml(tip, status) : miniHtml(pos, d, tip, status) + mode);
         placeUnderBar();
         return;
       }
       // The head: the fold toggle, which shows the hour when there is one (the user, 20 Oct 2026, a mock-up of the
       // panel with "Day until 21:00" at its top), else "You are here"; then Manage voyage and the book.
       const time = headTime();
+      const lists = skillLists(pos);
       const fold = getLangString(panelOpen ? 'MOD_VOY_PANEL_FOLD' : 'MOD_VOY_PANEL_UNFOLD');
       const headLabel = time === undefined ? esc(getLangString('MOD_VOY_PANEL_YOU_ARE_HERE'))
         : `<span class="voyage-here-clock ${time.night ? 'text-info' : ''}"><i class="fa fa-${time.night ? 'moon' : 'sun'} mr-1"></i>${esc(time.text)}</span>`;
-      panel.innerHTML =
+      put(panel,
         `<div class="voyage-here-head"><button type="button" class="voyage-panel-toggle voyage-open-caret" data-tip-touch="off" aria-expanded="${panelOpen}" aria-label="${esc(`${getLangString('MOD_VOY_PANEL_YOU_ARE_HERE')}. ${fold}. ${getLangString('MOD_VOY_PANEL_HOLD_TUCK')}`)}">` +
         `<i class="fa fa-caret-${panelOpen ? 'down' : 'right'} mr-1"></i><span class="voyage-toggle-pill"${time === undefined ? '' : ` title="${esc(`${time.text}. ${time.hint}`)}"`}>${headLabel}</span></button>${manageLink()}</div>` +
         // In groups (the user's mock-up, 20 Oct 2026): any warning; where you are; the weather; your vessel, stores and
@@ -1176,15 +1191,17 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         vesselGroup() +
         planLine() +
         placeBox(status, pos) +
-        `<div class="voyage-skills">${worksRows(pos)}</div>` +
-        lockedBlock(pos);
+        `<div class="voyage-skills">${worksRows(lists)}</div>` +
+        lockedBlock(lists));
       placeUnderBar();
       alignRowButtons(true);
     } catch (e) { log('here panel failed', e); }
   };
   /** Draws the panel, then gives its titles Melvor's tooltips (build .160). */
   const render = () => {
+    drew = false;
     draw();
+    if (!drew) return;
     try { state.tips?.apply(document.getElementById(PANEL_ID)); } catch (e) { log('tooltips failed', e); }
   };
 

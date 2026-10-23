@@ -15,6 +15,8 @@ const GATHERING = ['melvorD:Woodcutting', 'melvorD:Fishing', 'melvorD:Mining'];
 /** His portrait (build .210, the user's pick); the GP coin before. */
 const TRADER_ART = 'assets/trader.webp';
 const HALF = 0.5;
+/** How long the panel's stranded status is kept while the hex, the bank's stacks and the GP stand. */
+const STATUS_MEMO_MS = 5000;
 
 export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -146,6 +148,7 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
   };
 
   // ------------------------------------------------------------------------------------------------ verdict
+  let statusMemo;
   /** { stranded, reason, road, combat } for the player's hex; stranded on any error so the floor never fails closed. */
   const verdict = () => {
     const pos = state.position();
@@ -316,7 +319,15 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
     /** For the panel: 'here' while he is here, 'stranded' when an offer would be made, undefined otherwise. */
     status() {
       if (present()) return 'here';
-      return verdict().stranded ? 'stranded' : undefined;
+      // The panel asks per render, a render per move and per listener call; the verdict off a trade place scans the bank
+      // and the GP sources and may run two route searches (build .401).
+      const pos = state.position();
+      const key = `${pos?.q},${pos?.r}|${game.bank.items.size}|${game.gp.amount}|${state.tradeLocked?.()}|${state.adrift?.isAdrift?.()}`;
+      const now = performance.now();
+      if (statusMemo?.key === key && now - statusMemo.at < STATUS_MEMO_MS) return statusMemo.value;
+      const value = verdict().stranded ? 'stranded' : undefined;
+      statusMemo = { key, at: now, value };
+      return value;
     },
     verdict,
     combatRoad: (pos) => { try { return combatRoad(pos); } catch (e) { log('combat road failed', e); return undefined; } },

@@ -128,7 +128,8 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
     // The stowaway takes a berth only in the vessel it hides in (build .386): a row ashore in the boat is not refused for
     // it. The crew keeps a berth each everywhere.
     const s = stowaway();
-    const inKind = (kind) => list().length + (s !== undefined && (s.v ?? 'ship') === kind ? 1 : 0);
+    const aboard = list().length;
+    const inKind = (kind) => aboard + (s !== undefined && (s.v ?? 'ship') === kind ? 1 : 0);
     return n > 0 && Array.isArray(steps) ? CM.berthRefusal(steps, s === undefined ? n : inKind, berthsFor) : undefined;
   };
   /** The berth refusal in words: the plan block's verdict and a voyage's ending say it too. */

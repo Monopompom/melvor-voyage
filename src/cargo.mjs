@@ -46,12 +46,15 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
    * that no hull you own can sail today, or ''. The tier a lane needs is fixed by the map, so it is kept per pair.
    */
   const laneTiers = new Map();
+  let laneStamp;
   const hullWarning = (from, to) => {
     try {
       const geo = state.ship?.geo?.();
       const a = portRec.get(from);
       const b = portRec.get(to);
       if (geo === undefined || a === undefined || b === undefined || state.ship?.enabled?.() === false) return '';
+      // Ice and the weather's layer move the map (build .401): the pairs are forgotten with the terrain's version.
+      if (laneStamp !== state.terrain?.version) { laneStamp = state.terrain?.version; laneTiers.clear(); }
       const k = `${from}|${to}`;
       if (!laneTiers.has(k)) laneTiers.set(k, shipModel.laneTier(state.terrain.get(a.q, a.r), state.terrain.get(b.q, b.r), state.terrain, geo));
       const need = laneTiers.get(k);
@@ -280,17 +283,29 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
    * One crossing of the lane from port `from` to the request's port as time (build .387): the road between them with
    * the vessels you own, in calm (the deadline doesn't follow today's wind); undefined when no road is known.
    */
+  // Kept per pair (build .401) while your hulls and the terrain stand: the board drew 4-6 rows, each one route search.
+  const crossMemo = new Map();
+  let crossStamp;
+  const hullKey = (v) => (v == null ? '-' : `${shipModel.tierOf(v)}:${v.q},${v.r},${v.cond}`);
   const crossMs = (from, to) => {
     try {
+      const stamp = `${state.terrain?.version}|${hullKey(state.ship?.vessel?.('boat'))}|${hullKey(state.ship?.vessel?.('ship'))}|${state.clock?.seaHexMs?.()}|${state.land?.tier?.()}`;
+      if (stamp !== crossStamp) { crossStamp = stamp; crossMemo.clear(); }
+      const k = `${from}|${to}`;
+      if (crossMemo.has(k)) return crossMemo.get(k);
       const a = portRec.get(from);
       const b = portRec.get(to);
       const ha = a === undefined ? undefined : gameHex(a);
       const hb = b === undefined ? undefined : gameHex(b);
       if (ha === undefined || hb === undefined) return undefined;
       const path = game.cartography.activeMap.computePath(ha, hb);
-      if (!Array.isArray(path) || path.length < 2) return undefined;
-      const info = state.clock?.routeInfo?.(path);
-      return info !== undefined && info.calm > 0 ? info.calm : undefined;
+      let ms;
+      if (Array.isArray(path) && path.length >= 2) {
+        const info = state.clock?.routeInfo?.(path);
+        ms = info !== undefined && info.calm > 0 ? info.calm : undefined;
+      }
+      crossMemo.set(k, ms);
+      return ms;
     } catch (e) { log('lane crossing failed', e); return undefined; }
   };
   /** When a request taken at `now` at port `from` is due (the deadline, 0 with timed travel off). */

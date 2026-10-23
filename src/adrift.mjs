@@ -130,12 +130,14 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
   // moves (as a voyage's inner steps, voyage-clock.mjs). Installed after the clock's patches, so these run first.
   let moving = false;
   try {
+    // Fail open (build .401): a fault in the mod's own check leaves the game's discovery and event rolls as they are.
+    const drifting = () => { try { return moving || (towing() && state.clock?.stepping?.() === true); } catch (e) { log('drift check failed open', e); return false; } };
     ctx.patch(Cartography, 'discoverPOI').replace(function (original, ...args) {
-      if (moving || (towing() && state.clock?.stepping?.())) return undefined;
+      if (drifting()) return undefined;
       return original(...args);
     });
     ctx.patch(Cartography, 'rollForTravelEvent').replace(function (original, ...args) {
-      if (moving || (towing() && state.clock?.stepping?.())) return undefined;
+      if (drifting()) return undefined;
       return original(...args);
     });
   } catch (e) { log('adrift free-move rules not patched', e); }
@@ -545,7 +547,13 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
     return original();
   });
   ctx.patch(Cartography, 'movePlayer').replace(function (original, path, ignoreCosts, ...rest) {
-    if (!ignoreCosts && !moving && cur() !== null && state.clock?.stepping?.() !== true) { log('adrift: a move refused'); if (!offlineNow()) explain(); return undefined; }
+    let refuse = false;
+    try { refuse = !ignoreCosts && !moving && cur() !== null && state.clock?.stepping?.() !== true; } catch (e) { log('adrift move check failed open', e); }
+    if (refuse) {
+      log('adrift: a move refused');
+      try { if (!offlineNow()) explain(); } catch (e) { log('adrift notice failed', e); }
+      return undefined;
+    }
     return original(path, ignoreCosts, ...rest);
   });
 

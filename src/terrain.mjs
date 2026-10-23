@@ -188,7 +188,8 @@ export function createTerrain(table) {
     return out;
   };
   const read = (k) => {
-    const rec = layer !== undefined && layer.has(k) ? layer.get(k) : byKey.get(k);
+    const over = layer === undefined ? undefined : layer.get(k);
+    const rec = over !== undefined ? over : byKey.get(k);
     return rec === undefined || additions === undefined || !additions.has(k) ? rec : add(k, rec);
   };
   const none = [];

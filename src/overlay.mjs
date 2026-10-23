@@ -108,7 +108,10 @@ export function install(ctx, { state, terrainMod, log }) {
         stormTicker = ticker;
       }
       const map = game.cartography?.activeMap;
-      stormDrawn = `${state.weather?.stormKey?.() ?? ''}|${vp.scaled}|${map?.id}`;
+      // Called straight (a settings change, the panel's render) as well as by the ticker: nothing moved, nothing redrawn.
+      const key = `${state.weather?.stormKey?.() ?? ''}|${vp.scaled}|${map?.id}`;
+      if (key === stormDrawn && stormLayer.parent === vp) return;
+      stormDrawn = key;
       stormLayer.clear();
       boltLayer.clear();
       if (map === undefined || cartographyMap.lastDrawnMap !== map || state.weather?.stormsOn?.() !== true) return;
@@ -185,7 +188,10 @@ export function install(ctx, { state, terrainMod, log }) {
         folkTicker = ticker;
       }
       const map = game.cartography?.activeMap;
-      folkDrawn = folkKey(vp, map);
+      // Called straight as well as by the ticker (build .401): the same key is the same drawing.
+      const key = folkKey(vp, map);
+      if (key === folkDrawn && folkLayer.parent === vp) return;
+      folkDrawn = key;
       for (const child of folkLayer.removeChildren()) child.destroy();
       folkSpots = [];
       hideFolkTip();
@@ -306,12 +312,18 @@ export function install(ctx, { state, terrainMod, log }) {
     });
   }
 
-  /** Redraws every hex background on the currently drawn map (after a settings change), and the marks. */
+  /**
+   * Redraws every hex background on the currently drawn map (after a settings change), and the marks. Every listener
+   * call reaches it (a move, a survey, the stores), so the hexes are redrawn only when what colours them moved
+   * (build .401): the overlay setting, the terrain's layer or additions, the mode. The charts queue their own hexes.
+   */
+  let drawnFor;
   const refresh = () => {
     try {
       const map = game.cartography?.activeMap;
       if (map === undefined || typeof cartographyMap === 'undefined' || cartographyMap.lastDrawnMap !== map) return;
-      cartographyMap.updateAllHexBackgrounds(map);
+      const key = `${map.id}|${state.settings.overlay()}|${state.terrain?.version}|${state.mode}`;
+      if (key !== drawnFor) { drawnFor = key; cartographyMap.updateAllHexBackgrounds(map); }
     } catch (e) { log('overlay refresh failed', e); }
     drawMarks();
     drawStorms();

@@ -100,8 +100,8 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
    * big ship. The path is the game's (destination first) with `voyageModes` alongside.
    */
   ctx.patch(WorldMap, 'computePath').replace(function (original, start, goal) {
-    if (!enabled() || big() == null) return original(start, goal);
-    const g = geoNow();
+    let g;
+    try { if (enabled() && big() != null) g = geoNow(); } catch (e) { log('ship route check failed open', e); }
     if (g === undefined) return original(start, goal);
     try {
       const costModifier = this.cartography.travelCostMultiplier;

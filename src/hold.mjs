@@ -159,14 +159,26 @@ export function install(ctx, { state, shipModel, helpLayout, log }) {
   let shown; // { menu, item, reach } the block was last drawn for
   let hooked = false;
   const reachNow = () => { try { return usable() ? kinds().filter(reachable).join() : ''; } catch { return ''; } };
-  const redraw = (onlyIfReachChanged = false) => setTimeout(() => {
-    try {
-      const bi = shown === undefined ? undefined : game.bank.items.get(shown.item);
-      if (bi === undefined || bi.quantity <= 0 || !shown.menu.isConnected) return;
-      if (onlyIfReachChanged === true && reachNow() === shown.reach) return;
-      shown.menu.setItem(bi, game.bank);
-    } catch (e) { log('stow redraw failed', e); }
-  }, 0);
+  // One deferred redraw per burst of asks (build .401): a catch-up replays a voyage hex by hex inside one run of ticks,
+  // and every hex asked for one. An unconditional ask in the burst makes the one redraw unconditional.
+  let redrawQueued = false;
+  let redrawAlways = false;
+  const redraw = (onlyIfReachChanged = false) => {
+    if (onlyIfReachChanged !== true) redrawAlways = true;
+    if (redrawQueued) return;
+    redrawQueued = true;
+    setTimeout(() => {
+      const always = redrawAlways;
+      redrawQueued = false;
+      redrawAlways = false;
+      try {
+        const bi = shown === undefined ? undefined : game.bank.items.get(shown.item);
+        if (bi === undefined || bi.quantity <= 0 || !shown.menu.isConnected) return;
+        if (!always && reachNow() === shown.reach) return;
+        shown.menu.setItem(bi, game.bank);
+      } catch (e) { log('stow redraw failed', e); }
+    }, 0);
+  };
   ctx.patch(WorldMap, 'setPlayerPosition').after(function () {
     try { if (game.cartography?.activeMap === this) redraw(true); } catch {}
   });

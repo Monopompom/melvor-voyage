@@ -15,6 +15,8 @@ const ROUTE_MAX_SHARE = 0.3;
 /** The running light: its length and speed in hex radii, so it keeps pace with the map at any zoom. */
 const LIGHT_LEN = 1.6;
 const LIGHT_SPEED = 3.2;
+/** How often the running voyage's route is read (the line moves hex by hex). */
+const READ_MS = 100;
 
 export function install(ctx, { state, C, log }) {
   let layer;
@@ -26,7 +28,12 @@ export function install(ctx, { state, C, log }) {
   let unit = 1;
   let width = 1;
   let failed = false;
-  const still = () => { try { return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true; } catch { return false; } };
+  // The route's parts are two fresh arrays per read (clock-model routeParts): read ten times a second, not per frame
+  // (build .401); the light below still moves every frame.
+  let routeAt = 0;
+  let routeRead = null;
+  let motionQuery;
+  const still = () => { try { motionQuery ??= window.matchMedia?.('(prefers-reduced-motion: reduce)'); return motionQuery?.matches === true; } catch { return false; } };
 
   const ensure = () => {
     if (typeof cartographyMap === 'undefined' || cartographyMap.viewport === undefined || typeof PIXI === 'undefined') return false;
@@ -57,7 +64,9 @@ export function install(ctx, { state, C, log }) {
     if (failed) return;
     try {
       if (layer?.parent !== cartographyMap.viewport) ensure();
-      const route = state.clock?.route?.();
+      const now = performance.now();
+      if (now - routeAt >= READ_MS) { routeAt = now; routeRead = state.clock?.route?.() ?? null; }
+      const route = routeRead;
       const map = game.cartography?.activeMap;
       if (route == null || map === undefined || cartographyMap.lastDrawnMap !== map) { clear(); return; }
       const vp = cartographyMap.viewport;
@@ -98,5 +107,5 @@ export function install(ctx, { state, C, log }) {
     if (look()) return;
     const id = setInterval(() => { if (look()) clearInterval(id); }, 2000);
   });
-  return { refresh: () => { drawnKey = undefined; look(); } };
+  return { refresh: () => { drawnKey = undefined; routeAt = 0; look(); } };
 }

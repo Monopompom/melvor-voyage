@@ -25,12 +25,17 @@ const BOOT = [[7, 3], [13.5, 3], [13.5, 11], [16.5, 12], [19.5, 13.5], [21, 15.5
 /** The sole's top edge, drawn in the badge's dark over the boot. */
 const SOLE = [[6, 16.8], [21, 16.8]];
 
+/** How often the walks are read (a walk moves hex by hex). */
+const READ_MS = 100;
+
 export function install(ctx, { state, C, log }) {
   let layer;
   let roads;
   let badges;
   let ticker;
   let drawnKey;
+  let readAt = 0;
+  let listRead = [];
   let failed = false;
 
   const ensure = () => {
@@ -69,7 +74,10 @@ export function install(ctx, { state, C, log }) {
     if (failed) return;
     try {
       if (layer?.parent !== cartographyMap.viewport) ensure();
-      const list = state.walks?.routes?.() ?? [];
+      // Each read cleans every walk record and slices its road (build .401): ten times a second, not per frame.
+      const now = performance.now();
+      if (now - readAt >= READ_MS) { readAt = now; listRead = state.walks?.routes?.() ?? []; }
+      const list = listRead;
       const map = game.cartography?.activeMap;
       if (list.length === 0 || map === undefined || cartographyMap.lastDrawnMap !== map) { clear(); return; }
       const vp = cartographyMap.viewport;
@@ -125,5 +133,5 @@ export function install(ctx, { state, C, log }) {
     if (look()) return;
     const id = setInterval(() => { if (look()) clearInterval(id); }, 2000);
   });
-  return { refresh: () => { drawnKey = undefined; look(); } };
+  return { refresh: () => { drawnKey = undefined; readAt = 0; look(); } };
 }

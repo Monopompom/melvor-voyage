@@ -180,7 +180,10 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   const buildTick = () => {
     if (!usable()) return;
     const raw = record()?.outposts;
-    if (raw == null || typeof raw !== 'object' || !Object.values(raw).some((o) => o?.build !== undefined)) return;
+    if (raw === null || raw === undefined || typeof raw !== 'object') return;
+    let going = false;
+    for (const key in raw) { if (raw[key]?.build !== undefined) { going = true; break; } }
+    if (!going) return;
     const api = folksApi();
     if (api === undefined) return;
     for (const [key, o] of Object.entries(outposts())) {
@@ -191,6 +194,18 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
       else if (step === 'paused') { if (!O.isPaused(o)) { setOutposts({ ...outposts(), [key]: O.pauseBuild(o, now()) }, false); log(`tent at ${key} paused: builder ${o.build.folk} is ${api.folkById(o.build.folk)?.status}`); } }
       else if (O.isPaused(o)) { setOutposts({ ...outposts(), [key]: O.resumeBuild(o, now()) }, false); log(`tent at ${key} going on`); }
     }
+  };
+  /**
+   * The skill's passive tick (build .396; every game tick, online and offline): the build steps once a second online and
+   * every ten seconds of replayed time offline (build .401). A step is minutes long, and each check reads the builder's
+   * view from Worker Folks, so twenty checks a second were wasted: a week's catch-up ran twelve million of them.
+   */
+  let passiveTicks = 0;
+  const passiveTick = () => {
+    passiveTicks += 1;
+    if (passiveTicks < (offlineNow() ? 200 : 20)) return;
+    passiveTicks = 0;
+    buildTick();
   };
   /** Each second online: the build steps again (harmless twice), and the Here panel's "N min left" follows the minutes, and the pause. */
   let shown = '';
@@ -446,7 +461,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
 
   const api = {
     list, near, outposts, tents, pitchHere, pitch, share, strike, askStore, askStrike, panelHtml, click, nameOf,
-    media, refreshMarkers, building, stopBuild, builderText, tick, buildTick,
+    media, refreshMarkers, building, stopBuild, builderText, tick, buildTick, passiveTick,
     /** On character load, after the terrain and its ice: lays the camps. */
     loaded() { try { sync(); tick(); } catch (e) { log('outposts failed to load', e); } },
   };

@@ -70,6 +70,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     if (j === undefined || action === undefined || action === null || !zoned.has(action.id) || !state.zonesOn?.()) return;
     const pos = state.position();
     if (pos === undefined) return;
+    // The common case first (build .401): a hex already in the entry is one lookup, before the lock check's neighbours.
+    if (j.found[action.id]?.includes(`${pos.q},${pos.r}`) === true) return;
     // Only where the skill works (build .386): a Folk's action ticking while you sail put Water hexes in the journal.
     try { if (state.skillLockedHere?.(skillId) === true) return; } catch {}
     const res = jm.addFound(j, action.id, pos.q, pos.r, start, model.JOURNAL_LIMITS.found);
@@ -217,8 +219,14 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       if (id !== undefined) place('island', id, rec);
     } catch (e) { log('journal island place failed', e); }
   };
+  // One deferred look per burst of moves (build .401): a catch-up replays a voyage hex by hex inside one run of ticks.
+  let landQueued = false;
   ctx.patch(WorldMap, 'setPlayerPosition').after(function () {
-    try { if (game.cartography?.activeMap === this) setTimeout(onLand, 0); } catch {}
+    try {
+      if (game.cartography?.activeMap !== this || landQueued) return;
+      landQueued = true;
+      setTimeout(() => { landQueued = false; onLand(); }, 0);
+    } catch {}
   });
   ctx.onCharacterLoaded(() => { setTimeout(onLand, 0); });
   /**
@@ -849,8 +857,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const j = journal();
     if (j === undefined) return [];
     const ids = [...new Set([...Object.keys(j.found), ...Object.keys(j.missed), ...j.charted])].filter((id) => zoned.has(id));
-    const order = [...zoned.keys()];
-    return ids.sort((a, b) => order.indexOf(a) - order.indexOf(b)).map((id) => {
+    const order = new Map([...zoned.keys()].map((id, i) => [id, i]));
+    return ids.sort((a, b) => order.get(a) - order.get(b)).map((id) => {
       const a = actionOf(id);
       return { id, action: a, skillId: zoned.get(id), skill: skillOf(zoned.get(id))?.name, names: [a?.name ?? id, ...productNames(a)], found: j.found[id] ?? [], missed: j.missed[id] ?? [], charted: j.charted.includes(id) };
     });

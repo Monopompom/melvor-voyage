@@ -18,6 +18,8 @@ const SKILL_CATEGORY = {
 };
 const ESSENCES = ['melvorD:Rune_Essence', 'melvorTotH:Pure_Essence'];
 const DUSTS = ['melvorF:Stardust', 'melvorF:Golden_Stardust'];
+/** How long the sale prices' shared context (the market here, a Haggler, the trader, an outpost's Merchant) is kept. */
+const SALE_CTX_MS = 500;
 
 export function install(ctx, { state, MM, rules, hexes, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
@@ -113,23 +115,36 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
   // three patches composed in load order): the market's rate and a Haggler's percent, then a Merchant's rate at an
   // outpost where trade is locked (src/folk-traits.mjs outpostSale), then the trader's half while he is here
   // (src/trader.mjs): he sets the price himself, over any Merchant.
+  // The bank asks the price per item it shows, so what every price shares at one spot is read once (build .401) and
+  // kept SALE_CTX_MS or until you move: the market here (known neighbours), a Haggler and a Merchant (the Folks' views),
+  // the trader, the trade lock. Only the item's own percent is per item.
+  let saleCtx;
+  const saleContext = () => {
+    const now = performance.now();
+    if (saleCtx !== undefined && now - saleCtx.at < SALE_CTX_MS) return saleCtx;
+    const market = enabled() ? here() : undefined;
+    const trader = state.trader?.present?.() === true;
+    const locked = !trader && state.tradeLocked?.() === true;
+    saleCtx = {
+      at: now, market, trader, locked,
+      // Haggler within a hex (travel traits, 6f-3): its percent on top of the market's.
+      haggle: market === undefined ? undefined : state.folkTraits?.haggle?.(),
+      outpost: locked ? state.folkTraits?.outpostSale?.() : undefined,
+    };
+    return saleCtx;
+  };
   ctx.patch(Bank, 'getItemSalePrice').after((price, item) => {
     try {
       if (!Number.isFinite(price)) return undefined;
+      const c = saleContext();
       let out = price;
       if (enabled()) {
-        const m = here();
-        const p = percent(m, item);
-        // Haggler within a hex (travel traits, 6f-3): its percent on top of the market's.
-        const h = m === undefined ? undefined : state.folkTraits?.haggle?.();
+        const p = percent(c.market, item);
         const atMarket = p === 100 ? out : MM.marketPrice(out, p);
-        out = h === undefined ? atMarket : Math.floor((atMarket * (100 + h.pct)) / 100);
+        out = c.haggle === undefined ? atMarket : Math.floor((atMarket * (100 + c.haggle.pct)) / 100);
       }
-      if (state.trader?.present?.() === true) out = Math.floor(out * (state.trader.HALF ?? 0.5));
-      else if (state.tradeLocked?.() === true) {
-        const s = state.folkTraits?.outpostSale?.();
-        if (s !== undefined) out = Math.floor(out * s.rate);
-      }
+      if (c.trader) out = Math.floor(out * (state.trader.HALF ?? 0.5));
+      else if (c.locked && c.outpost !== undefined) out = Math.floor(out * c.outpost.rate);
       return out === price ? undefined : out;
     } catch { return undefined; }
   });
@@ -229,8 +244,15 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
       bankSideBarMenu.selectedMenu.setItem(picked, game.bank);
     } catch (e) { log('market sell redraw failed', e); }
   };
+  // One deferred redraw per burst of moves (build .401): a catch-up replays a voyage hex by hex inside one run of ticks.
+  let sellQueued = false;
   ctx.patch(WorldMap, 'setPlayerPosition').after(function () {
-    try { if (game.cartography?.activeMap === this) setTimeout(redrawSell, 0); } catch {}
+    try {
+      saleCtx = undefined;
+      if (game.cartography?.activeMap !== this || sellQueued) return;
+      sellQueued = true;
+      setTimeout(() => { sellQueued = false; redrawSell(); }, 0);
+    } catch {}
   });
 
   // ---- the journal --------------------------------------------------------------------------------------------------

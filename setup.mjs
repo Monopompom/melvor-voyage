@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-22.399';
+export const BUILD = '2026-10-23.402';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -216,15 +216,19 @@ export async function setup(ctx) {
     active() { try { return game._isInOnlineLoop === false; } catch { return false; } },
   };
   ctx.patch(Game, 'enterOfflineLoop').after(function () {
-    offline.held = 0;
-    offline.started = performance.now();
-    log(`offline loop entered: replaying ${Math.round((Date.now() - this.tickTimestamp) / 1000)} s, action ${this.activeAction?.id ?? 'none'}`);
+    try {
+      offline.held = 0;
+      offline.started = performance.now();
+      log(`offline loop entered: replaying ${Math.round((Date.now() - this.tickTimestamp) / 1000)} s, action ${this.activeAction?.id ?? 'none'}`);
+    } catch (e) { console.error('[Voyage] offline entry hook failed open', e); }
   });
   ctx.patch(Game, 'exitOfflineLoop').after(function () {
-    const held = offline.held;
-    offline.held = 0;
-    log(`offline loop left after ${Math.round(performance.now() - offline.started)} ms; ${held} held refresh(es)`);
-    if (held > 0) setTimeout(() => state.onSettingsChange(), 0);
+    try {
+      const held = offline.held;
+      offline.held = 0;
+      log(`offline loop left after ${Math.round(performance.now() - offline.started)} ms; ${held} held refresh(es)`);
+      if (held > 0) setTimeout(() => state.onSettingsChange(), 0);
+    } catch (e) { console.error('[Voyage] offline exit hook failed open', e); }
   });
 
   /** Shared runtime state. mode: 'dormant' until the save is checked, then 'strict' or 'relaxed' (table mismatch). */
@@ -413,7 +417,7 @@ export async function setup(ctx) {
     (await ctx.loadModule('src/outposts.mjs')).install(ctx, { state, O: outpostModel, terrainMod, helpLayout, log });
     state.outpostModel = outpostModel;
     // A tent's build steps run on the skill's passive tick, online and offline (build .396).
-    { const s = voyageSkill(); if (s !== undefined) s.outpostTick = () => state.outposts?.buildTick?.(); }
+    { const s = voyageSkill(); if (s !== undefined) s.outpostTick = () => state.outposts?.passiveTick?.(); }
   } catch (e) { console.error('[Voyage] outposts failed to load; no tents', e); state.outposts = undefined; }
   // Travel traits (phase 6f): Voyage's ten traits in Worker Folks' slots (its API 5). A failure: no travel traits.
   try {

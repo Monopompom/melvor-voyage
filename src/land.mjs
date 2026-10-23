@@ -25,7 +25,8 @@ export function install(ctx, { state, landModel: L, shipModel, log }) {
   /** The tier whose GP cut applies: none while travel is timed (the cut gives way to speed). */
   const cutTier = () => (state.timed?.() === true ? 0 : tier());
   ctx.patch(Cartography, 'getTravelCosts').replace(function (original, path) {
-    const t = cutTier();
+    let t = 0;
+    try { t = cutTier(); } catch (e) { log('mount tier failed open', e); }
     if (t === 0) return original(path);
     try {
       const costs = new Costs(this.game);

@@ -201,6 +201,22 @@ so once and turns the locks off until it is updated. The mod keeps its own data 
 the Voyage skill, your vessels and their holds, cargo, tasks, the fog you have charted, the journal. The game's own data is left as it is. Removing
 the mod drops all of its data, so take your items out of the holds first (packed cargo can't come out).
 
+## Known issues
+
+- **A save made while the mod is off starts Voyage over.** Remove the mod, or turn Atlas of Discovery off, and save:
+  the game drops everything of Voyage's from that save, as it does with any mod's data. The skill and its level, your
+  vessels and their holds, the compass and the journal are gone. Put the mod back and the character begins as a new
+  one: the level from the hexes you have surveyed, the starter kit, the start choice, the welcome and its 2,500 GP
+  once more. Take your goods out of the holds before you remove the mod, and don't save with it off if you mean to
+  come back to your voyage.
+- **The route is the shortest, not the fastest.** The planner and Set off take the way with the fewest hexes; the
+  wind is not weighed when the way is chosen. The time Set off shows does count the wind, so a long leg against it
+  is told before you go.
+- **Balanced by simulation.** The pace of Timed travel over weeks of play comes from the mod's own simulation of a
+  captain's week, not from a week at the keyboard; sea chart drops from gathering and the Ancient Relics drops are
+  rare enough that they were checked by their numbers, not seen in play. If your game tells another story, say so on
+  the mod page.
+
 ## Credits
 
 The Captain's Journal is set in two open-source typefaces, with thanks to their makers:

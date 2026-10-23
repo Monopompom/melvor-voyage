@@ -349,6 +349,10 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const refreshRates = () => {
     for (const id of rules.gatedSkillIds()) {
       try {
+        // Only where the rate moved since the game last asked (build .401): a dirtied page recomputes every recipe's
+        // interval through the patch above.
+        const last = lastRate.get(id);
+        if (last !== undefined && last === intervalRate(id)) continue;
         const rq = game.skills.getObjectByID(id)?.renderQueue;
         if (rq === undefined) continue;
         if ('treeRates' in rq) rq.treeRates = true;
@@ -443,22 +447,28 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     return locked === undefined ? undefined : { ...locked, folk };
   };
   const folkZoneText = (action, { rec, folk }) => line('MOD_VOY_FOLK_ZONE_NEEDS', { name: esc(folk.name), here: here(rec).html, action: esc(action.name ?? action.id) }).text;
-  /** Every hex where the action works (skill rule and zone), memoised per action and strictness. */
+  /**
+   * Every hex where the action works (skill rule and zone), memoised per action. Each entry is a pass over all 944
+   * hexes with the zone's terms, so the memo is emptied only when what it depends on moves (build .401): the strictness,
+   * the terrain's version (ice, the weather's layer, a tent), the knowledge version (the rules read known neighbours),
+   * the zones setting. A listener call (a move, the stores, a survey) no longer empties it.
+   */
   const zoneHexes = new Map();
-  state.listeners.push(() => zoneHexes.clear());
+  let zoneStamp;
   const zoneCandidates = (actionId) => {
     const z = zoneIndex.get(actionId);
     if (z === undefined || state.terrain === undefined) return [];
     const opts = state.ruleOpts();
-    const key = `${actionId}|${opts.strictness}`;
-    let list = zoneHexes.get(key);
+    const stamp = `${opts.strictness}|${state.terrain.version}|${state.knowledge?.version}|${zonesOn()}`;
+    if (stamp !== zoneStamp) { zoneStamp = stamp; zoneHexes.clear(); }
+    let list = zoneHexes.get(actionId);
     if (list === undefined) {
       list = [];
       for (const rec of state.terrain.all()) {
         if (rec.cloud === true || !rules.allowedAt(z.skillId, rec, opts) || !allowsHere(z, rec)) continue;
         list.push(rec);
       }
-      zoneHexes.set(key, list);
+      zoneHexes.set(actionId, list);
     }
     return list;
   };
@@ -862,16 +872,29 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     if (d <= 1) return undefined;
     return { reason: line('MOD_VOY_FOLK_TOO_FAR', { name: esc(folk.name), where: whereIs(pos, state.recordAt(folk.place) ?? folk.place, d) }).text };
   };
-  /** A Folk works only what its own hex allows, resource zones included (6b): the skill rule, then what it was on. */
-  const workRefusal = (folk, skillId, skill) => {
+  /**
+   * Why a Folk may not work `skillId` where it stands (6b), resource zones included: the lock ({ pos, rec, folk })
+   * from the skill rule, or with `offAction` the zoned action its hex refuses; undefined when it may.
+   */
+  const folkWorkLock = (folk, skillId, skill) => {
     // A Folk with you (6c) is put down on your hex to work: your hex is the one that counts.
     const place = folk?.travel === 'with' ? state.position() : folk?.place;
     if (folk === undefined || place === null || place === undefined) return undefined;
     const locked = lockedAt(skillId, place);
-    if (locked !== undefined) return { reason: folkWorkText(skillId, { ...locked, folk }) };
+    if (locked !== undefined) return { ...locked, folk };
     const off = skill === undefined ? undefined : runningActions(skill).map((a) => [a, zoneLockedAt(a, place)]).find(([, z]) => z !== undefined);
-    return off === undefined ? undefined : { reason: folkZoneText(off[0], { ...off[1], folk }) };
+    return off === undefined ? undefined : { ...off[1], folk, offAction: off[0] };
   };
+  /** A Folk works only what its own hex allows (6b): the skill rule, then what it was on. */
+  const workRefusal = (folk, skillId, skill) => {
+    const lock = folkWorkLock(folk, skillId, skill);
+    if (lock === undefined) return undefined;
+    return { reason: lock.offAction === undefined ? folkWorkText(skillId, lock) : folkZoneText(lock.offAction, lock) };
+  };
+  /** The toast when a Folk's work is stopped where it stands: the skill rule's, or the zone's for what it was on. */
+  const folkStoppedText = (skillId, lock) => (lock.offAction === undefined
+    ? line('MOD_VOY_FOLK_STOPPED_WORK', { name: esc(lock.folk.name), here: here(lock.rec).html, skill: esc(skillLabel(skillId, game.skills.getObjectByID(skillId)?.name ?? skillId)), need: need(skillId).html }).text
+    : line('MOD_VOY_FOLK_STOPPED_ZONE', { name: esc(lock.folk.name), here: here(lock.rec).html, action: esc(lock.offAction.name ?? lock.offAction.id) }).text);
   /** A Folk walking alone (6d) takes no orders but Stop here until it arrives. */
   const walkingRefusal = (folk) => {
     if (folk?.travel !== 'walking' || arriving(folk)) return undefined;
@@ -921,10 +944,11 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   // (WorldMap.setPlayerPosition is where travel, portals and the dev teleport land; the 'travel' event fires BEFORE the
   // position changes), and whenever the rules tighten: a settings change (rules back on, Strict, combat switch), the
   // tutorial ending, and the first interface load. Without the last three, a skill started while the rules were off
-  // kept running when they came back on.
+  // kept running when they came back on. The Folks at work are judged the same way, each where it stands (build .400).
   const stopWhatDoesNotFit = (cause) => {
     try {
       if (!on()) return;
+      stopFolksThatDoNotFit(cause);
       const rec = state.recordAt(state.position());
       // Gated skills, plus Astrology (no rule of its own; ungated skills pass allowedAt, so only its zones stop it).
       const ids = new Set([...rules.gatedSkillIds(), ...(zonesOn() ? Object.keys(state.zoneTable?.skills ?? {}) : [])]);
@@ -956,14 +980,43 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       }
     } catch (e) { console.error('[Voyage] stop check failed open', e); }
   };
+  /**
+   * A Folk at work is judged where it stands, as its start was (6b): the skill rule and the zone of what it is doing.
+   * Until build .400 only your own action was stopped, so a Folk kept cutting out of zone when Resource zones came on
+   * or Relaxed turned Strict, until its next start. Stopping its skill is what the Worker box's Stop button does: the
+   * Folk keeps the skill and starts again on its next order. A Folk walking alone re-judges its work on arrival.
+   */
+  const stopFolksThatDoNotFit = (cause) => {
+    const api = state.folksGuarded ? state.folksApi?.() : undefined;
+    if (api === undefined) return;
+    for (const f of api.folks()) {
+      try {
+        if (f.skillId === null || f.travel === 'walking' || (f.status !== 'working' && f.status !== 'overtime')) continue;
+        const skill = game.skills.getObjectByID(f.skillId);
+        // The Folk's run beside your action; your own run of the skill is judged on your hex, above.
+        if (skill === undefined || !skill.isActive || game.activeAction === skill) continue;
+        const lock = folkWorkLock(f, f.skillId, skill);
+        if (lock === undefined || !skill.stop()) continue;
+        log(`stopped ${f.name}'s ${f.skillId} (${cause}) at (${lock.pos.q},${lock.pos.r}): ${lock.offAction === undefined ? 'the skill rule' : `${lock.offAction.id} outside its zone`}`);
+        toastFolk(folkStoppedText(f.skillId, lock));
+      } catch (e) { console.error(`[Voyage] stop check for ${f?.name} failed open`, e); }
+    }
+  };
   const onMoved = () => {
     stopWhatDoesNotFit('move');
     refreshRates();
     dimSidebar();
     refreshFolks();
   };
+  // One deferred pass per burst of moves (build .401): a catch-up replays a voyage hex by hex inside one run of ticks, and
+  // every hex used to queue its own stop check, sidebar pass and Folk refresh; they all saw the same final hex anyway.
+  let movePending = false;
   ctx.patch(WorldMap, 'setPlayerPosition').after(function () {
-    try { if (game.cartography?.activeMap === this) setTimeout(onMoved, 0); } catch {}
+    try {
+      if (game.cartography?.activeMap !== this || movePending) return;
+      movePending = true;
+      setTimeout(() => { movePending = false; onMoved(); }, 0);
+    } catch {}
   });
   // Deferred: settings handlers run inside the loader's onChange, before it stores the value.
   state.listeners.push(() => setTimeout(() => stopWhatDoesNotFit('rules'), 0), refreshRates, dimSidebar, () => setTimeout(refreshFolks, 0));

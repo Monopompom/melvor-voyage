@@ -12,6 +12,8 @@ const VOYAGE_PAGE = 'voyage:Voyage';
 const CARTOGRAPHY_PAGE = 'melvorAoD:Cartography';
 /** Candidate hexes priced by route (the nearest by straight distance first): enough to find the shortest way. */
 const CANDIDATES = 6;
+/** How long a computed plan is trusted without its inputs moving (the page reads it per render). */
+const PLAN_MEMO_MS = 1000;
 
 export function install(ctx, { state, model, planModel: P, storesModel: S, terrainMod, helpLayout, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
@@ -56,8 +58,38 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
    * The plan: { why } when there is no way, else { dest, path, walk (start first), steps, split, costs, counts }.
    * Without provisions (setting off, no skill) the whole way is one leg.
    */
+  /**
+   * What the plan depends on: the map and where you stand, the target and how many of its hexes are surveyed, your
+   * vessels, the terrain and knowledge versions, the stores and what the bank could load, the crew, the mount. The
+   * route itself reads none of the GP or bank totals the page's signature watches.
+   */
+  const planKey = () => {
+    const map = live();
+    const from = map?.playerPosition;
+    const sh = state.ship;
+    const b = sh?.boat?.();
+    const g = sh?.big?.();
+    const st = state.stores;
+    let surveyed = 0;
+    for (const h of target.hexes) if (liveHex(h.q, h.r)?.isFullySurveyed === true) surveyed++;
+    const bank = st?.enabled?.() === true ? st.loadable().map((x) => `${x.item.id}:${x.qty}`).join(',') : '';
+    const have = st?.stores?.();
+    return `${map?.id}|${from?.q},${from?.r}|${target.name}|${target.hexes.length}|${surveyed}|${b?.q},${b?.r},${b?.cond},${b?.aboard}|${g?.q},${g?.r},${g?.cond}|${state.terrain?.version}|${state.knowledge?.version}|${have?.food},${have?.fuel}|${bank}|${state.crew?.count?.()}|${state.land?.tier?.()}|${sh?.enabled?.()}`;
+  };
+  // The last plan, kept while its key stands and for PLAN_MEMO_MS (build .401): the page computed it per render, up to
+  // six route searches each, and a GP tick redrew the page.
+  let planMemo;
   const compute = () => {
     if (target === undefined) return undefined;
+    let key;
+    try { key = planKey(); } catch (e) { log('plan key failed', e); }
+    const now = performance.now();
+    if (key !== undefined && planMemo?.key === key && now - planMemo.at < PLAN_MEMO_MS) return planMemo.value;
+    const value = computeNow();
+    planMemo = { key, at: now, value };
+    return value;
+  };
+  const computeNow = () => {
     const r = route();
     if (r.path === undefined) return r;
     const walk = [...r.path].reverse();

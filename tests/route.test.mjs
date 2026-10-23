@@ -84,12 +84,17 @@ test('vessel replay: the boat aboard moves with the brig; untouched vessels stay
 
 const loadTerrain = async () => createTerrain(JSON.parse(await readFile(new URL('../data/hex_terrain.json', import.meta.url), 'utf8')));
 
+// The bound is the work, not the clock: the states the search expands are the same on every machine and under any
+// load, where the time was not (a 1.5 s bound tripped at 6.7 s with the sims running beside the tests). The real
+// route expands some 21,000 states and the dead end some 83,000 (22 Oct 2026); the bounds leave room for a map
+// change, not for a search that forgets its `best` table. The clock stays as a hang guard, generous on purpose.
 test('the real map: from Beginning Port the brig and dinghy reach the Ominous Isle, quickly; dead ends end quickly too', async () => {
   const terrain = await loadTerrain();
   const geo = seaIndex(terrain);
   const nb = (rec) => terrain.neighbours(rec.q, rec.r).filter(Boolean).map((n) => [n, 1, false]);
+  const stats = {};
   const run = (start, goal, boat, ship) => routeSearch({
-    start, goal, key: (n) => `${n.q},${n.r}`, rec: (n) => n, neighbours: nb, heuristic: () => 0, boat, ship, geo,
+    start, goal, key: (n) => `${n.q},${n.r}`, rec: (n) => n, neighbours: nb, heuristic: () => 0, boat, ship, geo, stats,
     dockOf: (rec) => dockSpot(rec, terrain.neighbours(rec.q, rec.r).filter(Boolean)),
   });
   const port = terrain.poi('BeginningPort');
@@ -100,17 +105,21 @@ test('the real map: from Beginning Port the brig and dinghy reach the Ominous Is
   let t0 = performance.now();
   const found = run(land, ominous, boat, ship);
   const took = performance.now() - t0;
+  const expanded = stats.expanded;
   assert.ok(found, 'a route to the Ominous Isle');
   assert.ok(found.modes.some((m) => m.m === 'ship'));
-  assert.ok(took < 1500, `${Math.round(took)} ms`);
+  assert.ok(expanded < 40000, `${expanded} states expanded for the route`);
+  assert.ok(took < 15000, `${Math.round(took)} ms: the search hangs`);
   assert.equal(run(land, ominous, { ...boat, aboard: false }, null), undefined, 'a dinghy alone never lands there');
   // A goal in the cloud the brig can't reach: the whole search space, still bounded
   const far = [...terrain.all()].find((r) => r.dungeon === 'ImpendingDarkness' || r.poi === 'Melantis') ?? [...terrain.all()].find((r) => r.cloud === true);
   t0 = performance.now();
   run(land, far, boat, ship);
   const all = performance.now() - t0;
-  assert.ok(all < 3000, `${Math.round(all)} ms for a dead end`);
-  console.log(`route to Ominous Port: ${found.path.length} hexes in ${Math.round(took)} ms; dead end in ${Math.round(all)} ms`);
+  const allExpanded = stats.expanded;
+  assert.ok(allExpanded < 160000, `${allExpanded} states expanded for a dead end`);
+  assert.ok(all < 30000, `${Math.round(all)} ms for a dead end: the search hangs`);
+  console.log(`route to Ominous Port: ${found.path.length} hexes, ${expanded} states in ${Math.round(took)} ms; dead end ${allExpanded} states in ${Math.round(all)} ms`);
 });
 
 test('the brig is a tier 3 hull with an 18-crate hold', () => {

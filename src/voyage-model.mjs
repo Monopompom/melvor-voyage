@@ -47,10 +47,18 @@ const toBytes = (b64) => {
   return out;
 };
 const fromBytes = (bytes) => (bytes.every((b) => b === 0) ? '' : btoa(String.fromCharCode(...bytes)));
+// The last string decoded, kept: isVisited runs per hex the map draws (the charts' fog, build .401), so one decode per
+// distinct string instead of a base64 decode and a 120-byte allocation per hex. Read-only: markVisited decodes its own.
+let decodedOf;
+let decoded;
+const bytesOf = (b64) => {
+  if (decoded === undefined || b64 !== decodedOf) { decodedOf = b64; decoded = toBytes(b64); }
+  return decoded;
+};
 /** Whether hex (q, r) is marked in `visited`. */
 export function isVisited(visited, q, r) {
   const bit = visitedBit(q, r);
-  return bit >= 0 && (toBytes(visited)[bit >> 3] & (1 << (bit & 7))) !== 0;
+  return bit >= 0 && (bytesOf(visited)[bit >> 3] & (1 << (bit & 7))) !== 0;
 }
 /** Marks `hexes` ({ q, r }) visited: the new string and how many were new. */
 export function markVisited(visited, hexes) {

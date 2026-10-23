@@ -659,6 +659,7 @@ export function routeSearch(o) {
     const ck = stateKey(cur);
     if (done.has(ck) || best.get(ck) < cur.g) continue;
     done.add(ck);
+    if (o.stats !== undefined) o.stats.expanded = done.size;
     if (o.key(cur.node) === goalKey) {
       const states = [];
       for (let st = cur; st !== undefined; st = st.prev) states.push(st);

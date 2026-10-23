@@ -651,6 +651,17 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
    * The Travels stats (build .146): read from what the save and the map already keep, so
    * nothing new is saved. A row whose source is missing is left out.
    */
+  /** Hexes under no cloud, counted once per terrain version (the page counted all 944 per render before .401). */
+  let openMemo = { version: undefined, n: 0 };
+  const openCount = () => {
+    const v = state.terrain?.version;
+    if (openMemo.version !== v || v === undefined) {
+      let n = 0;
+      for (const h of state.terrain?.all() ?? []) if (h.cloud !== true) n++;
+      openMemo = { version: v, n };
+    }
+    return openMemo.n;
+  };
   const travelStats = (rec) => {
     const j = rec.journal ?? {};
     const rows = [];
@@ -662,7 +673,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     const of = (n, all) => `${numberWithCommas(n)} <small class="text-muted font-w400">${esc(t('MOD_VOY_PAGE_STAT_OF_ALL', { all: numberWithCommas(all) }))}</small>`;
     // The balance pass: hexes ever entered (each paid discovery XP once) and the level's travel cut.
     try {
-      const open = [...(state.terrain?.all() ?? [])].filter((h) => h.cloud !== true).length;
+      const open = openCount();
       const seen = model.visitedCount(rec.visited);
       if (open > 0) row(img(game.cartography.media), 'MOD_VOY_PAGE_STAT_VISITED', of(seen, open), 'voyage-stat-sea', seen / open);
     } catch {}
@@ -1331,7 +1342,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     refocus(focused);
   };
 
-  /** What the page depends on beyond the skill's own events. Cheap: read every frame while the page is open. */
+  /** What the page depends on beyond the skill's own events. Cheap: read a few times a second while the page is open. */
   const signature = () => {
     const p = state.position();
     let logs = 0;

@@ -202,7 +202,9 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     notify(t('MOD_VOY_TASK_GATHERED', { port: portName(cur.to) }), 'info');
   };
   // Where travel, portals and the dev teleport all land ('travel' fires before the position changes, gate.mjs).
-  try { ctx.patch(WorldMap, 'setPlayerPosition').after(() => { setTimeout(checkReach, 0); }); } catch (e) { log('task travel hook failed', e); }
+  // One deferred check per burst of moves (build .401): a catch-up replays a voyage hex by hex inside one run of ticks.
+  let reachQueued = false;
+  try { ctx.patch(WorldMap, 'setPlayerPosition').after(() => { if (reachQueued) return; reachQueued = true; setTimeout(() => { reachQueued = false; checkReach(); }, 0); }); } catch (e) { log('task travel hook failed', e); }
   ctx.onCharacterLoaded(() => {
     cleanedFor = undefined;
     setTimeout(checkReach, 0);

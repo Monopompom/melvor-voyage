@@ -206,7 +206,8 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     if (state.adrift?.here?.() === true) return undefined;
     const have = stores();
     const food = bankFood();
-    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}|${crew().count}:${crew().food}|${modsKey()}`;
+    const c = crew();
+    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}|${c.count}:${c.food}|${modsKey()}`;
     if (rescueMemo?.key === key) return rescueMemo.value;
     let value;
     try { value = rescueFrom(pos, have, food); } catch (e) { log('provisions rescue failed', e); }
@@ -216,10 +217,13 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   const rescueFrom = (pos, have, food) => {
     if (safe(pos, food)) return undefined; // easy ground walks on hungry; a loading place loads
     const level = fmLevel();
-    const cost = (h) => { const c = S.stepCost({ cls: recOf(h)?.t, sea: shipModel.isSea(recOf(h)) }, level, crew(), mods()); return c.food + c.fuel * S.RATION_HP; };
+    // The crew's load and the gear's modifiers once, not per hex the search expands (build .401).
+    const load = crew();
+    const md = mods();
+    const cost = (h) => { const c = S.stepCost({ cls: recOf(h)?.t, sea: shipModel.isSea(recOf(h)) }, level, load, md); return c.food + c.fuel * S.RATION_HP; };
     const found = stranded.cheapestRoute(pos, { neighbours, stepCost: cost, isGoal: (h) => safe(h, food), key: (h) => terrainMod.hexKey(h.q, h.r) });
     if (found === undefined) return undefined;
-    const need = S.pathCost(state.ship.stepsOf(found.path), level, crew(), mods());
+    const need = S.pathCost(state.ship.stepsOf(found.path), level, load, md);
     if (need.food <= have.food && need.fuel <= have.fuel + 1e-9) return undefined;
     return { path: found.path, steps: found.path.length - 1, dir: terrainMod.directionLabel(pos, found.path[0]) };
   };

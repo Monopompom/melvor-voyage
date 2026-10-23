@@ -275,13 +275,18 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     if (pos.at !== undefined && !same(f.place, pos.at)) a.setPlace(id, pos.at);
   };
   const tick = () => {
-    const all = walks();
-    const ids = Object.keys(all);
-    if (ids.length === 0 || api() === undefined) return;
+    // Every tick, online and offline (build .401): nobody walking means two property reads and no allocation; the
+    // record is cleaned only when a step is due, not twenty times a second for the whole walk.
+    const raw = record()?.walks;
+    if (raw === null || raw === undefined || typeof raw !== 'object') return;
+    let any = false;
+    for (const id in raw) { any = true; break; }
+    if (!any || api() === undefined) return;
     if (offline()) walkedAway = true;
     const at = now();
     if (due === undefined || at >= due) {
-      for (const id of ids) step(id, all[id], at);
+      const all = walks();
+      for (const id of Object.keys(all)) step(id, all[id], at);
       const left = walks();
       const next = Object.values(left).map((w) => W.nextAt(w, at)).filter((x) => x !== undefined);
       due = next.length === 0 ? Infinity : Math.min(...next);

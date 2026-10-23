@@ -8,6 +8,9 @@
 // included (Game.encode walks game.skills; unlike mod settings and characterStorage). A save made with Voyage
 // therefore still loads without it, and Voyage's record survives reloads in dev builds too.
 
+/** How often the page's signature (the bank, GP, the stores) is compared while the page is open. */
+const PAGE_SIG_MS = 250;
+
 export function createVoyageClass({ model, log }) {
   class Voyage extends Skill {
     constructor(namespace, game) {
@@ -178,8 +181,14 @@ export function createVoyageClass({ model, log }) {
         if (link !== null && !link.classList.contains('d-none')) link.classList.add('d-none');
       }
       // While the page is open, redraw when its signature moves (the bank and GP have no event the page listens to).
+      // Compared four times a second, not every frame (build .401): with GP or logs coming in each tick the signature
+      // moved every frame and the page was rebuilt with it. The skill's own events still redraw at once.
       if (!this.renderQueue.page && this.pageSignature !== undefined && this.game.openPage?.id === model.SKILL_ID) {
-        try { const sig = this.pageSignature(); if (sig !== this._pageSig) this.renderQueue.page = true; } catch {}
+        const now = performance.now();
+        if (now - (this._pageSigAt ?? 0) >= PAGE_SIG_MS) {
+          this._pageSigAt = now;
+          try { const sig = this.pageSignature(); if (sig !== this._pageSig) this.renderQueue.page = true; } catch {}
+        }
       }
       if (this.renderQueue.page) {
         this.renderQueue.page = false;

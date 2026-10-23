@@ -11,7 +11,8 @@ export function install(ctx, { state, M, log }) {
   let amp = 0;
   let start;
   let last;
-  const still = () => { try { return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true; } catch { return false; } };
+  let motionQuery;
+  const still = () => { try { motionQuery ??= window.matchMedia?.('(prefers-reduced-motion: reduce)'); return motionQuery?.matches === true; } catch { return false; } };
   const pin = () => (typeof cartographyMap === 'undefined' || cartographyMap === null ? undefined : cartographyMap.playerPin);
 
   /** Takes the last nudge off the pin. */
@@ -28,7 +29,7 @@ export function install(ctx, { state, M, log }) {
       const now = performance.now() / 1000;
       const dt = last === undefined ? 0 : Math.min(0.1, now - last);
       last = now;
-      const on = state.settings?.mapMotion?.() !== false && !still() && p.visible && state.clock?.route?.() != null;
+      const on = state.settings?.mapMotion?.() !== false && !still() && p.visible && state.clock?.running?.() === true;
       amp = M.fadeStep(amp, on, dt);
       undo(p);
       if (amp <= 0) { start = undefined; return; }
