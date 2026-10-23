@@ -965,6 +965,10 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
 
   const HOLD_MS = 500;
   let holdUntil = 0;
+  // Made once: a panel rebuilt after the game redraws its top bar watches the new elements, not one more copy each time.
+  let sizeWatch;
+  let rowWatch;
+  let resizeHooked = false;
   const ensurePanel = () => {
     if (typeof cartographyMap === 'undefined' || cartographyMap === null) return undefined;
     let panel = document.getElementById(PANEL_ID);
@@ -1145,12 +1149,16 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       // top-bar control that overlaps it sideways; on a wide screen nothing overlaps and it stays under the bar.
       const top = cartographyMap.topOverlay;
       if (top && typeof ResizeObserver === 'function') {
-        const watch = new ResizeObserver(() => requestAnimationFrame(placeUnderBar));
-        watch.observe(top);
-        watch.observe(box);
-        new ResizeObserver(() => requestAnimationFrame(() => alignRowButtons())).observe(panel);
+        sizeWatch ??= new ResizeObserver(() => requestAnimationFrame(placeUnderBar));
+        rowWatch ??= new ResizeObserver(() => requestAnimationFrame(() => alignRowButtons()));
+        // Drops the elements an earlier panel watched, which may be gone from the page.
+        sizeWatch.disconnect();
+        rowWatch.disconnect();
+        sizeWatch.observe(top);
+        sizeWatch.observe(box);
+        rowWatch.observe(panel);
       }
-      window.addEventListener('resize', () => requestAnimationFrame(placeUnderBar));
+      if (!resizeHooked) { resizeHooked = true; window.addEventListener('resize', () => requestAnimationFrame(placeUnderBar)); }
       return panel;
     }
     const host = cartographyMap.bottomLeftOverlay;
