@@ -39,9 +39,9 @@ test('pirates: the toll is a share of the hold, never less than a few hexes of G
   assert.equal(pirateToll(0, 75000, NaN), 75000 * PIRATE_FLOOR_HEXES);
 });
 
-test('pirates: running throws one crate in ten overboard, at least one', () => {
-  assert.equal(PIRATE_RUN_LOSS, 0.1);
-  assert.deepEqual([0, 1, 9, 10, 11, 24].map(pirateRunLoss), [0, 1, 1, 1, 2, 3]);
+test('pirates: running throws one crate in five overboard, at least one', () => {
+  assert.equal(PIRATE_RUN_LOSS, 0.2);
+  assert.deepEqual([0, 1, 4, 5, 6, 24].map(pirateRunLoss), [0, 1, 1, 1, 2, 5]);
   assert.equal(pirateRunLoss(undefined), 0);
   const hold = [{ id: 'a', qty: 1 }, { id: 'b', qty: 2 }, { id: 'c', qty: 3 }];
   const rolls = [0.99, 0];

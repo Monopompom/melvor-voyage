@@ -11,8 +11,12 @@ export const PIRATE_FLOOR_HEXES = 3;
 export const PIRATE_COIN_SHARE = 0.005;
 /** …that share capped at this many GP (build .396, the user: no toll scales without limit; at 0.5% the cap binds from a billion carried). */
 export const PIRATE_COIN_CAP = 5000000;
-/** Running throws this share of the hold's crates overboard, at least one when the hold holds any (build .387). */
-export const PIRATE_RUN_LOSS = 0.1;
+/**
+ * Running throws this share of the hold's crates overboard, at least one when the hold holds any (build .387). A fifth
+ * since build .403 (the user: the choice should cost either way): at a tenth, running was the cheaper answer at every
+ * hold and every purse while the hull was sound, so Pay was never chosen; at a fifth a full hold loses about the toll.
+ */
+export const PIRATE_RUN_LOSS = 0.2;
 /** Running before the wind costs a stormy hex's wear (weather-model STORM_WEAR) and one more hex of sailing time. */
 export const PIRATE_RUN_STORM = 3;
 /** Offline the choice is made for you: run while the hull stays at least this sound after the run's wear (ship-model WORN_COND). */
