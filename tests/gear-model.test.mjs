@@ -270,6 +270,18 @@ test('the journal has a page for the outfit, the Albatross and the relics', () =
   assert.match(en.MOD_VOY_JOURNAL_GUIDE_OUTFIT_POINTS, /Barnacle, the ship's cat/);
 });
 
+test('outside Ancient Relics mode every text that names a relic has a twin that names none', () => {
+  const twins = Object.keys(en).filter((k) => k.endsWith('_NR'));
+  assert.ok(twins.length >= 9, `${twins.length} twins`);
+  for (const nr of twins) {
+    const key = nr.slice(0, -3);
+    assert.equal(typeof en[key], 'string', `${nr} has no original`);
+    assert.match(en[key], /relic/i, `${key} names no relic: its twin is not needed`);
+    assert.doesNotMatch(en[nr], /relic/i, nr);
+  }
+  for (const key of ['MOD_VOY_JOURNAL_GUIDE_OUTFIT_POINTS', 'MOD_VOY_JOURNAL_CH_LEAVING_WHAT_BODY']) assert.ok(`${key}_NR` in en, key);
+});
+
 test('the capes: the Voyage Skillcape at 99 and, with Throne of the Herald, the Superior at 120; the game\'s prices and tabs, a Cape of Completion behind each', () => {
   const item = byId(data.items)[SKILLCAPE.id];
   assert.deepEqual(item, capeItem(SKILLCAPE, 'Voyage Skillcape'));

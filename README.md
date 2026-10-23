@@ -5,9 +5,10 @@ A mod for **Melvor Idle v1.3.1** that needs **Atlas of Discovery**. Every hex of
 cursedlands, shoals and open water) and features such as forest, river or snow, and skills only work where their
 terrain is. Woodcutting needs trees. You have to go there.
 
-This is an early build (phase 5 of 8 under way): the map overlay, the "You are here" panel, the full set of location
-rules, combat and trade tied to the map, a compass to find your way, boats and ships for the water, provisions, cargo
-runs and markets, harbour notices, sea charts and rumours, a Random start, the Captain's Journal, and now timed travel: a voyage takes time, one hex after another.
+Version 1.0.0 brings the map overlay, the "You are here" panel, the full set of location rules, combat and trade tied
+to the map, a compass to find your way, boats and ships for the water, provisions, cargo runs and markets, harbour
+notices, sea charts and rumours, a Random start, the Captain's Journal, timed travel and its storms, mounts,
+the Seafarer's gear, and crews and outposts for Worker Folks (1.3.0 or later, optional).
 
 ## What it does
 
@@ -140,7 +141,8 @@ runs and markets, harbour notices, sea charts and rumours, a Random start, the C
   Light never takes the fuel a trip needs.
   Astrology levels make the light go further. You can move the night in the settings, or switch it off. Very rarely
   a lit hex at sea turns up a Steersman's Chart: read it from the bank to clear the fog of the sea you are on.
-- **Worker Folks.** With Worker Folks loaded, hiring needs a town or port, like Township. Every Folk stands on a hex:
+- **Worker Folks.** Needs Worker Folks 1.3.0 or later; an older one is left alone and works as it always did. With
+  Worker Folks loaded, hiring needs a town or port, like Township. Every Folk stands on a hex:
   it is hired or picked for a skill on yours, works only what its hex allows, and you manage it from within a hex. A
   Folk whose skill you take back keeps that job in mind, and you can give it back from anywhere. Cartography stays
   yours: its page has no Worker box while Voyage's rules are on.

@@ -476,14 +476,21 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       pirSound: num(em?.PIRATE_SOUND), stowShare: num(em?.STOWAWAY_PRICE_SHARE * 100), hungryPct: num(storesModel?.HUNGRY_GP * 100),
       stormWaitH: num((state.clock?.stormWaitMax ?? NaN) / 3600000), ...gearVars(), ...crewVars() };
   };
+  // The relics are named only in Ancient Relics mode (the user, 22 Oct 2026: "drop if not on"); a text that names them
+  // has a relic-free twin (build .404 for the outfit guide and the leaving chapter).
+  const relicsOn = () => { try { return state.gear?.relicsOn?.() === true; } catch { return false; } };
+  const NO_RELICS = {
+    MOD_VOY_JOURNAL_GUIDE_OUTFIT_POINTS: 'MOD_VOY_JOURNAL_GUIDE_OUTFIT_POINTS_NR',
+    MOD_VOY_JOURNAL_CH_LEAVING_WHAT_BODY: 'MOD_VOY_JOURNAL_CH_LEAVING_WHAT_BODY_NR',
+  };
+  const relicKey = (key) => (relicsOn() ? key : NO_RELICS[key] ?? key);
   /** The gear's pace and cargo pay worn now, and their ceilings (gear.mjs, build .394); zeros without the gear module. */
   const gearVars = () => {
     let e = {};
     try { e = state.gear?.effects?.() ?? {}; } catch { e = {}; }
     const caps = state.gear?.CAPS ?? {};
-    // What the cut comes from: the relics are named only in Ancient Relics mode (the user, 22 Oct 2026: "drop if not on").
-    let on = false;
-    try { on = state.gear?.relicsOn?.() === true; } catch {}
+    // What the cut comes from, relic-free outside Ancient Relics mode.
+    const on = relicsOn();
     return { gearPace: `${e.paceCut ?? 0}`, gearPaceCap: `${caps.paceCut ?? ''}`, gearPay: `${e.cargoPay ?? 0}`, gearPayCap: `${caps.cargoPay ?? ''}`,
       gearPaceFrom: t(on ? 'MOD_VOY_JOURNAL_GEAR_PACE_FROM' : 'MOD_VOY_JOURNAL_GEAR_PACE_FROM_NR'), gearPayFrom: t(on ? 'MOD_VOY_JOURNAL_GEAR_PAY_FROM' : 'MOD_VOY_JOURNAL_GEAR_PAY_FROM_NR') };
   };
@@ -520,7 +527,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       // The map's key line follows the setting: a cleared key turns the shortcut off.
       // So does the foreword's journal key line (build .118).
       const bodyKey = id === 'map' && sec === 'KEYS' && vars.key === '' ? `MOD_VOY_JOURNAL_CH_MAP_KEYS_BODY_OFF`
-        : id === 'foreword' && sec === 'BOOK' && vars.journal === '' ? `MOD_VOY_JOURNAL_CH_FOREWORD_BOOK_BODY_OFF` : `MOD_VOY_JOURNAL_CH_${key}_${sec}_BODY`;
+        : id === 'foreword' && sec === 'BOOK' && vars.journal === '' ? `MOD_VOY_JOURNAL_CH_FOREWORD_BOOK_BODY_OFF` : relicKey(`MOD_VOY_JOURNAL_CH_${key}_${sec}_BODY`);
       const lines = line(bodyKey);
       // The map key (build .171) opens the map from any page: one more line while it is set.
       if (id === 'map' && sec === 'KEYS' && vars.map !== '') lines.unshift(t('MOD_VOY_JOURNAL_CH_MAP_KEYS_OPEN', vars));
@@ -1339,7 +1346,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const key = view.guide.toUpperCase();
     const [lead, ...rest] = t(`MOD_VOY_JOURNAL_GUIDE_${key}_BODY`).split('\n');
     // A guide's crate count from the hold table (build .386; it was typed in the text).
-    const points = jm.JOURNAL_GUIDE_SECTIONS[view.guide]?.points === false ? [] : t(`MOD_VOY_JOURNAL_GUIDE_${key}_POINTS`, { slots: `${shipModel.HOLD_SLOTS?.[view.guide] ?? ''}` }).split('\n').filter((x) => x.trim() !== '');
+    const points = jm.JOURNAL_GUIDE_SECTIONS[view.guide]?.points === false ? [] : t(relicKey(`MOD_VOY_JOURNAL_GUIDE_${key}_POINTS`), { slots: `${shipModel.HOLD_SLOTS?.[view.guide] ?? ''}` }).split('\n').filter((x) => x.trim() !== '');
     const right = runningHead(t('MOD_VOY_JOURNAL_TAB_GUIDE'), guideTitle(view.guide))
       + `<h2 class="vj-h1">${esc(guideTitle(view.guide))}</h2>` + dropCap(lead) + prose(rest)
       + (points.length > 0 ? `<ul class="vj-points">${points.map((p) => `<li>${rich(p)}</li>`).join('')}</ul>` : '') + guideSections(view.guide)
