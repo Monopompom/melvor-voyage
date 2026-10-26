@@ -21,7 +21,10 @@
  * bindings but NOT properties of globalThis, and a ReferenceError means the class is absent (expansion not loaded).
  * `when`: 'inactive' refuses only when the skill is not running (a click on a running skill stops it, which must
  * always work); 'always' refuses every call (skills without an active state: Farming, Township). `quiet` methods
- * are refused without a modal (they are called in loops by the listed ones).
+ * are refused without a modal (they are called in loops by the listed ones). With an `unattended` list, a call made
+ * outside the player's input (another mod on a timer, such as SEMI Auto Township repairing after every hourly
+ * Township tick) runs as vanilla for the listed methods and is refused without a modal for the rest; the player's
+ * own clicks are gated as usual (the user, 26 Oct 2026).
  */
 // Modal buttons: confirm green, cancel blue outline (the game's default cancel is red; grey means disabled).
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
@@ -39,8 +42,10 @@ const ENTRY_POINTS = [
   { skillId: 'melvorD:Farming', className: 'Farming', cls: () => Farming, when: 'always',
     methods: ['plantPlotOnClick', 'plantAllOnClick', 'plantAllSelectedOnClick', 'harvestPlotOnClick', 'harvestAllOnClick', 'plantRecipe', 'plantAllRecipe'] },
   { skillId: 'melvorD:Township', className: 'Township', cls: () => Township, when: 'always',
-    methods: ['buildBuilding', 'repairAllBuildings', 'repairAllBuildingsInCurrentBiome', 'repairAllBuildingsFromStorageType'],
-    quiet: ['repairBuilding', 'processConversionToTownship', 'processConversionFromTownship'] },
+    // repairBuilding is the per-building Repair button (the game calls it nowhere else), so it gets the popup too.
+    methods: ['buildBuilding', 'repairBuilding', 'repairAllBuildings', 'repairAllBuildingsInCurrentBiome', 'repairAllBuildingsFromStorageType'],
+    quiet: ['processConversionToTownship', 'processConversionFromTownship'],
+    unattended: ['repairAllBuildings', 'repairAllBuildingsInCurrentBiome', 'repairAllBuildingsFromStorageType', 'repairBuilding'] },
   // The Township trader moves goods between the bank and the town: refused when its confirm dialog would open, so the
   // player never confirms a conversion that is then refused. The conversions above are the quiet backstop.
   { skillId: 'melvorD:Township', className: 'TownshipConversionElement', cls: () => TownshipConversionElement, when: 'always',
@@ -292,6 +297,20 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     modal(templateLangString('MOD_VOY_GATE_LOCKED_TITLE', { name: d.name }), undefined, d.lines, { guide: 'terrain', plan });
   };
 
+  /**
+   * True while the browser is dispatching the player's own click, tap or key press (`window.event`). A timer, the
+   * game loop (setInterval) or another mod's polling runs outside any event, even a second after a click. User
+   * activation (`navigator.userActivation`) lasts seconds after a click, so a timer firing then passed for the
+   * player; it is only the fallback where `window.event` is missing.
+   */
+  const INPUT_EVENTS = new Set(['click', 'dblclick', 'auxclick', 'mousedown', 'mouseup', 'pointerdown', 'pointerup',
+    'touchstart', 'touchend', 'keydown', 'keyup', 'keypress', 'submit', 'change', 'input']);
+  const playerInput = () => {
+    if (!('event' in window)) return navigator.userActivation?.isActive ?? true;
+    const ev = window.event;
+    return ev !== undefined && ev.isTrusted === true && INPUT_EVENTS.has(ev.type);
+  };
+
   // Layer 1: entry points, checked before the selection changes.
   for (const ep of ENTRY_POINTS) {
     let cls;
@@ -304,13 +323,16 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
         console.warn(`[Voyage] entry point ${ep.className}.${method} not found; gated by the backstop only`);
         return;
       }
+      const unattended = ep.unattended?.includes(method) === true;
       ctx.patch(cls, method).replace(function (original, ...args) {
         try {
           const id = ep.skillId ?? this.id;
-          if (rules.isGated(id) && (ep.when === 'always' || !this.isActive)) {
+          const byPlayer = ep.unattended === undefined || playerInput();
+          if ((byPlayer || !unattended) && rules.isGated(id) && (ep.when === 'always' || !this.isActive)) {
             const locked = lockedFor(id);
             if (locked !== undefined) {
-              if (quiet) return undefined;
+              if (!byPlayer) log(`refused ${id}.${method} without a click behind it, quietly`);
+              if (quiet || !byPlayer) return undefined;
               if (locked.folk !== undefined) toastFolk(folkWorkText(id, locked));
               else showLocked(ep.skillId !== undefined ? game.skills.getObjectByID(id) ?? this : this, id, locked, args);
               return undefined;
