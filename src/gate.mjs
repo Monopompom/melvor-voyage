@@ -612,7 +612,13 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
           const locked = zoneLockedFor(action);
           // Where the skill itself is locked, its own gate speaks (the skill modal, not the zone one).
           if (locked !== undefined && rules.allowedAt(locked.skillId, locked.rec, state.ruleOpts())) {
-            if (!ze.quiet) { if (locked.folk !== undefined) toastFolk(folkZoneText(action, locked)); else showZoneLocked(action, locked); }
+            // Another mod picking for the player (a rock queue on a timer) is refused without the popup (the user, 26 Oct
+            // 2026); a Folk's start keeps its toast.
+            if (!ze.quiet) {
+              if (locked.folk !== undefined) toastFolk(folkZoneText(action, locked));
+              else if (playerInput()) showZoneLocked(action, locked);
+              else log(`refused ${action.id} at (${locked.pos?.q},${locked.pos?.r}) without a click behind it, quietly: outside its zone`);
+            }
             return ze.refused;
           }
           left = ze.skipped?.apply(this, args) ?? [];
@@ -629,6 +635,14 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       return result;
     });
   }
+  // The game's own "can this ore be mined" says no outside the ore's zone (the user, 26 Oct 2026), so a mod that picks
+  // rocks for the player by it (Priority Miner's queue) skips to the best ore found here instead of meeting the popup.
+  // The game asks it only inside onRockClick, after the zone entry above has let the rock through.
+  try {
+    ctx.patch(Mining, 'canMineOre').after(function (can, ore) {
+      try { return can === true && zoneLockedFor(ore) !== undefined ? false : undefined; } catch { return undefined; }
+    });
+  } catch (e) { log('canMineOre not zoned', e); }
   /** The zoned actions a running skill is doing now (several trees at once for Woodcutting). */
   const runningActions = (skill) => {
     try {
