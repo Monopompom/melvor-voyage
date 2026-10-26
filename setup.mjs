@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-26.412';
+export const BUILD = '2026-10-26.413';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -77,7 +77,13 @@ export async function setup(ctx) {
           Object.defineProperty(m, 'media', { get: () => url, configurable: true });
         } else if (m._name === outpostModel.OUTPOST_MILESTONES.first || m._name === outpostModel.OUTPOST_MILESTONES.more) {
           // Phase 6e: one more tent pitched at a time at 30, 50, 70 and 90, matched by their English names.
-          m._name = getLangString(m._name === outpostModel.OUTPOST_MILESTONES.first ? 'MOD_VOY_MILESTONE_OUTPOST_FIRST' : 'MOD_VOY_MILESTONE_OUTPOST');
+          // Without Worker Folks they say so (the user, 26 Oct 2026): a tent needs a Folk. Read when the game reads the
+          // name, since Worker Folks' guards register after this data does.
+          const [key, noFolks] = m._name === outpostModel.OUTPOST_MILESTONES.first
+            ? ['MOD_VOY_MILESTONE_OUTPOST_FIRST', 'MOD_VOY_MILESTONE_OUTPOST_FIRST_NO_FOLKS']
+            : ['MOD_VOY_MILESTONE_OUTPOST', 'MOD_VOY_MILESTONE_OUTPOST_NO_FOLKS'];
+          const folksOn = () => { try { return state.folksGuarded === true; } catch { return true; } };
+          Object.defineProperty(m, '_name', { get: () => getLangString(folksOn() ? key : noFolks), configurable: true });
           const url = ctx.getResourceUrl('assets/tent.webp');
           Object.defineProperty(m, 'media', { get: () => url, configurable: true });
         } else if (i >= 0 && m._milestoneID === undefined && '_name' in m) m._name = getLangString(`MOD_VOY_MILESTONE_${i + 1}`);
@@ -419,6 +425,21 @@ export async function setup(ctx) {
     // A tent's build steps run on the skill's passive tick, online and offline (build .396).
     { const s = voyageSkill(); if (s !== undefined) s.outpostTick = () => state.outposts?.passiveTick?.(); }
   } catch (e) { console.error('[Voyage] outposts failed to load; no tents', e); state.outposts = undefined; }
+  // Shop entries only Folks can use (the user, 26 Oct 2026): without Worker Folks the Tent and Walking Orders sold and
+  // did nothing. They stay registered, so a save that bought one loads as before; the shop hides them and a buy from
+  // anywhere else is refused. The guards register on mods loaded, before the shop first draws.
+  try {
+    const folksOnly = {
+      [`voyage:${outpostModel.TENT.id}`]: () => state.folksGuarded === true,
+      'voyage:Walking_Orders': () => state.folksGuarded === true && state.walks?.canWalk?.() === true,
+    };
+    const unusable = (p) => { const ok = folksOnly[p?.id]; return ok !== undefined && !ok(); };
+    ctx.patch(ShopMenu, 'shouldShowItem').after(function (shown, p) { try { return unusable(p) ? 0 : undefined; } catch { return undefined; } });
+    ctx.patch(Shop, 'buyItemOnClick').replace(function (original, p, ...rest) {
+      try { if (unusable(p)) { log(`${p.id} refused: no Worker Folks to use it`); return undefined; } } catch {}
+      return original(p, ...rest);
+    });
+  } catch (e) { console.error('[Voyage] Folks-only shop entries not hidden', e); }
   // Travel traits (phase 6f): Voyage's ten traits in Worker Folks' slots (its API 5). A failure: no travel traits.
   try {
     const traits = (await ctx.loadModule('src/folk-traits.mjs')).install(ctx, { state, FT: await ctx.loadModule('src/folk-traits-model.mjs'), S: storesModel, log });

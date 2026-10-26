@@ -1334,6 +1334,8 @@
   "MOD_VOY_MILESTONE_PLAN": "Plan a voyage: The route, the stops, the cost",
   "MOD_VOY_MILESTONE_OUTPOST_FIRST": "Outposts: A Tent where a Folk works; a Merchant there sells for you",
   "MOD_VOY_MILESTONE_OUTPOST": "Outposts: One more tent at a time",
+  "MOD_VOY_MILESTONE_OUTPOST_FIRST_NO_FOLKS": "Outposts, with Worker Folks: A Tent where a Folk works; a Merchant there sells for you",
+  "MOD_VOY_MILESTONE_OUTPOST_NO_FOLKS": "Outposts, with Worker Folks: One more tent at a time",
   "MOD_VOY_MILESTONE_LONGBOAT": "Longboat: Built at a port",
   "MOD_VOY_MILESTONE_BRIG": "Brig: Bought at a port",
   "MOD_VOY_MILESTONE_GALLEON": "Galleon: Built at a port",
