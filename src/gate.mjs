@@ -873,8 +873,13 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     log(`refused trade (${what}) at (${pos?.q},${pos?.r})`);
     modal(getLangString('MOD_VOY_GATE_TRADE_TITLE'), undefined, lines, { guide: 'trade' });
   };
-  /** Runs a trade (`run`) if it may happen here; else the trader's offer or the refusal (none when `quiet`). */
-  const guardTrade = (what, run, quiet = false) => {
+  /**
+   * Runs a trade (`run`) if it may happen here; else the trader's offer or the refusal (none when `quiet`). A trade
+   * another mod makes on its own (Auto Gloves buying gloves after each action, the user 26 Oct 2026) is refused
+   * without either; `player` says the call is the player's whatever the event (Voyage's own buttons).
+   */
+  const quietTrades = new Map(); // what -> when last logged, so a refusal after every action logs once a minute
+  const guardTrade = (what, run, quiet = false, player = undefined) => {
     try {
       const locked = tradeLocked();
       if (locked !== undefined) {
@@ -882,6 +887,12 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
         if (what === 'sell' && state.trader?.present()) return run();
         // A Merchant Folk on an outpost within a hex buys at its rate (travel traits, 6f-3).
         if (what === 'sell' && state.folkTraits?.outpostSale?.() !== undefined) return run();
+        const mine = player ?? playerInput();
+        if (!quiet && !mine) {
+          const now = Date.now();
+          if (now - (quietTrades.get(what) ?? 0) > 60000) { quietTrades.set(what, now); log(`refused trade (${what}) without a click behind it, quietly`); }
+          return undefined;
+        }
         if (what === 'sell' && !quiet && state.trader?.offer(run)) return undefined;
         if (!quiet) showNoTrade(what, locked);
         return undefined;
@@ -1007,7 +1018,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   });
   state.tradeLocked = () => tradeLocked() !== undefined;
   /** The hold's Sell (build .265) goes through the bank's own gate: the same trader, the same refusal. */
-  state.guardTrade = (what, run) => guardTrade(what, run);
+  state.guardTrade = (what, run) => guardTrade(what, run, false, true);
   /** True when the area cannot be fought from the player's hex (the trader's GP-source check reads it). */
   state.combatLocked = (area) => combatLocked(area) !== undefined;
   state.combatHere = () => { try { return combatHere(); } catch (e) { log('combat here failed', e); return []; } };

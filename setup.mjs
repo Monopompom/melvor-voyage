@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-26.414';
+export const BUILD = '2026-10-26.416';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -427,19 +427,23 @@ export async function setup(ctx) {
   } catch (e) { console.error('[Voyage] outposts failed to load; no tents', e); state.outposts = undefined; }
   // Shop entries only Folks can use (the user, 26 Oct 2026): without Worker Folks the Tent and Walking Orders sold and
   // did nothing. They stay registered, so a save that bought one loads as before; the shop hides them and a buy from
-  // anywhere else is refused. The guards register on mods loaded, before the shop first draws.
+  // anywhere else is refused. The guards register on mods loaded, before the shop first draws. Each tab of the shop
+  // decides what it lists (ShopTabMenu.shouldShowItem, not ShopMenu: build .413 patched that and it threw, so neither
+  // patch took); each patch has its own try, so one failing leaves the other.
+  const folksOnly = {
+    [`voyage:${outpostModel.TENT.id}`]: () => state.folksGuarded === true,
+    'voyage:Walking_Orders': () => state.folksGuarded === true && state.walks?.canWalk?.() === true,
+  };
+  const unusable = (p) => { const ok = folksOnly[p?.id]; return ok !== undefined && !ok(); };
   try {
-    const folksOnly = {
-      [`voyage:${outpostModel.TENT.id}`]: () => state.folksGuarded === true,
-      'voyage:Walking_Orders': () => state.folksGuarded === true && state.walks?.canWalk?.() === true,
-    };
-    const unusable = (p) => { const ok = folksOnly[p?.id]; return ok !== undefined && !ok(); };
-    ctx.patch(ShopMenu, 'shouldShowItem').after(function (shown, p) { try { return unusable(p) ? 0 : undefined; } catch { return undefined; } });
+    ctx.patch(ShopTabMenu, 'shouldShowItem').after(function (shown, p) { try { return unusable(p) ? 0 : undefined; } catch { return undefined; } });
+  } catch (e) { console.error('[Voyage] Folks-only shop entries not hidden', e); }
+  try {
     ctx.patch(Shop, 'buyItemOnClick').replace(function (original, p, ...rest) {
       try { if (unusable(p)) { log(`${p.id} refused: no Worker Folks to use it`); return undefined; } } catch {}
       return original(p, ...rest);
     });
-  } catch (e) { console.error('[Voyage] Folks-only shop entries not hidden', e); }
+  } catch (e) { console.error('[Voyage] Folks-only shop buys not refused', e); }
   // Travel traits (phase 6f): Voyage's ten traits in Worker Folks' slots (its API 5). A failure: no travel traits.
   try {
     const traits = (await ctx.loadModule('src/folk-traits.mjs')).install(ctx, { state, FT: await ctx.loadModule('src/folk-traits-model.mjs'), S: storesModel, log });
