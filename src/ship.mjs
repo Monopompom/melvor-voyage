@@ -28,7 +28,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   /** A hull named mid-sentence ("your dinghy"): its tier name, lower case in English. */
   const hullWord = (hull) => (hull === undefined ? t('MOD_VOY_SHIP_BOAT') : t(shipModel.tierNameKey(hull.tier)));
   // Careening (the flat mechanics) runs on the game's clock, as a tent going up does; its times read as the clock's.
-  const now = () => { try { return state.clockNow?.() ?? Date.now(); } catch { return Date.now(); } };
+  const now = () => { try { return state.gameNow?.() ?? state.clockNow?.() ?? Date.now(); } catch { return Date.now(); } };
   const duration = (ms) => state.clock?.duration?.(ms) ?? `${Math.ceil(ms / 60000)} min`;
 
   /** Terrain record of a game hex; hexes outside the table count as land unless the game marks them water. */

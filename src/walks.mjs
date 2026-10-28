@@ -22,7 +22,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
   const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const hexDistance = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
   const same = (a, b) => a != null && b != null && a.q === b.q && a.r === b.r;
-  const now = () => state.clockNow?.() ?? Date.now();
+  const now = () => state.gameNow?.() ?? state.clockNow?.() ?? Date.now();
   const offline = () => { try { return game._isInOnlineLoop === false; } catch { return false; } };
 
   /** The class of a hex a Folk may walk into: land you know (surveyed or charted). Undefined for sea or unknown. */
@@ -179,7 +179,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     let at = w.start;
     for (let i = 0; i < from; i++) at += w.road[i].ms;
     const entered = w.road.slice(from, reached).map((s) => {
-      const out = { cls: s.cls, ms: s.ms, night: state.stores?.nightAt?.(at) ?? null };
+      const out = { cls: s.cls, ms: s.ms, night: state.stores?.nightAt?.(state.realAt?.(at) ?? at) ?? null };
       at += s.ms;
       return out;
     });

@@ -48,7 +48,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
   // ---- the wind (phase 5c-2) ---------------------------------------------------------------------------------------
   // One wind over the sea from one of six sides, turning every 6 hours of game time by at most one side; it changes the
   // time of a sailed step only, so it needs Timed travel. The roll is seeded per character (the save's `wind`, rolled
-  // here the first time) and follows game time (state.clockNow: the replayed moment offline).
+  // here the first time) and follows game time (state.gameNow: the ticks run, offline and online alike; build .421).
   let windObj;
   let spareSeed;
   /** A forced side for checks (dev.mjs voyageDev.wind(side)); undefined: the seeded wind. */
@@ -84,7 +84,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
    */
   const wind = () => {
     if (!windOn()) return undefined;
-    const now = state.clockNow?.() ?? Date.now();
+    const now = state.gameNow?.() ?? state.clockNow?.() ?? Date.now();
     const from = windAt(now);
     if (from === undefined) return undefined;
     const side = W.WIND_SIDES[from];
@@ -138,7 +138,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
     return out;
   };
   /** The storm on hex (q, r) at `ms`, or undefined. */
-  const stormAt = (q, r, ms = state.clockNow?.() ?? Date.now()) => stormsAt(ms).find((st) => st.cells.some((h) => h.q === q && h.r === r));
+  const stormAt = (q, r, ms = state.gameNow?.() ?? state.clockNow?.() ?? Date.now()) => stormsAt(ms).find((st) => st.cells.some((h) => h.q === q && h.r === r));
   /** A sea step's storm wear factor for ship.mjs stepsOf (the hex entered now), or undefined. */
   const stepStorm = (rec) => (rec !== undefined && shipModel.isSea(rec) && stormAt(rec.q, rec.r) !== undefined ? W.STORM_WEAR : undefined);
   /**
@@ -153,7 +153,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
   };
   /** The storms near (q, r) now, nearest first: [{ storm, dist }] within `reach` hexes. */
   const stormsNear = (q, r, reach = 3) => {
-    const now = state.clockNow?.() ?? Date.now();
+    const now = state.gameNow?.() ?? state.clockNow?.() ?? Date.now();
     const out = [];
     for (const st of stormsAt(now)) {
       let best;
@@ -168,7 +168,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
   /** A key that changes when the storms move (a half-hour) or come and go: the panel redraws on it. */
   const stormKey = () => {
     if (!stormsOn()) return '';
-    const now = state.clockNow?.() ?? Date.now();
+    const now = state.gameNow?.() ?? state.clockNow?.() ?? Date.now();
     return stormsAt(now).map((st) => `${st.k}:${st.q},${st.r}`).join('|');
   };
 
@@ -369,7 +369,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
     wearTicks += 1;
     if (wearTicks < 20) return;
     wearTicks = 0;
-    const now = state.clockNow?.() ?? Date.now();
+    const now = state.gameNow?.() ?? state.clockNow?.() ?? Date.now();
     const epoch = Math.floor(now / W.STORM_STEP_MS);
     if (lastEpoch === undefined || epoch < lastEpoch) { lastEpoch = epoch; return; }
     if (epoch === lastEpoch || state.ship?.enabled?.() !== true || !stormsOn()) { lastEpoch = epoch; return; }
@@ -509,7 +509,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
     order,
     /** The memo key of anything priced or timed by the weather: '' with the setting off. */
     // The storms (5c-3) move each half-hour: the half-hour is in the key, so a planned step's storm wear stays current.
-    key: () => (on() ? `${rawOrder()}|${Math.floor((state.clockNow?.() ?? Date.now()) / W.STORM_STEP_MS)}|${forcedStorm?.born ?? ''}` : ''),
+    key: () => (on() ? `${rawOrder()}|${Math.floor((state.gameNow?.() ?? state.clockNow?.() ?? Date.now()) / W.STORM_STEP_MS)}|${forcedStorm?.born ?? ''}` : ''),
     stepWeather,
     effectsAt,
     stormsOn,
@@ -523,7 +523,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
     /** Checks only (dev.mjs voyageDev.storm): a storm on (q, r) from now for `hours` (3 to 6), or none with undefined. */
     forceStorm: (q, r, hours = 3) => {
       if (!Number.isInteger(q) || !Number.isInteger(r)) { forcedStorm = undefined; stormMemo.clear(); return undefined; }
-      const now = state.clockNow?.() ?? Date.now();
+      const now = state.gameNow?.() ?? state.clockNow?.() ?? Date.now();
       const born = Math.floor(now / W.STORM_STEP_MS) * W.STORM_STEP_MS;
       forcedStorm = { k: -1, born, steps: Math.max(1, Math.round(hours * 2)), q, r };
       stormMemo.clear();

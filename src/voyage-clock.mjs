@@ -31,6 +31,25 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     try { return C.clockNow({ offline: game._isInOnlineLoop === false, info: game._offlineInfo, now: Date.now() }); } catch { return Date.now(); }
   };
   const offlineNow = () => { try { return game._isInOnlineLoop === false; } catch { return false; } };
+  /**
+   * The game clock (build .421): the save's `gameMs`, moved C.TICK_MS by every tick the game runs (gameTick, first in
+   * the skill's passive tick). Durations run on it: careening, tent builds, Folks walking, the weather and the storm
+   * wait. Ticks spent online from a time bank move it like offline ones; a paused game stops it. The real clock
+   * (state.clockNow) keeps the hour of day and the times shown.
+   */
+  state.gameNow = () => {
+    const s = skill();
+    if (s === undefined || s.futureRaw !== undefined) return state.clockNow();
+    if (!(s.record.gameMs > 0)) {
+      let lastTick;
+      try { lastTick = game.tickTimestamp; } catch {}
+      s.record.gameMs = C.gameClockSeed({ offline: offlineNow(), info: game._offlineInfo, lastTick, now: Date.now() });
+    }
+    return s.record.gameMs;
+  };
+  const gameTick = () => { const s = skill(); if (s !== undefined && s.futureRaw === undefined) s.record.gameMs = state.gameNow() + C.TICK_MS; };
+  /** A moment on the game clock read on the real one (night falls by the real hour). */
+  state.realAt = (ms) => ms - state.gameNow() + state.clockNow();
   const cart = () => game.cartography;
   const map = () => cart()?.activeMap;
   const hexAt = (q, r) => { try { return map()?.getHex(new HexCoords(q, r)); } catch { return undefined; } };
@@ -108,7 +127,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     if (tow !== undefined) return walk.slice(1).map(() => C.ticksOf(state.adrift?.towMs?.(tow.kind) ?? 3 * 60000));
     const path = pathOf(walk, 0, walk.length - 1);
     if (path === undefined) return walk.slice(1).map(() => C.ticksOf(C.LAND_MS));
-    return C.routeTicks(stepsOf(path), timeOpts(worn), t0 ?? state.clockNow(), windOf(), stormOf());
+    return C.routeTicks(stepsOf(path), timeOpts(worn), t0 ?? state.gameNow(), windOf(), stormOf());
   };
   let ticksMemo;
   const stepTicks = (v) => {
@@ -362,7 +381,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     const steps = stepsOf(path);
     const o = timeOpts();
     // Set off now, in the winds ahead (phase 5c-2); `calm` what it would take with none, `stepMs` each step's time.
-    const t0 = state.clockNow();
+    const t0 = state.gameNow();
     // The storms the route meets (phase 5c-3): each stormy sea hex with when you enter it, for "Storm ahead".
     const storms = [];
     const so = stormOf();
@@ -392,7 +411,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
       if (so === undefined || !(info?.storms?.length > 0)) return undefined;
       const steps = stepsOf(path);
       const o = timeOpts();
-      const t0 = state.clockNow();
+      const t0 = state.gameNow();
       let ms = 0;
       const waitMs = C.stormWaitMs(info.storms.length, (w) => {
         let n = 0;
@@ -447,7 +466,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     if (from === undefined) return;
     waiting = { path, name, chain, loads, until: wait.at, from: { q: from.q, r: from.r } };
     saveWaiting();
-    notify(t('MOD_VOY_STORM_WAITING', { name, time: duration(Math.max(0, wait.at - state.clockNow())) }), 'info');
+    notify(t('MOD_VOY_STORM_WAITING', { name, time: duration(Math.max(0, wait.at - state.gameNow())) }), 'info');
     redrawPage();
   };
   const cancelWait = (quiet = false) => {
@@ -464,7 +483,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     if (waiting === undefined) return;
     const pos = map()?.playerPosition;
     if (cur() !== null || pos === undefined || pos.q !== waiting.from.q || pos.r !== waiting.from.r) { cancelWait(true); return; }
-    if (state.clockNow() < waiting.until) return;
+    if (state.gameNow() < waiting.until) return;
     // A fight is never cut short for it (build .386: the set-off ran the idle checker and stopped a fight or fishing
     // without a word): the voyage waits, told once; any other action stopped is named.
     let fighting = false;
@@ -490,7 +509,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
   const stormHtml = (info) => {
     const list = info?.storms ?? [];
     if (list.length === 0) return '';
-    const when = clockAt(Date.now() + Math.max(0, list[0].ms - state.clockNow()));
+    const when = clockAt(Date.now() + Math.max(0, list[0].ms - state.gameNow()));
     const pushes = list.filter((x) => x.push).length;
     const vars = { time: when, hexes: hexes(list.length), extra: duration(Math.max(60000, info.stormMs ?? 0)), n: `${pushes}` };
     return `<div class="voyage-storm-ahead"><i class="fa fa-bolt" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_STORM_AHEAD_HEAD'))}</b> `
@@ -518,7 +537,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
       walk.push(m === undefined ? { q: h.q, r: h.r } : { q: h.q, r: h.r, m: JSON.parse(JSON.stringify(m)) });
     }
     const fogged = fog !== undefined && state.fog !== undefined;
-    const v = C.cleanVoyage({ walk, at: 0, left: 1, total: 1, name, chain, loads, began: state.clockNow(), xp: s.xp, gp: game.gp.amount, worn: wornNow(),
+    const v = C.cleanVoyage({ walk, at: 0, left: 1, total: 1, name, chain, loads, began: state.gameNow(), xp: s.xp, gp: game.gp.amount, worn: wornNow(),
       ...(fogged ? { fog: true, side: fog.side ?? 0, sv: [] } : {}), ...(tow !== undefined ? { tow } : {}) });
     if (v === null) return false;
     // A stowaway may be hiding aboard for a long crossing (events.mjs): the hex where it climbs out.
@@ -962,7 +981,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     }
     if (met?.storm !== undefined) {
       try {
-        const st = state.weather?.stormStep?.(met, state.clockNow());
+        const st = state.weather?.stormStep?.(met, state.gameNow());
         state.weather?.sailedStorm?.({ wear: S.wearOf(met), push: st?.push === true && state.timed?.() === true ? st.storm.toward : undefined });
       } catch (e) { log('storm note failed', e); }
     }
@@ -1452,9 +1471,11 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     stormWaitMax: C.STORM_WAIT_MAX_MS,
     /** The last ending's notice closed (the adrift one took its place, build .386). */
     closeEnding: () => { const e = ending(); if (e !== null && e.closed !== true) { setEnding({ ...e, closed: true }); blockSig = undefined; } },
-    waitingStorm: () => (waiting === undefined ? undefined : { name: waiting.name, left: Math.max(0, waiting.until - state.clockNow()) }),
+    waitingStorm: () => (waiting === undefined ? undefined : { name: waiting.name, left: Math.max(0, waiting.until - state.gameNow()) }),
     cancelWait: () => cancelWait(false),
     waitTick,
+    /** The game clock's tick (build .421), run first in the skill's passive tick. */
+    gameTick,
     /** A plain hex for the cargo and task deadlines: your fastest vessel's sea hex, an easy land hex at your mount's
      * speed; undefined while timed travel is off (no deadlines then). */
     seaHexMs: () => { if (!on()) return undefined; const hulls = [hullOf('ship'), hullOf('boat')].filter(Boolean); return hulls.length === 0 ? undefined : Math.min(...hulls.map(C.seaMs)); },

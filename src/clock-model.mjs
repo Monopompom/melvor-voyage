@@ -113,6 +113,16 @@ export function clockNow({ offline, info, now }) {
   return now;
 }
 
+/**
+ * The game clock's first reading on a save without one (build .421): where the game's own clock stands, so a stamp
+ * taken on the real clock before it goes on as it was. During the offline catch-up the moment being replayed; else
+ * the game's last tick (`lastTick`, Game.tickTimestamp: the catch-up still to run starts there), or now.
+ */
+export function gameClockSeed({ offline, info, lastTick, now }) {
+  if (offline) return clockNow({ offline, info, now });
+  return Number.isFinite(lastTick) && lastTick > 0 && lastTick <= now ? lastTick : now;
+}
+
 // ---- the voyage in the save (v15 `voyage`) --------------------------------------------------------------------------
 /** An arrival choice: what the voyage starts on arrival, in order of preference (4.5 "On arrival, do this"). */
 export const CHOICE_KINDS = ['skill', 'fight', 'dungeon', 'resume'];

@@ -45,8 +45,9 @@ export function createVoyageClass({ model, log }) {
 
     // ---- the active action (a voyage under way) ---------------------------------------------------------
     activeTick() { try { this.clock?.tick(); } catch (e) { log('voyage tick failed', e); } }
-    /** Every tick, online and offline, whatever runs (Game.tick's passive tickers): the drift while Adrift (5b part two), the season, Folks walking alone (6d), travel traits' minute clock (6f), tents going up (6e, build .396). */
+    /** Every tick, online and offline, whatever runs (Game.tick's passive tickers): the drift while Adrift (5b part two), the season, Folks walking alone (6d), travel traits' minute clock (6f), tents going up (6e, build .396). The game clock moves first (build .421), so each timer reads this tick's time. */
     passiveTick() {
+      try { this.clock?.gameTick?.(); } catch (e) { log('game clock tick failed', e); }
       try { this.weather?.tick(); } catch (e) { log('weather tick failed', e); }
       try { this.adrift?.tick(); } catch (e) { log('adrift tick failed', e); }
       try { this.walks?.tick(); } catch (e) { log('walks tick failed', e); }

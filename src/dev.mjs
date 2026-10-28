@@ -545,7 +545,7 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       else if (q === 'here' && p !== undefined) w.forceStorm(p.q + (r ?? 0), p.r + (hours ?? 0), 3);
       else if (Number.isInteger(q) && Number.isInteger(r)) w.forceStorm(q, r, hours ?? 3);
       try { state.overlay?.drawStorms?.(); } catch {}
-      const now = state.clockNow?.() ?? Date.now();
+      const now = state.gameNow?.() ?? state.clockNow?.() ?? Date.now();
       return { storms: w.stormsAt(now), near: p === undefined ? [] : w.stormsNear(p.q, p.r, 3), on: w.stormsOn() };
     },
     /**

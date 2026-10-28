@@ -29,7 +29,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   const level = () => skill()?.level ?? 1;
   /** The pitched tents, cleaned: { "q,r": { food, fuel, at, build? } }, the ones going up too. */
   const outposts = () => O.cleanOutposts(record()?.outposts);
-  const now = () => { try { return state.clockNow?.() ?? Date.now(); } catch { return Date.now(); } };
+  const now = () => { try { return state.gameNow?.() ?? state.clockNow?.() ?? Date.now(); } catch { return Date.now(); } };
   const folksApi = () => (state.folksGuarded ? state.folksApi?.() : undefined);
   const usable = () => state.mode !== 'dormant' && record() !== undefined && state.terrain !== undefined;
   const provisions = () => state.stores?.enabled?.() === true;

@@ -115,7 +115,7 @@ export function install(ctx, { state, terrainMod, log }) {
       stormLayer.clear();
       boltLayer.clear();
       if (map === undefined || cartographyMap.lastDrawnMap !== map || state.weather?.stormsOn?.() !== true) return;
-      const storms = state.weather.stormsAt(state.clockNow?.() ?? Date.now());
+      const storms = state.weather.stormsAt(state.gameNow?.() ?? state.clockNow?.() ?? Date.now());
       if (storms.length === 0) return;
       const points = cartographyMap.hexPolygon?.points;
       if (points === undefined || points.length === 0) return;

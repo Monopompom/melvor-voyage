@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TOW_KINDS as ADRIFT_TOWS } from '../src/adrift-model.mjs';
 import {
-  TICK_MS, LAND_MS, SEA_MS, groundFactor, seaMs, stepMs, ticksOf, routeMs, durationParts, clockText, clockNow,
+  TICK_MS, LAND_MS, SEA_MS, groundFactor, seaMs, stepMs, ticksOf, routeMs, durationParts, clockText, clockNow, gameClockSeed,
   cleanChoice, sameChoice, cleanChain, cleanVoyage, cleanEnding, ticksLeft, TOW_KINDS, STORM_WAIT_STEP_MS, STORM_WAIT_MAX_MS, stormWaitMs,
 } from '../src/clock-model.mjs';
 
@@ -65,6 +65,14 @@ test('the clock reads the replayed moment offline, the wall clock online', () =>
   assert.equal(clockNow({ offline: false, info, now: 9999 }), 9999);
   assert.equal(clockNow({ offline: true, info: undefined, now: 9999 }), 9999);
   assert.equal(clockNow({ offline: true, info: { startTime: 0, timeProcessed: 5 }, now: 9999 }), 9999);
+});
+
+test('the game clock starts where the game\'s own clock stands', () => {
+  // Offline: the moment being replayed, so a careen stamped before the time away ends on time.
+  assert.equal(gameClockSeed({ offline: true, info: { startTime: 1000, timeProcessed: 500 }, lastTick: 800, now: 9999 }), 1500);
+  // Online: the last tick the save saw (the catch-up still to run starts there), else now.
+  assert.equal(gameClockSeed({ offline: false, info: undefined, lastTick: 800, now: 9999 }), 800);
+  for (const lastTick of [undefined, 0, -1, NaN, 20000]) assert.equal(gameClockSeed({ offline: false, lastTick, now: 9999 }), 9999);
 });
 
 test('arrival choices are cleaned, deduplicated and capped at three', () => {

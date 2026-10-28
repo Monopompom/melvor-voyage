@@ -109,7 +109,7 @@ export function install(ctx, { state, FT, S, log }) {
     pace(road, folk, start) {
       const held = canTraits() ? folk?.traits ?? [] : [];
       if (held.length === 0) return road;
-      return FT.pacedRoad(road, start, (st, at) => FT.travelEffects(held, { rough: isRough(st.cls), night: state.stores?.nightAt?.(at) ?? null }).walkSpeed);
+      return FT.pacedRoad(road, start, (st, at) => FT.travelEffects(held, { rough: isRough(st.cls), night: state.stores?.nightAt?.(state.realAt?.(at) ?? at) ?? null }).walkSpeed);
     },
     /** A Folk walking alone entered these road hexes ({ cls, ms, night }). */
     walked(folkId, entered) {

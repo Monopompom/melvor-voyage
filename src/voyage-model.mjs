@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 23;
+export const SAVE_VERSION = 24;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -124,7 +124,7 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * one ended, for the page's note, or null. adrift-model.mjs cleanAdrift and cleanAdriftEnd check them in depth.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {} };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0 };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -214,6 +214,8 @@ export const MIGRATIONS = {
   21: (rec) => ({ ...rec, v: 22, folkTraits: {} }),
   // build .378 (events that ask): no stowaway aboard yet
   22: (rec) => ({ ...rec, v: 23, events: {} }),
+  // build .421 (the game clock): not started yet; its first reading takes the game's own clock
+  23: (rec) => ({ ...rec, v: 24, gameMs: 0 }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -373,6 +375,9 @@ function clean(rec) {
     folkTraits: plainObject(rec.folkTraits) ?? {},
     // Events that ask (build .378): { stow }, checked by events-model.mjs cleanEvents where it is read.
     events: plainObject(rec.events) ?? {},
+    // The game clock (build .421): ms moved one tick at a time, so careening, tents, walks and the weather follow the
+    // ticks run (offline, or spent online from a time bank) and stand still while the game is paused. 0: not started.
+    gameMs: Number.isFinite(rec.gameMs) && rec.gameMs > 0 ? Math.floor(rec.gameMs) : 0,
   };
 }
 /** Folks the most a save keeps jobs for: Worker Folks never hires more than there are skills to hold. */
