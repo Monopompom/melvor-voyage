@@ -224,4 +224,9 @@ test('folksLines: a {folks} line shows only with Folks on, its mark gone', () =>
   assert.deepEqual(folksLines(lines, false), ['- Trade says so.', 'Plain.']);
   assert.deepEqual(folksLines(lines, true), ['- Trade says so.', '- Folks here names them.', 'Plain.']);
   assert.deepEqual(folksLines(['{folks} Alone.'], true), ['Alone.']);
+  // {wf:<name>}: a Worker Folks feature its API reports (build .423).
+  const wf = ['A.', '- {wf:orders} Orders.', '{wf:sev} Severance.'];
+  assert.deepEqual(folksLines(wf, true, { orders: true }), ['A.', '- Orders.']);
+  assert.deepEqual(folksLines(wf, true), ['A.'], 'an older Worker Folks reports none');
+  assert.deepEqual(folksLines(wf, false, { orders: true, sev: true }), ['A.'], 'nothing of Folks with Folks off');
 });

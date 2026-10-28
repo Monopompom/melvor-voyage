@@ -513,6 +513,8 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
     stepWeather,
     effectsAt,
     stormsOn,
+    /** This season's chance of a storm each wind turn (the journal's weather page), or undefined with no storms. */
+    stormOdds: () => (stormsOn() ? W.stormChance(rawOrder()) : undefined),
     stormsAt,
     stormAt,
     stepStorm,

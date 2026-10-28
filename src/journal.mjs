@@ -500,15 +500,29 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   /**
    * The Crew chapter's Worker Folks numbers from its API (build .386; they were typed): promotion's Hiring level, the
    * mastery gates, the promotion cost share, the Shift Slot caps. Without the API (an older Worker Folks): the
-   * numbers as of its 1.2.0, so the page never shows a blank.
+   * numbers as of its 1.2.0, so the page never shows a blank. Build .423: the Hiring XP an hour, qualification,
+   * the firing severance, the crew bonus, Work Orders and marks, from its .147 rules; `wfHas` says which it reports,
+   * for the `{wf:…}` lines (journal-model.mjs folksLines).
    */
+  const folksRules = () => { try { return state.folksApi?.()?.rules?.(); } catch { return undefined; } };
   const crewVars = () => {
-    let r;
-    try { r = state.folksApi?.()?.rules?.(); } catch {}
+    const r = folksRules();
     const gates = r?.masteryGates?.length > 0 ? [...r.masteryGates] : [20, 40, 60, 80];
     const caps = r?.slotCaps?.length > 0 ? [...r.slotCaps] : [2, 4, 7, 10];
     const orList = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} ${t('MOD_VOY_JOURNAL_LIST_OR')} ${xs[xs.length - 1]}`);
-    return { promoLevel: `${r?.promotionLevel ?? 10}`, masteryGates: orList(gates), promoShare: `${Math.round((r?.promotionCostRate ?? 0.6) * 100)}`, slotCaps: caps.join(', ') };
+    const byRank = (xs) => (Array.isArray(xs) && xs.length === jm.CREW_TIERS.length ? jm.CREW_TIERS.map((x, i) => `${roleName(x.tier)} ${numberWithCommas(xs[i])}`).join(', ') : '');
+    const pct = (x) => `${Math.round(x * 100)}`;
+    const sev = Array.isArray(r?.firingSeverance) ? r.firingSeverance.map(([level, rate], i) => (i === 0 ? t('MOD_VOY_JOURNAL_CREW_SEV_FIRST', { pct: pct(rate) })
+      : rate > 0 ? t('MOD_VOY_JOURNAL_CREW_SEV_STEP', { pct: pct(rate), level: `${level}` }) : t('MOD_VOY_JOURNAL_CREW_SEV_NONE', { level: `${level}` }))).join(', ') : '';
+    const cb = r?.crewBonus;
+    // Worker Folks up to 1.3.0: +3% a Foreman, 15% at most, no Hiring 99 step.
+    const cbCap = cb?.topMax > cb?.max ? t('MOD_VOY_JOURNAL_CREW_CB_TOP', { max: `${cb.max}`, top: `${cb.topMax}`, level: `${cb.topLevel}` }) : `${cb?.max ?? 15}%`;
+    const vars = { promoLevel: `${r?.promotionLevel ?? 10}`, masteryGates: orList(gates), promoShare: `${Math.round((r?.promotionCostRate ?? 0.6) * 100)}`, slotCaps: caps.join(', '),
+      xpPerHour: byRank(r?.hiringXPPerHour), qualLevels: byRank(r?.qualification), qualLower: `${r?.qualificationLowering ?? ''}`, sevSteps: sev,
+      cbPer: `${cb?.per ?? 3}`, cbCap, ordersLevel: `${r?.workOrdersLevel ?? ''}`, marksLevel: `${r?.marksLevel ?? ''}`, marksPct: Number.isFinite(r?.marksShare) ? pct(r.marksShare) : '' };
+    vars.wfHas = { xp: vars.xpPerHour !== '', qual: vars.qualLevels !== '' && vars.qualLower !== '', sev: sev !== '',
+      orders: vars.ordersLevel !== '', marks: vars.marksLevel !== '' && vars.marksPct !== '' };
+    return vars;
   };
   /** A guide page's account under its lesson (journal-model.mjs JOURNAL_GUIDE_SECTIONS), drawn as a chapter's sections. */
   const guideSections = (id) => {
@@ -516,7 +530,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     if (spec === undefined) return '';
     const vars = bookVars();
     return spec.sections.map((sec) => {
-      const lines = jm.folksLines(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_BODY`, vars).split('\n').filter((x) => x.trim() !== ''), folksOn());
+      const lines = jm.folksLines(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_BODY`, vars).split('\n').filter((x) => x.trim() !== ''), folksOn(), vars.wfHas);
       return `<div class="vj-section"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_HEAD`))}</h3>${prose(lines)}</div>`;
     }).join('');
   };
@@ -524,7 +538,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const spec = jm.JOURNAL_WRITTEN[id];
     const key = id.toUpperCase();
     const vars = bookVars();
-    const line = (k) => jm.folksLines(t(k, vars).split('\n').filter((x) => x.trim() !== ''), folksOn());
+    const line = (k) => jm.folksLines(t(k, vars).split('\n').filter((x) => x.trim() !== ''), folksOn(), vars.wfHas);
     let html = id === 'lighthouse' ? lighthouse() : '';
     for (const sec of spec.sections) {
       // The map's key line follows the setting: a cleared key turns the shortcut off.
@@ -532,12 +546,15 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       const bodyKey = id === 'map' && sec === 'KEYS' && vars.key === '' ? `MOD_VOY_JOURNAL_CH_MAP_KEYS_BODY_OFF`
         : id === 'foreword' && sec === 'BOOK' && vars.journal === '' ? `MOD_VOY_JOURNAL_CH_FOREWORD_BOOK_BODY_OFF` : relicKey(`MOD_VOY_JOURNAL_CH_${key}_${sec}_BODY`);
       const lines = line(bodyKey);
+      // A section all of whose lines tell of a feature this Worker Folks lacks is left out, heading and all.
+      if (lines.length === 0) continue;
       // The map key (build .171) opens the map from any page: one more line while it is set.
       if (id === 'map' && sec === 'KEYS' && vars.map !== '') lines.unshift(t('MOD_VOY_JOURNAL_CH_MAP_KEYS_OPEN', vars));
       const body = spec.points ? `<ul class="vj-points">${lines.map((l) => `<li>${rich(l)}</li>`).join('')}</ul>` : prose(lines);
       html += `<div class="vj-section${spec.warn?.includes(sec) ? ' vj-warn' : ''}"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_${sec}_HEAD`))}</h3>${body}</div>`;
       if (id === 'foreword' && sec === 'WHO') html += galleon();
       if (id === 'settings' && sec === 'EASIER') html += settingsTable();
+      if (id === 'weather' && sec === 'SEASON') html += weatherNow();
       if (id === 'settings' && sec === 'KEYS') html += keysTable();
       if (id === 'lands' && sec === 'KINDS') html += landsTable();
       if (id === 'lands' && sec === 'FEATURES') html += featuresTable();
@@ -677,8 +694,12 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       + ledger([t('MOD_VOY_JOURNAL_CREW_COL_NAME'), t('MOD_VOY_JOURNAL_CREW_COL_RANK'), t('MOD_VOY_JOURNAL_CREW_COL_AT'), t('MOD_VOY_JOURNAL_CREW_COL_STATUS')], rows);
   };
   const crewTiers = () => {
-    // Units after the numbers (.308, scan C2-11): "60%", "75k GP".
-    const rows = jm.CREW_TIERS.map((x) => [{ text: roleName(x.tier) }, { text: t('MOD_VOY_UNIT_PCT', { n: `${x.rate}` }), cls: 'vj-num' }, { text: t('MOD_VOY_UNIT_GP', { n: gp(x.wage) }), cls: 'vj-num' }, { text: t('MOD_VOY_UNIT_GP', { n: gp(x.hire) }), cls: 'vj-num' }]);
+    // Units after the numbers (.308, scan C2-11): "60%", "75k GP". Build .423: from Worker Folks' rules where it
+    // reports them (its .147 raised the first hires), else the numbers typed in journal-model.mjs.
+    const r = folksRules();
+    const live = (xs, i, typed) => (Array.isArray(xs) && xs.length === jm.CREW_TIERS.length && Number.isFinite(xs[i]) ? xs[i] : typed);
+    const rows = jm.CREW_TIERS.map((x, i) => [{ text: roleName(x.tier) }, { text: t('MOD_VOY_UNIT_PCT', { n: `${live(r?.produceRates, i, x.rate)}` }), cls: 'vj-num' },
+      { text: t('MOD_VOY_UNIT_GP', { n: gp(live(r?.wages, i, x.wage)) }), cls: 'vj-num' }, { text: t('MOD_VOY_UNIT_GP', { n: gp(live(r?.hireBase, i, x.hire)) }), cls: 'vj-num' }]);
     rows.numeric = [false, true, true, true];
     return ledger([t('MOD_VOY_JOURNAL_CREW_COL_RANK'), t('MOD_VOY_JOURNAL_CREW_COL_RATE'), t('MOD_VOY_JOURNAL_CREW_COL_WAGE'), t('MOD_VOY_JOURNAL_CREW_COL_HIRE')], rows);
   };
@@ -708,6 +729,33 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       row(s.journalKey?.(), 'MOD_VOY_JOURNAL_KEYS_JOURNAL'),
     ]);
   };
+  /**
+   * The weather as it stands (build .423, the user: the weather page read as plain text): the season and its turn, the
+   * degrees where I stand, the wind and its turn, this season's storms. '' with the weather off.
+   */
+  const weatherNow = () => {
+    const wx = state.weather;
+    let s;
+    try { s = wx?.season?.(); } catch { s = undefined; }
+    if (s === undefined) return '';
+    const off = { text: t('MOD_VOY_JOURNAL_OFF'), cls: 'text-muted' };
+    // Without a town the panel's own line ("Spring stays until you reach a town") would repeat the season.
+    const season = s.noTown ? t('MOD_VOY_JOURNAL_WX_NO_TOWN', { season: s.name }) : [s.name, wx.nextWords?.(s) ?? ''].filter((x) => x !== '').join('. ');
+    const rows = [[t('MOD_VOY_JOURNAL_WX_SEASON'), { text: season, plain: true }]];
+    try {
+      const pos = state.position?.();
+      const d = pos === undefined ? undefined : wx.describe?.(state.recordAt(pos));
+      if (d !== undefined) rows.push([t('MOD_VOY_JOURNAL_WX_HERE'), { text: d.effect === '' ? d.deg : `${d.deg}, ${d.effect}`, cls: d.tone, plain: true }]);
+    } catch (e) { log('journal weather here failed', e); }
+    const w = wx.wind?.();
+    const time = (ms) => state.clock?.duration?.(ms) ?? `${Math.round(ms / 3600000)}h`;
+    rows.push([t('MOD_VOY_JOURNAL_WX_WIND'), w === undefined ? off : { text: t('MOD_VOY_JOURNAL_WX_WIND_NOW', { from: w.word, time: time(w.msLeft) }), plain: true }]);
+    const p = wx.stormOdds?.();
+    const odds = (x) => { const n = 1 / x; return Math.abs(n - Math.round(n)) < 1e-9 ? t('MOD_VOY_JOURNAL_WX_ODDS', { n: `${Math.round(n)}` }) : t('MOD_VOY_JOURNAL_WX_ODDS_ABOUT', { n: `${Math.round(n)}` }); };
+    rows.push([t('MOD_VOY_JOURNAL_WX_STORMS'), Number.isFinite(p) && p > 0 ? { text: odds(p), plain: true } : off]);
+    rows.numeric = [false, false];
+    return ledger([t('MOD_VOY_JOURNAL_WX_COL'), t('MOD_VOY_JOURNAL_COL_NOW')], rows);
+  };
   const settingsTable = () => {
     const s = state.settings;
     const onOff = (on) => ({ text: t(on ? 'MOD_VOY_JOURNAL_ON' : 'MOD_VOY_JOURNAL_OFF'), cls: `vj-num ${on ? 'text-success' : 'text-muted'}` });
@@ -719,6 +767,12 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       [t('MOD_VOY_SETTING_TRADE'), onOff(s.trade())],
       [t('MOD_VOY_SETTING_PROVISIONS'), onOff(s.provisions())],
       [t('MOD_VOY_SETTING_NIGHT'), onOff(s.night())],
+      // The rest of the typed table's switches (build .423, scan: the live table left them out).
+      [t('MOD_VOY_SETTING_WEATHER'), onOff(s.weather())],
+      [t('MOD_VOY_SETTING_TIMED'), onOff(s.timedTravel())],
+      [t('MOD_VOY_SETTING_OVERLAY'), onOff(s.overlay())],
+      [t('MOD_VOY_SETTING_MAP_MOTION'), onOff(s.mapMotion())],
+      [t('MOD_VOY_SETTING_BOOK_OPENING'), onOff(s.bookOpening())],
     ].map(([a, b]) => [{ text: a, plain: true }, b]);
     rows.numeric = [false, true];
     return ledger([t('MOD_VOY_JOURNAL_COL_SETTING'), t('MOD_VOY_JOURNAL_COL_NOW')], rows);
@@ -1355,9 +1409,11 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const [lead, ...rest] = t(`MOD_VOY_JOURNAL_GUIDE_${key}_BODY`).split('\n');
     // A guide's crate count from the hold table (build .386; it was typed in the text).
     const points = jm.JOURNAL_GUIDE_SECTIONS[view.guide]?.points === false ? [] : t(relicKey(`MOD_VOY_JOURNAL_GUIDE_${key}_POINTS`), { slots: `${shipModel.HOLD_SLOTS?.[view.guide] ?? ''}` }).split('\n').filter((x) => x.trim() !== '');
+    // Its Worker Folks lines ({folks}) only while Worker Folks is on (the grace guide's Hiring line, build .423).
+    const shown = jm.folksLines(points, folksOn());
     const right = runningHead(t('MOD_VOY_JOURNAL_TAB_GUIDE'), guideTitle(view.guide))
       + `<h2 class="vj-h1">${esc(guideTitle(view.guide))}</h2>` + dropCap(lead) + prose(rest)
-      + (points.length > 0 ? `<ul class="vj-points">${points.map((p) => `<li>${rich(p)}</li>`).join('')}</ul>` : '') + guideSections(view.guide)
+      + (shown.length > 0 ? `<ul class="vj-points">${shown.map((p) => `<li>${rich(p)}</li>`).join('')}</ul>` : '') + guideSections(view.guide)
       + (view.back !== null ? `<div class="vj-foot vj-foot-end"><button type="button" class="vj-btn" data-vj-back="1">${esc(t('MOD_VOY_JOURNAL_BACK'))}</button></div>` : '');
     return { left, right };
   };

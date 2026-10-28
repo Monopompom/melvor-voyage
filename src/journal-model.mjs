@@ -46,7 +46,7 @@ export const JOURNAL_WRITTEN = {
   lighthouse: { sections: ['LAST', 'LIGHT'] },
   crew_hire: { sections: ['START', 'WORKER', 'PORT'] },
   crew_ranks: { sections: ['TIERS', 'LICENCES', 'PROMOTE'] },
-  crew_pay: { sections: ['WAGES', 'GRACE', 'STRIKE', 'EASIER'], warn: ['STRIKE'] },
+  crew_pay: { sections: ['WAGES', 'GRACE', 'STRIKE', 'DISMISS', 'EASIER'], warn: ['STRIKE'] },
   crew_tips: { sections: ['OWN'], points: true },
   map: { sections: ['TINT', 'PANEL', 'KEYS', 'MARKS'] },
   lands: { sections: ['KINDS', 'FEATURES'] },
@@ -79,9 +79,10 @@ export const JOURNAL_GUIDE_SECTIONS = {
 
 /**
  * The "Did you know?" slips (build .127, the user's ask): a real-world sea fact the captain is reminded of by something
- * he saw, one per chapter, drawn before the chapter's note (MOD_VOY_JOURNAL_ASIDE_<KEY>_HEAD / _BODY).
+ * he saw, one per chapter, drawn before the chapter's note (MOD_VOY_JOURNAL_ASIDE_<KEY>_HEAD / _BODY). Build .423 (the
+ * user: pages that read as plain text) adds the map's, the compass's and the weather's.
  */
-export const JOURNAL_ASIDES = { stores: 'LIMES', travels: 'KNOTS', tricks: 'MILKY' };
+export const JOURNAL_ASIDES = { stores: 'LIMES', travels: 'KNOTS', tricks: 'MILKY', map: 'DRAGONS', compass: 'FISH', weather: 'BEAUFORT' };
 
 /**
  * The chapters that end with a note (MOD_VOY_JOURNAL_CH_<CHAPTER>_NOTE). Build .137, the user's pick: the author's notes
@@ -94,9 +95,10 @@ export const JOURNAL_NOTES = ['foreword', 'lands', 'stores', 'ship', 'hold', 'tr
 export const JOURNAL_TABS = ['how', 'resources', 'places', 'guide', 'crew'];
 
 /**
- * Worker Folks: Hiring's numbers for the crew pages, as of its version 1.1.0 (its src/pricing.mjs, wages.mjs,
- * shop-data.mjs; Standard difficulty). That mod has no API to read them from, so they are copied: check them when it
- * changes. Rank names and the tips are read live from its language keys (MOD_WF_ROLE_<tier>, MOD_WF_TIP_<n>).
+ * Worker Folks: Hiring's numbers for the crew pages, as of its versions 1.1.0 to 1.3.0 (its src/pricing.mjs, wages.mjs,
+ * shop-data.mjs; Standard difficulty). Since its build .147 its API's rules() reports the rate, wage and first hire
+ * of each rank, and the journal reads those (journal.mjs crewTiers); these stay as the numbers for an older Worker
+ * Folks. Rank names and the tips are read live from its language keys (MOD_WF_ROLE_<tier>, MOD_WF_TIP_<n>).
  */
 export const CREW_SKILL_ID = 'worker_folks:Hiring';
 export const CREW_TIERS = [
@@ -155,12 +157,15 @@ export function linkTargetExists(kind, id, guides) {
 /**
  * A book line that begins with `{folks}` (after a list's "- ", if any) is about Worker Folks: kept, without the mark, only while Folks are on, so a
  * player without that mod never reads of Folks (nor follows a link to the hidden "Folks aboard").
+ * A line that begins with `{wf:<name>}` tells of a Worker Folks feature its API reports (`has[name]` true): an older
+ * Worker Folks without it never shows the line (build .423).
  */
-const FOLKS_LINE = /^(\s*(?:[-*>] )?)\{folks\}\s*/;
-export const folksLines = (lines, on) => lines.flatMap((l) => {
+const FOLKS_LINE = /^(\s*(?:[-*>] )?)\{(folks|wf:[a-z]+)\}\s*/;
+export const folksLines = (lines, on, has = {}) => lines.flatMap((l) => {
   const m = FOLKS_LINE.exec(l);
   if (m === null) return [l];
-  return on ? [m[1] + l.slice(m[0].length)] : [];
+  const keep = on && (m[2] === 'folks' || has[m[2].slice(3)] === true);
+  return keep ? [m[1] + l.slice(m[0].length)] : [];
 });
 
 export const hexStr = (q, r) => `${q},${r}`;

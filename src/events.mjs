@@ -79,7 +79,7 @@ export function install(ctx, { state, EM, S, shipModel, helpLayout, rankName, lo
     else notify(text);
     return true;
   };
-  /** Runs before the wind: the hull's wear now, one crate in ten overboard (build .387); the clock adds the hex of sailing. */
+  /** Runs before the wind: the hull's wear now, a fifth of the crates overboard (build .387); the clock adds the hex of sailing. */
   const run = (pir) => {
     const to = EM.condAfterRun(cond(), pir.wear);
     state.ship?.setCond?.(to, 'ship');
