@@ -477,7 +477,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     if (st?.enabled?.() === true) {
       const have = st.stores();
       const end = sp.ok ? sp.have : undefined;
-      const hp = (n) => esc(t('MOD_VOY_PLAN_HP', { count: st.hp(n) }));
+      const hp = (n) => esc(t('MOD_VOY_PLAN_FOOD', { count: st.hp(n) }));
       // The Stores block's number form, with the unit (.308, scan A2-18).
       const fuel = (n) => esc(t('MOD_VOY_UNIT_FUEL', { n: st.fuelText(S.roundFuel(n)) }));
       rows += `<div></div><div class="voyage-plan-when">${esc(t(end === undefined ? 'MOD_VOY_PLAN_WHEN_NOW' : 'MOD_VOY_PLAN_WHEN'))}</div>`;

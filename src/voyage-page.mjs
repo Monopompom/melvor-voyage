@@ -756,7 +756,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
       .map((g) => {
         const heavy = g.rations > 1 || g.fuel > 1;
         return {
-          cells: [sea(g) ? t('MOD_VOY_HELP_AT_SEA') : terrainList(g.classes), t('MOD_VOY_UNIT_HP', { n: qty(g.rations * storesModel.RATION_HP) }), g.fuel > 0 ? `${g.fuel}` : t('MOD_VOY_HELP_NONE')],
+          cells: [sea(g) ? t('MOD_VOY_HELP_AT_SEA') : terrainList(g.classes), t('MOD_VOY_UNIT_FOOD', { n: qty(g.rations * storesModel.RATION_HP) }), g.fuel > 0 ? `${g.fuel}` : t('MOD_VOY_HELP_NONE')],
           cls: heavy ? ['text-warning', 'text-warning'] : ['', ''],
         };
       });
@@ -923,7 +923,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         const cap = st.capacity();
         out.push({ head: t('MOD_VOY_HELP_HEAD_ROOM'), body: [
           { table: { cols: [t('MOD_VOY_HELP_COL_STORE'), t('MOD_VOY_HELP_COL_ROOM')], rows: [
-            { cells: [t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_UNIT_HP', { n: st.hp(cap.food) })] },
+            { cells: [t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_UNIT_FOOD', { n: st.hp(cap.food) })] },
             { cells: [t('MOD_VOY_HELP_COL_FUEL'), st.fuelText(cap.fuel)] },
           ] } },
           t('MOD_VOY_HELP_ROOM_LEVEL', { level: `${skill()?.level ?? 1}`, food: `${storesModel.CAPACITY.foodPerLevel}`, fuel: `${storesModel.CAPACITY.fuelPerLevel}` }),
@@ -1019,7 +1019,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     const of = (n) => `<small class="text-muted">/ ${n}</small>`;
     // Food and fuel each never split; the fuel drops under the food where both don't fit (build .360, the user, an
     // iPhone SE: it ran past the band).
-    const carried = `<span class="voyage-stores-carried"><span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}" alt="" title="${esc(t('MOD_VOY_HELP_COL_FOOD'))}"><span class="${level('food')}">${api.hp(have.food)}${word('food')}</span> ${of(api.hp(cap.food))} ${esc(t('MOD_VOY_UNIT_HP', { n: '' })).trim()}</span>` +
+    const carried = `<span class="voyage-stores-carried"><span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}" alt="" title="${esc(t('MOD_VOY_PAGE_STORES_FOOD_TIP', { ration: `${storesModel.RATION_HP} HP` }))}"><span class="${level('food')}">${api.hp(have.food)}${word('food')}</span> ${of(api.hp(cap.food))} ${esc(t('MOD_VOY_UNIT_FOOD', { n: '' })).trim()}</span>` +
       `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/fuel.webp')}" alt="" title="${esc(t('MOD_VOY_HELP_COL_FUEL'))}"><span class="${level('fuel')}">${api.fuelText(have.fuel)}${word('fuel')}</span> ${of(api.fuelText(cap.fuel))} ${esc(t('MOD_VOY_PAGE_STORES_FUEL_WORD'))}</span></span>`;
     let html = section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt=""><b>${carried}</b></div>` +
       (api.enabled() ? '' : `<div class="text-warning">${t(game.tutorial?.complete === false ? 'MOD_VOY_PAGE_TUTORIAL' : 'MOD_VOY_PAGE_STORES_OFF')}</div>`)); // (.308, C-01)
@@ -1054,7 +1054,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     if (most <= 0) return html + section(`${load}<div class="mt-2 text-warning">${t(sel.kind === 'food' ? 'MOD_VOY_PAGE_STORES_FULL_FOOD' : 'MOD_VOY_PAGE_STORES_FULL_FUEL')}</div>`);
     loadPreview = (n) => {
       const v = Math.min(room, storesModel.loadAmount(sel.unit, Math.min(n, most), rate));
-      return `+${sel.kind === 'food' ? t('MOD_VOY_UNIT_HP', { n: api.hp(v) }) : t('MOD_VOY_UNIT_FUEL', { n: api.fuelText(storesModel.roundFuel(v)) })}`; // units on both (.308, A-11/A2-18)
+      return `+${sel.kind === 'food' ? t('MOD_VOY_UNIT_FOOD', { n: api.hp(v) }) : t('MOD_VOY_UNIT_FUEL', { n: api.fuelText(storesModel.roundFuel(v)) })}`; // units on both (.308, A-11/A2-18)
     };
     const value = amountFor('load', sel.item.id, most, most);
     load += actionBlock({
@@ -1077,7 +1077,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     const st = state.stores;
     const have = st?.enabled?.() === true ? st.stores() : undefined;
     const word = (kind) => (have[kind] <= 0 ? ` (${t('MOD_VOY_PAGE_STORES_EMPTY_WORD')})` : have[kind] < storesModel.LOW[kind] ? ` (${t('MOD_VOY_PAGE_STORES_LOW_WORD')})` : '');
-    out['stores-block'] = have === undefined ? '' : `${t('MOD_VOY_UNIT_HP', { n: st.hp(have.food) })}${word('food')} · ${t('MOD_VOY_UNIT_FUEL', { n: st.fuelText(have.fuel) })}${word('fuel')}`;
+    out['stores-block'] = have === undefined ? '' : `${t('MOD_VOY_UNIT_FOOD', { n: st.hp(have.food) })}${word('food')} · ${t('MOD_VOY_UNIT_FUEL', { n: st.fuelText(have.fuel) })}${word('fuel')}`;
     const sh = state.ship;
     const v = sh?.boat?.();
     if (v == null) out['ship-block'] = '';
@@ -1108,7 +1108,8 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
       if (s !== undefined) {
         const left = s.msLeft === undefined ? '' : ` · ${helpLayout.withTime('MOD_VOY_WX_PAGE_LEFT', { time: state.clock?.duration?.(s.msLeft) ?? '' })}`;
         const wind = w === undefined ? '' : ` · <i class="fa fa-long-arrow-alt-up voyage-wind-arrow mx-1" style="transform:rotate(${w.toward * 60}deg)" aria-hidden="true"></i>${esc(t('MOD_VOY_WX_WIND_FROM', { side: w.short }))}`;
-        chip('status', 'voyage-status-season', `${s.media ? `<img class="voyage-wx-icon mr-1" src="${esc(s.media)}" alt="">` : ''}${esc(s.name)}${left}${wind}`);
+        // One span for the words: loose text in the flex chip would lose the spaces at its edges ("·⌛ 65h", "0mleft").
+        chip('status', 'voyage-status-season', `${s.media ? `<img class="voyage-wx-icon mr-1" src="${esc(s.media)}" alt="">` : ''}<span>${esc(s.name)}${left}${wind}</span>`);
       }
     }
     const st = state.stores;

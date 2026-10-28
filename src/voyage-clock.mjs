@@ -676,7 +676,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     const costBits = [];
     if (pl?.spent !== undefined && fog === undefined) {
       // The page's units: food in HP, fuel as the Stores block writes it (.309, scan C-18/A2-26).
-      costBits.push(`<span class="voyage-clock-cost">${img(res('ration.webp'))}${esc(t('MOD_VOY_UNIT_HP', { n: num(pl.spent.food) }))}</span>`);
+      costBits.push(`<span class="voyage-clock-cost">${img(res('ration.webp'))}${esc(t('MOD_VOY_UNIT_FOOD', { n: num(pl.spent.food) }))}</span>`);
       costBits.push(`<span class="voyage-clock-cost">${img(res('fuel.webp'))}${esc(t('MOD_VOY_UNIT_FUEL', { n: state.stores?.fuelText?.(pl.spent.fuel) ?? `${Math.round(pl.spent.fuel * 10) / 10}` }))}</span>`);
     }
     // The Folks with you (phase 6c): the food and fuel above feed them too.
