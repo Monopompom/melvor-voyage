@@ -1437,8 +1437,29 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   /** A short window (under 768px high) keeps the side tabs as icons only, the name as the tooltip (.308, scan C2-04). */
   const iconsOnly = () => window.matchMedia?.('(min-width: 992px) and (max-height: 767.98px)').matches === true;
   const TAB_KEY = { how: 'MOD_VOY_JOURNAL_TAB_HOW', resources: 'MOD_VOY_JOURNAL_TAB_RESOURCES', places: 'MOD_VOY_JOURNAL_TAB_PLACES', guide: 'MOD_VOY_JOURNAL_TAB_GUIDE', crew: 'MOD_VOY_JOURNAL_TAB_CREW' };
-  /** Draws the open book; `keepScroll` (a record changed under the reader) leaves the pages where they were. */
-  const render = (keepScroll = false) => {
+  /**
+   * The scroll positions inside a page that are off their top, each by the child-index path to its element, so a
+   * redraw of the same page can put them back (whichever element scrolls: the page, or a list inside it).
+   */
+  const scrollsOf = (page) => {
+    const out = [];
+    const walk = (el, path) => { if (el.scrollTop > 0) out.push([path, el.scrollTop]); [...el.children].forEach((c, i) => walk(c, [...path, i])); };
+    if (page) walk(page, []);
+    return out;
+  };
+  const restoreScrolls = (page, saved) => {
+    for (const [path, top] of saved) {
+      let el = page;
+      for (const i of path) el = el?.children[i];
+      if (el) el.scrollTop = top;
+    }
+  };
+  /**
+   * Draws the open book; `keepScroll` (a record changed under the reader) leaves the pages where they were.
+   * `keepLeft` (an entry, place or guide page picked from the list, build .424, the user: the list jumped to its top)
+   * keeps the left page's list where it was and starts the right page at its top.
+   */
+  const render = (keepScroll = false, keepLeft = false) => {
     if (!view.open || root === undefined) return;
     let spread;
     try {
@@ -1451,12 +1472,16 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     // from the list) starts with the way back to the list.
     const listBack = ['resources', 'places', 'guide'].includes(view.tab) && spread.right
       ? `<button type="button" class="vj-turn vj-one-only vj-one-back" data-vj-side="left"><span aria-hidden="true">‹</span> ${esc(t('MOD_VOY_JOURNAL_ONE_BACK', { tab: t(TAB_KEY[view.tab]) }))}</button>` : '';
+    // On a phone the spread scrolls, one page at a time: where the list stood, for its way back (data-vj-side).
+    if (keepLeft && view.side !== 'right') view.listAt = root.querySelector('.vj-spread')?.scrollTop ?? 0;
     for (const [side, html] of [['.vj-left', spread.left], ['.vj-right', listBack + (spread.right ?? '')]]) {
       const page = root.querySelector(side);
+      const kept = keepLeft && side === '.vj-left' ? scrollsOf(page) : [];
       page.innerHTML = html;
       page.classList.toggle('vj-pinned', spread.pinned === true);
       page.classList.toggle('vj-chart-page', side === '.vj-left' && spread.chart === true);
       if (!keepScroll) page.scrollTop = 0;
+      restoreScrolls(page, kept);
     }
     // The phone layout scrolls the spread, not the pages: a new spread starts at its top there too.
     const spreadEl = root.querySelector('.vj-spread');
@@ -1544,7 +1569,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       if (clear !== null) { const s = root.querySelector(`#${clear.dataset.vjClear}`); if (s !== null) { s.value = ''; searched(s); s.focus(); } return; }
       const tab = el.closest('[data-vj-tab]');
       if (tab !== null) { view.tab = tab.dataset.vjTab; view.back = null; view.pick = undefined; view.side = 'left'; render(); return; }
-      if (el.closest('[data-vj-side]')) { showPage('.vj-left'); return; }
+      if (el.closest('[data-vj-side]')) { showPage('.vj-left'); const sp = root.querySelector('.vj-spread'); if (sp && view.listAt > 0) sp.scrollTop = view.listAt; return; }
       // The Manifest (build .179): its button opens the first spread, a Crew row opens that chapter's spread.
       if (el.closest('[data-vj-manifest]')) { view.tab = 'how'; view.spread = 0; view.back = null; render(); showPage('.vj-right'); return; }
       const crewRow = el.closest('[data-vj-crew]');
@@ -1567,11 +1592,11 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
         view[field] += dir; render(); return;
       }
       const entry = el.closest('[data-vj-entry]');
-      if (entry !== null) { view.entry = entry.dataset.vjEntry; view.pick = undefined; render(); showPage('.vj-right', false); return; }
+      if (entry !== null) { view.entry = entry.dataset.vjEntry; view.pick = undefined; render(false, true); showPage('.vj-right', false); return; }
       const pl = el.closest('[data-vj-place]');
-      if (pl !== null) { view.place = pl.dataset.vjPlace; render(); showPage('.vj-right', false); return; }
+      if (pl !== null) { view.place = pl.dataset.vjPlace; render(false, true); showPage('.vj-right', false); return; }
       const guide = el.closest('[data-vj-guide]');
-      if (guide !== null) { view.guide = guide.dataset.vjGuide; view.back = null; render(); showPage('.vj-right', false); return; }
+      if (guide !== null) { view.guide = guide.dataset.vjGuide; view.back = null; render(false, true); showPage('.vj-right', false); return; }
       if (el.closest('[data-vj-pick="open"]')) { view.pick = {}; render(); showPage('.vj-right'); return; }
       const src = el.closest('[data-vj-pick-source]');
       if (src !== null) { view.pick = { source: src.dataset.vjPickSource }; render(); return; }

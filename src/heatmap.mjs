@@ -159,11 +159,18 @@ export function install(ctx, { state, terrainMod, log }) {
     g.lineWidth = 2.5 * px;
     g.strokeStyle = '#ffd34d';
     for (const f of m.found) { path(f.q, f.r); g.stroke(); }
-    // Misses in a neutral grey with a dark rim: blue read as shallow sea next to water (.308, scan C2-20).
-    g.fillStyle = 'rgba(150,150,150,0.55)';
-    g.strokeStyle = '#4a4a4a';
-    g.lineWidth = 2 * px;
-    for (const f of m.missed) { path(f.q, f.r); g.fill(); g.stroke(); }
+    // Misses dark with a pale rim and a cross (build .424, the user: a heat map of misses alone looked empty, the old
+    // pale grey read as one more light land hex). Not blue: that read as shallow sea next to water (.308, scan C2-20).
+    for (const f of m.missed) {
+      const c = center(f.q, f.r);
+      path(f.q, f.r);
+      g.fillStyle = 'rgba(20,16,12,0.62)'; g.fill();
+      g.lineWidth = 2 * px; g.strokeStyle = '#d8d0c0'; g.stroke();
+      g.beginPath();
+      g.moveTo(c.x - 0.22, c.y - 0.22); g.lineTo(c.x + 0.22, c.y + 0.22);
+      g.moveTo(c.x + 0.22, c.y - 0.22); g.lineTo(c.x - 0.22, c.y + 0.22);
+      g.lineWidth = Math.max(2.5 * px, 0.05); g.lineCap = 'round'; g.strokeStyle = '#f1e4c6'; g.stroke();
+    }
     // You: a ring with a dark edge, readable on any colour.
     if (m.me !== undefined) {
       const c = center(m.me.q, m.me.r);
@@ -244,7 +251,9 @@ export function install(ctx, { state, terrainMod, log }) {
         + `<span><i class="vj-heat-key vj-heat-hot"></i>${esc(t('MOD_VOY_JOURNAL_HEAT_FOUND'))}</span>`
         + `<span><i class="vj-heat-key vj-heat-cold"></i>${esc(t('MOD_VOY_JOURNAL_HEAT_MISSED'))}</span>`
         + (charted.length > 0 ? `<span><i class="vj-heat-key vj-heat-charted"></i>${esc(t('MOD_VOY_JOURNAL_HEAT_CHARTED'))}</span>` : '')
-        + `<span><i class="vj-heat-key vj-heat-me"></i>${esc(t('MOD_VOY_JOURNAL_HEAT_YOU'))}</span></div>`
+        + `<span><i class="vj-heat-key vj-heat-me"></i>${esc(t('MOD_VOY_JOURNAL_HEAT_YOU'))}</span>`
+        // Nothing found yet: say so, so a map of misses alone doesn't read as empty (build .424).
+        + (found.length === 0 && charted.length === 0 ? `<span class="vj-heat-none">${esc(t('MOD_VOY_JOURNAL_HEAT_NONE'))}</span>` : '') + '</div>'
         + '<div class="vj-heat-tools">'
         + tool('in', t('MOD_VOY_JOURNAL_HEAT_ZOOM_IN'), '<path d="M12 5v14M5 12h14"></path>')
         + tool('out', t('MOD_VOY_JOURNAL_HEAT_ZOOM_OUT'), '<path d="M5 12h14"></path>')

@@ -660,7 +660,8 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .vj-heat-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 17px; }
 .vj-heat-key { display: inline-block; width: 16px; height: 16px; margin-right: 7px; vertical-align: -3px; border-radius: 3px; }
 .vj-heat-hot { background: radial-gradient(circle, #be140a, #ff7814 55%, rgba(255, 205, 60, .6)); border: 2px solid #ffd34d; }
-.vj-heat-cold { background: rgba(150, 150, 150, .55); border: 2px solid #4a4a4a; } /* grey, not sea blue (.308, C2-20) */
+.vj-heat-cold { background: linear-gradient(45deg, transparent 40%, #f1e4c6 40% 60%, transparent 60%), linear-gradient(-45deg, transparent 40%, #f1e4c6 40% 60%, transparent 60%), rgba(20, 16, 12, .62); border: 2px solid #d8d0c0; } /* dark with a cross (.424); not sea blue (.308, C2-20) */
+.vj-heat-none { font-style: italic; color: #e8c27a; }
 .vj-heat-charted { background: repeating-linear-gradient(-45deg, rgba(255, 226, 150, .9) 0 2px, rgba(255, 226, 150, .16) 2px 5px); border: 2px solid rgba(255, 226, 150, .95); }
 .vj-heat-me { border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px #1d140d; }
 .vj-heat-tools { margin-left: auto; display: flex; gap: 8px; }

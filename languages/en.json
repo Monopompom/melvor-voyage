@@ -1222,6 +1222,7 @@
   "MOD_VOY_JOURNAL_HEAT_SUB": "Heat map",
   "MOD_VOY_JOURNAL_HEAT_FOUND": "Found",
   "MOD_VOY_JOURNAL_HEAT_MISSED": "Not here",
+  "MOD_VOY_JOURNAL_HEAT_NONE": "Not found yet: only where it isn't",
   "MOD_VOY_JOURNAL_HEAT_YOU": "You",
   "MOD_VOY_JOURNAL_HEAT_ZOOM_IN": "Zoom in",
   "MOD_VOY_JOURNAL_HEAT_ZOOM_OUT": "Zoom out",
