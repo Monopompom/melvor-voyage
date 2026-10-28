@@ -1,6 +1,6 @@
 {
   "name": "Voyage: Far Shores",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "namespace": "voyage",
   "setup": "setup.mjs",
   "icon": "assets/icon.svg"
