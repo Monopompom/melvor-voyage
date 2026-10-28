@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../src/stores-model.mjs';
-import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs, legPath, worthLoading } from '../src/plan-model.mjs';
+import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs, legPath, worthLoading, travelHandover } from '../src/plan-model.mjs';
 
 test('Navigator\'s Charts: owned, level, port, cost, then buyable', () => {
   const ok = { owned: false, level: NAVIGATOR.level, atPort: true, gp: NAVIGATOR.gp, items: Object.fromEntries(NAVIGATOR.items.map((x) => [x.id, x.quantity])) };
@@ -106,3 +106,20 @@ test('a leg keeps its share of the route\'s vessel modes (build .313)', () => {
   assert.equal(legPath(walk, 0, 4, undefined).voyageModes, undefined);
 });
 
+test('the map\'s Travel keeps the plan: the route on the plan\'s own way, the pick on another way, nothing elsewhere', () => {
+  const hex = (q, r) => ({ q, r });
+  const planHexes = [hex(5, 5), hex(9, 2)];
+  const planPath = [hex(5, 5), hex(4, 5), hex(3, 5), hex(2, 5)];
+  // The same hexes, other objects (the map's selection and the plan each compute their own path).
+  assert.equal(travelHandover(planHexes, planPath.map((h) => hex(h.q, h.r)), planPath), 'route');
+  assert.equal(travelHandover(planHexes, [hex(5, 5), hex(4, 6), hex(3, 5), hex(2, 5)], planPath), 'pick');
+  assert.equal(travelHandover(planHexes, [hex(5, 5), hex(4, 5), hex(3, 5), hex(2, 5), hex(1, 5)], planPath), 'pick');
+  // Another of the plan's places, which the plan's route doesn't go to: the pick only.
+  assert.equal(travelHandover(planHexes, [hex(9, 2), hex(8, 3), hex(2, 5)], planPath), 'pick');
+  // A plan with no route of its own (uncharted, no way) still hands over its pick.
+  assert.equal(travelHandover(planHexes, planPath, undefined), 'pick');
+  // Anywhere else, or no path: untouched.
+  assert.equal(travelHandover(planHexes, [hex(4, 5), hex(3, 5), hex(2, 5)], planPath), 'none');
+  assert.equal(travelHandover(planHexes, [], planPath), 'none');
+  assert.equal(travelHandover(planHexes, undefined, planPath), 'none');
+});

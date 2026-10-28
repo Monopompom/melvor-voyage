@@ -106,3 +106,16 @@ export function legPath(walk, from, to, modes) {
   }
   return path;
 }
+
+/**
+ * What a trip set off with the map's Travel takes from the plan (build .420, the user: "inherit those actions"):
+ * 'none' when it doesn't end on one of the plan's hexes, 'route' when it is the plan's own route (its stops apply
+ * too), else 'pick' (the On arrival pick only). `planHexes` [{ q, r }]; `path` and `planPath` in the game's order,
+ * destination first, each hex with q and r.
+ */
+export function travelHandover(planHexes, path, planPath) {
+  const dest = Array.isArray(path) ? path[0] : undefined;
+  if (dest === undefined || !planHexes.some((h) => h.q === dest.q && h.r === dest.r)) return 'none';
+  const same = Array.isArray(planPath) && planPath.length === path.length && planPath.every((h, i) => h.q === path[i].q && h.r === path[i].r);
+  return same ? 'route' : 'pick';
+}

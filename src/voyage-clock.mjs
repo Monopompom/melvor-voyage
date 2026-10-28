@@ -1188,7 +1188,10 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
       const path = this.activeMap?.selectedHexPath;
       if (!on() || this.game.isGolbinRaid || !Array.isArray(path) || path.length < 2 || stepping) return original();
       if (cur()?.tow !== undefined) { state.adrift?.refuseUnderTow?.(); return; }
-      confirmSetOff(path, () => original());
+      // To the planned place, the plan's On arrival pick, and on its own route its stops (build .420).
+      let extra;
+      try { extra = state.planner?.forTravel?.(path); } catch (e) { log('plan hand-over failed', e); }
+      confirmSetOff(path, () => original(), undefined, extra);
     } catch (e) { log('timed travel failed; instant', e); return original(); }
   });
 

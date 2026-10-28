@@ -300,6 +300,31 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     }
     sailLegs(plan, name);
   };
+  /**
+   * The map's Travel to the planned place keeps the plan (build .420, the user: "inherit those actions when clicking
+   * the 'Show on the map' and then 'Travel' buttons"): the clock's Set off `extra`, or undefined for a trip elsewhere.
+   * The On arrival pick goes first. On the plan's own route, when the block's Set off could sail it (Navigator's
+   * Charts, the stores, the costs), its stops apply too, loading here first as that Set off does. Setting off clears
+   * the plan.
+   */
+  const forTravel = (path) => {
+    if (!open() || target === undefined) return undefined;
+    const plan = compute();
+    const how = P.travelHandover(target.hexes, path, plan?.path);
+    if (how === 'none') return undefined;
+    const stops = how === 'route' && plan.split?.ok === true && plan.refused === undefined && owned() && (plan.costs?.checkIfOwned() ?? true);
+    return {
+      name: target.name,
+      ...(stops ? { loads: plan.split.legs.filter((leg) => leg.load !== undefined).map((leg) => leg.to) } : {}),
+      prefer: pickChoice(),
+      started: () => {
+        if (stops && plan.split.depart !== undefined) loadHere();
+        target = undefined;
+        try { game.cartography.render(); } catch {}
+        refresh();
+      },
+    };
+  };
   /** The instant way (Timed travel off): leg by leg through movePlayer, loading here first and at the planned stops. */
   const sailLegs = (plan, name) => {
     const cart = game.cartography;
@@ -576,7 +601,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   };
   const reopen = () => { if (target === undefined) return false; showBlock(); return true; };
   // startAction and startable: a Folk arriving from a walk (6d) starts its resource the same way.
-  const api = { planTo, forAction, forArea, html, onClick, signature, open, owned, summary, reopen, navHtml, startAction, startable, isRunning, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
+  const api = { planTo, forAction, forArea, forTravel, html, onClick, signature, open, owned, summary, reopen, navHtml, startAction, startable, isRunning, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
   state.planner = api;
   return api;
 }
