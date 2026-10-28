@@ -639,6 +639,15 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       out.push(chip(st.icons(have.food, have.fuel, false) + (load ? '<i class="fa fa-plus-circle text-info ml-1" aria-hidden="true"></i>' : ''),
         `${st.amounts(have.food, have.fuel)}.${load ? `\n${getLangString('MOD_VOY_MINI_LOAD_HINT')}` : ''}`, `${low}${load ? ' voyage-chip-load' : ''}`, 'voyage-chip-link voyage-load-link'));
     }
+    // 2a. On a port or next to it (build .419, the user: "If in Port, show pill on the minimized Here panel"): a tap
+    // opens its harbour board, as the open panel's Harbour button does; green while cargo waits to be delivered here.
+    let port;
+    try { port = state.cargo?.pill?.(); } catch (e) { log('port chip failed', e); }
+    if (port !== undefined) {
+      const due = port.due > 0 ? `\n${templateLangString(port.due === 1 ? 'MOD_VOY_CARGO_PANEL_DUE_ONE' : 'MOD_VOY_CARGO_PANEL_DUE', { n: `${port.due}` })}.` : '';
+      out.push(chip(`<i class="fa fa-anchor mr-1" aria-hidden="true"></i>${esc(getLangString('MOD_VOY_MINI_PORT'))}`, `${port.name}${due}`,
+        port.due > 0 ? 'text-success' : 'text-info', 'voyage-chip-link voyage-port-link')); // not voyage-harbour-link: that one is full width
+    }
     // 2b. The Folks with you (6c, the user: "an icon on the minimized map panel that a player is with a crew"): how
     // many, named in the tooltip; red once the food is out, as each hex then costs them HP. A tap opens the Crew block.
     const crew = state.active() && state.folksGuarded === true ? (state.crew?.list?.() ?? []) : [];
@@ -978,7 +987,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     panel.className = 'voyage-ui block block-rounded bg-combat-inner-dark p-2 mb-2';
     panel.addEventListener('click', (e) => {
       if (e.target instanceof Element && e.target.closest('.voyage-trader-link')) { e.preventDefault(); state.trader?.offer(); }
-      if (e.target instanceof Element && e.target.closest('.voyage-harbour-link')) { e.preventDefault(); state.cargo?.open(); }
+      if (e.target instanceof Element && e.target.closest('.voyage-harbour-link, .voyage-port-link')) { e.preventDefault(); state.cargo?.open(); }
       if (e.target instanceof Element && e.target.closest('.voyage-rescue-link')) { e.preventDefault(); state.stores?.offer(); }
       if (e.target instanceof Element && e.target.closest('.voyage-adrift-link')) { e.preventDefault(); state.adrift?.explain(); }
       if (e.target instanceof Element && e.target.closest('.voyage-sign-place')) { e.preventDefault(); state.land?.place(); render(); return; }

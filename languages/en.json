@@ -557,6 +557,7 @@
   "MOD_VOY_PANEL_SHOW_SHIP": "Show",
   "MOD_VOY_PANEL_LEGEND": "Legend",
   "MOD_VOY_MINI_LOAD_HINT": "You can stock up here.",
+  "MOD_VOY_MINI_PORT": "Port",
   "MOD_VOY_PANEL_VESSEL_FOLD": "Fold the vessel, stores and crew",
   "MOD_VOY_PANEL_VESSEL_UNFOLD": "Show the vessel, stores and crew",
   "MOD_VOY_MINI_CREW_HUNGRY": "The food is out: every hex costs them HP.",

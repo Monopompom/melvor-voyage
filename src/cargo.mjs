@@ -665,6 +665,13 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     return `<div class="voyage-here-place voyage-harbour-line"><span><span class="voyage-here-label">${esc(t('MOD_VOY_CARGO_PANEL_LABEL'))}</span> ${note}</span>` +
       `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-harbour-link">${esc(t('MOD_VOY_CARGO_BOARD'))}</button></div>`; // "Harbour:" and the row-button width like its neighbours (.308, B-24)
   };
+  /** The strip's Port pill (build .419): the port in reach and how many runs end there, or undefined away from one. */
+  const pill = () => {
+    const port = portHere();
+    const c = data();
+    if (port === undefined || c === undefined) return undefined;
+    return { name: portName(port.poi), due: c.runs.filter((r) => r.to === port.poi && packedIn(r, allKinds()) > 0).length };
+  };
   /** Packed cargo in a hold entry, for the Hold block's sealed tiles: { run, port } or undefined. */
   const sealOf = (entry) => {
     if (!M.isCargo(entry)) return undefined;
@@ -694,7 +701,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     return { ports: open.length, requests: all, goods: goods.length, top: rows.slice(0, 8) };
   };
 
-  const api = { max: M.MAX_RUNS, shares, open, portHere, portName, untilNext, panelLine, errandsHtml, onPageClick, sealOf, art, has: () => (data()?.runs.length ?? 0) > 0 || state.tasks?.has?.() === true, count: () => data()?.runs.length ?? 0, redraw };
+  const api = { max: M.MAX_RUNS, shares, open, portHere, portName, untilNext, panelLine, pill, errandsHtml, onPageClick, sealOf, art, has: () => (data()?.runs.length ?? 0) > 0 || state.tasks?.has?.() === true, count: () => data()?.runs.length ?? 0, redraw };
   state.cargo = api;
   return api;
 }
