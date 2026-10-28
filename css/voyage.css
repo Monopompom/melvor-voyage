@@ -676,6 +676,11 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .vj-search-box { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--vj-ink); padding: 2px; }
 .vj-search-box input { flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 20px; color: var(--vj-ink); padding: 8px 0; outline: none; }
 .vj-search-box:focus-within { border-bottom-color: var(--vj-red); }
+.vj-search-box input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+.vj-search-clear { flex: none; width: 44px; height: 44px; margin: -6px -2px -6px 0; border: 0; border-radius: 22px; background: transparent; color: var(--vj-faint); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.vj-search-clear[hidden] { display: none; }
+.vj-search-clear:focus-visible { color: var(--vj-red); background: var(--vj-rule); outline: none; }
+@media (hover: hover) { .vj-search-clear:hover { color: var(--vj-red); } }
 .vj-list { margin: 0; padding: 0; list-style: none; border-top: 3px double var(--vj-red); }
 .vj-list li { border-bottom: 1px solid var(--vj-rule); }
 .vj-index { width: 100%; min-height: 44px; padding: 8px 10px; border: 0; background: transparent; color: var(--vj-ink); text-align: left; cursor: pointer; }

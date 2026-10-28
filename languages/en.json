@@ -1182,6 +1182,7 @@
   "MOD_VOY_JOURNAL_COL_NOW": "Now",
   "MOD_VOY_JOURNAL_RESOURCES_TITLE": "What I have found, and where",
   "MOD_VOY_JOURNAL_SEARCH_LABEL": "Search by item or action",
+  "MOD_VOY_JOURNAL_SEARCH_CLEAR": "Clear the search",
   "MOD_VOY_JOURNAL_RESOURCES_EMPTY": "Nothing yet. The first time I gather something somewhere, it is written here.",
   "MOD_VOY_JOURNAL_SEARCH_NONE": "Nothing about \"${query}\" in the journal yet.",
   "MOD_VOY_JOURNAL_ENTRY_NONE": "Nothing to show yet.",

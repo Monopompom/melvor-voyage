@@ -878,10 +878,15 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     e.missed.length > 0 ? t(e.missed.length === 1 ? 'MOD_VOY_JOURNAL_MISSES_ONE' : 'MOD_VOY_JOURNAL_MISSES_MANY', { count: `${e.missed.length}` }) : '',
     e.charted ? t('MOD_VOY_JOURNAL_CHARTED_COUNT') : '',
   ].filter((x) => x !== '').join(', ');
-  /** A search field with its label (Resources and Places). */
+  /**
+   * A search field with its label (Resources and Places). Its × (build .418, the user's ask) shows while the field
+   * holds text and empties it in one tap; the browser's own cancel button is hidden, as it differs by platform.
+   */
   const searchBox = (id, labelKey, value) => `<div class="vj-search"><label for="${id}">${esc(t(labelKey))}</label><div class="vj-search-box">`
     + '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg>'
-    + `<input id="${id}" type="search" autocomplete="off" value="${esc(value)}"></div></div>`;
+    + `<input id="${id}" type="search" autocomplete="off" value="${esc(value)}">`
+    + `<button type="button" class="vj-search-clear" data-vj-clear="${id}" aria-label="${esc(t('MOD_VOY_JOURNAL_SEARCH_CLEAR'))}"${value === '' ? ' hidden' : ''}>`
+    + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"></path></svg></button></div></div>';
   const resultsHtml = () => {
     const all = entries();
     if (all.length === 0) return empty('MOD_VOY_JOURNAL_RESOURCES_EMPTY');
@@ -1479,6 +1484,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       if (el === null) return;
       if (cover !== null) { endCover(); return; } // a click while the cover plays only skips it
       if (el === root || el.closest('[data-vj-close]')) { close(); return; }
+      const clear = el.closest('[data-vj-clear]');
+      if (clear !== null) { const s = root.querySelector(`#${clear.dataset.vjClear}`); if (s !== null) { s.value = ''; searched(s); s.focus(); } return; }
       const tab = el.closest('[data-vj-tab]');
       if (tab !== null) { view.tab = tab.dataset.vjTab; view.back = null; view.pick = undefined; view.side = 'left'; render(); return; }
       if (el.closest('[data-vj-side]')) { showPage('.vj-left'); return; }
@@ -1532,14 +1539,18 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       if (send !== null) { state.walks?.askHere?.(send.dataset.vjSend, () => render()); return; }
       if (el.closest('[data-vj-back]')) { const back = view.back; close(); back?.(); }
     });
-    root.addEventListener('input', (e) => {
-      if (!(e.target instanceof HTMLInputElement)) return;
+    /** A search field's text changed (typed, or emptied by its ×): the list under it follows, and the × shows while there is text. */
+    const searched = (input) => {
       let list = null;
-      if (e.target.id === 'vj-search') { view.query = e.target.value; list = root.querySelector('.vj-results'); if (list !== null) list.innerHTML = resultsHtml(); }
-      else if (e.target.id === 'vj-place-search') { view.placeQuery = e.target.value; list = root.querySelector('.vj-place-results'); if (list !== null) list.innerHTML = placeResultsHtml(); }
+      if (input.id === 'vj-search') { view.query = input.value; list = root.querySelector('.vj-results'); if (list !== null) list.innerHTML = resultsHtml(); }
+      else if (input.id === 'vj-place-search') { view.placeQuery = input.value; list = root.querySelector('.vj-place-results'); if (list !== null) list.innerHTML = placeResultsHtml(); }
+      else return;
+      const x = root.querySelector(`[data-vj-clear="${input.id}"]`);
+      if (x !== null) x.hidden = input.value === '';
       if (list !== null) { try { state.skillNames?.(list); } catch {} }
-      if (e.target.id === 'vj-place-search' && isGoblinQuery(view.placeQuery)) golbinGift();
-    });
+      if (input.id === 'vj-place-search' && isGoblinQuery(view.placeQuery)) golbinGift();
+    };
+    root.addEventListener('input', (e) => { if (e.target instanceof HTMLInputElement) searched(e.target); });
     /** Esc closes the Old Man's letter or the heat map first, then the book. */
     const escape = () => {
       const heatEl = state.heatmap?.isOpen() ? state.heatmap.element() : undefined;
