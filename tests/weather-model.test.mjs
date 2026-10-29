@@ -88,27 +88,27 @@ test('the sea pays nothing for its degrees; Lemon makes its rations go further',
 
 test('the bands in the stores: fuel, thirst and the Firemaking cut', () => {
   const at = (cls, o) => ({ cls, sea: false, wx: effectsOf(cls, o) });
-  // Winter Snowlands: 2 fuel x1.5 = 3 at Firemaking 0; 2 rations as ever.
-  assert.deepEqual(stepCost(at('snowlands', WINTER), 0), { food: 2 * RATION_HP, fuel: 3 });
+  // Winter Snowlands: 4 fuel x1.5 = 6 at Firemaking 0; 4 rations as ever.
+  assert.deepEqual(stepCost(at('snowlands', WINTER), 0), { food: 4 * RATION_HP, fuel: 6 });
   // Spring Snowlands is cold: x1.25.
-  assert.equal(stepCost(at('snowlands', SPRING), 0).fuel, 2.5);
+  assert.equal(stepCost(at('snowlands', SPRING), 0).fuel, 5);
   // Summer Desert: thirst, a ration more; the warm fire burns less.
-  assert.deepEqual(stepCost(at('desert', SUMMER), 0), { food: 2 * RATION_HP, fuel: 0.75 });
+  assert.deepEqual(stepCost(at('desert', SUMMER), 0), { food: 3 * RATION_HP, fuel: 1.5 });
   // Firemaking's cut on top: level 50 is x0.75.
-  assert.equal(stepCost(at('snowlands', WINTER), 50).fuel, 2.25);
+  assert.equal(stepCost(at('snowlands', WINTER), 50).fuel, 4.5);
   // No weather: the table as before.
   assert.deepEqual(stepCost({ cls: 'snowlands', sea: false }, 0), { food: HEX_COST.snowlands.rations * RATION_HP, fuel: HEX_COST.snowlands.fuel });
   // Lemon at sea and on a hop.
-  assert.equal(stepCost({ cls: 'water', sea: true, wx: effectsOf('water', LEMON) }, 0).food, 15);
-  assert.equal(stepCost({ hop: 4, wx: effectsOf('water', LEMON) }, 0).food, 60);
+  assert.equal(stepCost({ cls: 'water', sea: true, wx: effectsOf('water', LEMON) }, 0).food, 30);
+  assert.equal(stepCost({ hop: 4, wx: effectsOf('water', LEMON) }, 0).food, 120);
 });
 
 test('a refusal names the weather-raised need, and the hunger floor still walks easy ground', () => {
   const steps = [{ cls: 'snowlands', sea: false, wx: effectsOf('snowlands', WINTER) }];
-  const r = planMove({ food: 100, fuel: 2.9 }, steps, { fmLevel: 0 });
+  const r = planMove({ food: 200, fuel: 5.9 }, steps, { fmLevel: 0 });
   assert.equal(r.ok, false);
   assert.equal(r.why, 'fuel');
-  assert.equal(r.need.fuel, 3);
+  assert.equal(r.need.fuel, 6);
   const desert = [{ cls: 'desert', sea: false, wx: effectsOf('desert', SUMMER) }];
   const hungry = planMove({ food: 0, fuel: 0 }, desert, { fmLevel: 0 });
   assert.equal(hungry.ok, true);

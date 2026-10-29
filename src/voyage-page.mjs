@@ -10,7 +10,7 @@ export const CONTAINER_ID = 'voyage-container';
 export const PAGE_ID = 'voyage:Voyage';
 const CARTOGRAPHY_PAGE_ID = 'melvorAoD:Cartography';
 
-export function install(ctx, { state, model, shipModel, storesModel, rules, pageLayout, helpLayout, helpHtml, HELP_WIDTH, log }) {
+export function install(ctx, { state, model, shipModel, storesModel, rules, pageLayout, helpLayout, helpHtml, HELP_WIDTH, shortNumber, decimal, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const part = (name) => document.querySelector(`#${CONTAINER_ID} [data-voyage="${name}"]`);
@@ -89,7 +89,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
           const go = () => { if (up ? state.ship?.upgrade(k) : state.ship?.buy()) render(); };
           const info = up ? state.ship?.upgradeInfo?.(k) : state.ship?.buyInfo?.();
           if (info === undefined || info.blocker !== undefined) go();
-          else helpLayout.confirmBuy({ name: t(shipModel.tierNameKey(info.hull.tier)), picture: ctx.getResourceUrl(info.hull.media), didRender: state.popupDidRender, costs: up ? state.ship.upgradeCosts(k) : state.ship.buyCosts() }, go);
+          else helpLayout.confirmBuy({ name: t(shipModel.tierNameKey(info.hull.tier)), picture: ctx.getResourceUrl(info.hull.media), didRender: state.popupDidRender, costs: up ? state.ship.upgradeCosts(k) : state.ship.buyCosts(), num: shortNumber }, go);
         }
         else if (target.dataset.voyageAction === 'find') showMap(true, kind);
       });
@@ -227,12 +227,10 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
   };
 
   const qty = (n) => numberWithCommas(n);
-  /** What you have, in the game's own number format (the player's setting: 9,952M, not 9,952,802,904; the user, build .362). */
-  const haveNum = (n) => { try { return formatNumber(Math.floor(n)); } catch { return numberWithCommas(Math.floor(n)); } };
-  /** A cost: icon, amount and what you have; red with the words when short (never colour alone). */
+  /** A cost: icon, amount and what you have, both short (2.5M (You have 12.3M)); red with the words when short (never colour alone). */
   const costIcon = (media, need, have, title, itemId) =>
-    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ` data-tip-media="${esc(media)}"`}><img class="mr-1" src="${media}" alt="${esc(title)}">${qty(need)}${itemId ? ` ${esc(title)}` : ''}` + // the item named, not tooltip-only (.309, scan C-10)
-    ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: haveNum(have) })})</span></span>`;
+    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ` data-tip-media="${esc(media)}"`}><img class="mr-1" src="${media}" alt="${esc(title)}">${shortNumber(need)}${itemId ? ` ${esc(title)}` : ''}` + // the item named, not tooltip-only (.309, scan C-10)
+    ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: shortNumber(have) })})</span></span>`;
   /** A grey section band inside a block. */
   const section = (html) => `<div class="voyage-section">${html}</div>`;
   /**
@@ -253,7 +251,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
   const chips = (items, pickedId, action, title) =>
     `<div class="voyage-store-items">${items.map((x) => `<button type="button" class="btn btn-sm voyage-store-item ${x.item.id === pickedId ? 'btn-info' : 'btn-outline-info'}" ` +
       `data-voyage-action="${action}" data-item="${esc(x.item.id)}" data-tip-item="${esc(x.item.id)}" title="${esc(title(x))}" aria-label="${esc(title(x))}" aria-pressed="${x.item.id === pickedId}">` +
-      `<img src="${x.item.media}" alt=""><small>${numberWithCommas(x.qty)}</small></button>`).join('')}</div>`;
+      `<img src="${x.item.media}" alt=""><small>${shortNumber(x.qty)}</small></button>`).join('')}</div>`;
 
   const shipHtml = () => {
     const api = state.ship;
@@ -347,7 +345,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     if (stow !== undefined) {
       // The Hire button stays, greyed with its reason under it (licence, slot or coin, build .386), so the price shows.
       const why = state.events.hireRefusal();
-      const gp = numberWithCommas(state.events.price() ?? 0);
+      const gp = shortNumber(state.events.price() ?? 0);
       const btn = `<button type="button" class="btn btn-sm btn-success" data-voyage-action="stow-hire"${why !== undefined ? ' disabled' : ''}>${esc(t('MOD_VOY_STOW_HIRE', { name: stow.name, gp }))}</button>`;
       const note = `<small class="d-block text-muted">${esc(t('MOD_VOY_STOW_LATER_LINE', { name: stow.name }))}</small>` + (why !== undefined && why !== '' ? `<small class="d-block text-warning">${esc(why)}</small>` : '');
       html += `<div class="voyage-big-head">${esc(t('MOD_VOY_STOW_HEAD'))}</div>${row({ name: stow.name, tier: stow.tier, portrait: stow.portrait }, '', btn, false, '', note)}`;
@@ -517,13 +515,13 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
       }
       const label = `${x.item.name}: ${numberWithCommas(x.qty)}`;
       cells.push(`<button type="button" class="voyage-crate voyage-crate-full${x.item.id === pickedId ? ' voyage-crate-picked' : ''}" data-voyage-action="hold-pick" data-item="${esc(x.item.id)}" data-tip-item="${esc(x.item.id)}" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${x.item.id === pickedId}">`
-        + `${CRATE_SVG}<img src="${x.item.media}" alt=""><span class="voyage-crate-qty">${numberWithCommas(x.qty)}</span></button>`);
+        + `${CRATE_SVG}<img src="${x.item.media}" alt=""><span class="voyage-crate-qty">${shortNumber(x.qty)}</span></button>`);
     }
     if (!open && empty > 0) {
       cells.push(`<button type="button" class="voyage-crate voyage-crate-more" data-voyage-action="hold-fold" data-kind="${kind}" aria-expanded="false" aria-label="${esc(t('MOD_VOY_HOLD_MORE_SLOTS', { n: `${empty}` }))}">`
         + `${CRATE_SVG}<span class="voyage-crate-more-n">${empty}</span><span class="voyage-crate-more-word">${esc(t('MOD_VOY_HOLD_EMPTY_WORD'))}</span></button>`);
     }
-    const fold = open && empty > 1 ? `<button type="button" class="voyage-hold-fold" data-voyage-action="hold-fold" data-kind="${kind}" aria-expanded="true"><i class="fa fa-caret-down mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_HOLD_FOLD_SLOTS'))}</button>` : '';
+    const fold = open && empty > 1 ? `<button type="button" class="voyage-hold-fold" data-voyage-action="hold-fold" data-kind="${kind}" aria-expanded="true"><i class="fa fa-caret-up mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_HOLD_FOLD_SLOTS'))}</button>` : ''; // up: the slots above fold away (the user, 29 Oct 2026)
     return `<div class="voyage-crates">${cells.join('')}</div>${fold}`;
   };
 
@@ -821,7 +819,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
           const EM = state.events.model;
           return { head: t('MOD_VOY_HELP_HEAD_PIRATES'), body: [
             t('MOD_VOY_HELP_PIRATES', { chance: `${Math.round(1 / EM.PIRATE_CHANCE)}` }),
-            { text: t('MOD_VOY_HELP_PIRATES_PAY', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: `${EM.PIRATE_COIN_SHARE * 100}`, cap: `${EM.PIRATE_COIN_CAP / 1e6}`, hexes: `${EM.PIRATE_FLOOR_HEXES}` }), cls: 'text-warning' },
+            { text: t('MOD_VOY_HELP_PIRATES_PAY', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: decimal(EM.PIRATE_COIN_SHARE * 100), cap: shortNumber(EM.PIRATE_COIN_CAP), hexes: `${EM.PIRATE_FLOOR_HEXES}` }), cls: 'text-warning' },
             { text: t('MOD_VOY_HELP_PIRATES_RUN', { wear: `${EM.pirateRunWear(storesModel.WEAR.deep)}` }), cls: 'text-warning' },
             t('MOD_VOY_HELP_PIRATES_AWAY', { sound: `${EM.PIRATE_SOUND}` }),
             ...gearLine('MOD_VOY_HELP_GEAR_PIRATES', 'pirateCut'),

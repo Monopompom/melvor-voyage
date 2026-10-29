@@ -346,10 +346,17 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     const pos = state.position();
     let html = '';
     for (const o of near()) {
-      const where = t(same(pos, o) ? 'MOD_VOY_OUTPOST_HERE' : 'MOD_VOY_OUTPOST_NEXT_DOOR');
-      const store = provisions() ? ` ${state.stores.icons(o.food, o.fuel)}` : '';
-      html += `<div class="voyage-here-ship voyage-outpost-line"><span><span class="voyage-here-label">${esc(t('MOD_VOY_OUTPOST_LABEL'))}</span> ${esc(where)}${store}</span>`
-        + `<span class="voyage-outpost-btns">${provisions() ? btn('store', o.key, 'btn-outline-info', t('MOD_VOY_OUTPOST_STORE')) : ''}${btn('strike', o.key, 'btn-outline-danger', t('MOD_VOY_OUTPOST_STRIKE'))}</span></div>`;
+      // Laid out like the Stores row (the user, 29 Oct 2026): its food and fuel, then × (Strike camp) and Store on the
+      // right. "On this hex" goes; "next door" stays, and so does "on this hex" when there is no store to show. The text
+      // keeps one line and runs when it is longer than the room, as the harbour row's, so the buttons leave the row only
+      // when every row's button does (the user, 29 Oct 2026: they dropped under it early).
+      const here = same(pos, o);
+      const where = here && provisions() ? '' : `${esc(t(here ? 'MOD_VOY_OUTPOST_HERE' : 'MOD_VOY_OUTPOST_NEXT_DOOR'))} `;
+      const store = provisions() ? state.stores.icons(o.food, o.fuel) : '';
+      const strikeBtn = `<button type="button" class="btn btn-sm btn-outline-danger voyage-outpost-btn voyage-outpost-x" data-outpost-act="strike" data-outpost-key="${esc(o.key)}" title="${esc(t('MOD_VOY_OUTPOST_STRIKE'))}" aria-label="${esc(t('MOD_VOY_OUTPOST_STRIKE'))}"><i class="fa fa-times" aria-hidden="true"></i></button>`;
+      html += `<div class="voyage-here-ship voyage-outpost-line voyage-run-row"><span><span class="voyage-here-label">${esc(t('MOD_VOY_OUTPOST_LABEL'))}</span> `
+        + `<span class="voyage-run"><span class="voyage-run-text">${where}${store}</span></span></span>`
+        + `<span class="voyage-outpost-btns">${strikeBtn}${provisions() ? btn('store', o.key, 'btn-outline-info', t('MOD_VOY_OUTPOST_STORE')) : ''}</span></div>`;
     }
     for (const b of building()) {
       if (hexDistance(pos, b) > 1) continue;

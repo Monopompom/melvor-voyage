@@ -15,7 +15,7 @@ const CANDIDATES = 6;
 /** How long a computed plan is trusted without its inputs moving (the page reads it per render). */
 const PLAN_MEMO_MS = 1000;
 
-export function install(ctx, { state, model, planModel: P, storesModel: S, terrainMod, helpLayout, log }) {
+export function install(ctx, { state, model, planModel: P, storesModel: S, terrainMod, helpLayout, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const skill = () => state.voyageSkill?.();
@@ -26,9 +26,6 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   const live = () => game.cartography?.activeMap;
   const liveHex = (q, r) => { try { return live()?.getHex(new HexCoords(q, r)); } catch { return undefined; } };
   const at = (hex) => { try { const o = hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${hex.q}, ${hex.r})`; } };
-  const num = (n) => numberWithCommas(Math.floor(n));
-  /** What you have, in the game's own number format (the player's setting: 9,952M, not 9,952,802,904; the user, build .362). */
-  const haveNum = (n) => { try { return formatNumber(Math.floor(n)); } catch { return numberWithCommas(Math.floor(n)); } };
 
   /** The planned voyage: the target and the chosen arrival ('none', 'go', or 'm:<monster id>'). */
   let target;
@@ -369,7 +366,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     if (!costs.checkIfOwned()) return;
     // Asks first, by the game's shop-confirm setting (build .386; the user, 21 Oct 2026: 300,000 GP went at once).
     // The charts' own art on top (build .398): the cover map drew nothing at the popup's 64 px (the user, 22 Oct 2026).
-    helpLayout.confirmBuy({ name: t('MOD_VOY_PLAN_NAV_TITLE'), picture: ctx.getResourceUrl('assets/sea_chart.webp'), didRender: state.popupDidRender, costs }, () => buyNow(costs));
+    helpLayout.confirmBuy({ name: t('MOD_VOY_PLAN_NAV_TITLE'), picture: ctx.getResourceUrl('assets/sea_chart.webp'), didRender: state.popupDidRender, costs, num: shortNumber }, () => buyNow(costs));
   };
   const buyNow = (costs) => {
     if (navBlocker() !== undefined || !costs.checkIfOwned()) return;
@@ -384,8 +381,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   const refresh = () => { const s = skill(); if (s !== undefined) s.renderQueue.page = true; };
   const section = (html) => `<div class="voyage-section">${html}</div>`;
   const costIcon = (media, need, have, title, itemId) =>
-    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ` data-tip-media="${esc(media)}"`}><img class="mr-1" src="${media}" alt="${esc(title)}">${num(need)}` +
-    ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: haveNum(have) })})</span></span>`;
+    `<span class="voyage-cost ${have >= need ? '' : 'text-danger'}" title="${esc(title)}"${itemId ? ` data-tip-item="${esc(itemId)}"` : ` data-tip-media="${esc(media)}"`}><img class="mr-1" src="${media}" alt="${esc(title)}">${shortNumber(need)}` +
+    ` <span class="${have >= need ? 'text-muted' : ''} ml-1">(${t('MOD_VOY_PAGE_HAVE', { count: shortNumber(have) })})</span></span>`;
   const amounts = (food, fuel) => state.stores?.amounts?.(food, fuel) ?? '';
   const stopName = (hex, place) => {
     const poi = hex.pointOfInterest;

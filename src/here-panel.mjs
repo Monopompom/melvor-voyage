@@ -6,7 +6,7 @@ const PANEL_ID = 'voyage-here';
 // Modal buttons: confirm green, cancel blue outline.
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
-export function install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, log }) {
+export function install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, shortNumber, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // Display text comes from languages/<code>.json; the English labels in terrain.mjs/rules.mjs are for tests and logs.
   const classLabel = (cls) => (terrainMod.CLASS_INFO[cls] !== undefined ? getLangString(terrainMod.classKey(cls)) : cls);
@@ -244,7 +244,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     try {
       const v = state.trader?.verdict?.();
       const cost = v?.road?.gp;
-      if (Number.isFinite(cost)) out += ` ${templateLangString('MOD_VOY_PANEL_STRANDED_ROAD', { cost: numberWithCommas(Math.round(cost)), have: (() => { try { return formatNumber(Math.floor(game.gp.amount)); } catch { return numberWithCommas(game.gp.amount); } })() }) /* the game's number format (.362) */}`;
+      if (Number.isFinite(cost)) out += ` ${templateLangString('MOD_VOY_PANEL_STRANDED_ROAD', { cost: shortNumber(Math.round(cost)), have: shortNumber(game.gp.amount) })}`;
     } catch (e) { log('stranded road failed', e); }
     return out;
   };
@@ -315,9 +315,13 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   const folkList = (label, folks, about, button = '') => {
     const named = (f) => `${f.name} (${about(f)})`;
     const body = folks.length <= INLINE_FOLKS
-      ? folks.map((f) => `<span class="voyage-keep">${esc(f.name)} <small class="text-muted">(${esc(about(f))})</small></span>`).join(', ')
+      // The comma inside the name's unbreakable span, so a wrap never starts a line with it (the user, 29 Oct 2026).
+      ? folks.map((f, i) => `<span class="voyage-keep">${esc(f.name)} <small class="text-muted">(${esc(about(f))})</small>${i < folks.length - 1 ? ',' : ''}</span>`).join(' ')
       : `<span class="voyage-folks-count" title="${esc(folks.map(named).join('\n'))}">${esc(templateLangString('MOD_VOY_PANEL_FOLKS_COUNT', { count: `${folks.length}` }))}</span>`;
-    return `<div class="voyage-here-place voyage-here-folks"><span><span class="voyage-here-label">${esc(getLangString(label))}</span> ${body}</span>${button}</div>`;
+    // With its Crew button it is a row like Stores and Show: the button goes full width when the panel stacks its row
+    // buttons (the user, 29 Oct 2026), and until then the names wrap beside it.
+    const row = button === '' ? 'voyage-here-place' : 'voyage-here-ship voyage-folks-row';
+    return `<div class="${row} voyage-here-folks"><span><span class="voyage-here-label">${esc(getLangString(label))}</span> ${body}</span>${button}</div>`;
   };
   /** The Folks standing on this hex (6b): with the place's lines. */
   const folksLine = (pos) => {
@@ -966,11 +970,29 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (!force && width === rowsWidth) return;
       rowsWidth = width;
       panel.classList.remove('voyage-stacked');
-      const wrapped = [...panel.querySelectorAll('.voyage-here-head > .btn, .voyage-here-ship > .btn')]
-        .some((btn) => { const first = btn.parentElement.firstElementChild; return first !== btn && btn.offsetTop > first.offsetTop + 2; });
+      // The outpost row's × and Store sit in one group, which counts as its row's button.
+      const wrapped = [...panel.querySelectorAll('.voyage-here-head > .btn, .voyage-here-ship > .btn, .voyage-here-ship > .voyage-outpost-btns')]
+        // Wrapped = the button starts below its text, not beside two lines of it (the harbour row's errand wraps).
+        .some((btn) => { const first = btn.parentElement.firstElementChild; return first !== btn && btn.offsetTop >= first.offsetTop + first.offsetHeight; });
       panel.classList.toggle('voyage-stacked', wrapped);
+      runLines(panel);
     } catch (e) { log('row buttons failed', e); }
   };
+  /**
+   * A line longer than its room stays on one line and runs to its end and back, resting at each end (the user, 29 Oct
+   * 2026: the harbour errand beside Quay). Set again only when the overflow changes, so a redraw doesn't restart it.
+   */
+  const runLines = (panel) => panel.querySelectorAll('.voyage-run').forEach((box) => {
+    const text = box.firstElementChild;
+    if (text === null) return;
+    const over = Math.max(0, Math.ceil(text.scrollWidth - box.clientWidth));
+    const now = over > 1 ? `${over}` : '0';
+    if (box.dataset.run === now) return;
+    box.dataset.run = now;
+    box.classList.toggle('voyage-run-on', now !== '0');
+    box.style.setProperty('--voyage-run-d', `-${now}px`);
+    box.style.setProperty('--voyage-run-s', `${(2 + over / 25).toFixed(1)}s`); // about 35px a second while moving
+  });
 
   const HOLD_MS = 500;
   let holdUntil = 0;

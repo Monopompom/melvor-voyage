@@ -5,9 +5,10 @@
 //
 // The pin is `cartographyMap.playerPin`, a PIXI.Sprite anchored at its bottom centre. The game sets its texture once
 // (WorldMapDisplayElement.init) and scales it in configurePlayerPin(map) from the texture's height, so the mod swaps
-// the texture just before that scale is computed. Our markers are 512 px tall like the vanilla pin, with the base at
-// the bottom centre. The moored dinghy is a second sprite in the same marker layer, under the pin, scaled the same
-// way. If a texture fails to load, the vanilla pin stays (and no moored marker is drawn).
+// the texture just before that scale is computed. Our markers are 384 px tall with the base at the bottom centre (the
+// vanilla pin is 512; at full zoom the game draws it about 167 CSS px tall, so 384 stays sharp on a 2x screen). The
+// moored dinghy is a second sprite in the same marker layer, under the pin, scaled the same way. If a texture fails
+// to load, the vanilla pin stays (and no moored marker is drawn).
 
 const TEXTURES = {
   land: 'assets/marker_traveller_figure.webp',

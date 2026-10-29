@@ -8,7 +8,7 @@
 // Modal buttons: confirm green, cancel blue outline (the game's default cancel is red; grey means disabled).
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
-export function install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, log }) {
+export function install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log }) {
   const S = storesModel;
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -76,7 +76,11 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
 
   // ---- numbers as the player reads them ------------------------------------------------------------------------
   const hp = (n) => numberWithCommas(Math.floor(n));
-  const fuelText = (n) => (Number.isInteger(n) ? numberWithCommas(n) : n.toFixed(n < 10 ? 2 : 1));
+  const fuelText = (n) => {
+    if (Number.isInteger(n)) return numberWithCommas(n);
+    const d = n < 10 ? 2 : 1;
+    return typeof formatFixed === 'function' ? formatFixed(n, d) : n.toFixed(d);
+  };
   const hexes = (n) => t(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });
   const amounts = (food, fuel) => t('MOD_VOY_STORES_AMOUNTS', { food: hp(food), fuel: fuelText(fuel) });
   /** The same with the ration and fuel art (page and panel), titled with the words. */
@@ -358,8 +362,8 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
         if (gpOnly && gp > 0) {
           const enough = game.gp.amount >= gp;
           lines.push(row(`<img class="voyage-stores-lead-img" src="${game.gp.media}" alt="">`,
-            t('MOD_VOY_STORES_PATH_GP_TIP', { have: (() => { try { return formatNumber(Math.floor(game.gp.amount)); } catch { return numberWithCommas(Math.floor(game.gp.amount)); } })() } /* the game's number format (.362) */),
-            `<span class="${enough ? 'text-success' : 'text-danger'}">${esc(numberWithCommas(gp))}</span>`));
+            t('MOD_VOY_STORES_PATH_GP_TIP', { have: shortNumber(game.gp.amount) }),
+            `<span class="${enough ? 'text-success' : 'text-danger'}">${esc(shortNumber(gp))}</span>`));
         }
       } catch (e) { log('travel GP row failed', e); }
       own(gpOnly);

@@ -118,14 +118,15 @@ export const helpHtml = (sections, { notice = false } = {}) => `<div class="text
  * 100 Pitch, went at once from a button beside the Shipwright's fold). The game's own "Show Shop Purchase
  * Confirmations" setting decides: off, `yes` runs at once; on, a message popup with the price in a band, each cost as
  * its icon, the amount (bold amber, red when short) and its name; Buy green, Not now blue outline, the thing bought on
- * top. `costs` is a game Costs; `picture` its picture; `didRender` the mod's popup pass.
+ * top. `costs` is a game Costs; `picture` its picture; `didRender` the mod's popup pass; `num` writes an amount (the
+ * caller's short form, 2.5M, so the price reads as it does on the page; whole with commas when not given).
  */
-export const confirmBuy = ({ name, picture, didRender, costs }, yes) => {
+export const confirmBuy = ({ name, picture, didRender, costs, num: short }, yes) => {
   let ask = true;
   try { ask = game.settings.showShopConfirmations !== false; } catch {}
   if (!ask) { yes(); return; }
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
-  const num = (n) => { try { return numberWithCommas(Math.floor(n)); } catch { return `${Math.floor(n)}`; } };
+  const num = typeof short === 'function' ? short : (n) => { try { return numberWithCommas(Math.floor(n)); } catch { return `${Math.floor(n)}`; } };
   const row = (media, need, have, label) => `<span class="voyage-buy-cost">${mark.gp(media, num(need), have < need)}<span>${esc(label)}</span></span>`;
   const rows = [];
   try {

@@ -19,12 +19,11 @@ const DUSTS = ['melvorF:Stardust', 'melvorF:Golden_Stardust'];
 /** Goods that go in sacks: crops and herbs (Farming), runes, ash and stardust. Everything else: crates. */
 const SOFT_SKILLS = ['melvorD:Farming'];
 
-export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
+export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  /** Item counts of one errand, small and exact; GP, XP and what the bank holds go through shortNumber (2.5M). */
   const qty = (n) => numberWithCommas(n);
-  /** What you have, in the game's own number format (the player's setting: 9,952M, not 9,952,802,904; the user, build .362). */
-  const haveNum = (n) => { try { return formatNumber(Math.floor(n)); } catch { return numberWithCommas(Math.floor(n)); } };
   const skill = () => state.voyageSkill?.();
   const usable = () => { const s = skill(); return s !== undefined && s.futureRaw === undefined; };
 
@@ -252,8 +251,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
       // The row shows the goods' icon before their name and the count in red ("a count ... red when the bank
       // holds too few"); the button's tooltip keeps the plain words.
       const vars = { n: qty(M.PER_CONTAINER), what: containerWord(run.c, 1) };
-      why = t('MOD_VOY_CARGO_NEED_GOODS', { ...vars, item: goods?.name ?? run.item, have: haveNum(have) });
-      whyHtml = t('MOD_VOY_CARGO_NEED_GOODS', { ...vars, item: `${goods === undefined ? '' : icon(goods.media)}${esc(goods?.name ?? run.item)}`, have: `<span class="text-danger font-w600">${haveNum(have)}</span>` });
+      why = t('MOD_VOY_CARGO_NEED_GOODS', { ...vars, item: goods?.name ?? run.item, have: shortNumber(have) });
+      whyHtml = t('MOD_VOY_CARGO_NEED_GOODS', { ...vars, item: `${goods === undefined ? '' : icon(goods.media)}${esc(goods?.name ?? run.item)}`, have: `<span class="text-danger font-w600">${shortNumber(have)}</span>` });
     } else if (free <= 0) why = t('MOD_VOY_CARGO_HOLD_FULL');
     // A load short of the rest: the hold's room, the empty containers or the goods stop it (in that order on a tie).
     const limit = why !== undefined || k >= run.n - run.packed ? undefined
@@ -380,7 +379,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     try { state.charts?.rollDelivery?.(run.to); } catch (e) { log('delivery chart failed', e); }
     changed();
     usedPort(run.to, 'deliver');
-    notify(t(late ? 'MOD_VOY_CARGO_DELIVERED_LATE' : M.finished(run) ? 'MOD_VOY_CARGO_DELIVERED_DONE' : 'MOD_VOY_CARGO_DELIVERED', { n: `${k}`, what: containerWord(run.c, k), gp: qty(gp), xp: qty(xp) }), late ? 'info' : 'success');
+    notify(t(late ? 'MOD_VOY_CARGO_DELIVERED_LATE' : M.finished(run) ? 'MOD_VOY_CARGO_DELIVERED_DONE' : 'MOD_VOY_CARGO_DELIVERED', { n: `${k}`, what: containerWord(run.c, k), gp: shortNumber(gp), xp: shortNumber(xp) }), late ? 'info' : 'success');
     log(`cargo ${run.id}: delivered ${k} for ${gp} GP, ${xp} XP${late ? ' (late)' : ''}`);
     return true;
   };
@@ -406,7 +405,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     if (gp > 0) game.gp.add(gp);
     c.runs = c.runs.filter((r) => r !== run);
     changed();
-    notify(t('MOD_VOY_CARGO_DROPPED', { gp: qty(gp) }), 'info');
+    notify(t('MOD_VOY_CARGO_DROPPED', { gp: shortNumber(gp) }), 'info');
     log(`cargo ${run.id}: dropped for ${gp} GP`);
     return true;
   };
@@ -428,13 +427,15 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
    * green as a reward (the user, 18 Oct 2026: "icons, coloring"). */
   const payBlock = (q) => {
     const left = q.n - (q.done ?? 0);
-    return `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}<b class="text-success">${qty(left * q.gp)}</b> GP</div>` +
-      `<div>${icon(skill()?.media)}<b class="text-success">${qty(left * q.xp)}</b> <span data-no-skill-names>${esc(t('MOD_VOY_CARGO_XP'))}</span></div>` +
+    return `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}<b class="text-success">${shortNumber(left * q.gp)}</b> GP</div>` +
+      `<div>${icon(skill()?.media)}<b class="text-success">${shortNumber(left * q.xp)}</b> <span data-no-skill-names>${esc(t('MOD_VOY_CARGO_XP'))}</span></div>` +
       (q.n > 1 ? `<div class="text-muted">${esc(t('MOD_VOY_CARGO_PER', { what: containerWord(q.c, 1) }))}</div>` : '') + '</div>';
   };
   const button = (cls, label, attrs, why) => (why === undefined
     ? `<button type="button" class="btn ${cls}" ${attrs}>${esc(label)}</button>`
-    : `<button type="button" class="btn btn-outline-secondary" disabled>${esc(label)}</button><span class="voyage-board-why text-warning">${esc(why)}</span>`); // the reason in sight, not a title (build .386)
+    // The reason is on the row's left already (with the goods' icon), so the greyed button keeps it as its tooltip
+    // only (the user, 29 Oct 2026). aria-disabled, not disabled: a disabled button gets no pointer events, no tooltip.
+    : `<button type="button" class="btn btn-outline-secondary disabled" aria-disabled="true" title="${esc(why)}">${esc(label)}</button>`);
   const row = (artHtml, mid, pay, act, cls = '') => `<div class="voyage-cargo-row ${cls}">${artHtml}<div class="voyage-cargo-mid">${mid}</div>${pay}<div class="voyage-cargo-act">${act}</div></div>`;
 
   /** Pending "drop?" confirmation: the run id whose Drop was pressed once. */
@@ -466,7 +467,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     const d = dropInfo(run);
     if (dropAsk === run.id) {
       // The question sits right above Keep it / Drop it, not above the reward lines (.308, scan B-70).
-      acts.push(`<div class="text-warning voyage-cargo-ask">${esc(d.why ?? t(d.k > 0 ? 'MOD_VOY_CARGO_DROP_SURE_SELL' : 'MOD_VOY_CARGO_DROP_SURE', { k: `${d.k}`, what: containerWord(run.c, d.k), gp: qty(d.gp) }))}</div>`);
+      acts.push(`<div class="text-warning voyage-cargo-ask">${esc(d.why ?? t(d.k > 0 ? 'MOD_VOY_CARGO_DROP_SURE_SELL' : 'MOD_VOY_CARGO_DROP_SURE', { k: `${d.k}`, what: containerWord(run.c, d.k), gp: shortNumber(d.gp) }))}</div>`);
       // A pair: Keep it first, Drop it last (build .209).
       acts.push(button('btn-outline-info', t('MOD_VOY_CARGO_DROP_NO'), 'data-cargo="drop-no"'));
       if (d.why === undefined) acts.push(button('btn-danger', t('MOD_VOY_CARGO_DROP_YES'), `data-cargo="drop-yes" data-run="${esc(run.id)}"`));
@@ -506,8 +507,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
     const slots = kinds.reduce((n, k) => n + slotsOf(k), 0);
     const holdText = kinds.length === 0 ? `<span class="text-warning">${esc(t('MOD_VOY_CARGO_NO_VESSEL'))}</span>`
       : `<span><b>${esc(t('MOD_VOY_CARGO_HOLD_LABEL', { hull: kinds.map((k) => state.hold.hullName(k)).join(' + ') }))}</b> ${esc(t('MOD_VOY_CARGO_FREE', { free: `${free}`, slots: `${slots}` }))}</span>`;
-    const empties = `<span>${esc(t('MOD_VOY_CARGO_EMPTIES'))} <img class="voyage-cargo-mini" src="${ctx.getResourceUrl(CONTAINER_ART.sack)}" alt="${esc(t('MOD_VOY_CARGO_EMPTY_SACKS'))}" title="${esc(t('MOD_VOY_CARGO_EMPTY_SACKS'))}"><b>${qty(bankQty(containerItem('sack')))}</b>` +
-      ` <img class="voyage-cargo-mini" src="${ctx.getResourceUrl(CONTAINER_ART.crate)}" alt="${esc(t('MOD_VOY_CARGO_EMPTY_CRATES'))}" title="${esc(t('MOD_VOY_CARGO_EMPTY_CRATES'))}"><b>${qty(bankQty(containerItem('crate')))}</b></span>`;
+    const empties = `<span>${esc(t('MOD_VOY_CARGO_EMPTIES'))} <img class="voyage-cargo-mini" src="${ctx.getResourceUrl(CONTAINER_ART.sack)}" alt="${esc(t('MOD_VOY_CARGO_EMPTY_SACKS'))}" title="${esc(t('MOD_VOY_CARGO_EMPTY_SACKS'))}"><b>${shortNumber(bankQty(containerItem('sack')))}</b>` +
+      ` <img class="voyage-cargo-mini" src="${ctx.getResourceUrl(CONTAINER_ART.crate)}" alt="${esc(t('MOD_VOY_CARGO_EMPTY_CRATES'))}" title="${esc(t('MOD_VOY_CARGO_EMPTY_CRATES'))}"><b>${shortNumber(bankQty(containerItem('crate')))}</b></span>`;
     const open = posts(poi);
     let html = `<div class="voyage-cargo-bar">${holdText}${empties}${open ? `<span class="text-muted">${esc(t('MOD_VOY_CARGO_NEXT', { when: untilNext() }))}</span>` : ''}</div>`;
     if (c.runs.length > 0) html += `<div class="voyage-cargo-head">${esc(t('MOD_VOY_CARGO_YOUR_RUNS', { n: `${c.runs.length}`, max: `${M.MAX_RUNS}` }))}</div>` + c.runs.map((r) => runRow(r, poi)).join('');
@@ -628,10 +629,10 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
       let act;
       if (here === goTo) {
         line = `<div class="text-success">${esc(t(toLoad ? 'MOD_VOY_CARGO_HERE_LOAD' : 'MOD_VOY_CARGO_HERE_DELIVER'))}</div>`;
-        act = `<button type="button" class="btn btn-sm btn-outline-info" data-cargo-page="board">${esc(t('MOD_VOY_CARGO_BOARD'))}</button>`;
+        act = `<button type="button" class="btn btn-sm btn-outline-info" data-cargo-page="board">${esc(t('MOD_VOY_CARGO_QUAY'))}</button>`;
       } else {
         line = `<div>${toLoad ? esc(t('MOD_VOY_CARGO_TO_LOAD', { port: portName(run.from) }))
-          : `${t('MOD_VOY_CARGO_HEXES', { hexes: `${run.hexes}` })} · ${t('MOD_VOY_CARGO_PAYS', M.isLate(run, Date.now()) ? { gp: qty(aboard * M.latePer(run)), xp: '0' } : { gp: qty(aboard * run.gp), xp: qty(aboard * run.xp) })}`}</div>`;
+          : `${t('MOD_VOY_CARGO_HEXES', { hexes: `${run.hexes}` })} · ${t('MOD_VOY_CARGO_PAYS', M.isLate(run, Date.now()) ? { gp: shortNumber(aboard * M.latePer(run)), xp: '0' } : { gp: shortNumber(aboard * run.gp), xp: shortNumber(aboard * run.xp) })}`}</div>`;
         act = `<button type="button" class="btn btn-sm btn-outline-info" data-cargo-page="plan" data-poi="${esc(goTo)}">${esc(planLabel)}</button>`;
       }
       const prog = progress(run, aboard, toLoad);
@@ -662,8 +663,12 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, log }) {
       : task !== '' ? `<span class="text-info">${esc(t('MOD_VOY_CARGO_PANEL_TASK', { what: task }))}</span>` // the notice you took, on the line (.309, scan B-29)
       : `<span class="text-muted">${esc(c.runs.length > 1 ? t('MOD_VOY_CARGO_PANEL_RUNS', { n: `${c.runs.length}` })
         : t(c.runs.length === 1 ? 'MOD_VOY_CARGO_PANEL_RUN' : !posts(port.poi) ? 'MOD_VOY_CARGO_PANEL_SHUT' : hasPartner(port.poi) || (c.boards[port.poi]?.reqs.length ?? 0) > 0 ? 'MOD_VOY_CARGO_PANEL_IDLE' : 'MOD_VOY_CARGO_PANEL_ALONE'))}</span>`;
-    return `<div class="voyage-here-place voyage-harbour-line"><span><span class="voyage-here-label">${esc(t('MOD_VOY_CARGO_PANEL_LABEL'))}</span> ${note}</span>` +
-      `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-harbour-link">${esc(t('MOD_VOY_CARGO_BOARD'))}</button></div>`; // "Harbour:" and the row-button width like its neighbours (.308, B-24)
+    // A row like Crew, Show and Stock up (the user, 29 Oct 2026): the text left, the button right at their width, and
+    // full width with them when the panel stacks its row buttons. The note keeps to one line and, when it is longer
+    // than the room, runs from end to end and back (here-panel.mjs runLines); no tooltip (the user, 29 Oct 2026).
+    return `<div class="voyage-here-ship voyage-harbour-row voyage-run-row"><span><span class="voyage-here-label">${esc(t('MOD_VOY_CARGO_PANEL_LABEL'))}</span> ` +
+      `<span class="voyage-run"><span class="voyage-run-text">${note}</span></span></span>` +
+      `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-harbour-link">${esc(t('MOD_VOY_CARGO_QUAY'))}</button></div>`;
   };
   /** The strip's Port pill (build .419): the port in reach and how many runs end there, or undefined away from one. */
   const pill = () => {

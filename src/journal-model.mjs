@@ -117,14 +117,6 @@ export const CREW_LICENCES = [
 ];
 /** Worker Folks' own tips, MOD_WF_TIP_<n>_HEAD / MOD_WF_TIP_<n>, n = 1..12; the crew page lists the ones it finds. */
 export const CREW_TIPS = 12;
-/** 2500000 -> "2.5M", 75000 -> "75k". */
-export const shortGp = (n) => {
-  const f = (x, unit) => `${Number.isInteger(x) ? x : x.toFixed(1).replace(/\.0$/, '')}${unit}`;
-  if (n >= 1e9) return f(n / 1e9, 'B');
-  if (n >= 1e6) return f(n / 1e6, 'M');
-  if (n >= 1e3) return f(n / 1e3, 'k');
-  return `${n}`;
-};
 
 /**
  * Crosslinks in the book's own texts (build .113, the user's ask): `[[ch:stores|Victuals and fuel]]` opens a chapter,

@@ -11,7 +11,7 @@
 
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1' };
 
-export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log }) {
+export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, decimal, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const offlineNow = () => { try { return game._isInOnlineLoop === false; } catch { return false; } };
@@ -411,7 +411,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, log 
   });
 
   // ---- words for the panel, the strip, Travel Cost and the page -----------------------------------------------------------
-  const times = (x) => `×${Number(x.toFixed(2))}`;
+  const times = (x) => `×${decimal(x, 2)}`;
   /**
    * The effects of `wx` that apply with the settings as they are, one part each: { icon, x ("×1.5"), words ("fuel ×1.5") }.
    * `icon`: 'fuel', 'time', 'ration' or 'seaFood'.

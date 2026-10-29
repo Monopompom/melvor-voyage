@@ -10,9 +10,10 @@ const BRING_SKILLS = ['melvorD:Mining', 'melvorD:Woodcutting', 'melvorD:Fishing'
 const NO_TASKS = ['FakePort'];
 const PIN = '<svg aria-hidden="true" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 44s14-13 14-24a14 14 0 0 0-28 0c0 11 14 24 14 24z"></path><circle cx="24" cy="20" r="5"></circle></svg>';
 
-export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded, hexes, log }) {
+export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded, hexes, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  /** Item counts of a task, small and exact; its GP and XP go through shortNumber (2.5M). */
   const qty = (n) => numberWithCommas(n);
   const skill = () => state.voyageSkill?.();
   const usable = () => { const s = skill(); return s !== undefined && s.futureRaw === undefined; };
@@ -135,7 +136,7 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
       const item = state.charts?.giveRumour?.();
       if (item !== undefined) extra = ` ${t('MOD_VOY_TASK_AND_RUMOUR', { name: item.name })}`;
     }
-    notify(`${t(why, { gp: qty(task.gp), xp: qty(task.xp) })}${extra}`);
+    notify(`${t(why, { gp: shortNumber(task.gp), xp: shortNumber(task.xp) })}${extra}`);
     log(`task ${task.id} done: ${task.gp} GP, ${task.xp} XP${extra}`);
   };
   const take = (id, poi) => {
@@ -219,7 +220,9 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
   const icon = (src) => (src ? `<img class="voyage-skill-name-icon" src="${src}" alt="">` : '');
   const button = (cls, label, attrs, why) => (why === undefined
     ? `<button type="button" class="btn ${cls}" ${attrs}>${esc(label)}</button>`
-    : `<button type="button" class="btn btn-outline-secondary" disabled>${esc(label)}</button><span class="voyage-board-why text-warning">${esc(why)}</span>`); // the reason in sight, not a title (build .386)
+    // The reason is in the row already (or under the list), so the greyed button keeps it as its tooltip only (the
+    // user, 29 Oct 2026). aria-disabled, not disabled: a disabled button gets no pointer events, no tooltip.
+    : `<button type="button" class="btn btn-outline-secondary disabled" aria-disabled="true" title="${esc(why)}">${esc(label)}</button>`);
   const dirWord = (dir) => (dir ? getLangString(`MOD_VOY_DIR_${dir}`) : '');
   /** "about 18 hexes south-east" from where you stand, inside a sentence; `line`: on a line of its own, "About ...". */
   const way = (to, line = false) => {
@@ -238,8 +241,8 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     const item = game.items.getObjectByID(n.item);
     return t('MOD_VOY_TASK_BRING', { n: qty(n.n), item: `<b>${esc(item?.name ?? n.item)}</b>`, port: `<b>${esc(portName(n.to))}</b>` });
   };
-  const payBlock = (n) => `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}<b class="text-success">${qty(n.gp)}</b> GP</div>` +
-    `<div>${icon(skill()?.media)}<b class="text-success">${qty(n.xp)}</b> <span data-no-skill-names>${esc(t('MOD_VOY_CARGO_XP'))}</span></div></div>`;
+  const payBlock = (n) => `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}<b class="text-success">${shortNumber(n.gp)}</b> GP</div>` +
+    `<div>${icon(skill()?.media)}<b class="text-success">${shortNumber(n.xp)}</b> <span data-no-skill-names>${esc(t('MOD_VOY_CARGO_XP'))}</span></div></div>`;
   const row = (n, lines, act, cls = '') => `<div class="voyage-cargo-row ${cls}">${art(n)}<div class="voyage-cargo-mid">${lines.join('')}</div>${payBlock(n)}<div class="voyage-cargo-act">${act}</div></div>`;
 
   /** The task's deadline line: the time left, or late in red; '' with none. */

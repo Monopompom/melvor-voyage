@@ -21,7 +21,7 @@ const DUSTS = ['melvorF:Stardust', 'melvorF:Golden_Stardust'];
 /** How long the sale prices' shared context (the market here, a Haggler, the trader, an outpost's Merchant) is kept. */
 const SALE_CTX_MS = 500;
 
-export function install(ctx, { state, MM, rules, hexes, log }) {
+export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -159,7 +159,7 @@ export function install(ctx, { state, MM, rules, hexes, log }) {
   /** Our notice for a sale that paid nothing (the bank's here, the hold's from hold.mjs). */
   const soldForNothing = (item, qty) => {
     try {
-      const what = `${numberWithCommas(qty)} × ${item.name}`;
+      const what = `${shortNumber(qty)} × ${item.name}`;
       // A count of 0 hides the notice's "+1" (the game hides a 0).
       game.notifications.createInfoNotification('voyage:nothing', t('MOD_VOY_MARKET_NOTHING', { what }), item.media, 0);
     } catch (e) { log('sold for nothing notice failed', e); }

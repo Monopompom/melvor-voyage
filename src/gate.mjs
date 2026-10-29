@@ -1034,9 +1034,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     if (folk === undefined || folk.travel === 'with' || folk.place === null || folk.place === undefined) return undefined;
     const pos = state.position();
     if (pos === undefined) return undefined;
-    const d = hexDistance(pos, folk.place);
-    if (d <= 1) return undefined;
-    return { reason: line('MOD_VOY_FOLK_TOO_FAR', { name: esc(folk.name), where: whereIs(pos, state.recordAt(folk.place) ?? folk.place, d) }).text };
+    if (hexDistance(pos, folk.place) <= 1) return undefined;
+    // No way or distance: the card says where the Folk is already (the user, 29 Oct 2026).
+    return { reason: line('MOD_VOY_FOLK_TOO_FAR', { name: esc(folk.name) }).text };
   };
   /**
    * Why a Folk may not work `skillId` where it stands (6b), resource zones included: the lock ({ pos, rec, folk })

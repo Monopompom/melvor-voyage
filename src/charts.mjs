@@ -13,10 +13,9 @@ const RUMOUR_ART = { tavern: 'assets/rumour_tavern.webp', sailor: 'assets/rumour
 /** How many tales each rumour has (MOD_VOY_RUMOUR_TALE_<KIND>_<n>, languages/en.json). */
 const TALES = 4;
 
-export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, hexes, log }) {
+export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, hexes, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const qty = (n) => numberWithCommas(n);
   const skill = () => state.voyageSkill?.();
   const usable = () => { const s = skill(); return s !== undefined && s.futureRaw === undefined; };
   const notify = (text, kind = 'success') => { try { notifyPlayer(skill(), text, kind); } catch {} };
@@ -83,7 +82,7 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
   const html = (poi) => {
     const list = CM.chartsAt(poi, seaMap, neighbours);
     const gp = game.gp.amount;
-    let out = `<div class="voyage-cargo-bar"><span>${esc(t('MOD_VOY_CHARTS_INTRO'))}</span><span>${esc(t('MOD_VOY_CHARTS_HAVE'))} ${icon(game.gp.media)}<b>${qty(gp)}</b> GP</span></div>`;
+    let out = `<div class="voyage-cargo-bar"><span>${esc(t('MOD_VOY_CHARTS_INTRO'))}</span><span>${esc(t('MOD_VOY_CHARTS_HAVE'))} ${icon(game.gp.media)}<b>${shortNumber(gp)}</b> GP</span></div>`;
     if (list.length === 0) return `${out}<div class="voyage-cargo-empty">${esc(t('MOD_VOY_CHARTS_NONE_HERE'))}</div>`;
     for (const sea of list) {
       const fog = fogOf(sea);
@@ -100,7 +99,7 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
         lines.push(`<div>${esc(where)} · ${esc(t(fog.length === 1 ? 'MOD_VOY_CHARTS_FOG_ONE' : 'MOD_VOY_CHARTS_FOG', { n: `${fog.length}` }))}</div>`);
         const short = gp < price;
         if (short) lines.push(`<div class="text-warning">${esc(t('MOD_VOY_CHARTS_SHORT'))}</div>`);
-        pay = `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}<b class="${short ? 'text-danger' : ''}">${qty(price)}</b> GP</div></div>`; // red when you cannot pay (.308, B-17)
+        pay = `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}<b class="${short ? 'text-danger' : ''}">${shortNumber(price)}</b> GP</div></div>`; // red when you cannot pay (.308, B-17)
         act = button('btn-success', t('MOD_VOY_CHARTS_BUY'), `data-chart="buy" data-sea="${esc(sea)}"`, short ? t('MOD_VOY_CHARTS_SHORT') : undefined);
       }
       out += `<div class="voyage-cargo-row">${art}<div class="voyage-cargo-mid">${lines.join('')}</div>${pay}<div class="voyage-cargo-act">${act}</div></div>`;
@@ -117,7 +116,7 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
     if (game.gp.amount < price) { notify(t('MOD_VOY_CHARTS_SHORT'), 'danger'); return false; }
     const costs = new Costs(game);
     costs.addCurrency(game.gp, price);
-    helpLayout.confirmBuy({ name: chartName(sea), picture: ctx.getResourceUrl(CHART_ART), didRender: state.popupDidRender, costs }, () => buyNow(sea, poi));
+    helpLayout.confirmBuy({ name: chartName(sea), picture: ctx.getResourceUrl(CHART_ART), didRender: state.popupDidRender, costs, num: shortNumber }, () => buyNow(sea, poi));
     return true;
   };
   const buyNow = (sea, poi) => {

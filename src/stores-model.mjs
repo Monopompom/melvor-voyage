@@ -2,28 +2,29 @@
 // costs per hex, the plan for one move (pay, walk hungry, or refuse), loading rates by place, the Firemaking discount.
 // No game objects here; covered by tests/stores.test.mjs. The game side is src/stores.mjs.
 
-/** HP of healing in one ration (a Shrimp heals 30). */
+/** HP of food in one ration (a Shrimp puts 15 in the stores, a Lobster 55). */
 export const RATION_HP = 20;
 
 /**
  * Rations and fuel per hex entered, by terrain class (decided 16 Oct 2026; build .66 balance pass: a cooking fire on
- * every land hex, the user's "fuel only matters near the mountains"). Placeholders for the balance pass.
+ * every land hex, the user's "fuel only matters near the mountains"). Doubled in build .427 (the user, 29 Oct 2026:
+ * "traveling is cheap, I want food/fuel to decay much quicker"), with the carry limit raised by half beside it.
  */
 export const HEX_COST = {
-  grasslands: { rations: 1, fuel: 0.5 },
-  kingslands: { rations: 1, fuel: 0.5 },
-  beach: { rations: 1, fuel: 0.5 },
-  desert: { rations: 1, fuel: 1 },
-  swamplands: { rations: 1, fuel: 0.5 },
-  highlands: { rations: 1, fuel: 1 },
-  mountain: { rations: 1, fuel: 1 },
-  badlands: { rations: 1, fuel: 1 },
-  wastelands: { rations: 1, fuel: 1 },
-  cursedlands: { rations: 1, fuel: 1 },
-  snowlands: { rations: 2, fuel: 2 },
-  lavalands: { rations: 2, fuel: 2 },
-  water: { rations: 1, fuel: 0 },
-  shoal: { rations: 1, fuel: 0 },
+  grasslands: { rations: 2, fuel: 1 },
+  kingslands: { rations: 2, fuel: 1 },
+  beach: { rations: 2, fuel: 1 },
+  desert: { rations: 2, fuel: 2 },
+  swamplands: { rations: 2, fuel: 1 },
+  highlands: { rations: 2, fuel: 2 },
+  mountain: { rations: 2, fuel: 2 },
+  badlands: { rations: 2, fuel: 2 },
+  wastelands: { rations: 2, fuel: 2 },
+  cursedlands: { rations: 2, fuel: 2 },
+  snowlands: { rations: 4, fuel: 4 },
+  lavalands: { rations: 4, fuel: 4 },
+  water: { rations: 2, fuel: 0 },
+  shoal: { rations: 2, fuel: 0 },
 };
 const SEA = ['water', 'shoal'];
 /** Rough, snow and lava ground (walk-model ROUGH and HARD): where Hardy walks faster and eats less (phase 6f). */
@@ -40,27 +41,34 @@ export const isEasy = (cls) => !SEA.includes(cls) && (EASY.includes(cls) || HEX_
 /** Fuel units per item: any log 1 (the game side finds logs through Firemaking), Coal Ore 2, Charcoal 4. */
 export const LOG_FUEL = 1;
 export const FUEL_ITEMS = { 'melvorD:Coal_Ore': 2, 'melvorTotH:Charcoal': 4 };
-/** HP a food item puts in the stores: its base healing, shown in game as healsFor × 10. */
-export const foodHP = (healsFor) => (Number.isFinite(healsFor) && healsFor > 0 ? Math.round(healsFor * 10) : 0);
+/**
+ * HP a food item puts in the stores: half its healing (healsFor × 5; the game shows healsFor × 10). Halved in build
+ * .428 (the user, 29 Oct 2026, the first of three steps after "traveling is cheap"): cooked food was so cheap to make
+ * that the stores were never felt in the bank.
+ */
+export const FOOD_PER_HEAL = 5;
+export const foodHP = (healsFor) => (Number.isFinite(healsFor) && healsFor > 0 ? Math.round(healsFor * FOOD_PER_HEAL) : 0);
 
 /** Every Firemaking level cuts fuel use by 0.5%, up to level 99 (-49.5%). */
 export const FIREMAKING_CUT = 0.005;
 export const fuelFactor = (fmLevel) => 1 - FIREMAKING_CUT * Math.min(99, Math.max(0, Math.floor(fmLevel ?? 0)));
 
 /** New characters and characters from before 3c get this once, after the tutorial. Fits the level 1 limit. */
-export const STARTER_KIT = { food: 600, fuel: 15 };
+export const STARTER_KIT = { food: 900, fuel: 22 };
 
 /**
  * How much the stores hold (build .66, the user's "provisions are too cheap": with no limit one load lasted for
- * ever). Grows with Voyage level up to 99: food 600 + 20 HP a level, fuel 15 + 0.5 a level. Bigger hulls add to it
- * later. Stores above the limit (loaded before it existed) are kept; only loading stops.
+ * ever). Grows with Voyage level up to 99: food 900 + 30 HP a level, fuel 22.5 + 0.75 a level (half again the
+ * build .66 limit since .427, against hexes that cost twice as much: a load goes a quarter less far, and the longest
+ * dock-to-dock crossing, 72 sea hexes, fits from Voyage 66). Bigger hulls add to it later. Stores above the limit
+ * (loaded before it existed) are kept; only loading stops.
  */
-export const CAPACITY = { food: 600, foodPerLevel: 20, fuel: 15, fuelPerLevel: 0.5 };
+export const CAPACITY = { food: 900, foodPerLevel: 30, fuel: 22.5, fuelPerLevel: 0.75 };
 /**
- * "Low" stores for the page and the map panel (build .86): amber under these, red at 0. Food is 5 rations (100 HP),
- * fuel 2 (four easy land hexes); a warning, not a rule.
+ * "Low" stores for the page and the map panel (build .86): amber under these, red at 0. Food is five sea hexes
+ * (200 HP), fuel four easy land hexes (4); a warning, not a rule.
  */
-export const LOW = { food: 100, fuel: 2 };
+export const LOW = { food: 200, fuel: 4 };
 export function capacity(voyageLevel) {
   const l = Math.min(99, Math.max(1, Math.floor(voyageLevel ?? 1)));
   return { food: CAPACITY.food + CAPACITY.foodPerLevel * l, fuel: CAPACITY.fuel + CAPACITY.fuelPerLevel * l };

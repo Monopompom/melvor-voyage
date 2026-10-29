@@ -23,7 +23,7 @@ const ROOT_ID = 'voyage-journal';
 /** Skills that work anywhere, named on the crafts page. */
 const ANYWHERE = ['melvorD:Agility', 'melvorD:Prayer', 'melvorAoD:Cartography', 'melvorD:Astrology'];
 
-export function install(ctx, { state, model, journalModel: jm, shipModel, storesModel, rules, terrainMod, log }) {
+export function install(ctx, { state, model, journalModel: jm, shipModel, storesModel, rules, terrainMod, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const iconUrl = ctx.getResourceUrl('assets/journal.webp');
@@ -331,7 +331,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   const note = (text) => `<div class="vj-note"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"></path><path d="M14 7l3 3"></path></svg><span>${rich(text)}</span></div>`;
   /**
    * A text's lines with the book's prose marks (journal-model.mjs proseBlocks): "- " points, "| a | b |" ledgers, "> "
-   * pencilled notes, the rest paragraphs. A ledger's column of figures is set right, as the other ledgers.
+   * pencilled notes, the rest paragraphs. A ledger's column of figures is set as the other ledgers' (centred, right in the last column); beside figures the
+   * last column sits right even as words, as a price does (the user, 29 Oct 2026).
    */
   const FIGURE = /^(?:—|[-+−]?\d[\d.,]*(?:\s*[-–]\s*\d[\d.,]*)?\s*(?:%|×|GP|HP|min|h|hexes?|hex)?)$/;
   const prose = (lines) => jm.proseBlocks(lines).map((b) => {
@@ -339,8 +340,9 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     if (b.kind === 'note') return note(b.text);
     if (b.kind === 'p') return `<p class="vj-p">${rich(b.text)}</p>`;
     const num = b.head.map((_, i) => i > 0 && b.rows.length > 0 && b.rows.every((r) => FIGURE.test(r[i] ?? '')));
-    return `<table class="vj-ledger"><thead><tr>${b.head.map((c, i) => `<th class="${num[i] ? 'vj-num' : ''}">${rich(c)}</th>`).join('')}</tr></thead>`
-      + `<tbody>${b.rows.map((r) => `<tr>${b.head.map((_, i) => `<td class="${i === 0 ? 'vj-first' : ''}${num[i] ? ' vj-num' : ''}">${rich(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    const end = (i) => (i > 0 && i === b.head.length - 1 && !num[i] && num.some(Boolean) ? 'vj-end' : '');
+    return `<table class="vj-ledger"><thead><tr>${b.head.map((c, i) => `<th class="${num[i] ? 'vj-num' : end(i)}">${rich(c)}</th>`).join('')}</tr></thead>`
+      + `<tbody>${b.rows.map((r) => `<tr>${b.head.map((_, i) => `<td class="${i === 0 ? 'vj-first' : ''}${num[i] ? ' vj-num' : end(i) ? ' vj-end' : ''}">${rich(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   }).join('');
   const dropCap = (text) => { const s = String(text); return `<p class="vj-p vj-lead"><span class="vj-dropcap">${esc(s.slice(0, 1))}</span>${rich(s.slice(1))}</p>`; };
   const mapButton = (kind, id) => `<button type="button" class="vj-btn" data-vj-map="${esc(kind)}" data-vj-id="${esc(id)}">`
@@ -473,7 +475,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const em = state.events?.model;
     const num = (x) => (Number.isFinite(x) ? `${Math.round(x)}` : '');
     return { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
-      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, gp: nav === undefined ? '' : numberWithCommas(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
+      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, gp: nav === undefined ? '' : shortNumber(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
       signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '',
       pirChance: num(1 / em?.PIRATE_CHANCE), pirShare: num(em?.PIRATE_SHARE * 100), pirFloor: num(em?.PIRATE_FLOOR_HEXES),
       pirSound: num(em?.PIRATE_SOUND), stowShare: num(em?.STOWAWAY_PRICE_SHARE * 100), hungryPct: num(storesModel?.HUNGRY_GP * 100),
@@ -510,7 +512,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const gates = r?.masteryGates?.length > 0 ? [...r.masteryGates] : [20, 40, 60, 80];
     const caps = r?.slotCaps?.length > 0 ? [...r.slotCaps] : [2, 4, 7, 10];
     const orList = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} ${t('MOD_VOY_JOURNAL_LIST_OR')} ${xs[xs.length - 1]}`);
-    const byRank = (xs) => (Array.isArray(xs) && xs.length === jm.CREW_TIERS.length ? jm.CREW_TIERS.map((x, i) => `${roleName(x.tier)} ${numberWithCommas(xs[i])}`).join(', ') : '');
+    const byRank = (xs) => (Array.isArray(xs) && xs.length === jm.CREW_TIERS.length ? jm.CREW_TIERS.map((x, i) => `${roleName(x.tier)} ${shortNumber(xs[i])}`).join(', ') : '');
     const pct = (x) => `${Math.round(x * 100)}`;
     const sev = Array.isArray(r?.firingSeverance) ? r.firingSeverance.map(([level, rate], i) => (i === 0 ? t('MOD_VOY_JOURNAL_CREW_SEV_FIRST', { pct: pct(rate) })
       : rate > 0 ? t('MOD_VOY_JOURNAL_CREW_SEV_STEP', { pct: pct(rate), level: `${level}` }) : t('MOD_VOY_JOURNAL_CREW_SEV_NONE', { level: `${level}` }))).join(', ') : '';
@@ -578,7 +580,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     try {
       for (const c of p.costs.currencies ?? []) {
         const n = typeof c.cost === 'number' ? c.cost : 0;
-        bits.push(`<span class="vj-cost"><img src="${c.currency.media}" alt="">${esc(numberWithCommas(n))} ${esc(c.currency.name)}</span>`);
+        bits.push(`<span class="vj-cost"><img src="${c.currency.media}" alt="">${esc(shortNumber(n))} ${esc(c.currency.name)}</span>`);
       }
       for (const { item, quantity } of p.costs.items ?? []) bits.push(`<span class="vj-cost"><img src="${item.media}" alt="">${esc(numberWithCommas(quantity))} ${esc(item.name)}</span>`);
     } catch (e) { log('journal price failed', e); }
@@ -607,7 +609,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const boat = state.ship?.boat?.()?.hull;
     const big = state.ship?.big?.()?.hull;
     const item = (id) => { try { return game.items.getObjectByID(id); } catch { return undefined; } };
-    const cost = (media, n, name) => `<span class="vj-cost">${media ? `<img src="${media}" alt="">` : ''}${esc(numberWithCommas(n))} ${esc(name)}</span>`;
+    /** GP short (2.5M), item counts exact. */
+    const cost = (media, n, name, fmt = numberWithCommas) => `<span class="vj-cost">${media ? `<img src="${media}" alt="">` : ''}${esc(fmt(n))} ${esc(name)}</span>`;
     const rows = shipModel.shipBill(state.ship?.canFish?.() !== false).map((b) => {
       const key = b.id.toUpperCase();
       const mine = b.id === boat || b.id === big;
@@ -617,7 +620,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       const reach = Number.isFinite(b.reach) ? t('MOD_VOY_JOURNAL_BILL_REACH', { reach: `${b.reach}`, hold: `${b.hold}` }) : t('MOD_VOY_JOURNAL_BILL_ANY_SEA', { hold: `${b.hold}` });
       const name = `<span class="vj-hull"><img src="${ctx.getResourceUrl(shipModel.HULLS[b.id].media)}" alt=""><span><b>${esc(t(shipModel.hullNameKey(b.id)))}</b>${mark}`
         + `<span class="vj-bill-line">${esc(t(`MOD_VOY_JOURNAL_BILL_WHERE_${key}`))}</span><span class="vj-bill-line">${esc(reach)}</span></span></span>`;
-      const price = [cost(game.gp.media, b.gp, game.gp.name)];
+      const price = [cost(game.gp.media, b.gp, game.gp.name, shortNumber)];
       for (const { id, quantity } of b.items) { const it = item(id); if (it !== undefined) price.push(cost(it.media, quantity, it.name)); }
       return [{ html: name }, { text: b.level > 0 ? `${b.level}` : '—', cls: 'vj-num' }, { html: `<span class="vj-costs">${price.join('')}</span>` }];
     });
@@ -678,7 +681,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   const crewOn = () => crewSkill() !== undefined;
   const has = (key) => { try { return typeof loadedLangJson !== 'undefined' && typeof loadedLangJson[key] === 'string'; } catch { return false; } };
   const roleName = (tier) => { try { const n = crewSkill()?.roleName?.(tier); if (typeof n === 'string' && n !== '') return n; } catch {} return has(`MOD_WF_ROLE_${tier}`) ? getLangString(`MOD_WF_ROLE_${tier}`) : tier; };
-  const gp = (n) => jm.shortGp(n);
+  const gp = (n) => shortNumber(n);
   /** "Aboard now": the hands signed, from the Hiring skill's crew (read only). Nothing when there are none. */
   const crewAboard = () => {
     let folks = [];
@@ -694,7 +697,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       + ledger([t('MOD_VOY_JOURNAL_CREW_COL_NAME'), t('MOD_VOY_JOURNAL_CREW_COL_RANK'), t('MOD_VOY_JOURNAL_CREW_COL_AT'), t('MOD_VOY_JOURNAL_CREW_COL_STATUS')], rows);
   };
   const crewTiers = () => {
-    // Units after the numbers (.308, scan C2-11): "60%", "75k GP". Build .423: from Worker Folks' rules where it
+    // Units after the numbers (.308, scan C2-11): "60%", "75K GP". Build .423: from Worker Folks' rules where it
     // reports them (its .147 raised the first hires), else the numbers typed in journal-model.mjs.
     const r = folksRules();
     const live = (xs, i, typed) => (Array.isArray(xs) && xs.length === jm.CREW_TIERS.length && Number.isFinite(xs[i]) ? xs[i] : typed);
@@ -1245,7 +1248,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     if (root === undefined || !view.open) return;
     closeLetter();
     const g = model.GOLBIN_GIFT;
-    const present = [`<span class="vj-present-item"><img src="${game.gp.media}" alt="">${esc(numberWithCommas(g.gp))} ${esc(game.gp.name)}</span>`];
+    const present = [`<span class="vj-present-item"><img src="${game.gp.media}" alt="">${esc(shortNumber(g.gp))} ${esc(game.gp.name)}</span>`];
     for (const { id, quantity } of g.items) {
       const item = game.items.getObjectByID(id);
       if (item !== undefined) present.push(`<span class="vj-present-item"><img src="${item.media}" alt="">${esc(numberWithCommas(quantity))} ${esc(item.name)}</span>`);

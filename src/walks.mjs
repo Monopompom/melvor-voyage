@@ -62,8 +62,9 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     if (f.travel !== 'with' && (f.place === null || hexDistance(pos, f.place) > 1)) return '';
     const busy = state.crew?.busy?.();
     if (busy !== undefined) return busy;
-    // A Folk with you steps off where you stand: on land.
-    if (f.travel === 'with') return state.crew?.ashoreRefusal?.();
+    // A Folk with you steps off where you stand: on land. Aboard on the water (a port's hex is water too) the reason
+    // says to step ashore first, not to put it ashore (the user, 29 Oct 2026).
+    if (f.travel === 'with' && state.crew?.ashoreRefusal?.() !== undefined) return t('MOD_VOY_WALK_AT_SEA');
     return undefined;
   };
 
@@ -346,7 +347,8 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     let f = fixed ? (who.find((x) => x.id === id) ?? who[0]) : a.folkById(id);
     if (fixed) {
       if (all.length === 0) return;
-      if (f === undefined) { notify(t('MOD_VOY_WALK_NOBODY'), 'danger'); return; }
+      // Nobody can go: the reason of a Folk that is with you or near (at sea, under way), else that there is nobody.
+      if (f === undefined) { notify(a.folks().map(sendRefusal).find((why) => why !== undefined && why !== '') ?? t('MOD_VOY_WALK_NOBODY'), 'danger'); return; }
     } else {
       const why = sendRefusal(f);
       if (why !== undefined) { if (why !== '') notify(why, 'danger'); return; }

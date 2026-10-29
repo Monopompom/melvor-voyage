@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-28.426';
+export const BUILD = '2026-10-29.428';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -355,6 +355,9 @@ export async function setup(ctx) {
   try { state.tips = (await ctx.loadModule('src/tips.mjs')).install(ctx, { log }); } catch (e) { console.error('[Voyage] tooltips failed', e); }
   try { (await ctx.loadModule('src/map-keys.mjs')).install(ctx, { key: () => value('centreKey'), journalKey: () => value('journalKey'), mapKey: () => value('mapKey'), openPage: (p) => state.openPage(p), journal: () => state.journal, log }); } catch (e) { console.error('[Voyage] map keys failed', e); }
   const helpLayout = await ctx.loadModule('src/help-layout.mjs');
+  // Big GP, XP and bank counts in a short form (12.3K, 2.5M), rounded down, so a "You have" never reads as more;
+  // fractions in the player's decimal mark.
+  const { shortNumber, decimal } = await ctx.loadModule('src/number-format.mjs');
   // Every popup we open runs this on render: skill names get their icon and bold.
   const skillNamesMod = await ctx.loadModule('src/skill-names.mjs');
   state.popupDidRender = skillNamesMod.didRender;
@@ -384,7 +387,7 @@ export async function setup(ctx) {
   gate.install(ctx, { state, rules, terrainMod, zones: zonesMod, helpLayout, log });
   compassMod.install(ctx, { state, rules, terrainMod, model, helpLayout, log });
   traderMod.install(ctx, { state, rules, terrainMod, stranded, helpLayout, log });
-  state.herePanel = herePanel.install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, log });
+  state.herePanel = herePanel.install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, shortNumber, log });
   /** The Voyage skill object, or undefined when it did not register. */
   const voyageSkill = () => { try { return voyageSkillOk ? game.skills.getObjectByID(model.SKILL_ID) : undefined; } catch { return undefined; } };
   state.voyageSkill = voyageSkill;
@@ -401,7 +404,7 @@ export async function setup(ctx) {
     state.landModel = landModel;
   } catch (e) { console.error('[Voyage] land upgrades failed to load; the rest runs', e); state.land = undefined; }
   // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
-  const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, log });
+  const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log });
   // Gear, relics and the Albatross (4.31): the effects the stores, the clock, cargo and the pirates read, and the rolls
   // after a landed move. A failure: the gear's items do nothing.
   try { gearMod.install(ctx, { state, G: gearModel, log }); } catch (e) { console.error('[Voyage] gear failed to load; its effects are off', e); state.gear = undefined; }
@@ -454,17 +457,17 @@ export async function setup(ctx) {
   holdMod.install(ctx, { state, shipModel, helpLayout, log });
   // Events that ask (the flat mechanics): pirates on the open sea, a stowaway aboard. A failure: no events.
   try {
-    const events = (await ctx.loadModule('src/events.mjs')).install(ctx, { state, EM: await ctx.loadModule('src/events-model.mjs'), S: storesModel, shipModel, helpLayout, rankName: folksLink.rankName, log });
+    const events = (await ctx.loadModule('src/events.mjs')).install(ctx, { state, EM: await ctx.loadModule('src/events-model.mjs'), S: storesModel, shipModel, helpLayout, rankName: folksLink.rankName, shortNumber, decimal, log });
     const s = voyageSkill();
     if (s !== undefined) s.events = events;
   } catch (e) { console.error('[Voyage] events failed to load', e); state.events = undefined; }
-  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, log }) : undefined;
+  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, shortNumber, decimal, log }) : undefined;
   // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
   // popups and everything else as they were.
   state.helpSections = page?.helpSections;
   try {
     const journalModel = await ctx.loadModule('src/journal-model.mjs');
-    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, shipModel, storesModel, rules, terrainMod, log });
+    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, shipModel, storesModel, rules, terrainMod, shortNumber, log });
   } catch (e) { console.error('[Voyage] the journal failed to load; the rest runs', e); state.journal = undefined; }
   // The journal's heat maps (build .114); without them the entries simply have no heat map button.
   try { (await ctx.loadModule('src/heatmap.mjs')).install(ctx, { state, terrainMod, log }); } catch (e) { log('heat maps failed to load', e); state.heatmap = undefined; }
@@ -472,12 +475,12 @@ export async function setup(ctx) {
   if (voyageSkillOk) {
     try {
       const planModel = await ctx.loadModule('src/plan-model.mjs');
-      (await ctx.loadModule('src/planner.mjs')).install(ctx, { state, model, planModel, storesModel, terrainMod, helpLayout, log });
+      (await ctx.loadModule('src/planner.mjs')).install(ctx, { state, model, planModel, storesModel, terrainMod, helpLayout, shortNumber, log });
     } catch (e) { console.error('[Voyage] the planner failed to load; the rest runs', e); state.planner = undefined; }
     // The ship's clock (phase 5a): travel takes time. A failure leaves phase 4's instant travel.
     try {
       const clockModel = await ctx.loadModule('src/clock-model.mjs');
-      const clock = (await ctx.loadModule('src/voyage-clock.mjs')).install(ctx, { state, C: clockModel, storesModel, shipModel, rules, terrainMod, helpLayout, log });
+      const clock = (await ctx.loadModule('src/voyage-clock.mjs')).install(ctx, { state, C: clockModel, storesModel, shipModel, rules, terrainMod, helpLayout, shortNumber, log });
       const s = voyageSkill();
       if (s !== undefined) s.clock = clock;
       // The route line on the map (build .272): what is left to sail, a light running along it, the walked part dim.
@@ -494,14 +497,14 @@ export async function setup(ctx) {
       // Adrift at sea (phase 5b part two): the drift, tows and the sea folk. A failure leaves phase 4's floors at sea.
       try {
         const adriftModel = await ctx.loadModule('src/adrift-model.mjs');
-        const adrift = (await ctx.loadModule('src/adrift.mjs')).install(ctx, { state, A: adriftModel, C: clockModel, shipModel, terrainMod, helpLayout, log });
+        const adrift = (await ctx.loadModule('src/adrift.mjs')).install(ctx, { state, A: adriftModel, C: clockModel, shipModel, terrainMod, helpLayout, shortNumber, log });
         if (s !== undefined) s.adrift = adrift;
       } catch (e) { console.error('[Voyage] Adrift failed to load; the old floors at sea stand', e); state.adrift = undefined; }
       // Weather (phase 5c-1): Township's season, degrees per hex, the bands, the harvest and the winter ice. A failure
       // leaves the year without weather.
       try {
         const weatherModel = await ctx.loadModule('src/weather-model.mjs');
-        const weather = (await ctx.loadModule('src/weather.mjs')).install(ctx, { state, W: weatherModel, shipModel, terrainMod, helpLayout, log });
+        const weather = (await ctx.loadModule('src/weather.mjs')).install(ctx, { state, W: weatherModel, shipModel, terrainMod, helpLayout, decimal, log });
         if (s !== undefined) s.weather = weather;
       } catch (e) { console.error('[Voyage] weather failed to load; no seasons on the map', e); state.weather = undefined; }
     } catch (e) { console.error('[Voyage] the ship\'s clock failed to load; travel stays instant', e); state.clock = undefined; state.timed = () => false; }
@@ -509,22 +512,22 @@ export async function setup(ctx) {
   // Markets with prices (phase 4): sale prices by market, the bank's Sell line, the journal's ledger.
   try {
     const marketModel = await ctx.loadModule('src/market-model.mjs');
-    (await ctx.loadModule('src/market.mjs')).install(ctx, { state, MM: marketModel, rules, hexes: table.hexes, log });
+    (await ctx.loadModule('src/market.mjs')).install(ctx, { state, MM: marketModel, rules, hexes: table.hexes, shortNumber, log });
   } catch (e) { console.error('[Voyage] market prices failed to load; the rest runs', e); state.market = undefined; }
   // Cargo runs (phase 4): the harbour board, the runs and the sealed cargo in the hold.
   if (voyageSkillOk) {
     try {
       const cargoModel = await ctx.loadModule('src/cargo-model.mjs');
-      (await ctx.loadModule('src/cargo.mjs')).install(ctx, { state, M: cargoModel, shipModel, hexes: table.hexes, dungeonIds: table.meta.dungeons ?? {}, log });
+      (await ctx.loadModule('src/cargo.mjs')).install(ctx, { state, M: cargoModel, shipModel, hexes: table.hexes, dungeonIds: table.meta.dungeons ?? {}, shortNumber, log });
       // The rest of phase 4: sea charts and rumours, Voyage tasks (the board's tabs), Random
       // start. Each fails on its own: the board then simply lacks that tab.
       const chartsModel = await ctx.loadModule('src/charts-model.mjs');
       try {
-        (await ctx.loadModule('src/charts.mjs')).install(ctx, { state, CM: chartsModel, model, rules, terrainMod, helpLayout, hexes: table.hexes, log });
+        (await ctx.loadModule('src/charts.mjs')).install(ctx, { state, CM: chartsModel, model, rules, terrainMod, helpLayout, hexes: table.hexes, shortNumber, log });
       } catch (e) { console.error('[Voyage] sea charts and rumours failed to load; the rest runs', e); state.charts = undefined; }
       try {
         const tasksModel = await ctx.loadModule('src/tasks-model.mjs');
-        (await ctx.loadModule('src/tasks.mjs')).install(ctx, { state, TM: tasksModel, CM: chartsModel, M: cargoModel, shipModel, terrainMod, stranded, hexes: table.hexes, log });
+        (await ctx.loadModule('src/tasks.mjs')).install(ctx, { state, TM: tasksModel, CM: chartsModel, M: cargoModel, shipModel, terrainMod, stranded, hexes: table.hexes, shortNumber, log });
       } catch (e) { console.error('[Voyage] Voyage tasks failed to load; the rest runs', e); state.tasks = undefined; }
       try {
         const startModel = await ctx.loadModule('src/start-model.mjs');

@@ -553,6 +553,9 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .vj-ledger th:first-child, .vj-ledger td:first-child { padding-left: 0; }
 .vj-ledger .vj-first { font-weight: 600; }
 .vj-ledger .vj-num { text-align: right; white-space: nowrap; }
+/* A column of figures is centred under its head; the last column's stays right against the edge (the user, 29 Oct 2026). */
+.vj-ledger .vj-num:not(:last-child) { text-align: center; }
+.vj-ledger .vj-end { text-align: right; }
 /* The road chapter (build .170): a mount's icon and name, its price as icon, count, name; the buffs one per line. */
 .vj-mount { display: inline-flex; align-items: center; gap: 8px; }
 .vj-mount img { width: 32px; height: 32px; object-fit: contain; }
@@ -1076,7 +1079,23 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-errands-foot { text-align: left; }
 .voyage-errand { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; margin-bottom: 8px; border-radius: 6px; background: var(--voyage-well); }
 .voyage-harbour-line { display: flex; flex-direction: column; align-items: stretch; gap: 6px; } /* the note on its line, the board button full width under it like Manage voyage (.308, the user) */
-.voyage-harbour-link { white-space: nowrap; width: 100%; }
+/* The harbour and outpost rows are rows like Crew and Stock up (the user, 29 Oct 2026): the label and its text on one
+   line left of the button(s), never pushing them under it (and with them every row button); they drop only when the
+   label and 7em of text no longer fit beside them. A text longer than the room runs to its end and back, resting at
+   each end (runLines sets the distance and the time); with reduced motion it wraps instead. */
+.voyage-run-row > span:first-child { flex: 1000 1 0; min-width: 7em; display: flex; align-items: baseline; gap: .3em; white-space: nowrap; }
+.voyage-run-row .voyage-here-label { flex: 0 0 auto; }
+.voyage-run-row > .voyage-outpost-btns { flex: 0 0 auto; flex-wrap: nowrap; }
+.voyage-run { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.voyage-run-text { display: inline-block; white-space: nowrap; }
+.voyage-run-on .voyage-run-text { animation: voyage-run var(--voyage-run-s, 4s) ease-in-out infinite alternate; }
+@keyframes voyage-run { 0%, 20% { transform: translateX(0); } 80%, 100% { transform: translateX(var(--voyage-run-d, 0px)); } }
+@media (hover: hover) { .voyage-run-on:hover .voyage-run-text { animation-play-state: paused; } }
+@media (prefers-reduced-motion: reduce) {
+  .voyage-run-row > span:first-child { white-space: normal; }
+  .voyage-run-text { white-space: normal; text-wrap: balance; }
+  .voyage-run-on .voyage-run-text { animation: none; }
+}
 /* The harbour board's tabs: Cargo, Notices, Sea charts (build .210). */
 /* Padded inside the board's scroll box, which would clip the buttons' top border at some zooms (the user, 18 Oct 2026). */
 .voyage-board-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding-top: 4px; margin-bottom: 2px; }
@@ -1312,6 +1331,9 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 
 /* The Here panel's Folks lines (phase 6c): the names or the count on the left, the Crew button on the right. */
 .voyage-here-folks { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* The crew's line with Crew: the names wrap beside the button rather than pushing it under them; it drops (full width)
+   only when the panel stacks every row's button, or when the label and 7em of names no longer fit. */
+.voyage-here-ship.voyage-folks-row > span:first-child { flex: 1000 1 0; min-width: 7em; }
 .voyage-folks-count { text-decoration: underline dotted; cursor: help; }
 /* The hidden anchor of the floating tooltip (map badges): it takes no room and no pointer. */
 .voyage-tip-anchor { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
@@ -1332,6 +1354,11 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 /* Outposts (phase 6e): the Here panel's two buttons side by side, wrapping under the line on a phone; the store
    dialog's rows: the label, the amount you carry and what there is, the two quick buttons under the amount. */
 .voyage-outpost-btns { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+/* Strike camp as a square × before Store, which keeps the row-button width of Stock up (the user, 29 Oct 2026); when
+   the panel stacks its row buttons, Store fills the line beside the ×. */
+#voyage-here .voyage-outpost-x { min-width: 32px; padding: 0 .55rem; }
+.voyage-stacked .voyage-outpost-line > .voyage-outpost-btns { flex: 1 1 100%; flex-wrap: nowrap; }
+.voyage-stacked .voyage-outpost-btns > .voyage-row-btn { flex: 1 1 auto; }
 .voyage-outpost-share { display: flex; flex-direction: column; gap: 10px; text-align: left; }
 .voyage-outpost-row { display: grid; grid-template-columns: 5.5rem minmax(96px, 140px) 1fr; align-items: center; gap: 6px 8px; }
 .voyage-outpost-row .voyage-outpost-qty { min-height: 40px; }
@@ -1347,6 +1374,4 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-buy-band .voyage-clock-head { margin-bottom: 0; }
 .voyage-buy-costs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; }
 .voyage-buy-cost { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
-/* A board's disabled button says why beside it (build .386): a short amber line under the button. */
-.voyage-board-why { display: block; font-size: .9rem; line-height: 1.3; margin-top: 4px; max-width: 14rem; }
 .voyage-walk-across { margin: 0 0 6px; }

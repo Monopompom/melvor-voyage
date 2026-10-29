@@ -21,17 +21,18 @@ test('every terrain class has a cost; every land hex burns fuel; easy ground is 
   assert.ok(isEasy('unknown')); // the table does not know it: grasslands
 });
 
-test('Firemaking cuts fuel by 0.5% a level, capped at 99; food HP is healsFor x 10', () => {
+test('Firemaking cuts fuel by 0.5% a level, capped at 99; food HP is healsFor x 5', () => {
   assert.equal(fuelFactor(1), 0.995);
   assert.equal(fuelFactor(99), 1 - 0.495);
   assert.equal(fuelFactor(120), fuelFactor(99));
   assert.equal(fuelFactor(undefined), 1);
-  assert.equal(foodHP(3), 30);
+  assert.equal(foodHP(3), 15);
+  assert.equal(foodHP(11), 55); // a Lobster
   assert.equal(foodHP(0), 0);
-  assert.deepEqual(stepCost(land('snowlands'), 99), { food: 2 * RATION_HP, fuel: 1.01 });
+  assert.deepEqual(stepCost(land('snowlands'), 99), { food: 4 * RATION_HP, fuel: 2.02 });
   assert.deepEqual(stepCost({ ...land('mountain'), free: true }, 1), { food: 0, fuel: 0 });
-  assert.deepEqual(stepCost({ cls: 'grasslands', sea: false, hop: 7 }, 1), { food: 7 * RATION_HP, fuel: 0 });
-  assert.deepEqual(pathCost([land('grasslands'), land('mountain')], 1), { food: 40, fuel: 1.493 });
+  assert.deepEqual(stepCost({ cls: 'grasslands', sea: false, hop: 7 }, 1), { food: 14 * RATION_HP, fuel: 0 });
+  assert.deepEqual(pathCost([land('grasslands'), land('mountain')], 1), { food: 80, fuel: 2.985 });
 });
 
 test('loading: ports full, towns 75%, markets 75/50, farms and camps 50%, one hex of grace, nothing in the wild', () => {
@@ -52,23 +53,23 @@ test('loading: ports full, towns 75%, markets 75/50, farms and camps 50%, one he
 });
 
 test('a move is paid step by step from the stores', () => {
-  const p = planMove({ food: 100, fuel: 3 }, [land('grasslands'), land('mountain'), land('grasslands')], { fmLevel: 1 });
+  const p = planMove({ food: 200, fuel: 6 }, [land('grasslands'), land('mountain'), land('grasslands')], { fmLevel: 1 });
   assert.equal(p.ok, true);
-  assert.equal(p.food, 40);
-  assert.equal(p.fuel, 1.009); // 3 less 0.4975 + 0.995 + 0.4975, each step kept to thousandths
-  assert.deepEqual(p.spent, { food: 60, fuel: 1.991 });
+  assert.equal(p.food, 80);
+  assert.equal(p.fuel, 2.02); // 6 less 0.995 + 1.99 + 0.995, each step kept to thousandths
+  assert.deepEqual(p.spent, { food: 120, fuel: 3.98 });
   assert.deepEqual(p.hungry, []);
 });
 
 test('the hunger floor: easy ground is walked on empty stores, hard ground and open sea are refused', () => {
-  const p = planMove({ food: 30, fuel: 1 }, [land('grasslands'), land('beach'), land('desert')]);
+  const p = planMove({ food: 60, fuel: 2 }, [land('grasslands'), land('beach'), land('desert')]);
   assert.equal(p.ok, true);
-  assert.deepEqual(p.hungry, [1, 2]); // the first step is paid, the rest walked hungry; the last 10 HP eaten
+  assert.deepEqual(p.hungry, [1, 2]); // the first step is paid, the rest walked hungry; the last 20 HP eaten
   assert.equal(p.food, 0);
   assert.equal(p.fuel, 0);
   // no fuel at all: easy ground is walked cold, food or not
   assert.deepEqual(planMove({ food: 500, fuel: 0 }, [land('grasslands')]).hungry, [0]);
-  assert.deepEqual(planMove({ food: 0, fuel: 0 }, [land('grasslands'), land('mountain')]), { ok: false, why: 'food', at: 1, need: { food: 20, fuel: 0.995 } });
+  assert.deepEqual(planMove({ food: 0, fuel: 0 }, [land('grasslands'), land('mountain')]), { ok: false, why: 'food', at: 1, need: { food: 40, fuel: 1.99 } });
   assert.equal(planMove({ food: 500, fuel: 0 }, [land('mountain')]).why, 'fuel');
   assert.equal(planMove({ food: 0, fuel: 9 }, [sea()]).why, 'food');
   // rowing for the coast on an empty stomach always works
@@ -81,25 +82,25 @@ test('the hunger floor: easy ground is walked on empty stores, hard ground and o
 
 test('always get ashore: a voyage ending at sea keeps the rations for the way back', () => {
   const reserve = ashoreReserve(2, 2);
-  assert.equal(reserve, 2 * RATION_HP);
-  assert.equal(planMove({ food: 60, fuel: 0 }, [sea(), sea()], { reserve }).why, 'ashore');
-  assert.equal(planMove({ food: 80, fuel: 0 }, [sea(), sea()], { reserve }).ok, true);
-  assert.equal(planMove({ food: 40, fuel: 0 }, [sea(), land('beach')], { reserve }).ok, true); // ends ashore
-  assert.equal(planMove({ food: 20, fuel: 0 }, [sea(true)], { reserve }).ok, true); // heading home already
-  assert.equal(ashoreReserve(Infinity, 2), 2 * RATION_HP);
-  assert.equal(ashoreReserve(5, 2), 2 * RATION_HP); // beyond reach the homeward moves are free
+  assert.equal(reserve, 4 * RATION_HP);
+  assert.equal(planMove({ food: 120, fuel: 0 }, [sea(), sea()], { reserve }).why, 'ashore');
+  assert.equal(planMove({ food: 160, fuel: 0 }, [sea(), sea()], { reserve }).ok, true);
+  assert.equal(planMove({ food: 80, fuel: 0 }, [sea(), land('beach')], { reserve }).ok, true); // ends ashore
+  assert.equal(planMove({ food: 40, fuel: 0 }, [sea(true)], { reserve }).ok, true); // heading home already
+  assert.equal(ashoreReserve(Infinity, 2), 4 * RATION_HP);
+  assert.equal(ashoreReserve(5, 2), 4 * RATION_HP); // beyond reach the homeward moves are free
 });
 
 test('the starter kit crosses the start cluster several times and fits the level 1 limit', () => {
-  assert.ok(STARTER_KIT.food / RATION_HP >= 20);
+  assert.ok(STARTER_KIT.food / (HEX_COST.grasslands.rations * RATION_HP) >= 20);
   assert.ok(STARTER_KIT.fuel / HEX_COST.grasslands.fuel >= 20);
   assert.ok(STARTER_KIT.food <= capacity(1).food && STARTER_KIT.fuel <= capacity(1).fuel);
 });
 
 test('the stores hold more with every Voyage level, up to 99', () => {
-  assert.deepEqual(capacity(1), { food: 620, fuel: 15.5 });
-  assert.deepEqual(capacity(50), { food: 1600, fuel: 40 });
-  assert.deepEqual(capacity(99), { food: 2580, fuel: 64.5 });
+  assert.deepEqual(capacity(1), { food: 930, fuel: 23.25 });
+  assert.deepEqual(capacity(50), { food: 2400, fuel: 60 });
+  assert.deepEqual(capacity(99), { food: 3870, fuel: 96.75 });
   assert.deepEqual(capacity(120), capacity(99));
   assert.deepEqual(capacity(undefined), capacity(1));
 });
@@ -195,13 +196,13 @@ test('light: 0.5 a land hex, 0.25 at sea, cut by Firemaking and Astrology; free 
 
 test('night buys light only from the fuel the day plan leaves: it never refuses or starves a later step', () => {
   const steps = [land('grasslands'), land('mountain'), land('grasslands')];
-  const day = planMove({ food: 500, fuel: 2.5 }, steps, { fmLevel: 0 });
-  assert.equal(day.fuel, 0.5); // 0.5 + 1 + 0.5 spent
+  const day = planMove({ food: 500, fuel: 4.5 }, steps, { fmLevel: 0 });
+  assert.equal(day.fuel, 0.5); // 1 + 2 + 1 spent
   const lit = planLight(day, steps, { fmLevel: 0, astroLevel: 0 });
   assert.deepEqual(lit.lit, [0]); // the spare 0.5 lights the first hex only
   assert.equal(lit.fuel, 0);
   assert.equal(lit.light, 0.5);
-  assert.equal(lit.spent.fuel, 2.5);
+  assert.equal(lit.spent.fuel, 4.5);
   assert.equal(lit.ok, true);
   const refused = planMove({ food: 0, fuel: 0 }, [land('mountain')]);
   assert.equal(planLight(refused, [land('mountain')]), refused);

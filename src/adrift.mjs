@@ -22,12 +22,10 @@ const NO_PORTS = ['FakePort'];
 /** The rescue popups' art: as big as the trader's (the user, build .210). */
 const RESCUE_ART = { imageWidth: 112, imageHeight: 112, imageAlt: '' };
 
-export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, log }) {
+export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const num = (n) => numberWithCommas(Math.floor(n));
-  /** What you have, in the game's own number format (the player's setting: 9,952M, not 9,952,802,904; the user, build .362). */
-  const haveNum = (n) => { try { return formatNumber(Math.floor(n)); } catch { return numberWithCommas(Math.floor(n)); } };
   const res = (file) => ctx.getResourceUrl(`assets/${file}`);
   const skill = () => state.voyageSkill?.();
   const usable = () => { const s = skill(); return s !== undefined && s.futureRaw === undefined; };
@@ -50,7 +48,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
     } catch {}
   };
   const { mark, marked } = helpLayout;
-  const gpMark = (gp) => mark.gp(game.gp.media, num(gp), game.gp.amount < gp);
+  const gpMark = (gp) => mark.gp(game.gp.media, shortNumber(gp), game.gp.amount < gp);
   const swal = (opts) => SwalLocale.fire({
     didRender: state.popupDidRender,
     customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
@@ -360,7 +358,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
   const offerTow = () => {
     const tow = paidTow();
     if (tow === undefined || cur() === null) return;
-    if (game.gp.amount < tow.gp) { notify(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(tow.gp), have: haveNum(game.gp.amount) }), 'danger'); return; }
+    if (game.gp.amount < tow.gp) { notify(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: shortNumber(tow.gp), have: shortNumber(game.gp.amount) }), 'danger'); return; }
     const name = portName(tow.port);
     swal({
       title: t('MOD_VOY_ADRIFT_TOW_TITLE'),
@@ -371,15 +369,15 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
       imageUrl: hullArt(),
       ...helpLayout.MSG_IMAGE,
       showCancelButton: true,
-      confirmButtonText: t('MOD_VOY_ADRIFT_TOW_PAY', { gp: num(tow.gp) }),
+      confirmButtonText: t('MOD_VOY_ADRIFT_TOW_PAY', { gp: shortNumber(tow.gp) }),
       cancelButtonText: t('MOD_VOY_ADRIFT_NOT_NOW'),
     }).then((r) => {
       if (!r.isConfirmed || cur() === null) return;
       const now = paidTow();
-      if (now === undefined || game.gp.amount < now.gp) { notify(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(now?.gp ?? tow.gp), have: haveNum(game.gp.amount) }), 'danger'); return; }
+      if (now === undefined || game.gp.amount < now.gp) { notify(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: shortNumber(now?.gp ?? tow.gp), have: shortNumber(game.gp.amount) }), 'danger'); return; }
       game.gp.remove(now.gp);
       if (!startTow('pay', now, now.gp)) { game.gp.add(now.gp); notify(t('MOD_VOY_ADRIFT_TOW_FAILED'), 'danger'); return; }
-      notify(t('MOD_VOY_ADRIFT_TOW_STARTED', { name: portName(now.port), gp: num(now.gp) }));
+      notify(t('MOD_VOY_ADRIFT_TOW_STARTED', { name: portName(now.port), gp: shortNumber(now.gp) }));
     });
   };
 
@@ -601,7 +599,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
       // The price after the GP icon, amber as a cost and red when the coin on hand won't cover it (the
       // user, 19 Oct 2026: "add GP icon and color the price").
       : `<div class="voyage-adrift-way"><i class="fa fa-fw fa-anchor text-muted" aria-hidden="true"></i><span>${esc(t('MOD_VOY_ADRIFT_TOW_LINE', { name: portName(tow.port), hexes: hexes(tow.hexes), time: '\u0001', gp: '\u0000' }))
-        .replace('\u0001', timeHtml(tow.ms)).replace('\u0000', `<img class="voyage-skill-name-icon" src="${esc(game.gp.media)}" alt=""><b class="${game.gp.amount < tow.gp ? 'text-danger' : 'text-warning'}">${num(tow.gp)}</b>`)}</span></div>`;
+        .replace('\u0001', timeHtml(tow.ms)).replace('\u0000', `<img class="voyage-skill-name-icon" src="${esc(game.gp.media)}" alt=""><b class="${game.gp.amount < tow.gp ? 'text-danger' : 'text-warning'}">${shortNumber(tow.gp)}</b>`)}</span></div>`;
     const short = tow !== undefined && game.gp.amount < tow.gp;
     const payBtn = tow === undefined ? ''
       : short
@@ -621,7 +619,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, l
       + `<div class="voyage-adrift-way"><i class="fa fa-fw fa-fish text-muted" aria-hidden="true"></i>${esc(t('MOD_VOY_ADRIFT_FISH_LINE'))}</div></div>`
       + '<div class="voyage-plan-buttons">'
       + `<button type="button" class="btn btn-outline-info" data-voyage-adrift-do="fish">${esc(t('MOD_VOY_ADRIFT_GO_FISHING'))}</button>${payBtn}</div>`
-      + (short ? `<div class="text-muted voyage-clock-note text-right">${esc(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: num(tow.gp), have: haveNum(game.gp.amount) }))}</div>` : '');
+      + (short ? `<div class="text-muted voyage-clock-note text-right">${esc(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: shortNumber(tow.gp), have: shortNumber(game.gp.amount) }))}</div>` : '');
   };
   /** Moves the block's bars (every frame while the page is open). */
   const renderBars = (el) => {

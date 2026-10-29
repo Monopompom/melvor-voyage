@@ -18,7 +18,7 @@ const STARTABLE = ['melvorD:Woodcutting', 'melvorD:Mining', 'melvorD:Fishing', '
 const ARCHAEOLOGY_ID = 'melvorAoD:Archaeology';
 const CARTOGRAPHY_ID = 'melvorAoD:Cartography';
 
-export function install(ctx, { state, C, storesModel: S, shipModel, rules, terrainMod, helpLayout, log }) {
+export function install(ctx, { state, C, storesModel: S, shipModel, rules, terrainMod, helpLayout, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const num = (n) => numberWithCommas(Math.floor(n));
@@ -630,7 +630,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     if (fog !== undefined) {
       // Pay as you reveal: only the known part is checked now; the fog's GP, food and fuel when each hex is reached.
       info.gp = knownGpOf(path);
-      if (info.gp > game.gp.amount) { notify(t('MOD_VOY_FOG_NO_GP', { gp: num(info.gp) }), 'danger'); return; }
+      if (info.gp > game.gp.amount) { notify(t('MOD_VOY_FOG_NO_GP', { gp: shortNumber(info.gp) }), 'danger'); return; }
     } else if ((pl !== undefined && !pl.ok && extra.loads === undefined) || info.gp > game.gp.amount) {
       // A trip the stores or the purse refuse goes the old way, so the refusal speaks as before.
       original(); return;
@@ -749,9 +749,9 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     const fogChip = fog !== undefined && fog.fog > 0 ? `<span class="voyage-travel-chip voyage-fog-chip"><i class="fa fa-cloud mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_FOG_N_FOG', { n: `${fog.fog}` }))}</span>` : '';
     // Hexes walked hungry cost 30% more GP (the flat mechanics): in the cost, and a line saying why.
     const hungryGp = fog === undefined ? info.hungryGp ?? 0 : 0;
-    const gpText = fog === undefined ? num(info.gp + hungryGp) : t('MOD_VOY_FOG_GP', { gp: num(info.gp) }); // the coin is the tile's icon, as the planner's (.309, scan A2-26)
+    const gpText = fog === undefined ? shortNumber(info.gp + hungryGp) : t('MOD_VOY_FOG_GP', { gp: shortNumber(info.gp) }); // the coin is the tile's icon, as the planner's (.309, scan A2-26)
     const fogCostNote = fog === undefined ? '' : `<div class="voyage-clock-costs text-muted">${esc(t('MOD_VOY_FOG_COST_NOTE'))}</div>`;
-    const hungryNote = hungryGp > 0 ? `<div class="voyage-clock-costs text-warning">${esc(t('MOD_VOY_CLOCK_HUNGRY_GP', { gp: num(hungryGp), hexes: hexes(info.plan?.plan?.hungry?.length ?? 0), pct: `${Math.round(S.HUNGRY_GP * 100)}` }))}</div>` : '';
+    const hungryNote = hungryGp > 0 ? `<div class="voyage-clock-costs text-warning">${esc(t('MOD_VOY_CLOCK_HUNGRY_GP', { gp: shortNumber(hungryGp), hexes: hexes(info.plan?.plan?.hungry?.length ?? 0), pct: `${Math.round(S.HUNGRY_GP * 100)}` }))}</div>` : '';
     const html = '<div class="voyage-clock-setoff text-left">'
       + (course === undefined ? '' : course.band)
       + fogTop
@@ -1352,7 +1352,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     const why = e.how === 'adrift' ? t(`MOD_VOY_ADRIFT_WHY_${e.why.toUpperCase() || 'FOOD'}`) : e.why;
     const lines = [t(key, { name: e.name, time: clockAt(e.at), hexes: hexes(e.hexes), took: duration(e.ms), why, by: e.tow === '' ? '' : t(`MOD_VOY_ADRIFT_TOW_BY_${e.tow.toUpperCase()}`) })];
     let html = `<div>${esc(lines[0])}</div>`;
-    if (e.xp > 0) html += `<div class="text-success">${esc(t('MOD_VOY_CLOCK_OFFLINE_XP', { xp: num(e.xp) }))}</div>`;
+    if (e.xp > 0) html += `<div class="text-success">${esc(t('MOD_VOY_CLOCK_OFFLINE_XP', { xp: shortNumber(e.xp) }))}</div>`;
     for (const f of e.failed) html += `<div class="text-warning">${esc(t('MOD_VOY_CLOCK_COULD_NOT', { name: f.name, why: f.why }))}</div>`;
     if (e.started !== '') html += `<div>${esc(t('MOD_VOY_CLOCK_ENDED_STARTED', { what: e.started }))}</div>`;
     return `<div class="voyage-clock-ended"><div class="voyage-clock-ended-text">${html}</div>`
