@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import * as E from '../src/encounter-model.mjs';
+import { SHOP, SHOP_GP, TRADE_KINDS, priceOf, kindsHere, buyWhy, CRAFTED, heldOf, usedItems } from '../src/deck-model.mjs';
+import { readFileSync } from 'node:fs';
 import { COPIES, GROUPS, CHARM_ITEMS, capOf, groupCards, fitDeck, deckOk, addCard, removeCard, suitCounts, sameDeck, savePreset, cleanPresets, cleanCharms, charmOwned, charmsInPlay, shipKit, trophyArt, PRESETS_MAX } from '../src/deck-model.mjs';
 
 const none = { levels: {}, owned: {} };
@@ -107,4 +109,78 @@ test("the ship's cards: a brig 2 Broadsides and a Brace, a galleon 4, small boat
   assert.deepEqual(shipKit('galleon'), { cannons: 4, hull: true });
   assert.deepEqual(shipKit('longboat'), { cannons: 0, hull: false });
   assert.deepEqual(shipKit(undefined), { cannons: 0, hull: false });
+});
+
+test('shop cards: each shop card is sold at its own kind of trade place, a copy at a time up to two', () => {
+  const shopCards = groupCards('shop', E);
+  assert.deepEqual(shopCards.slice().sort(), Object.keys(SHOP).sort(), 'every shop card has a seller, and only they');
+  const places = Object.values(SHOP).map((x) => x.at);
+  assert.equal(new Set(places).size, places.length, 'no two sold at the same kind of place');
+  for (const at of places) assert.ok(TRADE_KINDS.includes(at), at);
+  assert.equal(capOf('bribe', { owned: { bribe: 1 } }, E), 1);
+  assert.equal(capOf('bribe', { owned: { bribe: 7 } }, E), COPIES.shop, 'never past the cap');
+  // The goods are Voyage's own items.
+  const pkg = JSON.parse(readFileSync(new URL('../data/package.json', import.meta.url), 'utf8'));
+  const ids = new Set(pkg.data.items.map((it) => `voyage:${it.id}`));
+  for (const sh of Object.values(SHOP)) for (const [item] of sh.goods) assert.ok(ids.has(item), item);
+});
+
+test('a shop card\'s price grows with your grade; buying asks the place, the GP and the goods', () => {
+  assert.deepEqual(priceOf('keg', 1), { gp: SHOP_GP[1], items: [{ id: 'voyage:Crate', qty: 1 }, { id: 'voyage:Pitch', qty: 10 }] });
+  assert.deepEqual(priceOf('keg', 4).items, [{ id: 'voyage:Crate', qty: 4 }, { id: 'voyage:Pitch', qty: 40 }]);
+  assert.equal(priceOf('keg', 9).gp, SHOP_GP[5], 'grade 1 to 5');
+  for (let g = 2; g <= 5; g++) assert.ok(SHOP_GP[g] > SHOP_GP[g - 1]);
+  assert.equal(priceOf('slash', 1), undefined);
+  assert.deepEqual(kindsHere({ f: ['building', 'city'] }, [{ f: ['port'] }, { f: ['tree'] }, undefined]), ['port', 'city']);
+  assert.deepEqual(kindsHere(undefined), []);
+  const rich = { kinds: ['city'], gp: 1e9, qty: () => 1e6, grade: 1 };
+  assert.equal(buyWhy('keg', rich), '');
+  assert.equal(buyWhy('keg', { ...rich, owned: { keg: 2 } }), 'max');
+  assert.equal(buyWhy('keg', { ...rich, busy: true }), 'band');
+  assert.equal(buyWhy('keg', { ...rich, kinds: ['port'] }), 'place');
+  assert.equal(buyWhy('keg', { ...rich, gp: 9999 }), 'gp');
+  assert.equal(buyWhy('keg', { ...rich, qty: (id) => (id === 'voyage:Crate' ? 0 : 99) }), 'goods');
+  assert.equal(buyWhy('slash', rich), 'none');
+});
+
+test('crafted cards: each is a Voyage item made by its skill\'s recipe at its level; Bitter Draught in its four tiers', () => {
+  const crafted = groupCards('crafted', E);
+  assert.deepEqual(crafted.slice().sort(), Object.keys(CRAFTED).sort(), 'every crafted card has an item, and only they');
+  const pkg = JSON.parse(readFileSync(new URL('../data/package.json', import.meta.url), 'utf8'));
+  const ids = new Set(pkg.data.items.map((it) => `voyage:${it.id}`));
+  const recipes = pkg.data.skillData.flatMap((s) => (s.data.recipes ?? []).map((r) => ({ ...r, skill: s.skillID.split(':')[1] })));
+  for (const [id, c] of Object.entries(CRAFTED)) {
+    assert.ok(ids.has(c.item), c.item);
+    assert.equal(E.CARDS[id].skill, c.skill, id);
+    const r = recipes.find((x) => x.productID === c.item || x.potionIDs?.includes(c.item));
+    assert.ok(r !== undefined, `a recipe makes ${c.item}`);
+    assert.equal(r.skill, c.skill, id);
+    assert.equal(r.level, c.lvl, id);
+    // Each recipe asks for another skill's goods too, never only its own.
+    assert.ok(r.itemCosts.length >= 2, id);
+  }
+  const tiers = recipes.find((r) => r.potionIDs !== undefined).potionIDs;
+  assert.deepEqual(tiers, ['bitter', 'bitter2', 'bitter3', 'bitter4'].map((id) => CRAFTED[id].item));
+  assert.deepEqual(['bitter', 'bitter2', 'bitter3', 'bitter4'].map((id) => CRAFTED[id].mastery), [1, 20, 50, 90]);
+  assert.deepEqual(['bitter', 'bitter2', 'bitter3', 'bitter4'].map((id) => E.CARDS[id].n), [3, 4, 5, 6]);
+  // A Cooking recipe makes only its plain meal: a perfect cook is a setting a player can turn off.
+  for (const r of recipes.filter((x) => x.perfectCookID !== undefined)) assert.equal(r.perfectCookID, r.productID);
+});
+
+test('crafted cards: the bank holds the stock; a kept deck keeps its copies, a band meets what the bank holds', () => {
+  const held = (n) => ({ levels: {}, owned: {}, qty: (id) => (id === CRAFTED.hotmeal.item ? n : 0) });
+  assert.equal(heldOf('hotmeal', held(5).qty), 5);
+  assert.equal(heldOf('slash', held(5).qty), 0);
+  assert.equal(capOf('hotmeal', held(1), E), 1);
+  assert.equal(capOf('hotmeal', held(50), E), COPIES.crafted, 'never past the cap');
+  assert.equal(capOf('hotmeal', held(0), E), 0);
+  assert.equal(capOf('hotmeal', held(0), E, true), COPIES.crafted, 'the kept deck keeps its copies');
+  const deck = [...E.STARTER.slice(0, 13), 'hotmeal', 'hotmeal', 'hotmeal'];
+  assert.deepEqual(fitDeck(deck, held(1), E), [...E.STARTER.slice(0, 13), 'hotmeal'], 'a band meets one');
+  assert.equal(fitDeck(deck, held(0), E, true).length, 16);
+  assert.ok(deckOk(deck, held(2), E), '15 met with two in the bank');
+  assert.ok(!deckOk(deck, held(1), E), 'only 14 would be met');
+  assert.deepEqual(addCard(E.STARTER, 'hotmeal', held(0), E), E.STARTER, 'none to add without one in the bank');
+  assert.deepEqual(usedItems({ hotmeal: 2, slash: 4, grapeshot: 1 }, held(1).qty), [{ card: 'hotmeal', id: CRAFTED.hotmeal.item, qty: 1 }]);
+  assert.deepEqual(usedItems(undefined, held(1).qty), []);
 });

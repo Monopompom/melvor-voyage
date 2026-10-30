@@ -312,7 +312,7 @@ export function install(ctx, { state, log }) {
   // The result on the same board (the user, 30 Oct 2026: every screen of the card game keeps the board's size): a
   // banner with the outcome, the two sides as the fight left them, the reckoning beside the spoils, the buttons docked.
   const FIND_KEYS = { MOD_VOY_ENC_RES_TRICK: 'fa-magic', MOD_VOY_ENC_RES_CARD: 'fa-gem' };
-  const HARM_KEYS = { MOD_VOY_ENC_RES_BATTERED: 'fa-user-injured', MOD_VOY_ENC_RES_RUN_HULL: 'fa-ship', MOD_VOY_ENC_RES_RUN_CRATES: 'fa-box-open', MOD_VOY_ENC_RES_RUN_STORES: 'fa-utensils', MOD_VOY_ENC_RES_RUN_TIME: 'fa-hourglass-half', MOD_VOY_ENC_RES_OWED: 'fa-file-invoice-dollar' };
+  const HARM_KEYS = { MOD_VOY_ENC_RES_BATTERED: 'fa-user-injured', MOD_VOY_ENC_RES_RUN_HULL: 'fa-ship', MOD_VOY_ENC_RES_RUN_CRATES: 'fa-box-open', MOD_VOY_ENC_RES_RUN_STORES: 'fa-utensils', MOD_VOY_ENC_RES_RUN_TIME: 'fa-hourglass-half', MOD_VOY_ENC_RES_OWED: 'fa-file-invoice-dollar', MOD_VOY_ENC_RES_USED: 'fa-flask' };
   const bannerIcon = (r) => (r.done === 'pay' ? 'fa-coins' : r.done === 'run' ? 'fa-running' : r.head?.key === 'MOD_VOY_ENC_RES_PRESS_WIN' ? 'fa-crown'
     : r.tone === 'good' ? 'fa-trophy' : r.tone === 'bad' ? 'fa-heart-broken' : r.head?.key === 'MOD_VOY_ENC_RES_DRAW' ? 'fa-hourglass-end' : 'fa-flag');
   /** A spoil as a tile: an item with its count and worth, a trophy with its picture and rule, a trick or a rare card. */

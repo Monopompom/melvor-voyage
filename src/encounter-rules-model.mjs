@@ -295,7 +295,8 @@ function cleanAway(raw, BANDS) {
  * `stage` meet, fight or result, `actions` taken so far, and the stakes: toll (its rule), purse, `where` and the
  * ground or sea it was met on, `debt` what you owed that band there when it began, `away` set when it is the fold of
  * the bands met while you were away (`n` of them, their `parts`). `res`: the result shown (head, tone, lines, the purse and loot not yet banked, whether
- * Press on is open). `done`: how it ended, for the voyage it held (pay, run, fight).
+ * Press on is open). `done`: how it ended, for the voyage it held (pay, run, fight). `usedDone`: the supplies already
+ * taken from the bank ({ card: count }), so Press on takes only its own.
  */
 export function cleanFight(raw, E) {
   const { CARDS, TRICKS, BANDS, CHARMS, STARTER } = E;
@@ -329,6 +330,12 @@ export function cleanFight(raw, E) {
     purse: Number.isFinite(f.purse) && f.purse >= 0 ? Math.round(f.purse) : 0,
     ground: typeof f.ground === 'string' && /^\w{0,40}$/.test(f.ground) ? f.ground : '',
   };
+  const used = plain(f.usedDone);
+  if (used !== undefined) {
+    const u = {};
+    for (const [id, n] of Object.entries(used)) if (CARDS[id]?.src === 'crafted' && isInt(n) && n >= 1 && n <= 99) u[id] = n;
+    if (Object.keys(u).length > 0) out.usedDone = u;
+  }
   // A folded offline encounter: how many bands, and each one's part (its toll shares out what can't be paid).
   const away = plain(f.away);
   if (away !== undefined && isInt(away.n) && away.n >= 1) {

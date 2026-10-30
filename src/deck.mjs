@@ -6,8 +6,13 @@
 const GROUP_KEYS = {
   starter: ['MOD_VOY_DECK_GROUP_STARTER', 'MOD_VOY_DECK_GROUP_STARTER_NOTE'],
   milestone: ['MOD_VOY_DECK_GROUP_MILESTONE', 'MOD_VOY_DECK_GROUP_MILESTONE_NOTE'],
+  shop: ['MOD_VOY_DECK_GROUP_SHOP', 'MOD_VOY_DECK_GROUP_SHOP_NOTE'],
+  crafted: ['MOD_VOY_DECK_GROUP_CRAFTED', 'MOD_VOY_DECK_GROUP_CRAFTED_NOTE'],
   drop: ['MOD_VOY_DECK_GROUP_DROP', 'MOD_VOY_DECK_GROUP_DROP_NOTE'],
 };
+/** Where each kind of trade place sells its shop card, and why a Buy is refused. */
+const SOLD_AT_KEYS = { port: 'MOD_VOY_DECK_SHOP_AT_PORT', market: 'MOD_VOY_DECK_SHOP_AT_MARKET', city: 'MOD_VOY_DECK_SHOP_AT_CITY', capital: 'MOD_VOY_DECK_SHOP_AT_CAPITAL' };
+const BUY_WHY_KEYS = { place: 'MOD_VOY_DECK_SHOP_WHY_PLACE', gp: 'MOD_VOY_DECK_SHOP_WHY_GP', goods: 'MOD_VOY_DECK_SHOP_WHY_GOODS', band: 'MOD_VOY_DECK_SHOP_WHY_BAND', max: 'MOD_VOY_DECK_SHOP_WHY_MAX', none: 'MOD_VOY_DECK_SHOP_WHY_PLACE' };
 const SUIT_ICON = { steel: 'fa-khanda', powder: 'fa-bomb', coin: 'fa-coins', wits: 'fa-chess-knight' };
 
 export function install(ctx, { state, F, log }) {
@@ -34,6 +39,13 @@ export function install(ctx, { state, F, log }) {
   const button = (act, label, { cls = 'btn-info', disabled = false, title, data = '' } = {}) =>
     `<button type="button" class="btn btn-sm ${cls}" data-voyage-deck="${act}"${data}${disabled ? ' disabled' : ''}${title ? ` title="${esc(title)}"` : ''}>${label}</button>`;
 
+  /** The crafted cards the deck keeps but the bank can't fill now, and the deck a band meets instead ('' for none). */
+  const supplyCount = (id, n) => t('MOD_VOY_ENC_SUPPLY_COUNT', { name: t(api().E.cardKey(id)), n: `${n}` });
+  const shortLine = () => {
+    const short = api().shortSupplies();
+    if (short.length === 0) return '';
+    return `<div class="text-warning mt-2">${fa('fa-box-open mr-1')}${esc(t('MOD_VOY_DECK_SHORT', { what: short.map((x) => supplyCount(x.id, x.short)).join(', '), n: `${api().deckNow().length}` }))}</div>`;
+  };
   const deckPart = (e, locked) => {
     const { E, D } = api();
     const sea = api().shipNow();
@@ -44,6 +56,7 @@ export function install(ctx, { state, F, log }) {
       + `<span class="voyage-deck-suits">${suitChips(e.deck)}</span>`
       + `<span class="ml-auto voyage-deck-build">${button('build', `${fa('fa-layer-group mr-1')}${esc(t('MOD_VOY_DECK_BUILD'))}`, { cls: 'btn-primary', disabled: locked })}</span></div>`
       + (locked ? `<div class="text-warning mt-2">${fa('fa-lock mr-1')}${esc(t('MOD_VOY_DECK_LOCKED'))}</div>` : '')
+      + shortLine()
       + `<small class="d-block text-muted mt-2">${esc(t('MOD_VOY_DECK_RANGE', { min: `${E.DECK_MIN}`, max: `${E.DECK_MAX}` }))} ${esc(shipLine)}</small>`);
   };
 
@@ -134,8 +147,9 @@ export function install(ctx, { state, F, log }) {
     const { E, D } = api();
     const e = api().enc();
     if (api().kitLocked()) return refuseLocked();
-    const fit = D.fitDeck(deck, api().have(), E);
-    if (fit.length < E.DECK_MIN) { say(t('MOD_VOY_DECK_EQUIP_SHORT', { n: `${fit.length}`, min: `${E.DECK_MIN}` }), true); return false; }
+    const fit = D.fitDeck(deck, api().have(), E, true);
+    const met = D.fitDeck(fit, api().have(), E).length;
+    if (met < E.DECK_MIN) { say(t('MOD_VOY_DECK_EQUIP_SHORT', { n: `${met}`, min: `${E.DECK_MIN}` }), true); return false; }
     e.deck = fit;
     return true;
   };
@@ -188,11 +202,57 @@ export function install(ctx, { state, F, log }) {
 
   // ---- the deck builder ------------------------------------------------------------------------------------------
   let draft = null;
+  /**
+   * Under a shop card: how many are yours, where it is sold, its price at your grade (GP and goods with their icons,
+   * the names in the tooltip) and Buy. A refused Buy keeps why as its tooltip (aria-disabled, so the tooltip shows).
+   */
+  const buyPart = (id) => {
+    const a = api();
+    const { D } = a;
+    const owned = a.enc()?.owned?.[id] ?? 0;
+    const mine = `<small class="voyage-deck-pick-lock">${esc(t('MOD_VOY_DECK_SHOP_OWNED', { n: `${owned}`, max: `${D.COPIES.shop}` }))}</small>`;
+    if (owned >= D.COPIES.shop) return mine;
+    const price = D.priceOf(id, a.grade());
+    const goods = price.items.map((x) => ({ ...x, item: itemOf(x.id) }));
+    const words = [t('MOD_VOY_ENC_GP', { gp: a.text(price.gp) }), ...goods.map((x) => `${a.text(x.qty)} ${x.item?.name ?? x.id}`)].join(', ');
+    const icons = `<span class="voyage-enc-num"><img class="voyage-enc-gp" src="${esc(game.gp.media)}" alt="">${esc(a.text(price.gp))}</span>`
+      + goods.map((x) => `<span class="voyage-enc-num">${x.item?.media ? `<img class="voyage-enc-gp" src="${esc(x.item.media)}" alt="">` : ''}${esc(a.text(x.qty))}</span>`).join('');
+    const why = a.buyWhy(id);
+    const tip = why === '' ? t('MOD_VOY_DECK_SHOP_BUY_TIP', { price: words }) : t(BUY_WHY_KEYS[why] ?? 'MOD_VOY_DECK_SHOP_WHY_PLACE', { price: words });
+    return `${mine}<div class="voyage-deck-buy" title="${esc(words)}">${icons}</div>`
+      + `<small class="text-muted">${esc(t(SOLD_AT_KEYS[D.SHOP[id].at]))}</small>`
+      + `<button type="button" class="btn btn-sm ${why === '' ? 'btn-warning' : 'btn-outline-secondary'} voyage-deck-buy-btn" data-act="buy" data-id="${id}"${why === '' ? '' : ' aria-disabled="true"'} title="${esc(tip)}">${fa('fa-coins mr-1')}${esc(t('MOD_VOY_DECK_SHOP_BUY'))}</button>`;
+  };
+  /**
+   * Under a crafted card, one chip: how many the bank holds (the item's picture), the skill and level that make it (the
+   * skill's icon) and, for a Herblore tier past the first, the recipe's mastery it needs (the game's mastery icon). Each
+   * part says what it means in its tooltip.
+   */
+  const craftPart = (id) => {
+    const { D } = api();
+    const c = D.CRAFTED[id];
+    const held = D.heldOf(id, api().bankQty);
+    const skill = (() => { try { return game.skills.allObjects.find((s) => s.localID === c.skill); } catch { return undefined; } })();
+    const name = skill?.name ?? c.skill;
+    const part = (media, n, tip) => `<span class="voyage-deck-recipe-part" title="${esc(tip)}" aria-label="${esc(tip)}">`
+      + `${media ? `<img src="${esc(media)}" alt="">` : ''}<span class="voyage-enc-num">${esc(n)}</span></span>`;
+    let mastery = '';
+    if (c.mastery > 1) {
+      let media = '';
+      try { media = assets.getURI('assets/media/main/mastery_header.png'); } catch {}
+      mastery = part(media, `${c.mastery}`, t('MOD_VOY_DECK_CRAFT_MASTERY_TIP', { skill: name, n: `${c.mastery}` }));
+    }
+    return `<span class="voyage-deck-recipe">`
+      + part(itemOf(c.item)?.media, api().text(held), t('MOD_VOY_DECK_CRAFT_HELD_TIP', { n: api().text(held) }))
+      + part(skill?.media, `${c.lvl}`, t('MOD_VOY_DECK_CRAFT_SKILL_TIP', { skill: name, lvl: `${c.lvl}` }))
+      + mastery + '</span>';
+  };
   const builderHtml = () => {
     const { E, D } = api();
     const have = api().have();
     const n = draft.length;
     const ok = D.deckOk(draft, have, E);
+    const met = D.fitDeck(draft, have, E).length;
     const groups = D.GROUPS.map((src) => {
       const [title, note] = GROUP_KEYS[src];
       const ids = D.groupCards(src, E);
@@ -202,18 +262,20 @@ export function install(ctx, { state, F, log }) {
         const k = draft.filter((x) => x === id).length;
         const name = t(E.cardKey(id));
         const lockLine = cap === 0 && c.src === 'milestone' ? `<small class="voyage-deck-pick-lock">${fa('fa-lock mr-1')}${esc(skillName(c.skill))} ${c.lvl}</small>` : '';
+        const shopLine = c.src === 'shop' ? buyPart(id) : c.src === 'crafted' ? craftPart(id) : '';
         return `<div class="voyage-deck-pick${cap === 0 && k === 0 ? ' voyage-deck-pick-off' : ''}">${F.cardFace(api(), id)}${lockLine}`
           + `<div class="voyage-deck-stepper"><button type="button" class="btn btn-sm btn-outline-secondary" data-act="dec" data-id="${id}"${k > 0 ? '' : ' disabled'} aria-label="${esc(t('MOD_VOY_DECK_ONE_FEWER', { name }))}">−</button>`
-          + `<span class="voyage-enc-num">${k} / ${cap}</span>`
-          + `<button type="button" class="btn btn-sm btn-outline-secondary" data-act="inc" data-id="${id}"${k < cap && n < E.DECK_MAX ? '' : ' disabled'} aria-label="${esc(t('MOD_VOY_DECK_ONE_MORE', { name }))}">+</button></div></div>`;
+          + `<span class="voyage-enc-num${k > cap ? ' text-warning' : ''}">${k} / ${cap}</span>`
+          + `<button type="button" class="btn btn-sm btn-outline-secondary" data-act="inc" data-id="${id}"${k < cap && n < E.DECK_MAX ? '' : ' disabled'} aria-label="${esc(t('MOD_VOY_DECK_ONE_MORE', { name }))}">+</button></div>${shopLine}</div>`;
       }).join('');
       return `<div class="voyage-deck-group"><div class="voyage-big-head">${esc(t(title))}</div><small class="d-block text-muted mb-2">${esc(t(note))}</small><div class="voyage-deck-grid">${cells}</div></div>`;
     }).join('');
     const ship = `<div class="voyage-deck-group"><div class="voyage-big-head">${esc(t('MOD_VOY_DECK_GROUP_SHIP'))}</div><small class="d-block text-muted mb-2">${esc(t('MOD_VOY_DECK_GROUP_SHIP_NOTE'))}</small>`
       + `<div class="voyage-deck-grid">${['broadside', 'brace'].map((id) => `<div class="voyage-deck-pick">${F.cardFace(api(), id)}</div>`).join('')}</div></div>`;
-    const bad = n < E.DECK_MIN || n > E.DECK_MAX;
+    const bad = met < E.DECK_MIN || n > E.DECK_MAX;
     return `<div class="voyage-enc-head"><span class="voyage-enc-title">${esc(t('MOD_VOY_DECK_B_TITLE'))}</span>`
       + `<span class="voyage-enc-chip ${bad ? 'voyage-deck-count-bad' : 'voyage-deck-count-ok'}">${esc(t('MOD_VOY_DECK_CARDS', { n: `${n}` }))}</span>`
+      + (met < n ? `<span class="voyage-enc-chip text-warning">${esc(t('MOD_VOY_DECK_SHORT_CHIP', { n: `${n - met}` }))}</span>` : '')
       + `<span class="voyage-deck-suits">${suitChips(draft)}</span>`
       + `<small class="text-muted">${esc(t('MOD_VOY_DECK_RANGE', { min: `${E.DECK_MIN}`, max: `${E.DECK_MAX}` }))}</small></div>`
       + `<div class="voyage-enc-body">${groups}${ship}</div>`
@@ -239,6 +301,14 @@ export function install(ctx, { state, F, log }) {
     if (a === 'inc') draft = D.addCard(draft, b.dataset.id, api().have(), E);
     else if (a === 'dec') draft = D.removeCard(draft, b.dataset.id);
     else if (a === 'reset') draft = E.STARTER.slice();
+    // A copy bought goes into the draft at once (if it has room).
+    else if (a === 'buy') {
+      if (b.getAttribute('aria-disabled') === 'true' || !api().buyCard(b.dataset.id)) return;
+      const was = draft.length;
+      draft = D.addCard(draft, b.dataset.id, api().have(), E);
+      // A full deck keeps the copy out: say so, or the bought card seems lost.
+      if (draft.length === was) api().notify(t('MOD_VOY_DECK_SHOP_FULL', { max: `${E.DECK_MAX}` }));
+    }
     else if (a === 'cancel') { draft = null; Swal.close(); return; }
     else if (a === 'equip') {
       if (D.deckOk(draft, api().have(), E) && equipDeck(draft)) { draft = null; Swal.close(); changed(); }
@@ -262,6 +332,8 @@ export function install(ctx, { state, F, log }) {
         if (el === null) return;
         el.addEventListener('click', (ev) => { try { onBuilder(ev); } catch (err) { log('deck builder failed', err); } });
         drawBuilder();
+        // The game's tooltips, not the browser's title boxes, on every redraw.
+        try { state.tips?.watch(el); } catch (e) { log('deck builder tooltips failed', e); }
       },
     }).then(() => { draft = null; }, () => { draft = null; });
   };

@@ -118,8 +118,53 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
       return game.combat.player.equipmentSets.some((set) => set.equipment.checkForItem(it));
     } catch { return false; }
   };
-  /** What decides which cards and charms are yours now. */
-  const have = () => ({ levels: levels(), owned: enc()?.owned ?? {}, trophies: enc()?.trophies ?? {}, ownsItem });
+  /** How many of a game item the bank holds. */
+  const bankQty = (id) => { try { const it = game.items.getObjectByID(id); return it === undefined ? 0 : game.bank.getQty(it); } catch { return 0; } };
+  // Cooking's perfect cook is a setting a player can turn off, so the Hot Meal's perfect cook is the Hot Meal itself (the
+  // game wants one). Left alone, its Cooking menu would count each meal twice and the bank would offer the meal as a
+  // downgrade of itself.
+  const HOT_MEAL = 'voyage:Hot_Meal';
+  try {
+    ctx.patch(CookingMenuElement, 'updateQuantities').after(function (_r, recipe, g) {
+      if (recipe?.product?.id !== HOT_MEAL || recipe.perfectItem !== recipe.product) return;
+      const q = g.bank.getQty(recipe.product);
+      this.productQty = q;
+      this.productCount.textContent = formatNumber(q);
+      this.productTooltip?.setContent?.(this.getOwnedTooltipContent(q, 0));
+    });
+  } catch (e) { log('encounters: the Cooking count patch failed', e); }
+  // Cooking makes the downgrade in its postDataRegistration, after the mods' setup; the bank draws its badge when a save
+  // loads, so it goes right after Cooking makes it.
+  const dropSelfDowngrade = () => {
+    try {
+      const it = game.items.getObjectByID(HOT_MEAL);
+      const ups = it === undefined ? undefined : game.bank.itemUpgrades.get(it);
+      if (ups === undefined) return;
+      const keep = ups.filter((u) => !(u.isDowngrade && u.upgradedItem === it));
+      if (keep.length > 0) game.bank.itemUpgrades.set(it, keep); else game.bank.itemUpgrades.delete(it);
+    } catch (e) { log('encounters: the Hot Meal downgrade not removed', e); }
+  };
+  try { ctx.patch(Cooking, 'postDataRegistration').after(dropSelfDowngrade); } catch (e) { log('encounters: the Cooking data patch failed', e); }
+  /** What decides which cards and charms are yours now (crafted cards: what the bank holds). */
+  const have = () => ({ levels: levels(), owned: enc()?.owned ?? {}, trophies: enc()?.trophies ?? {}, ownsItem, qty: bankQty });
+  /**
+   * The deck a band meets: the one you carry, each card to what you hold now. The kept deck stays as you built it, so
+   * crafted cards used up come back into it once the bank holds them again.
+   */
+  const deckNow = () => D.fitDeck(enc()?.deck ?? E.STARTER, have(), E);
+  /** The crafted cards the kept deck names but the bank can't fill now: [{ id, short }]. */
+  const shortSupplies = () => {
+    const e = enc();
+    if (e === undefined) return [];
+    const fit = deckNow();
+    const out = [];
+    for (const id of new Set(e.deck)) {
+      if (!E.SUPPLY(id)) continue;
+      const short = e.deck.filter((x) => x === id).length - fit.filter((x) => x === id).length;
+      if (short > 0) out.push({ id, short });
+    }
+    return out;
+  };
   const charmsNow = () => D.charmsInPlay(enc()?.charms ?? [], have(), E);
   /** The big ship's cards at sea (none without one). */
   const shipNow = () => { try { return D.shipKit(state.ship?.big?.()?.hull); } catch { return D.shipKit(undefined); } };
@@ -131,10 +176,11 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
   const kitOpt = (where, tier) => {
     const e = enc();
     const ship = where === 'sea' ? shipNow() : D.shipKit(undefined);
-    return { tier, where, deck: (e?.deck ?? E.STARTER).slice(), cannons: ship.cannons, hull: ship.hull, charms: charmsNow(), tilt: tilt(), gp: 50000, toll: 0 };
+    return { tier, where, deck: e === undefined ? E.STARTER.slice() : deckNow(), cannons: ship.cannons, hull: ship.hull, charms: charmsNow(), tilt: tilt(), gp: 50000, toll: 0 };
   };
-  // The ship counts in the key on land too, so one key covers both grounds (a new hull measures again).
-  const cacheKey = (opt) => `${R.calKey(opt)}|${JSON.stringify(shipNow())}`;
+  // The ship counts in the key on land too, so one key covers both grounds (a new hull measures again). Supplies don't
+  // count (the measure leaves them out), so using one up measures nothing again.
+  const cacheKey = (opt) => `${R.calKey({ ...opt, deck: opt.deck.filter((id) => !E.SUPPLY(id)) })}|${JSON.stringify(shipNow())}`;
   // Quick values for a ground and tier not measured in full yet (kept in memory, never saved).
   const quick = new Map();
   /** The strength a band of this ground and tier has against your kit: the saved measure, else a quick one. */
@@ -373,12 +419,29 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
   const rareNext = (k) => { nextRare = k; };
   /** Your Resolve and their Nerve as the fight ended, for the result's bars (an auto-resolved fight has no actions to replay). */
   const endOf = (s) => ({ you: [Math.max(0, s.you.resolve), s.you.max], band: [Math.max(0, s.band.nerve), s.band.max], captain: s.phase === 'press' });
+  /**
+   * The crafted cards played and not yet taken from the bank are taken now (each no more than it holds), with a line
+   * naming them. `f.usedDone` keeps what was taken, so Press on takes only its own.
+   */
+  const useUp = (s, lines) => {
+    const f = enc().fight;
+    const done = f.usedDone ?? {};
+    const fresh = {};
+    for (const [id, n] of Object.entries(s.used ?? {})) if (n > (done[id] ?? 0)) fresh[id] = n - (done[id] ?? 0);
+    const taken = D.usedItems(fresh, bankQty);
+    for (const x of taken) {
+      try { game.bank.removeItemQuantity(game.items.getObjectByID(x.id), x.qty, true); } catch (err) { log(`encounters: ${x.id} not used up`, err); }
+    }
+    f.usedDone = { ...(s.used ?? {}) };
+    if (taken.length > 0) lines.push(k('MOD_VOY_ENC_RES_USED', { what: taken.map((x) => t('MOD_VOY_ENC_SUPPLY_COUNT', { name: t(E.cardKey(x.card)), n: `${x.qty}` })).join(', ') }));
+  };
   /** The fight ended: the result, GP settled at once, the purse and loot waiting for Take or Press on. */
   const over = (s, auto = false) => {
     const e = enc();
     const f = e.fight;
     if (s.over === 'presswin' || s.over === 'presslose') { pressed(s); return; }
     const lines = [];
+    useUp(s, lines);
     const st = R.settle(s, { toll: f.opt.toll, purse: f.purse, gp: f.opt.gp });
     if (s.spent > 0) lines.push(k('MOD_VOY_ENC_RES_SPENT', {}, -s.spent));
     const keeps = E.BANDS[f.opt.band].keepGrabs === true;
@@ -416,6 +479,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     const f = enc().fight;
     const r = f.res;
     for (const id of s.found) if (!r.lines.some((l) => l.key === 'MOD_VOY_ENC_RES_TRICK' && l.vars.name === E.trickKey(id))) r.lines.push(trickLine(id));
+    useUp(s, r.lines);
     f.stage = 'result';
     r.end = endOf(s);
     if (s.over === 'presswin') {
@@ -561,6 +625,33 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     log(`encounters: paid ${r.paid} GP of debts, ${left} left`);
     redraw();
     return r.paid;
+  };
+
+  // ---- shop cards ----------------------------------------------------------------------------------------------------
+  /** The kinds of trade place in reach (port, market, city, capital), as trade itself reaches them; all with trade unlocked. */
+  const kindsNow = () => {
+    try {
+      if (state.settings?.trade?.() === false) return D.TRADE_KINDS.slice();
+      const rec = state.recordAt?.(state.position?.());
+      return D.kindsHere(rec, rec === undefined ? [] : state.knownNeighbours?.(rec) ?? []);
+    } catch { return []; }
+  };
+  /** Why a copy of a shop card can't be bought here and now, or '' (deck-model buyWhy). */
+  const buyWhy = (id) => D.buyWhy(id, { owned: enc()?.owned ?? {}, kinds: kindsNow(), gp: gpNow(), qty: bankQty, grade: grade(), busy: enc()?.fight != null });
+  /** Buys one copy of a shop card: its GP and goods at your grade, the copy yours for good. */
+  const buyCard = (id) => {
+    const e = enc();
+    if (e === undefined || buyWhy(id) !== '') return false;
+    const price = D.priceOf(id, grade());
+    gpBy(-price.gp);
+    for (const x of price.items) {
+      try { game.bank.removeItemQuantity(game.items.getObjectByID(x.id), x.qty, true); } catch (err) { log(`encounters: ${x.id} not taken`, err); }
+    }
+    e.owned[id] = Math.min(D.COPIES.shop, (e.owned[id] ?? 0) + 1);
+    notify(t('MOD_VOY_DECK_SHOP_BOUGHT', { name: t(E.cardKey(id)), n: `${e.owned[id]}`, max: `${D.COPIES.shop}` }));
+    log(`encounters: bought ${id} (${e.owned[id]} of ${D.COPIES.shop}) for ${price.gp} GP and ${price.items.map((x) => `${x.qty} ${x.id}`).join(', ')}`);
+    redraw();
+    return true;
   };
 
   // ---- Battered and its cures ----------------------------------------------------------------------------------------
@@ -720,7 +811,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
 
   const api = {
     text, line, levels, tilt, grade, has, sim, sample, E, R, L,
-    debts, debtTotal, payOffWhy, payOff, debtName, awayNow, oweNow,
+    debts, debtTotal, payOffWhy, payOff, debtName, awayNow, oweNow, kindsNow, buyWhy, buyCard, bankQty, deckNow, shortSupplies,
     /** The offline summary's line: how many bands wait on your return ('' for none). */
     awayNote: () => { const n = enc()?.away?.length ?? 0; return n === 0 ? '' : t(n === 1 ? 'MOD_VOY_ENC_AWAY_NOTE_ONE' : 'MOD_VOY_ENC_AWAY_NOTE', { n: `${n}` }); },
     enc, fight, ui, placeOf, roll, moved, act, autoRound, startFight, pay, run, autoResolve, take, pressOn, close,

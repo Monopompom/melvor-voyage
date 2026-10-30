@@ -1511,7 +1511,13 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-enc-trick-strip.voyage-enc-new { background: var(--voyage-wits-tint); }
 /* the hand */
 .voyage-enc-hand { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 14px 4px 6px; }
-@media (max-width: 560px) { .voyage-enc-hand { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; padding-bottom: 10px; scroll-snap-type: x proximity; } .voyage-enc-hand > * { scroll-snap-align: start; } }
+/* Phones and tablets (any touch screen, or up to 1024 px): one row you swipe, so the hand never pushes End round down.
+   The first and last card's auto margins keep a hand that fits centred; one that doesn't scrolls from its first card. */
+@media (max-width: 1024px), (pointer: coarse) {
+  .voyage-enc-hand { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; padding-bottom: 10px; scroll-snap-type: x proximity; }
+  .voyage-enc-hand > * { scroll-snap-align: start; flex: none; }
+  .voyage-enc-hand > :first-child { margin-left: auto; } .voyage-enc-hand > :last-child { margin-right: auto; }
+}
 .voyage-enc-card-btn { all: unset; position: relative; cursor: pointer; border-radius: 8px; transition: transform .12s ease; flex: none; }
 .voyage-enc-card-btn:hover:not([aria-disabled="true"]) { transform: translateY(-4px); }
 .voyage-enc-card-btn:focus-visible { outline: 2px solid var(--voyage-help); outline-offset: 3px; }
@@ -1570,6 +1576,11 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-enc-tag-rare { color: var(--voyage-wits); border-color: currentColor; }
 .voyage-enc-tilt-up { color: var(--voyage-ok); font-weight: 700; } .voyage-enc-tilt-dn { color: var(--voyage-hot); font-weight: 700; }
 .voyage-enc-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: .6rem 1rem; border-top: 1px solid var(--voyage-rule); border-bottom: 1px solid var(--voyage-rule); background: var(--voyage-band); }
+/* Where the hand runs past the popup's height (a phone, a tablet), End round would sit below it: the row stays on the
+   popup's bottom edge, on the popup's own colour so the cards don't show through. Where all fits, sticky does nothing. */
+.voyage-enc-popup .swal2-html-container, .voyage-enc-popup .voyage-enc { background-color: inherit; }
+.voyage-enc-actions { position: sticky; bottom: 0; z-index: 2; background-color: inherit;
+  background-image: linear-gradient(var(--voyage-band), var(--voyage-band)); }
 .voyage-enc-piles { margin-left: auto; color: var(--voyage-label); font-size: .82rem; display: flex; gap: 10px; }
 .voyage-enc-logwrap { padding-top: .5rem; }
 .voyage-enc-log { max-height: 190px; overflow: auto; font-size: .82rem; }
@@ -1622,7 +1633,8 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-enc-banner-head { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
 .voyage-enc-banner .voyage-enc-chip { margin-top: 6px; color: var(--voyage-label); }
 /* the spoils as tiles: the picture with its count, the name and worth; a trophy across the row */
-.voyage-enc-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr)); gap: 8px; align-content: start; }
+/* auto-fit: a lone tile (most wins) spans the row instead of leaving an empty column beside it. */
+.voyage-enc-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: 8px; align-content: start; }
 .voyage-enc-tile { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 10px; border-radius: 6px; background: var(--voyage-tile); border: 1px solid var(--voyage-rule); font-size: .88rem; }
 .voyage-enc-tile-pic { position: relative; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border-radius: 6px; background: var(--voyage-well); }
 .voyage-enc-tile-img { width: 40px; height: 40px; object-fit: contain; }
@@ -1696,6 +1708,8 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-deck-group + .voyage-deck-group { margin-top: 1rem; }
 .voyage-deck-grid { display: flex; flex-wrap: wrap; gap: 12px; }
 .voyage-deck-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+/* On a phone two cards a row, not one: 2 × 150 px missed the popup's grid by a few pixels. */
+@media (max-width: 560px) { .voyage-deck-grid { gap: 8px; justify-content: center; } .voyage-deck-pick { zoom: .88; } }
 /* A card not yours yet: a dashed edge on a soft hatch, so it stands apart from the page; its face dimmed (.458, the user). */
 .voyage-deck-pick-off .voyage-enc-card { border-style: dashed; border-color: var(--voyage-label);
   background: repeating-linear-gradient(-45deg, var(--voyage-card) 0 7px, color-mix(in srgb, var(--voyage-label) 12%, var(--voyage-card)) 7px 14px); }
@@ -1710,5 +1724,15 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 }
 .voyage-deck-cancel { margin-left: auto; } /* red as the game's own Cancel, on the right (the user) */
 .voyage-deck-stepper .btn { min-width: 2rem; }
+/* A shop card's price (GP and goods, each with its icon) and its Buy, under the stepper. */
+.voyage-deck-buy { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 8px; font-size: .8rem; }
+.voyage-deck-buy-btn { width: 150px; }
+/* A crafted card's chip: the bank's count, the skill's level, a tier's mastery; each part explained by its tooltip. */
+.voyage-deck-recipe { display: inline-flex; align-items: center; max-width: 150px; padding: 1px 2px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--voyage-label) 45%, transparent); font-size: .8rem; }
+.voyage-deck-recipe-part { display: inline-flex; align-items: center; gap: 3px; padding: 0 6px; cursor: help; }
+.voyage-deck-recipe-part + .voyage-deck-recipe-part { border-left: 1px solid color-mix(in srgb, var(--voyage-label) 45%, transparent); }
+.voyage-deck-recipe-part img { width: 16px; height: 16px; }
+.voyage-deck-buy-btn[aria-disabled="true"] { cursor: not-allowed; opacity: .65; }
 .voyage-deck-count-ok { color: var(--voyage-good); border-color: currentColor; }
 .voyage-deck-count-bad { color: var(--voyage-hot); border-color: currentColor; }

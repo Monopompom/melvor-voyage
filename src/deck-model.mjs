@@ -2,13 +2,86 @@
 // charm slots, the ship's cards at sea. Pure: no game globals. The encounter model comes in as `E` (game modules can't
 // import each other).
 
-/** Copies a deck may hold of a card, by where it comes from; dropped cards up to what you own. */
-export const COPIES = { starter: 3, milestone: 2 };
+/**
+ * Copies a deck may hold of a card, by where it comes from; shop and dropped cards up to what you own, crafted cards up
+ * to what the bank holds.
+ */
+export const COPIES = { starter: 3, milestone: 2, shop: 2, crafted: 3 };
 export const PRESETS_MAX = 5;
 export const PRESET_NAME_MAX = 30;
 export const CHARM_SLOTS = 3;
-/** The card groups of the deck builder, in order (shop and crafted cards come with the harbour boards and recipes). */
-export const GROUPS = ['starter', 'milestone', 'drop'];
+/** The card groups of the deck builder, in order. */
+export const GROUPS = ['starter', 'milestone', 'shop', 'crafted', 'drop'];
+
+/**
+ * Shop cards: bought one copy at a time in the deck builder, up to COPIES.shop, each at its own kind of trade place
+ * (`at`, a trade feature of the hex you stand on or a known neighbour, as trade itself works). The price grows with
+ * your grade g (1 to 5, as the loot's): SHOP_GP[g] GP and each of `goods` × g. [BALANCE]
+ */
+export const SHOP = {
+  hardport: { at: 'port', goods: [['voyage:Pitch', 10]] },
+  hook: { at: 'market', goods: [['voyage:Sack', 1], ['voyage:Pitch', 5]] },
+  keg: { at: 'city', goods: [['voyage:Crate', 1], ['voyage:Pitch', 10]] },
+  bribe: { at: 'capital', goods: [['voyage:Sack', 2]] },
+};
+export const SHOP_GP = [0, 10000, 50000, 250000, 1000000, 5000000];
+/**
+ * Crafted cards: Voyage items made by a skill's own recipe (`skill` at `lvl`). The bank's count is the stock: a deck
+ * holds up to COPIES.crafted of what the bank holds, and a copy played is used up. Bitter Draught comes in Herblore's
+ * four tiers (the recipe's mastery picks the tier: `mastery`). Cooking's perfect cook is a setting a player can turn
+ * off, so a perfect Hot Meal is the plain one.
+ */
+export const CRAFTED = {
+  grapeshot: { item: 'voyage:Grapeshot', skill: 'Smithing', lvl: 35 },
+  smokepot: { item: 'voyage:Smoke_Pot', skill: 'Crafting', lvl: 40 },
+  hotmeal: { item: 'voyage:Hot_Meal', skill: 'Cooking', lvl: 45 },
+  bitter: { item: 'voyage:Bitter_Draught_I', skill: 'Herblore', lvl: 30, mastery: 1 },
+  bitter2: { item: 'voyage:Bitter_Draught_II', skill: 'Herblore', lvl: 30, mastery: 20 },
+  bitter3: { item: 'voyage:Bitter_Draught_III', skill: 'Herblore', lvl: 30, mastery: 50 },
+  bitter4: { item: 'voyage:Bitter_Draught_IV', skill: 'Herblore', lvl: 30, mastery: 90 },
+};
+/** How many copies of a crafted card the bank holds (`qty(itemId)`); 0 for any other card. */
+export const heldOf = (id, qty = () => 0) => (CRAFTED[id] === undefined ? 0 : Math.max(0, Math.floor(Number(qty(CRAFTED[id].item)) || 0)));
+/** The supplies a fight used ({ card: count }) as the items to take from the bank, each no more than it holds. */
+export function usedItems(used, qty = () => 0) {
+  const out = [];
+  for (const [id, n] of Object.entries(used ?? {})) {
+    const k = Math.min(Math.max(0, Math.floor(n)), heldOf(id, qty));
+    if (CRAFTED[id] !== undefined && k > 0) out.push({ card: id, id: CRAFTED[id].item, qty: k });
+  }
+  return out;
+}
+
+/** The trade places' kinds, as the map's features name them. */
+export const TRADE_KINDS = ['port', 'market', 'city', 'capital'];
+const gradeIn = (g) => Math.min(5, Math.max(1, Number.isInteger(g) ? g : 1));
+/** A shop card's price at your grade: `{ gp, items: [{ id, qty }] }`, undefined for a card not sold. */
+export function priceOf(id, grade) {
+  const sh = SHOP[id];
+  if (sh === undefined) return undefined;
+  const g = gradeIn(grade);
+  return { gp: SHOP_GP[g], items: sh.goods.map(([item, q]) => ({ id: item, qty: q * g })) };
+}
+/** The kinds of trade place in reach: the hex's own and its known neighbours' (records with `f`, the features). */
+export function kindsHere(rec, neighbours = []) {
+  const out = new Set();
+  for (const r of [rec, ...neighbours]) for (const f of Array.isArray(r?.f) ? r.f : []) if (TRADE_KINDS.includes(f)) out.add(f);
+  return TRADE_KINDS.filter((k) => out.has(k));
+}
+/**
+ * Why a copy of a shop card can't be bought now, or '' when it can: 'none' (not sold), 'max' (you hold the most a deck
+ * may carry), 'band' (a band waits), 'place' (not sold here), 'gp', 'goods'. `qty(itemId)`: what the bank holds.
+ */
+export function buyWhy(id, { owned = {}, kinds = [], gp = 0, qty = () => 0, grade = 1, busy = false } = {}) {
+  if (SHOP[id] === undefined) return 'none';
+  if ((owned[id] ?? 0) >= COPIES.shop) return 'max';
+  if (busy) return 'band';
+  if (!kinds.includes(SHOP[id].at)) return 'place';
+  const price = priceOf(id, grade);
+  if (!(gp >= price.gp)) return 'gp';
+  if (price.items.some((x) => !(qty(x.id) >= x.qty))) return 'goods';
+  return '';
+}
 
 /**
  * The game items that make a charm yours: owned (in the bank or worn), not necessarily worn. Ancient Relics' items are
@@ -29,11 +102,17 @@ export const trophyArt = (id, E) => (E.CHARMS[id]?.trophy !== undefined ? `asset
 /** Whether a milestone card is yours: its skill at its level (`levels`: skill local id to level). */
 export const unlocked = (c, levels) => c?.src !== 'milestone' || (levels[c.skill] ?? 0) >= c.lvl;
 
-/** How many copies of a card a deck may hold now. `owned`: dropped cards { id: count }. */
-export function capOf(id, { levels = {}, owned = {} }, E) {
+/**
+ * How many copies of a card a deck may hold now. `owned`: dropped and shop cards { id: count }; `qty`: the bank's.
+ * `keep`: the deck you keep, whose crafted cards may stay past what the bank holds (up to COPIES.crafted), so they come
+ * back into play once you craft more; a fight takes only what the bank holds.
+ */
+export function capOf(id, { levels = {}, owned = {}, qty }, E, keep = false) {
   const c = E.CARDS[id];
   if (c === undefined || !GROUPS.includes(c.src)) return 0;
   if (c.src === 'drop') return Math.max(0, Math.floor(owned[id] ?? 0));
+  if (c.src === 'shop') return Math.min(COPIES.shop, Math.max(0, Math.floor(owned[id] ?? 0)));
+  if (c.src === 'crafted') return keep ? COPIES.crafted : Math.min(COPIES.crafted, heldOf(id, qty));
   return unlocked(c, levels) ? COPIES[c.src] : 0;
 }
 
@@ -46,20 +125,23 @@ export function groupCards(src, E) {
 
 const countOf = (deck, id) => deck.reduce((n, x) => n + (x === id ? 1 : 0), 0);
 
-/** A deck cut to what you may carry now: each card to its cap, in the order given. */
-export function fitDeck(deck, have, E) {
+/** A deck cut to what you may carry now: each card to its cap, in the order given (`keep`: as capOf). */
+export function fitDeck(deck, have, E, keep = false) {
   const left = {};
   const out = [];
   for (const id of Array.isArray(deck) ? deck : []) {
-    if (left[id] === undefined) left[id] = capOf(id, have, E);
+    if (left[id] === undefined) left[id] = capOf(id, have, E, keep);
     if (left[id] > 0) { out.push(id); left[id] -= 1; }
   }
   return out;
 }
 
-/** Whether a deck can be carried: 15 to 25 cards, none past its cap. */
-export const deckOk = (deck, have, E) => Array.isArray(deck) && deck.length >= E.DECK_MIN && deck.length <= E.DECK_MAX
-  && fitDeck(deck, have, E).length === deck.length;
+/**
+ * Whether a deck can be kept: at most 25 cards, none past its cap (crafted ones as kept), and at least 15 a band would
+ * meet with what the bank holds now.
+ */
+export const deckOk = (deck, have, E) => Array.isArray(deck) && deck.length <= E.DECK_MAX
+  && fitDeck(deck, have, E, true).length === deck.length && fitDeck(deck, have, E).length >= E.DECK_MIN;
 
 /** One more copy of a card in a draft, if the cap and the size allow; the draft unchanged otherwise. */
 export function addCard(deck, id, have, E) {

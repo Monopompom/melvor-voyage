@@ -131,6 +131,13 @@ test('an open fight survives the save: replayed from its options and actions, it
   for (const bad of [{ you: [30, 28], band: [0, 65] }, { you: [1, 28] }, { you: [-1, 28], band: [0, 65] }, { you: [1.5, 28], band: [0, 65] }, 'x']) assert.equal(end(bad), undefined);
 });
 
+test('a fight keeps the supplies already taken from the bank, so Press on takes only its own', () => {
+  const opt = { band: 'highwaymen', tier: 2, where: 'land', seed: 12345, strength: 1.1, deck: STARTER.slice(), cannons: 0, hull: false, charms: [], tilt: {}, gp: 0, toll: 1, battered: 0, know: [], learn: true };
+  assert.deepEqual(fightOf({ opt, usedDone: { hotmeal: 2, bitter3: 1, slash: 4, grapeshot: 0.5, nope: 1 } }).usedDone, { hotmeal: 2, bitter3: 1 });
+  assert.equal(fightOf({ opt, usedDone: { slash: 1 } }).usedDone, undefined);
+  assert.equal(fightOf({ opt }).usedDone, undefined);
+});
+
 test('the calibration key follows the kit, not its order', () => {
   assert.equal(calKey({ deck: ['a', 'b'], charms: [], tilt: { X: 1 } }), calKey({ deck: ['b', 'a'], charms: [], tilt: { X: 1 } }));
   assert.notEqual(calKey({ deck: ['a'], tilt: {} }), calKey({ deck: ['a'], tilt: { X: -1 } }));

@@ -184,6 +184,113 @@
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
         "sellsFor": 1
+      },
+      {
+        "itemType": "Item",
+        "id": "Grapeshot",
+        "name": "Grapeshot",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/grapeshot.webp",
+        "customDescription": "A canvas bag of iron balls round a wooden spindle: a heavy hit that costs you 1 Resolve. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 90
+      },
+      {
+        "itemType": "Item",
+        "id": "Smoke_Pot",
+        "name": "Smoke Pot",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/smoke_pot.webp",
+        "customDescription": "A clay pot of smouldering pitch, coal and sourweed. Their Strike, Charge or Board this round misses. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 70
+      },
+      {
+        "itemType": "Item",
+        "id": "Hot_Meal",
+        "name": "Hot Meal",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/hot_meal.webp",
+        "customDescription": "Salmon and potato stew, seasoned with garum: it heals your Resolve. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 60
+      },
+      {
+        "itemType": "Potion",
+        "id": "Bitter_Draught_I",
+        "name": "Bitter Draught I",
+        "category": "Herblore",
+        "type": "Potion",
+        "media": "assets/bitter_draught_i.webp",
+        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up. Not a potion you drink at a skill.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 30,
+        "charges": 1,
+        "tier": 0,
+        "action": "voyage:Voyage",
+        "consumesOn": []
+      },
+      {
+        "itemType": "Potion",
+        "id": "Bitter_Draught_II",
+        "name": "Bitter Draught II",
+        "category": "Herblore",
+        "type": "Potion",
+        "media": "assets/bitter_draught_ii.webp",
+        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up. Not a potion you drink at a skill.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 60,
+        "charges": 1,
+        "tier": 1,
+        "action": "voyage:Voyage",
+        "consumesOn": []
+      },
+      {
+        "itemType": "Potion",
+        "id": "Bitter_Draught_III",
+        "name": "Bitter Draught III",
+        "category": "Herblore",
+        "type": "Potion",
+        "media": "assets/bitter_draught_iii.webp",
+        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up. Not a potion you drink at a skill.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 90,
+        "charges": 1,
+        "tier": 2,
+        "action": "voyage:Voyage",
+        "consumesOn": []
+      },
+      {
+        "itemType": "Potion",
+        "id": "Bitter_Draught_IV",
+        "name": "Bitter Draught IV",
+        "category": "Herblore",
+        "type": "Potion",
+        "media": "assets/bitter_draught_iv.webp",
+        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up. Not a potion you drink at a skill.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 120,
+        "charges": 1,
+        "tier": 3,
+        "action": "voyage:Voyage",
+        "consumesOn": []
       }
     ],
     "skillData": [
@@ -236,6 +343,123 @@
                 {
                   "id": "melvorD:Oak_Logs",
                   "quantity": 20
+                }
+              ],
+              "currencyCosts": []
+            },
+            {
+              "id": "Smoke_Pot",
+              "level": 40,
+              "productID": "voyage:Smoke_Pot",
+              "baseQuantity": 2,
+              "baseExperience": 45,
+              "categoryID": "melvorF:Urns",
+              "itemCosts": [
+                {
+                  "id": "voyage:Pitch",
+                  "quantity": 200
+                },
+                {
+                  "id": "melvorD:Coal_Ore",
+                  "quantity": 200
+                },
+                {
+                  "id": "melvorD:Sourweed_Herb",
+                  "quantity": 50
+                }
+              ],
+              "currencyCosts": []
+            }
+          ]
+        }
+      },
+      {
+        "skillID": "melvorD:Smithing",
+        "data": {
+          "recipes": [
+            {
+              "id": "Grapeshot",
+              "level": 35,
+              "productID": "voyage:Grapeshot",
+              "baseQuantity": 2,
+              "baseExperience": 60,
+              "categoryID": "melvorD:IronGear",
+              "itemCosts": [
+                {
+                  "id": "melvorD:Iron_Bar",
+                  "quantity": 150
+                },
+                {
+                  "id": "melvorF:Arrow_Shafts",
+                  "quantity": 1000
+                },
+                {
+                  "id": "voyage:Sack",
+                  "quantity": 50
+                }
+              ],
+              "currencyCosts": []
+            }
+          ]
+        }
+      },
+      {
+        "skillID": "melvorD:Cooking",
+        "data": {
+          "recipes": [
+            {
+              "id": "Hot_Meal",
+              "productID": "voyage:Hot_Meal",
+              "perfectCookID": "voyage:Hot_Meal",
+              "baseExperience": 150,
+              "level": 45,
+              "baseInterval": 7000,
+              "baseQuantity": 2,
+              "categoryID": "melvorD:Pot",
+              "subcategoryID": "melvorD:Soup",
+              "itemCosts": [
+                {
+                  "id": "melvorD:Raw_Salmon",
+                  "quantity": 100
+                },
+                {
+                  "id": "melvorD:Potatoes",
+                  "quantity": 150
+                },
+                {
+                  "id": "melvorD:Garum_Herb",
+                  "quantity": 50
+                }
+              ],
+              "currencyCosts": []
+            }
+          ]
+        }
+      },
+      {
+        "skillID": "melvorD:Herblore",
+        "data": {
+          "recipes": [
+            {
+              "id": "Bitter_Draught",
+              "name": "Bitter Draught",
+              "level": 30,
+              "potionIDs": [
+                "voyage:Bitter_Draught_I",
+                "voyage:Bitter_Draught_II",
+                "voyage:Bitter_Draught_III",
+                "voyage:Bitter_Draught_IV"
+              ],
+              "baseExperience": 30,
+              "categoryID": "melvorF:CombatPotions",
+              "itemCosts": [
+                {
+                  "id": "melvorD:Sourweed_Herb",
+                  "quantity": 25
+                },
+                {
+                  "id": "voyage:Pitch",
+                  "quantity": 50
                 }
               ],
               "currencyCosts": []

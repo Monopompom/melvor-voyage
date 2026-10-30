@@ -51,6 +51,9 @@ export const kindKey = (kind) => `MOD_VOY_ENC_KIND_${up(kind)}`;
 const blowAhead = (s) => BLOWS.includes(s.intents[0].kind);
 
 // ---- the cards ------------------------------------------------------------------------------------------------------
+const bitterCard = (n) => ({ suit: 'wits', skill: 'Herblore', src: 'crafted', n,
+  fx: (s, k) => { s.band.weaken += k; log(s, 'you', 'MOD_VOY_ENC_LOG_BITTER', { n: k }); },
+  ai: (s, k) => ({ soften: k, later: k * (s.maxRounds - s.round) }) });
 // src: starter, milestone (from the skill's level `lvl`), shop, drop, crafted (a supply: used up when played), ship,
 // folk, curse. `n` the card's number (its skill tilts it ±1), `gp` a share of the toll in hundredths it costs, `quick`
 // costs no play, `where` only at sea or on land. fx does it; ai is what the plain strategy reckons it is worth.
@@ -114,9 +117,11 @@ export const CARDS = {
   grapeshot: { suit: 'powder', skill: 'Smithing', src: 'crafted', n: 8,
     fx: (s, n, c) => { hit(s, n, c); s.you.resolve = Math.max(1, s.you.resolve - 1); }, ai: (s, n) => ({ dmg: n - 0.5 }) },
   smokepot: { suit: 'wits', skill: 'Crafting', src: 'crafted', fx: (s) => evade(s, ['strike', 'charge', 'board']), ai: () => ({ evade: ['strike', 'charge', 'board'] }) },
-  bitter: { suit: 'wits', skill: 'Herblore', src: 'crafted', n: 3,
-    fx: (s, n) => { s.band.weaken += n; log(s, 'you', 'MOD_VOY_ENC_LOG_BITTER', { n }); },
-    ai: (s, n) => ({ soften: n, later: n * (s.maxRounds - s.round) }) },
+  // Bitter Draught in Herblore's four tiers, each its own card.
+  bitter: bitterCard(3),
+  bitter2: bitterCard(4),
+  bitter3: bitterCard(5),
+  bitter4: bitterCard(6),
 
   broadside: { suit: 'powder', src: 'ship', where: 'sea', n: 9, fx: (s, n, c) => hit(s, n, c), ai: (s, n) => ({ dmg: n }) },
   brace: { suit: 'steel', src: 'ship', where: 'sea', n: 7, fx: (s, n) => guard(s, n), ai: (s, n) => ({ guard: n }) },
