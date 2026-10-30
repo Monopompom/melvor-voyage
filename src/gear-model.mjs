@@ -2,9 +2,9 @@
 // read from the player's modifier table, and the pure rules the game side (src/gear.mjs) applies. No game globals.
 //
 // Every effect is a `voyage:` modifier declared in data/gear.json; a positive value is always the good way (a cut in
-// rations, fuel, hull wear, time, the pirates' toll; more cargo pay; more sight), so the game's own descriptions read
+// rations, fuel, hull wear, time, a band's toll; more cargo pay; more sight), so the game's own descriptions read
 // right and a stack from several sources adds up. `effects` caps each total: the stores never get cheaper than half,
-// a hex never quicker than three quarters, the pirates never ask less than a quarter. The late game stays a voyage.
+// a hex never quicker than three quarters, a band never asks less than a quarter of its toll. The late game stays a voyage.
 
 export const SKILL_ID = 'voyage:Voyage';
 export const SUMMONING_ID = 'melvorD:Summoning';
@@ -96,7 +96,7 @@ export const lesserRelicItemId = () => `voyage:${LESSER_RELIC.id}`;
 /**
  * The Voyage Skillcape at 99 and, with Throne of the Herald, the Superior at 120: the Shop's Skillcapes tabs, the
  * game's prices, each right before its Cape of Completion. A cape is the captain's trade and seamanship: cargo pay,
- * wear forgiven, a quicker timed hex; the Superior leans on the pirates too. Chosen against the caps: outside the
+ * wear forgiven, a quicker timed hex; the Superior talks the bands' tolls down too. Chosen against the caps: outside the
  * Ancient Relics mode every stack with the Superior stays under its cap, so each piece is felt; with the relics on
  * top the caps bite (the tests hold both).
  */
@@ -156,7 +156,10 @@ export const costMods = (e) => ({ rations: -(e?.rationCut ?? 0), fuel: -(e?.fuel
 export const pace = (e) => 1 - (e?.paceCut ?? 0) / 100;
 /** GP from a cargo delivery or a harbour task with the cargo pay on it (whole GP). */
 export const payOf = (gp, e) => (Number.isFinite(gp) && gp > 0 ? Math.round(gp * (1 + (e?.cargoPay ?? 0) / 100)) : 0);
-/** The pirates' toll with the cut on it (whole GP, at least 1 as the toll itself). */
+/**
+ * A band's toll with the cut on it (whole GP, at least 1 as the toll itself). The modifier keeps its id `pirateCut`
+ * from before the bands (version 1.1.0): saves and the game's modifier table know it by that name.
+ */
 export const tollOf = (toll, e) => (Number.isFinite(toll) && toll > 0 ? Math.max(1, Math.round(toll * (1 - (e?.pirateCut ?? 0) / 100))) : 0);
 /**
  * Hull wear forgiven after a move: of `taken` points the plan took, each is given back with wearCut % chance. The

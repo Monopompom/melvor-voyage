@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-30.485';
+export const BUILD = '2026-10-31.501';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -310,10 +310,10 @@ export async function setup(ctx) {
   // unlock notice. Run now when the tutorial is done (or the mode has none); otherwise when it completes, once the
   // game's own "tutorial complete" box is closed (SwalLocale.fire would replace it).
   const tutorialWaiters = [];
-  const runWhenNoModal = (fns, tries = 0) => {
+  const runWhenNoModal = (fns, tries = 0, forever = false) => {
     let open = false;
     try { open = typeof Swal !== 'undefined' && Swal.isVisible(); } catch {}
-    if (open && tries < 600) { setTimeout(() => runWhenNoModal(fns, tries + 1), 500); return; }
+    if (open && (forever || tries < 600)) { setTimeout(() => runWhenNoModal(fns, tries + 1, forever), 500); return; }
     for (const fn of fns) { try { fn(); } catch (e) { console.error(`[Voyage] after-tutorial step ${fn?.name || typeof fn} failed`, e); } }
   };
   state.afterTutorial = (fn) => {
@@ -324,8 +324,9 @@ export async function setup(ctx) {
     if (done) fn(); else { tutorialWaiters.push(fn); log(`waiting for the tutorial to end: ${fn.name || 'step'}`); }
   };
   // A notification sent while a popup is open goes unseen (the kit's sat under the welcome, new character, 16 Oct
-  // 2026): wait a moment for a popup about to open, then until none is.
-  state.whenNoModal = (fn) => setTimeout(() => runWhenNoModal([fn]), 800);
+  // 2026): wait a moment for a popup about to open, then until none is (5 minutes at most, unless `forever`: a band's
+  // board would replace the Welcome Back summary, so it waits however long that stays open).
+  state.whenNoModal = (fn, forever = false) => setTimeout(() => runWhenNoModal([fn], 0, forever), 800);
   /**
    * Opens a game page from one of our buttons. The game's own toggle flips the phone menu, which is right for a menu
    * link but opens it from a page button, so ours pass false and close an open menu here (16 Oct 2026: "Go to map" from
@@ -405,7 +406,7 @@ export async function setup(ctx) {
   } catch (e) { console.error('[Voyage] land upgrades failed to load; the rest runs', e); state.land = undefined; }
   // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
   const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log });
-  // Gear, relics and the Albatross (4.31): the effects the stores, the clock, cargo and the pirates read, and the rolls
+  // Gear, relics and the Albatross (4.31): the effects the stores, the clock, cargo and the bands' tolls read, and the rolls
   // after a landed move. A failure: the gear's items do nothing.
   try { gearMod.install(ctx, { state, G: gearModel, log }); } catch (e) { console.error('[Voyage] gear failed to load; its effects are off', e); state.gear = undefined; }
   // The crew (phase 6c): Folks who go along with you, in berths, eating from the stores. A failure leaves them ashore.
@@ -455,9 +456,9 @@ export async function setup(ctx) {
   } catch (e) { console.error('[Voyage] travel traits failed to load', e); state.folkTraits = undefined; }
   // The ship's hold (build .72): bank items kept aboard, reached at the ship.
   holdMod.install(ctx, { state, shipModel, helpLayout, log });
-  // Events that ask (the flat mechanics): pirates on the open sea, a stowaway aboard. A failure: no events.
+  // Events that ask (the flat mechanics): a stowaway aboard. A failure: no events.
   try {
-    const events = (await ctx.loadModule('src/events.mjs')).install(ctx, { state, EM: await ctx.loadModule('src/events-model.mjs'), S: storesModel, shipModel, helpLayout, rankName: folksLink.rankName, shortNumber, decimal, log });
+    const events = (await ctx.loadModule('src/events.mjs')).install(ctx, { state, EM: await ctx.loadModule('src/events-model.mjs'), shipModel, helpLayout, rankName: folksLink.rankName, shortNumber, log });
     const s = voyageSkill();
     if (s !== undefined) s.events = events;
   } catch (e) { console.error('[Voyage] events failed to load', e); state.events = undefined; }

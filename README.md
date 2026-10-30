@@ -10,6 +10,9 @@ to the map, a compass to find your way, boats and ships for the water, provision
 notices, sea charts and rumours, a Random start, the Captain's Journal, timed travel and its storms, mounts,
 the Seafarer's gear, and crews and outposts for Worker Folks (1.3.0 or later, optional).
 
+Version 1.1.0 adds bands on road and sea, met with a card game: build a deck from your skills, ports and ships, find
+tricks for your trick book, and read up on every band in the Journal's new chapter. The old pirates are gone.
+
 ## What it does
 
 - **Terrain overlay.** Surveyed hexes on the Cartography map are tinted by terrain. Fog is untouched: hexes
@@ -58,11 +61,38 @@ the Seafarer's gear, and crews and outposts for Worker Folks (1.3.0 or later, op
   the big ship at a port. Repairing is careening: the hull is hauled out 6 minutes for every 10% and can't sail
   meanwhile (offline too; Stop keeps the work done so far, and the logs and Pitch for the rest are lost). Below 50% a
   sea hex takes 25% longer and the hull keeps out of deep water. A worn-out hull can always limp back to the coast.
-- **Pirates.** On a timed voyage, pirates sometimes meet the big ship on deep sea, and the voyage waits for your
-  answer: pay them a quarter of what your hold would sell for or 0.5% of the GP you carry (up to 5 million),
-  whichever is more and never less than what three hexes of travel cost, or run, for a stormy hex's hull wear, one
-  crate in five overboard and one hex more at sea. Offline the choice is made for you: run while the hull would stay
-  at 50% or more, else pay if you can, told in Welcome Back.
+- **Bands on road and sea.** Six bands (Highwaymen, Deserters, Smugglers, Corsairs, Cultists and Wreckers) wait on
+  the rough ground and in deep water, timed travel or not. On land the ground sets a hex's tier (0 to 4), at sea the
+  chart's sea; the land within 2 hexes of Bandit Hideout is a tier worse, and at sea they meet only the big ship in
+  deep water. After a band the road stays quiet for 20 hexes. When one stops you, the trip waits for your answer:
+  - **Fight** it out with your deck.
+  - **Pay** the toll: 5% of the GP you carry at tier 1 up to 14% at tier 4, never under three hexes of fare, and at
+    sea never under a quarter of what your hold would sell for.
+  - **Run**: at sea hull wear, a fifth of the crates overboard and a hex more at sea; on land 15% of your food and
+    fuel and the hex's time again.
+  - **Auto-resolve**: one fight played for you at the chance it shows.
+
+  What the GP you carry can't cover is owed to that band on that ground: you meet bands there twice as often until
+  you pay it off wherever you can trade. Offline nobody stops you; the bands met wait for you as one when you are
+  back, and you fight, auto-resolve or pay.
+- **The card game.** A fight is your Resolve against the band's Nerve over at most 6 rounds. Each round you draw up
+  to 5 cards and make up to 3 plays (a Quick card costs none), and once a round you may toss a card. The band shows
+  its next move (a Strike, a Grab at your purse, a Call for help, a Brace), and you block it, race it or trick it.
+  Cards come in four suits, Steel, Powder, Coin and Wits, and lean on their skill: +1 when it is 10 or more levels
+  above your average, −1 when as far below. Two or three cards of a suit in a round, or three or four suits, set off
+  a combo; combos and tricks build Edge, which Finisher cards spend. Tricks are set runs of cards that no card prints:
+  play one and it goes into your **trick book**, opened from the deck builder or the fight. A win pays the band's
+  purse (2,000 GP on land at tier 1 up to 45,000 GP at sea at tier 4) and loot, and 10% of wins bring a rare card;
+  after a played win you may Press on against their captain for twice the purse. A loss costs the toll and 10% of
+  what you carry, times the share of their Nerve still standing, and leaves you Battered until you rest 8 hours in a
+  town or port or eat 200 food from your stores.
+- **The deck.** Build it on the Voyage page, 15 to 25 cards, and keep up to 5 presets beside the starter deck; it is
+  locked while a trip is under way or a band waits. Starter cards are every captain's; each skill gives a card at
+  levels 30, 60 and 90; ports, markets, cities and capitals sell shop cards; supply cards are made in your skills
+  (Smithing's Grapeshot, Crafting's Smoke Pot, Herblore's Bitter Draught, Cooking's Hot Meal) and used up as they are
+  played; rare cards drop from bands; a brig or a galleon adds a Broadside for each cannon and a Brace. Three charm
+  slots take rule-benders: the Wayfinder's Compass, the Seafarer's Hat and Coat, the Albatross, a Defence Skillcape
+  and the trophies bands drop. Owning one is enough.
 - **The hold.** Each vessel has a hold for bank items: one kind of item a slot, in any amount (dinghy 6, longboat 12,
   brig 18, galleon 24, and a row of six more at Voyage 35 and 55). Stow items from the bank's item panel and take them
   back on the Voyage page, standing on the vessel or next to it. The hold is kept in the mod's save data: take everything out before you remove the mod.
@@ -113,12 +143,12 @@ the Seafarer's gear, and crews and outposts for Worker Folks (1.3.0 or later, op
   Sacks or seven Crates). Worn, it cuts rations and fuel per hex by 10% and spends one charge every hex
   you travel; its mark turns up while you travel with Summoning unlocked. Pair it with an Ent (-20% fuel), an Octopus
   (-20% rations), a Leprechaun (+15% GP from cargo runs and harbour tasks), a Salamander (one hull-wear point in four
-  forgiven after each leg) or a Minotaur (pirates ask half). With Throne of the Herald, an Eagle makes a timed voyage
+  forgiven after each leg) or a Minotaur (bands ask half the toll). With Throne of the Herald, an Eagle makes a timed voyage
   10% quicker and an Owl lights one hex further at night.
 - **The Voyage Skillcape.** At Voyage 99, in the Shop's Skillcapes tab before the Cape of Completion, 1,000,000 GP:
   +15% GP from cargo runs and harbour tasks, one hull-wear point in ten forgiven, timed voyages 5% quicker. With
   Throne of the Herald the Superior Voyage Skillcape follows at 120 (10,000,000 GP: +25% GP, three wear points in
-  twenty forgiven, 10% quicker, pirates ask 15% less).
+  twenty forgiven, 10% quicker, bands ask 15% less toll).
 - **Barnacle.** Voyage's pet, a ship's cat found on the hexes you travel, likelier the higher your level: every hex
   rolls as a six-minute action does for the game's own pets, so at 99 the cat turns up in some 700 hexes. Aboard, the
   rats keep off the stores and the rigging: -5% rations a hex, one wear point in twenty forgiven.
@@ -126,10 +156,10 @@ the Seafarer's gear, and crews and outposts for Worker Folks (1.3.0 or later, op
   hex each) and on reaching Voyage 20 and 99: Relic 1 (-10% rations a hex), Relic 2 (-10% fuel), Relic 3 (+10% GP
   from cargo runs and tasks), Relic 4 (one hull-wear point in five forgiven), Relic 5 (+10% Voyage XP, timed voyages
   10% quicker) and, with all five, the Voyage Master Relic (+5% non-combat skill XP, +5% of your max hit added to
-  your min hit, pirates ask half, one hex more of sight on a lit hex at night). Hexes also have a 1% chance to drop 150 **Voyage Lesser Relics**, a consumable for
+  your min hit, bands ask half the toll, one hex more of sight on a lit hex at night). Hexes also have a 1% chance to drop 150 **Voyage Lesser Relics**, a consumable for
   your Consumable slot (+5% Voyage XP, -5% rations and fuel a hex, -5% damage taken) that spends a charge every hex and
   every attack of yours. Every cut has a ceiling, whatever you wear: rations, fuel and forgiven wear stop at 50%,
-  time at 25%, pirates at 75% off.
+  time at 25%, tolls at 75% off.
 - **The Captain's Journal.** The book button on the Voyage page (or the J key) opens a journal of chapters on every
   rule (notices, charts and rumours too), guide pages that turn up as you meet things, the markets' ledger and maps of where resources are.
   Its Places list where you fought, the ports you used and what you did there, the markets, and the islands you set
@@ -176,7 +206,7 @@ the Seafarer's gear, and crews and outposts for Worker Folks (1.3.0 or later, op
 ## Settings (Mod Settings, under Voyage: Rules, Travel, Display and Keys)
 
 - **Terrain overlay**: tint on or off.
-- **Voyage rules**: off turns every location lock off. The overlay and the panel stay.
+- **Voyage rules**: off, nothing is locked by location.
 - **Strictness**: Strict locks gathering and crafting; Relaxed locks gathering only, and keeps Firemaking and Cooking on dry land and Archaeology at its dig sites.
 - **Resource zones**: each ore, tree, fish, crop, thieving target and constellation is found only in its own places (iron and copper
   are in different regions; the panel's skill icons list what is found on your hex). Off: the skill's terrain decides alone.

@@ -1,26 +1,14 @@
-// Events that ask (the flat mechanics, build .378): pirates on the open sea, and a stowaway found aboard. Each one is a
+// Events that ask (the flat mechanics, build .378): a stowaway found aboard, and what running from a band at sea costs. Each one is a
 // choice with a cost either way, so a voyage asks something of the player beyond the GP. Pure: no game globals.
 
-/** Pirates meet the big ship on a deep-sea hex it sails into on a timed voyage: one hex in PIRATE_CHANCE. */
-export const PIRATE_CHANCE = 1 / 120;
-/** Paying them off: this share of the hold's worth in GP… */
-export const PIRATE_SHARE = 0.25;
-/** …but never less than the GP of this many hexes as the game charges them (an empty hold is no way out)… */
-export const PIRATE_FLOOR_HEXES = 3;
-/** …nor less than this share of the GP you carry (build .387, the user: at a 5 billion purse the toll was 1,419 GP, a non-event). */
-export const PIRATE_COIN_SHARE = 0.005;
-/** …that share capped at this many GP (build .396, the user: no toll scales without limit; at 0.5% the cap binds from a billion carried). */
-export const PIRATE_COIN_CAP = 5000000;
 /**
- * Running throws this share of the hold's crates overboard, at least one when the hold holds any (build .387). A fifth
- * since build .403 (the user: the choice should cost either way): at a tenth, running was the cheaper answer at every
- * hold and every purse while the hull was sound, so Pay was never chosen; at a fifth a full hold loses about the toll.
+ * Running from a band at sea throws this share of the hold's crates overboard, at least one when the hold holds any
+ * (build .387). A fifth since build .403: the choice should cost either way, and at a tenth running was the cheaper
+ * answer at every hold and every purse while the hull was sound.
  */
-export const PIRATE_RUN_LOSS = 0.2;
-/** Running before the wind costs a stormy hex's wear (weather-model STORM_WEAR) and one more hex of sailing time. */
-export const PIRATE_RUN_STORM = 3;
-/** Offline the choice is made for you: run while the hull stays at least this sound after the run's wear (ship-model WORN_COND). */
-export const PIRATE_SOUND = 50;
+export const SEA_RUN_LOSS = 0.2;
+/** Running at sea costs a stormy hex's wear (weather-model STORM_WEAR) and one more hex of sailing time. */
+export const SEA_RUN_STORM = 3;
 
 /** A stowaway climbs out on one voyage in STOWAWAY_CHANCE, with Worker Folks, at sea, in a vessel with a berth free. */
 export const STOWAWAY_CHANCE = 1 / 8;
@@ -36,34 +24,11 @@ export const STOWAWAY_PRICE_SHARE = 0.5;
 /** Names a stowaway may give (a Folk keeps it when hired). */
 export const STOWAWAY_NAMES = ['Pip', 'Bram', 'Wren', 'Tam', 'Moss', 'Nell', 'Fen', 'Kit', 'Rook', 'Dot'];
 
-/** Whether pirates meet a step: the big ship, sailing (not towed, not free) into a deep-sea hex, and the roll under the chance. */
-export function piratesMeet(step, roll) {
-  if (step == null || step.vessel !== 'ship' || step.sea !== true || step.deep !== true || step.free === true || step.fastTravel === true) return false;
-  return Number.isFinite(roll) && roll >= 0 && roll < PIRATE_CHANCE;
-}
+/** How many of `crates` in the hold go overboard on a run at sea: SEA_RUN_LOSS of them, rounded up (one of one). */
+export const seaRunLoss = (crates) => (Number.isFinite(crates) && crates > 0 ? Math.ceil(crates * SEA_RUN_LOSS) : 0);
 
-/** What paying them off costs: the most of PIRATE_SHARE of the hold's worth, PIRATE_FLOOR_HEXES hexes' GP and PIRATE_COIN_SHARE of `gp` carried (that share never over PIRATE_COIN_CAP); whole GP. */
-export function pirateToll(holdWorth, hexGp, gp = 0) {
-  const worth = Number.isFinite(holdWorth) && holdWorth > 0 ? holdWorth : 0;
-  const hex = Number.isFinite(hexGp) && hexGp > 0 ? hexGp : 0;
-  const coin = Number.isFinite(gp) && gp > 0 ? gp : 0;
-  return Math.max(1, Math.round(Math.max(worth * PIRATE_SHARE, hex * PIRATE_FLOOR_HEXES, Math.min(coin * PIRATE_COIN_SHARE, PIRATE_COIN_CAP))));
-}
-/** How many of `crates` in the hold go overboard on a run: PIRATE_RUN_LOSS of them, rounded up (one of one). */
-export const pirateRunLoss = (crates) => (Number.isFinite(crates) && crates > 0 ? Math.ceil(crates * PIRATE_RUN_LOSS) : 0);
-
-/** The hull wear of running (%): a stormy deep-sea hex's (stores-model wearOf, a deep hex wearing `deepWear`). */
-export const pirateRunWear = (deepWear = 2) => (Number.isFinite(deepWear) && deepWear > 0 ? deepWear : 2) * PIRATE_RUN_STORM;
-
-/**
- * The choice made for you offline: 'run' while the hull stays at least PIRATE_SOUND after the run's wear, else 'pay'
- * when the GP covers the toll, else 'run' all the same.
- */
-export function pirateChoice({ cond, wear, gp, toll }) {
-  const c = Number.isFinite(cond) ? cond : 0;
-  if (c - (Number.isFinite(wear) ? wear : 0) >= PIRATE_SOUND) return 'run';
-  return Number.isFinite(gp) && Number.isFinite(toll) && gp >= toll ? 'pay' : 'run';
-}
+/** The hull wear of running at sea (%): a stormy deep-sea hex's (stores-model wearOf, a deep hex wearing `deepWear`). */
+export const seaRunWear = (deepWear = 2) => (Number.isFinite(deepWear) && deepWear > 0 ? deepWear : 2) * SEA_RUN_STORM;
 
 /** The hull after running: never below 0. */
 export const condAfterRun = (cond, wear) => Math.max(0, (Number.isFinite(cond) ? cond : 0) - (Number.isFinite(wear) ? wear : 0));

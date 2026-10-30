@@ -1,6 +1,6 @@
 // The Deck block on the Voyage page (design 4.33, slice 3): the deck you carry into encounters, its presets, the three
-// charm slots, the ship's cards at sea and the trick book; and the deck builder, a popup of every card you may put in
-// it. The kit locks while a trip is under way or a band waits (encounters.mjs kitLocked): presets can still be saved.
+// charm slots and the ship's cards at sea; and the deck builder, a popup of every card you may put in it, with the
+// trick book over it. The kit locks while a trip is under way or a band waits (encounters.mjs kitLocked): presets can still be saved.
 // The rules are src/deck-model.mjs; the save is the encounters' record (`deck`, `presets`, `charms`).
 
 const GROUP_KEYS = {
@@ -115,14 +115,70 @@ export function install(ctx, { state, F, log }) {
         : e.charms.length === 0 ? `<small class="d-block text-muted">${esc(t('MOD_VOY_DECK_CHARMS_NONE'))}</small>` : ''));
   };
 
-  const tricksPart = (e) => {
+  // ---- the trick book: a panel of tiles, a popup from the block and a sheet over the builder or the fight ----------
+  /** A card of a run as a chip in its suit's colour and icon. */
+  const runCard = (id) => {
+    const suit = api().E.CARDS[id]?.suit ?? 'curse';
+    return `<span class="voyage-tb-card voyage-enc-s-${suit}">${SUIT_ICON[suit] ? fa(SUIT_ICON[suit]) : ''}<span>${esc(t(api().E.cardKey(id)))}</span></span>`;
+  };
+  const ARROW = `<span class="voyage-tb-arrow">${fa('fa-long-arrow-alt-right')}</span>`;
+  /** The run: chips and arrows; a run across rounds has the round's turn between its two cards. An arrow stays with
+   * the card after it, so a run that wraps never ends a line on an arrow. */
+  const step = (sep, chip) => `<span class="voyage-tb-step">${sep}${chip}</span>`;
+  const runHtml = (tr) => (tr.across
+    ? `${runCard(tr.seq[0])}${step(`<span class="voyage-tb-turn">${fa('fa-redo-alt')}<span>${esc(t('MOD_VOY_TRICKBOOK_NEXT_ROUND'))}</span></span>`, runCard(tr.seq[1]))}`
+    : tr.seq.map((id, i) => (i === 0 ? runCard(id) : step(ARROW, runCard(id)))).join(''));
+  const trickTile = (id, found) => {
     const { E } = api();
-    const all = Object.keys(E.TRICKS);
-    const found = all.filter((id) => e.tricks.includes(id));
-    const rows = found.map((id) => `<div class="voyage-deck-trick"><span class="voyage-deck-trick-name">${esc(t(E.trickKey(id)))}</span><span>${F.seqHtml(api(), E.TRICKS[id])}</span><span class="text-muted">${esc(t(E.trickTextKey(id)))}</span></div>`).join('');
-    return section(`<div class="voyage-big-head mt-0">${esc(t('MOD_VOY_DECK_TRICKS'))} <small class="text-muted ml-2">${esc(t('MOD_VOY_DECK_TRICKS_COUNT', { found: `${found.length}`, all: `${all.length}` }))}</small></div>`
-      + `<small class="d-block text-muted mb-2">${esc(t('MOD_VOY_DECK_TRICKS_NOTE'))}</small>`
-      + (rows !== '' ? `<div class="voyage-deck-tricks">${rows}</div>` : `<small class="d-block text-muted">${esc(t('MOD_VOY_DECK_TRICKS_NONE'))}</small>`));
+    const tr = E.TRICKS[id];
+    if (!found) {
+      return `<div class="voyage-tb-tile voyage-tb-locked"><div class="voyage-tb-name">${fa('fa-lock')}<span>${esc(t('MOD_VOY_TRICKBOOK_UNKNOWN'))}</span></div>`
+        + `<div class="voyage-tb-run">${tr.seq.map((_, i) => (i === 0 ? '' : tr.across ? `<span class="voyage-tb-turn">${fa('fa-redo-alt')}</span>` : ARROW) + `<span class="voyage-tb-card voyage-tb-blank">?</span>`).join('')}</div>`
+        + `<div class="voyage-tb-fx">${esc(t(tr.across ? 'MOD_VOY_TRICKBOOK_LOCKED_ACROSS' : 'MOD_VOY_TRICKBOOK_LOCKED', { n: `${tr.seq.length}` }))}</div></div>`;
+    }
+    return `<div class="voyage-tb-tile voyage-tb-suit-${tr.suit}"><div class="voyage-tb-name">${fa('fa-magic')}<span>${esc(t(E.trickKey(id)))}</span></div>`
+      + `<div class="voyage-tb-run">${runHtml(tr)}</div>`
+      + `<div class="voyage-tb-fx">${fa('fa-bolt')}<span>${esc(t(E.trickTextKey(id)))}</span></div></div>`;
+  };
+  /** Found and all, for the block's line and the book's head. */
+  const trickCount = (e) => {
+    const all = Object.keys(api().E.TRICKS);
+    return { all, found: all.filter((id) => e.tricks.includes(id)) };
+  };
+  /** The book: the found tricks written in, then the rest locked, each in the book's order. */
+  const bookHtml = () => {
+    const e = api()?.enc?.();
+    if (e === undefined) return '';
+    const { all, found } = trickCount(e);
+    return `<div class="voyage-enc-head voyage-tb-head"><span class="voyage-enc-title">${fa('fa-book-open mr-2')}${esc(t('MOD_VOY_DECK_TRICKS'))}</span>`
+      + `<span class="voyage-enc-chip">${esc(t('MOD_VOY_DECK_TRICKS_COUNT', { found: `${found.length}`, all: `${all.length}` }))}</span>`
+      + `<button type="button" class="btn btn-sm btn-danger voyage-tb-close" data-tb="close" aria-label="${esc(t('MOD_VOY_TRICKBOOK_CLOSE'))}">${fa('fa-times')}</button></div>`
+      + `<div class="voyage-enc-body voyage-tb-body"><p class="voyage-tb-note">${esc(t('MOD_VOY_DECK_TRICKS_NOTE'))}</p>`
+      + `<div class="voyage-tb-grid">${found.map((id) => trickTile(id, true)).join('')}${all.filter((id) => !found.includes(id)).map((id) => trickTile(id, false)).join('')}</div></div>`;
+  };
+  /** Esc shuts the sheet, not the popup under it (the game's popup hears the key later, on the window). */
+  let sheetKey = null;
+  const closeSheet = () => {
+    document.querySelectorAll('.voyage-tb-sheet').forEach((el) => el.remove());
+    if (sheetKey !== null) { window.removeEventListener('keydown', sheetKey, true); sheetKey = null; }
+  };
+  /** Opens the trick book as a sheet over `host`, the open builder or fight popup (a second popup would close it). */
+  const openTrickBook = (host) => {
+    if (api()?.enc?.() === undefined || !(host instanceof Element)) return;
+    closeSheet();
+    const el = document.createElement('div');
+    el.className = 'voyage-tb-sheet';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', t('MOD_VOY_DECK_TRICKS'));
+    el.innerHTML = `<div class="voyage-enc voyage-tb">${bookHtml()}</div>`;
+    // The popup's own text colour is the dark default: take its content's, as the page under the sheet has.
+    try { el.style.color = getComputedStyle(host.querySelector('.swal2-html-container') ?? host).color; } catch { /* the default */ }
+    el.addEventListener('click', (ev) => { if (ev.target instanceof Element && ev.target.closest('[data-tb="close"]') !== null) closeSheet(); });
+    // A sheet gone with its popup lets the key through and stops listening.
+    sheetKey = (ev) => { if (ev.key !== 'Escape') return; if (document.querySelector('.voyage-tb-sheet') !== null) { ev.stopPropagation(); ev.preventDefault(); } closeSheet(); };
+    window.addEventListener('keydown', sheetKey, true);
+    host.appendChild(el);
+    el.querySelector('[data-tb="close"]')?.focus();
   };
 
   /** The block's inside, or '' with no save to read. */
@@ -130,7 +186,7 @@ export function install(ctx, { state, F, log }) {
     const e = api()?.enc?.();
     if (e === undefined) return '';
     const locked = api().kitLocked();
-    return deckPart(e, locked) + presetsPart(e, locked) + charmsPart(e, locked) + tricksPart(e);
+    return deckPart(e, locked) + presetsPart(e, locked) + charmsPart(e, locked);
   };
   /** The folded block's title row: the deck's size and the charms slotted. */
   const sum = () => {
@@ -282,6 +338,7 @@ export function install(ctx, { state, F, log }) {
       + `<div class="voyage-enc-actions">`
       + `<button type="button" class="btn btn-sm btn-primary voyage-enc-btn" data-act="equip"${ok ? '' : ' disabled'}><span>${fa('fa-check')} ${esc(t('MOD_VOY_DECK_B_EQUIP'))}</span></button>`
       + `<button type="button" class="btn btn-sm btn-warning voyage-enc-btn" data-act="reset"><span>${fa('fa-undo')} ${esc(t('MOD_VOY_DECK_B_RESET'))}</span></button>`
+      + `<button type="button" class="btn btn-sm btn-info voyage-enc-btn" data-act="tricks"><span>${fa('fa-book-open')} ${esc(t('MOD_VOY_DECK_TRICKS'))}</span></button>`
       + `<button type="button" class="btn btn-sm btn-danger voyage-enc-btn voyage-deck-cancel" data-act="cancel"><span>${esc(t('MOD_VOY_DECK_B_CANCEL'))}</span></button></div>`;
   };
   const drawBuilder = () => {
@@ -309,6 +366,7 @@ export function install(ctx, { state, F, log }) {
       // A full deck keeps the copy out: say so, or the bought card seems lost.
       if (draft.length === was) api().notify(t('MOD_VOY_DECK_SHOP_FULL', { max: `${E.DECK_MAX}` }));
     }
+    else if (a === 'tricks') { openTrickBook(Swal.getPopup()); return; }
     else if (a === 'cancel') { draft = null; Swal.close(); return; }
     else if (a === 'equip') {
       if (D.deckOk(draft, api().have(), E) && equipDeck(draft)) { draft = null; Swal.close(); changed(); }
@@ -335,8 +393,8 @@ export function install(ctx, { state, F, log }) {
         // The game's tooltips, not the browser's title boxes, on every redraw.
         try { state.tips?.watch(el); } catch (e) { log('deck builder tooltips failed', e); }
       },
-    }).then(() => { draft = null; }, () => { draft = null; });
+    }).then(() => { draft = null; closeSheet(); }, () => { draft = null; closeSheet(); });
   };
 
-  return { html, sum, bind, openBuilder };
+  return { html, sum, bind, openBuilder, openTrickBook, closeTrickBook: closeSheet };
 }

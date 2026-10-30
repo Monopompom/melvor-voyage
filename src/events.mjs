@@ -1,16 +1,13 @@
-// Events that ask (the flat mechanics, build .378): pirates meeting the big ship on the open sea, and a stowaway found
-// aboard on a long crossing. Each asks for a choice with a cost either way. The rules are pure (src/events-model.mjs);
-// the voyage holds while pirates wait for an answer (voyage-clock.mjs), and the stowaway rides as crew (crew.mjs).
-//
-// Pirates: pay a share of the hold's worth in GP, or run (a stormy hex's wear and one hex more of sailing). Offline the
-// choice is made for you and told in Welcome Back. The stowaway: hire it as a Trainee at half the Shop's price
-// (Worker Folks API v6), or it goes ashore at the next port or land you stand on; until then it takes a berth and eats.
+// Events that ask (the flat mechanics, build .378): a stowaway found aboard on a long crossing. It asks for a choice
+// with a cost either way. The rules are pure (src/events-model.mjs); the stowaway rides as crew (crew.mjs). Hire it as
+// a Trainee at half the Shop's price (Worker Folks API v6), or it goes ashore at the next port or land you stand on;
+// until then it takes a berth and eats. The pirates that met the big ship here until version 1.1.0 are bands now
+// (encounters.mjs).
 
-// Paying the pirates is the costly button: filled amber, readable in Light too (an amber outline was too pale there).
-// Run costs hull and a hex: a red outline (build .386). The stowaway's Hire is green, Not now blue outline.
-const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-warning m-1', denyButton: 'btn btn-outline-danger m-1', cancelButton: 'btn btn-outline-info m-1' };
+// The stowaway's Hire is green, Not now a blue outline.
+const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
-export function install(ctx, { state, EM, S, shipModel, helpLayout, rankName, shortNumber, decimal, log }) {
+export function install(ctx, { state, EM, shipModel, helpLayout, rankName, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   /** The toll and the hire price, short (2.5M) on the buttons, lines and notices alike. */
@@ -42,104 +39,10 @@ export function install(ctx, { state, EM, S, shipModel, helpLayout, rankName, sh
     ...opts,
   });
   const gpIcon = () => `<img src="${esc(game.gp.media)}" alt="">`;
-  const hullIcon = () => `<img src="${ctx.getResourceUrl('assets/hull_condition.webp')}" alt="">`;
 
-  // ---- pirates -----------------------------------------------------------------------------------------------------
-  /** The GP your holds would sell for: the big ship's, and the boat's when it rides aboard. */
-  const holdWorth = () => {
-    let sum = 0;
-    const kinds = ['ship', ...(state.ship?.vessel?.('boat')?.aboard === true ? ['boat'] : [])];
-    for (const kind of kinds) {
-      for (const e of state.hold?.contents?.(kind) ?? []) {
-        try { if (e.item.sellsFor.currency === game.gp) sum += e.item.sellsFor.quantity * e.qty; } catch {}
-      }
-    }
-    return sum;
-  };
-  // The dev console's voyageDev.event(kind): the next chance of that kind comes true (once).
-  const forced = { pirates: false, stowaway: false };
-  const force = (kind) => { if (!(kind in forced)) return `pirates or stowaway, not ${kind}`; forced[kind] = true; return `${kind}: the next chance comes true`; };
-  /** Whether pirates meet this step (the roll made here). */
-  const meet = (step) => {
-    if (forced.pirates && EM.piratesMeet(step, 0)) { forced.pirates = false; return true; }
-    return EM.piratesMeet(step, Math.random());
-  };
-  /** What they ask: { toll, wear, crates, loss }, `hexGp` the GP the game charged for the hex; `loss` the crates a run throws overboard (build .387). */
-  const crates = () => state.hold?.hold?.('ship')?.length ?? 0;
-  // The gear's pirate cut (gear.mjs) lowers what they ask, never what a run costs.
-  const tollOf = (toll) => { try { return state.gear?.tollOf?.(toll) ?? toll; } catch { return toll; } };
-  const offer = (hexGp) => { const n = crates(); return { toll: tollOf(EM.pirateToll(holdWorth(), hexGp, game.gp.amount)), wear: EM.pirateRunWear(S.WEAR.deep), crates: n, loss: EM.pirateRunLoss(n) }; };
-  const cond = () => state.ship?.cond?.('ship') ?? 0;
-  /** Pays the toll; false (and a notice) when the GP falls short. */
-  const pay = (pir) => {
-    if (!(game.gp.amount >= pir.toll)) { if (!offlineNow()) notify(t('MOD_VOY_PIRATES_SHORT', { gp: gpText(pir.toll) }), 'danger'); return false; }
-    game.gp.remove(pir.toll);
-    log(`pirates paid off: ${pir.toll} GP`);
-    const text = t('MOD_VOY_PIRATES_PAID', { gp: gpText(pir.toll) });
-    if (offlineNow()) away(`<span class="text-danger">${esc(t('MOD_VOY_PIRATES_AWAY_HEAD'))}</span>: ${esc(text)}`);
-    else notify(text);
-    return true;
-  };
-  /** Runs before the wind: the hull's wear now, a fifth of the crates overboard (build .387); the clock adds the hex of sailing. */
-  const run = (pir) => {
-    const to = EM.condAfterRun(cond(), pir.wear);
-    state.ship?.setCond?.(to, 'ship');
-    const gone = state.hold?.jettison?.(EM.pirateRunLoss(crates()), 'ship') ?? [];
-    log(`ran from pirates: -${pir.wear}% hull, now ${to}%, ${gone.length} crate(s) overboard`);
-    const vars = { hull: state.ship?.hullName?.(state.ship?.vessel?.('ship')) ?? '', wear: `${pir.wear}`, cond: `${to}`, crates: `${gone.length}` };
-    const text = t(gone.length === 1 ? 'MOD_VOY_PIRATES_RAN_CRATE' : gone.length > 1 ? 'MOD_VOY_PIRATES_RAN_CRATES' : 'MOD_VOY_PIRATES_RAN', vars);
-    if (offlineNow()) away(`<span class="text-danger">${esc(t('MOD_VOY_PIRATES_AWAY_HEAD'))}</span>: ${esc(text)}`);
-    else notify(text, to < EM.PIRATE_SOUND ? 'danger' : 'info');
-    return true;
-  };
-  let asking = false;
-  /**
-   * The question while a voyage holds for pirates (each voyage tick): offline the choice is made at once; online the
-   * popup, asked again if something else closed it. `answer(how)` gets 'pay' or 'run'.
-   */
-  const ask = (pir, answer) => {
-    if (offlineNow()) { answer(EM.pirateChoice({ cond: cond(), wear: pir.wear, gp: game.gp.amount, toll: pir.toll })); return; }
-    if (asking) return;
-    asking = true;
-    const open = () => {
-      const short = !(game.gp.amount >= pir.toll);
-      const to = EM.condAfterRun(cond(), pir.wear);
-      // The two answers as a band (build .386; the user, 21 Oct 2026: "three plain centred lines"): the Adrift block's
-      // Ways out look, Pay with the coin and Run with the hull, the figures marked; the hold line plain under it.
-      const ways = helpLayout.waysHtml('', [
-        { icon: gpIcon(), lead: t('MOD_VOY_PIRATES_PAY_HEAD'), html: marked(t, 'MOD_VOY_PIRATES_PAY_LINE', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: decimal(EM.PIRATE_COIN_SHARE * 100), cap: shortNumber(EM.PIRATE_COIN_CAP), hexes: `${EM.PIRATE_FLOOR_HEXES}` }, { gp: gpMark(pir.toll) }) },
-        { icon: hullIcon(), lead: t('MOD_VOY_PIRATES_RUN_HEAD'), html: marked(t, pir.loss > 0 ? (pir.crates === 1 ? 'MOD_VOY_PIRATES_RUN_LINE_CRATE' : 'MOD_VOY_PIRATES_RUN_LINE_CRATES') : 'MOD_VOY_PIRATES_RUN_LINE', { total: `${pir.crates}` }, { wear: `<b class="text-warning">${pir.wear}%</b>`, cond: `<b class="${to < EM.PIRATE_SOUND ? 'text-danger' : ''}">${to}%</b>`, crates: `<b class="text-warning">${pir.loss}</b>` }) },
-      ]);
-      fire({
-        title: t('MOD_VOY_PIRATES_TITLE'),
-        imageUrl: hullPic(),
-        html: helpLayout.msgHtml([
-          marked(t, 'MOD_VOY_PIRATES_TEXT', {}, { hull: mark.name(state.ship?.hullName?.(state.ship?.vessel?.('ship')) ?? '') }),
-        ]) + ways + helpLayout.msgHtml([
-          ...(short ? [`<span class="text-warning">${esc(t('MOD_VOY_PIRATES_SHORT', { gp: gpText(pir.toll) }))}</span>`] : []),
-          esc(t('MOD_VOY_PIRATES_HOLD')),
-        ]),
-        didOpen: () => { if (short) confirmOff(); },
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        showDenyButton: true,
-        confirmButtonText: t('MOD_VOY_PIRATES_PAY', { gp: gpText(pir.toll) }),
-        denyButtonText: t('MOD_VOY_PIRATES_RUN'),
-        preConfirm: () => {
-          if (game.gp.amount >= pir.toll) return true;
-          Swal.showValidationMessage(esc(t('MOD_VOY_PIRATES_SHORT', { gp: gpText(pir.toll) })));
-          return false;
-        },
-      }).then((r) => {
-        asking = false;
-        if (r.isConfirmed) answer('pay');
-        else if (r.isDenied) answer('run');
-        // Closed by another popup: the next tick asks again.
-      }, () => { asking = false; });
-    };
-    try { if (state.whenNoModal) state.whenNoModal(open); else open(); } catch (e) { asking = false; log('pirates popup failed', e); }
-  };
-  const refuseWhileAsked = () => notify(t('MOD_VOY_PIRATES_FIRST'), 'danger');
+  // The dev console's voyageDev.event('stowaway'): the next chance comes true (once).
+  const forced = { stowaway: false };
+  const force = (kind) => { if (!(kind in forced)) return `stowaway, not ${kind}`; forced[kind] = true; return `${kind}: the next chance comes true`; };
 
   // ---- the stowaway ------------------------------------------------------------------------------------------------
   const folks = () => (state.folksGuarded ? state.folksApi?.() : undefined);
@@ -221,7 +124,7 @@ export function install(ctx, { state, EM, S, shipModel, helpLayout, rankName, sh
       showCancelButton: true,
       confirmButtonText: t('MOD_VOY_STOW_HIRE', { name: s.name, gp: gpText(p ?? 0) }),
       cancelButtonText: t('MOD_VOY_STOW_LATER'),
-    }, { ...SWAL_CLASS, confirmButton: 'btn btn-success m-1' }).then((r) => { if (r.isConfirmed) { try { hire(); } catch (e) { log('stowaway hire failed', e); } } });
+    }).then((r) => { if (r.isConfirmed) { try { hire(); } catch (e) { log('stowaway hire failed', e); } } });
     try { if (state.whenNoModal) state.whenNoModal(open); else open(); } catch (e) { log('stowaway popup failed', e); }
   };
   /**
@@ -270,7 +173,7 @@ export function install(ctx, { state, EM, S, shipModel, helpLayout, rankName, sh
     redraw();
   };
 
-  const out = { model: EM, rank, canHire, force, meet, offer, ask, pay, run, refuseWhileAsked, holdWorth, stowaway, stowRoll, stowFound, price, hireRefusal, hire, askStow, tick };
+  const out = { model: EM, rank, canHire, force, stowaway, stowRoll, stowFound, price, hireRefusal, hire, askStow, tick };
   state.events = out;
   return out;
 }

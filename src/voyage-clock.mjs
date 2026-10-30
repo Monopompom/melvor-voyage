@@ -595,7 +595,6 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
    * Cancel keeps the voyage). The planner's Set off comes here; the map's Travel has the whole Set off popup.
    */
   const changeCourse = (dest, name, go) => {
-    if (cur()?.pir !== undefined) { state.events?.refuseWhileAsked?.(); return; }
     if (state.encounters?.fightOpen?.() === true) { state.encounters.refuse(); return; }
     const c = courseOf(dest);
     if (c === undefined) { go(); return; }
@@ -619,7 +618,6 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
    * pick to put first), started() (after the voyage set off) }.
    */
   const confirmSetOff = (path, original, fog, extra = {}) => {
-    if (cur()?.pir !== undefined) { state.events?.refuseWhileAsked?.(); return; }
     if (state.encounters?.fightOpen?.() === true) { state.encounters.refuse(); return; }
     const course = courseOf(path[0]);
     if (course === 'same') { alreadyThere(); return; }
@@ -1031,21 +1029,6 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     nextTimer(v);
   };
   /**
-   * Pirates wait for an answer (events.mjs): the clock stands still until it comes. Paying costs the toll; running, the
-   * hull's wear and one hex more of sailing (the next step's time again).
-   */
-  const pirateHold = (v) => {
-    if (state.events === undefined) { delete v.pir; return; }
-    state.events.ask(v.pir, (how) => {
-      if (cur() !== v || v.pir === undefined) return;
-      const ok = how === 'pay' ? state.events.pay(v.pir) : state.events.run(v.pir);
-      if (!ok) return;
-      if (how === 'run') { const extra = stepTicks(v)[v.at] ?? v.of; v.left += extra; v.of += extra; }
-      delete v.pir;
-      changed();
-    });
-  };
-  /**
    * A band met waits for an answer (encounters.mjs): the clock stands still while its popup is open (asked again if
    * something closed it). Its end (encDone) lets the voyage go on.
    */
@@ -1071,7 +1054,6 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
   const tick = () => {
     const v = cur();
     if (v === null) { clearAction(); return; }
-    if (v.pir !== undefined) { pirateHold(v); return; }
     if (v.enc !== undefined) { encHold(v); return; }
     v.spent++;
     v.left--;
@@ -1154,8 +1136,6 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
   /** Stop here: the voyage ends on the hex reached. A tow has none: you go where the tow goes. */
   const stopHere = () => {
     if (cur()?.tow !== undefined) { state.adrift?.refuseUnderTow?.(); return; }
-    // Pirates in sight: no anchoring to slip away; offline their answer comes first.
-    if (cur()?.pir !== undefined) { if (!offlineNow()) { state.events?.refuseWhileAsked?.(); return; } pirateHold(cur()); }
     if (cur()?.enc !== undefined && !offlineNow()) { state.encounters?.refuse?.(); return; }
     forcing = true; try { end('stopped'); } finally { forcing = false; }
   };

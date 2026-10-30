@@ -186,8 +186,8 @@ export function cleanVoyage(v) {
     ...(cleanTow(v.tow) === undefined ? {} : { tow: cleanTow(v.tow) }),
     // The vessels worn below 50% when it set off (the flat mechanics): their hexes take longer for the whole voyage.
     worn: (Array.isArray(v.worn) ? v.worn : []).filter((k, i, a) => (k === 'boat' || k === 'ship') && a.indexOf(k) === i),
-    // Pirates waiting for an answer (events-model.mjs): the toll and the run's wear; the voyage holds until answered.
-    ...(cleanPirates(v.pir) === undefined ? {} : { pir: cleanPirates(v.pir) }),
+    // `pir`, the pirates of before version 1.1.0 waiting for an answer, is dropped: bands took their place, and the
+    // voyage sails on.
     // A band met holds the voyage (encounters.mjs keeps the fight in the save's enc); 1 while it waits.
     ...(v.enc === 1 ? { enc: 1 } : {}),
     // The walk index where a stowaway climbs out (events-model stowawayAt), until it does.
@@ -195,13 +195,6 @@ export function cleanVoyage(v) {
   };
 }
 
-/** A pirate encounter waiting on a voyage ({ toll, wear }), or undefined. */
-function cleanPirates(p) {
-  if (p == null || typeof p !== 'object') return undefined;
-  const toll = Number.isFinite(p.toll) && p.toll > 0 ? Math.round(p.toll) : undefined;
-  const wear = Number.isFinite(p.wear) && p.wear > 0 ? p.wear : undefined;
-  return toll === undefined || wear === undefined ? undefined : { toll, wear };
-}
 /** What may tow you (adrift-model.mjs TOW_KINDS; modules here can't import each other). */
 export const TOW_KINDS = ['pay', 'fisherman', 'bottle', 'pushy'];
 function cleanTow(t) {

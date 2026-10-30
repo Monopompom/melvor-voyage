@@ -549,8 +549,8 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       return { storms: w.stormsAt(now), near: p === undefined ? [] : w.stormsNear(p.q, p.r, 3), on: w.stormsOn() };
     },
     /**
-     * voyageDev.event('pirates'): the next big-ship deep-sea hex of a voyage meets pirates; voyageDev.event('stowaway'):
-     * the next voyage with enough sea hexes carries a stowaway. Each fires once.
+     * voyageDev.event('stowaway'): the next voyage with enough sea hexes carries a stowaway. It fires once. (Bands:
+     * voyageDev.encounter.)
      */
     event(kind) { return state.events?.force?.(kind) ?? 'events not loaded'; },
     /**

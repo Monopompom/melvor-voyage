@@ -77,7 +77,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
   const hexDist = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
   /**
    * The place a step enters: { where, tier, ground } or undefined where no band waits. At sea only the big ship's
-   * deep-sea hexes (as the pirates were); on land every hex by its ground. Hops and free steps meet nobody.
+   * deep-sea hexes; on land every hex by its ground. Hops and free steps meet nobody.
    */
   const placeOf = (step, hex) => {
     if (step == null || hex == null || step.fastTravel === true || step.free === true) return undefined;
@@ -238,8 +238,17 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
   };
 
   // ---- meeting a band ------------------------------------------------------------------------------------------------
-  /** The GP your holds would sell for (the toll at sea reads a quarter of it). */
-  const holdWorth = () => { try { return state.events?.holdWorth?.() ?? 0; } catch { return 0; } };
+  /** The GP your holds would sell for, the big ship's and the boat's riding aboard (the toll at sea reads a quarter of it). */
+  const holdWorth = () => {
+    let sum = 0;
+    const kinds = ['ship', ...(state.ship?.vessel?.('boat')?.aboard === true ? ['boat'] : [])];
+    for (const kind of kinds) {
+      for (const it of state.hold?.contents?.(kind) ?? []) {
+        try { if (it.item.sellsFor.currency === game.gp) sum += it.item.sellsFor.quantity * it.qty; } catch {}
+      }
+    }
+    return sum;
+  };
   const seed = () => 1 + Math.floor(Math.random() * 0x7ffffffe);
   /** The toll band `b` asks at `p` from the GP you carry now (`{ toll, rule, gp, debt }`): ten points more if you owe it there. */
   const tollAt = (p, b, hexGp) => {
@@ -546,17 +555,17 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     log(`encounters: paid ${paid} GP`);
     render();
   };
-  /** Running: at sea as the pirates' run was (hull wear, a fifth of the crates, a hex more); on land a hex more and some stores. */
+  /** Running: at sea hull wear, a fifth of the crates and a hex more; on land a hex more and some stores. */
   const run = () => {
     const f = enc()?.fight;
     if (f == null || f.stage !== 'meet' || f.away !== undefined) return;
     const lines = [];
     if (f.opt.where === 'sea') {
-      const wear = EM.pirateRunWear(S.WEAR.deep);
+      const wear = EM.seaRunWear(S.WEAR.deep);
       const to = EM.condAfterRun(state.ship?.cond?.('ship') ?? 0, wear);
       try { state.ship?.setCond?.(to, 'ship'); } catch (e) { log('encounters: hull wear failed', e); }
       let gone = [];
-      try { gone = state.hold?.jettison?.(EM.pirateRunLoss(state.hold?.hold?.('ship')?.length ?? 0), 'ship') ?? []; } catch (e) { log('encounters: jettison failed', e); }
+      try { gone = state.hold?.jettison?.(EM.seaRunLoss(state.hold?.hold?.('ship')?.length ?? 0), 'ship') ?? []; } catch (e) { log('encounters: jettison failed', e); }
       lines.push(k('MOD_VOY_ENC_RES_RUN_HULL', { wear: `${wear}`, cond: `${to}` }));
       if (gone.length > 0) lines.push(k('MOD_VOY_ENC_RES_RUN_CRATES', { n: `${gone.length}` }));
     } else {
@@ -752,7 +761,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
       if (enc()?.fight == null) { asking = false; return; }
       F.popup({ api, onClosed: () => { asking = false; } });
     };
-    try { if (state.whenNoModal) state.whenNoModal(go); else go(); } catch (e) { asking = false; log('encounters: popup failed', e); }
+    try { if (state.whenNoModal) state.whenNoModal(go, true); else go(); } catch (e) { asking = false; log('encounters: popup failed', e); }
   };
   const render = () => { try { F.render?.(api); } catch (e) { log('encounters: render failed', e); } };
   /** A move or a set-off asked while a band waits: refused, with why. */
@@ -818,7 +827,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     canPatch, patch, tick, open, refuse, warm, meetNow, rareNext, strengthFor, oddsOf,
     D, have, ownsItem, charmsNow, shipNow, kitLocked, redraw, notify,
     /** The hull wear a run at sea costs (%). */
-    runWear: () => EM.pirateRunWear(S.WEAR.deep),
+    runWear: () => EM.seaRunWear(S.WEAR.deep),
     /** Whether an encounter is open (a band met, its result not yet read). */
     fightOpen: () => enc()?.fight != null,
     force: () => { forced = true; return 'the next hex that can meet a band does'; },

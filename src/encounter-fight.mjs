@@ -303,6 +303,7 @@ export function install(ctx, { state, log }) {
       + btn('tossmode', s.tossed ? t('MOD_VOY_ENC_TOSSED') : ui.toss ? t('MOD_VOY_ENC_TOSS_PICK') : t('MOD_VOY_ENC_TOSS'), { icon: 'fa-trash-alt', disabled: s.tossed, pressed: ui.toss, title: t('MOD_VOY_ENC_TOSS_HELP') })
       + btn('hint', ui.hint ? t('MOD_VOY_ENC_HINT_HIDE') : t('MOD_VOY_ENC_HINT'), { icon: 'fa-lightbulb', pressed: ui.hint })
       + btn('autoround', t('MOD_VOY_ENC_AUTO_ROUND'), { icon: 'fa-robot', title: t('MOD_VOY_ENC_AUTO_ROUND_TIP') })
+      + btn('tricks', t('MOD_VOY_DECK_TRICKS'), { icon: 'fa-book-open', cls: 'btn-outline-secondary voyage-enc-tricks-btn' })
       + `<span class="voyage-enc-piles voyage-enc-num"><span title="${esc(t('MOD_VOY_ENC_PILE_DRAW'))}">${fa('fa-layer-group')} ${s.drawPile.length}</span><span title="${esc(t('MOD_VOY_ENC_PILE_DISCARD'))}">${fa('fa-recycle')} ${s.discard.length}</span><span title="${esc(t('MOD_VOY_ENC_PILE_GONE'))}">${fa('fa-times-circle')} ${s.gone.length}</span></span>`
       + '</div>'
       + `<div class="voyage-enc-body voyage-enc-logwrap"><div class="voyage-enc-log">${logHtml}</div></div>`;
@@ -424,6 +425,8 @@ export function install(ctx, { state, log }) {
       else if (a === 'end') { ui.toss = false; api.act('e'); }
       else if (a === 'tossmode') { ui.toss = !ui.toss; render(api); }
       else if (a === 'hint') { ui.hint = !ui.hint; render(api); }
+      // The trick book opens over the fight: a popup of its own would end this one.
+      else if (a === 'tricks') state.deck?.openTrickBook?.(Swal.getPopup());
       else if (a === 'autoround') { ui.toss = false; api.autoRound(); }
       else if (a === 'press') api.pressOn();
       else if (a === 'take') api.take();
@@ -448,7 +451,7 @@ export function install(ctx, { state, log }) {
         el.addEventListener('click', (e) => onClick(api, e));
         render(api);
       },
-    }).then(() => onClosed(), () => onClosed());
+    }).then(() => { state.deck?.closeTrickBook?.(); onClosed(); }, () => { state.deck?.closeTrickBook?.(); onClosed(); });
   };
   const onResize = () => { const el = root(); if (el !== null) balanceHand(el); };
   window.addEventListener('resize', onResize);

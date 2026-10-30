@@ -2,7 +2,7 @@
 // the Township shop, the Voyage relic set and the Voyage Lesser Relic for the Ancient Relics mode, the Albatross tablet
 // and its synergies, the Voyage Skillcape and the pet Barnacle; the Superior cape with Throne of the Herald), names it
 // from the language file, reads the effects off the player's modifier table for the stores, the clock, cargo pay, the
-// pirates and night sight, and after every landed move rolls the relics, the Lesser Relic, the Albatross's charges and
+// bands' tolls and night sight, and after every landed move rolls the relics, the Lesser Relic, the Albatross's charges and
 // marks, and the pet. The numbers and the pure rules are src/gear-model.mjs.
 
 /** Adds the data packages. Called right after data/package.json, before any module reads the items. */
@@ -134,7 +134,7 @@ export function install(ctx, { state, G, log }) {
     pace: () => G.pace(effects()),
     /** GP from a delivery or a task with the cargo pay on it. */
     payOf: (gp) => G.payOf(gp, effects()),
-    /** The pirates' toll with the cut on it. */
+    /** A band's toll with the cut on it. */
     tollOf: (toll) => G.tollOf(toll, effects()),
     /** Hull wear points given back after a move that took `taken`. */
     forgiveWear: (taken) => G.forgiveWear(taken, effects().wearCut),

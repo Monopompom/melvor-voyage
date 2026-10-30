@@ -463,12 +463,13 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   const folksOn = () => state.crew !== undefined && state.folksGuarded === true;
   const chapters = () => jm.JOURNAL_CHAPTERS.filter((c) => (c === 'adventure' ? adventure()
     : c === 'crew' ? folksOn() && typeof state.helpSections === 'function'
+    : c === 'encounters' ? state.encounters !== undefined
     : c === 'crafts' || jm.JOURNAL_WRITTEN[c] !== undefined || typeof state.helpSections === 'function'));
 
   /** A book-only chapter (journal-model.mjs JOURNAL_WRITTEN): its sections from en.json, plus the live parts. */
   /**
    * The live values the book's texts take: keys, the planner's levels and the charts' price, the sign's level, and the
-   * pirates' and the stowaway's numbers (events-model.mjs; blank without the events module).
+   * stowaway's numbers (events-model.mjs; blank without the events module).
    */
   const bookVars = () => {
     const nav = state.planner?.NAV;
@@ -477,9 +478,107 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     return { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
       level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, gp: nav === undefined ? '' : shortNumber(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
       signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '',
-      pirChance: num(1 / em?.PIRATE_CHANCE), pirShare: num(em?.PIRATE_SHARE * 100), pirFloor: num(em?.PIRATE_FLOOR_HEXES),
-      pirSound: num(em?.PIRATE_SOUND), stowShare: num(em?.STOWAWAY_PRICE_SHARE * 100), hungryPct: num(storesModel?.HUNGRY_GP * 100),
-      stormWaitH: num((state.clock?.stormWaitMax ?? NaN) / 3600000), ...gearVars(), ...crewVars() };
+      stowShare: num(em?.STOWAWAY_PRICE_SHARE * 100), hungryPct: num(storesModel?.HUNGRY_GP * 100),
+      stormWaitH: num((state.clock?.stormWaitMax ?? NaN) / 3600000), ...gearVars(), ...crewVars(), ...encVars() };
+  };
+  /** The bands chapter's numbers, from the encounter models (4.33); none without the encounters module. */
+  const encVars = () => {
+    const en = state.encounters;
+    if (en === undefined) return {};
+    const { E, R, L, D } = en;
+    const n = (x) => `${Math.round(x)}`;
+    return { encHideout: n(R.HIDEOUT_REACH), encBreather: n(R.BREATHER), encDebtPct: n(R.DEBT_PCT), encTollLow: n(R.TOLL_PCT[1]),
+      encTollHigh: n(R.TOLL_PCT[R.MAX_TIER]), encFare: n(R.FARE_HEXES), encHold: n(R.HOLD_SHARE * 100), encWear: n(en.runWear()),
+      encRunLand: n(R.RUN_LAND_DROP * 100), encRounds: n(E.MAX_ROUNDS), encHand: n(E.HAND), encPlays: n(E.PLAYS), encTilt: n(R.TILT_GAP),
+      encEdge: n(E.EDGE_MAX), encPurseLow: numberWithCommas(R.purseOf('land', 1)), encPurseHigh: numberWithCommas(R.purseOf('sea', R.MAX_TIER)),
+      encCardDrop: n(L.CARD_DROP * 100), encPressDrop: n(L.CARD_DROP_PRESS * 100), encLoss: n(R.LOSS_SHARE * 100), encBatter: n(E.BATTER),
+      encBatterMax: n(E.BATTER * E.BATTER_MAX), encRestH: n(R.REST_MS / 3600000), encPatch: n(R.PATCH_FOOD), encDeckMin: n(E.DECK_MIN),
+      encDeckMax: n(E.DECK_MAX), encCharms: n(D.CHARM_SLOTS), encPresets: n(D.PRESETS_MAX), encAwayCap: n(R.AWAY_CAP) };
+  };
+  // ---- the bands chapter's dressing (the user, 30 Oct 2026: "make some text bolding, decorations, icons") ----------
+  const fa = (icon, cls = '') => `<i class="fa ${icon}${cls ? ` ${cls}` : ''}" aria-hidden="true"></i>`;
+  /** The suits' icons, as the fight draws them (encounter-fight.mjs). */
+  const SUIT_ICON = { steel: 'fa-khanda', powder: 'fa-bomb', coin: 'fa-coins', wits: 'fa-chess-knight' };
+  /** An icon before each of the chapter's headings. */
+  const ENC_HEAD_ICON = { MEET: 'fa-map-signs', ANSWER: 'fa-balance-scale', ROUND: 'fa-hourglass-half', SUITS: 'fa-layer-group',
+    STAKES: 'fa-coins', DECK: 'fa-clone', AWAY: 'fa-moon', BANDS: 'fa-skull-crossbones' };
+  const suitMark = (suit, name) => `<span class="vj-suit vj-suit-${suit}">${fa(SUIT_ICON[suit])}<b>${name}</b></span>`;
+  /**
+   * The game's words in escaped text marked: a suit in its colour with its icon, the moves, bars and answers bold
+   * (MOD_VOY_JOURNAL_ENC_TERMS, split on "|"). Longest first, so "Press on" wins over a shorter word.
+   */
+  const markTerms = (text) => {
+    const E = state.encounters?.E;
+    if (E === undefined) return text;
+    const suits = new Map(E.SUITS.map((k) => [esc(t(E.suitKey(k))), k]));
+    const words = [...suits.keys(), ...t('MOD_VOY_JOURNAL_ENC_TERMS').split('|').map((w) => esc(w.trim())).filter((w) => w !== '')]
+      .sort((x, y) => y.length - x.length).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return text.replace(new RegExp(`\\b(${words.join('|')})\\b`, 'g'), (m) => (suits.has(m) ? suitMark(suits.get(m), m) : `<b class="vj-term">${m}</b>`));
+  };
+  /** A section's html dressed: a point's short lead-in ("A win:") bold, then the terms in every text run. */
+  const encDress = (html) => html
+    .replace(/<li>([^<:]{1,30}):/g, (m, lead) => (lead.trim().split(/\s+/).length <= 3 ? `<li><b>${lead}</b>:` : m))
+    .replace(/>([^<]+)</g, (m, run) => `>${markTerms(run)}<`);
+  /** A round in three steps at the head of "How a fight goes": draw, play, their move; the rounds at most. */
+  const encSteps = () => {
+    const E = state.encounters?.E;
+    if (E === undefined) return '';
+    const step = (icon, key, n) => `<span class="vj-step">${fa(icon)}<span>${esc(t(key, { n: `${n}` }))}</span></span>`;
+    const arrow = `<span class="vj-step-arrow" aria-hidden="true">${fa('fa-long-arrow-alt-right')}</span>`;
+    return `<div class="vj-steps">${step('fa-clone', 'MOD_VOY_JOURNAL_ENC_STEP_DRAW', E.HAND)}${arrow}${step('fa-hand-paper', 'MOD_VOY_JOURNAL_ENC_STEP_PLAY', E.PLAYS)}${arrow}`
+      + `${step('fa-fist-raised', 'MOD_VOY_JOURNAL_ENC_STEP_THEM', 0)}<span class="vj-step-rounds">${fa('fa-redo-alt')}${esc(t('MOD_VOY_JOURNAL_ENC_STEP_ROUNDS', { n: `${E.MAX_ROUNDS}` }))}</span></div>`;
+  };
+  /** The tiers: a badge, the grounds (their map colour) and chart seas of each, the odds a hex meets a band, the toll. */
+  // One band per tier, read left to right: the tier and its odds and toll, then where on land and where at sea. Every
+  // place is a chip that keeps to one line, so a line breaks between places, never inside one (the user).
+  const encTiersTable = () => {
+    const R = state.encounters?.R;
+    if (R === undefined) return '';
+    const chip = (icon, html) => `<span class="vj-place">${icon}${html}</span>`;
+    const ground = (g) => chip(`<span class="vj-swatch" style="background:${terrainMod.CLASS_INFO[g]?.css ?? 'transparent'}" aria-hidden="true"></span>`, esc(t(terrainMod.classKey(g))));
+    const seaName = (port) => { try { return state.charts?.seaName?.(port) ?? port; } catch { return port; } };
+    const line = (icon, label, chips) => (chips.length === 0 ? ''
+      : `<div class="vj-tierband-line"><span class="vj-tierband-lab">${fa(icon)}${esc(label)}</span><span class="vj-where">${chips.join('')}</span></div>`);
+    const stat = (kind, label, html, never = false) => `<span class="vj-stat vj-stat-${kind}${never ? ' vj-stat-never' : ''}"><small>${esc(label)}</small><b>${html}</b></span>`;
+    let html = '';
+    for (let tier = 0; tier <= R.MAX_TIER; tier++) {
+      const land = Object.keys(R.GROUND_TIER).filter((g) => R.GROUND_TIER[g] === tier).map(ground);
+      // Ground one tier lower is this tier near the hideout.
+      if (tier > 0 && Object.values(R.GROUND_TIER).includes(tier - 1)) land.push(chip(fa('fa-campground'), esc(t('MOD_VOY_JOURNAL_ENC_HIDEOUT', { n: `${tier - 1}` }))));
+      const sea = Object.keys(R.SEA_TIER).filter((p) => R.SEA_TIER[p] === tier).map((p) => chip(fa('fa-water'), esc(seaName(p))));
+      if (tier === R.CLOUD_EDGE_TIER) sea.push(chip(fa('fa-cloud'), esc(t('MOD_VOY_JOURNAL_ENC_CLOUD'))));
+      const safe = !(R.ODDS[tier] > 0);
+      html += `<div class="vj-tierband"><div class="vj-tierband-head"><span class="vj-tier vj-tier-${tier}">${tier}</span>`
+        + `<span class="vj-tierband-name">${esc(t('MOD_VOY_JOURNAL_ENC_TIER_N', { n: `${tier}` }))}</span>`
+        + stat('odds', t('MOD_VOY_JOURNAL_ENC_COL_ODDS'), esc(safe ? t('MOD_VOY_JOURNAL_ENC_SAFE') : t('MOD_VOY_JOURNAL_ENC_ODDS', { n: `${Math.round(1 / R.ODDS[tier])}` })), safe)
+        + stat('toll', t('MOD_VOY_JOURNAL_ENC_COL_TOLL'), esc(safe ? '—' : t('MOD_VOY_JOURNAL_ENC_TOLL', { pct: `${R.TOLL_PCT[tier]}` })), safe) + '</div>'
+        + line('fa-road', t('MOD_VOY_ENC_ON_LAND'), land) + line('fa-ship', t('MOD_VOY_ENC_AT_SEA'), sea) + '</div>';
+    }
+    return `<div class="vj-enc-tiers">${html}</div>`;
+  };
+  /** The combos of each suit (two and three in a round) and the mixed ones: the name in the suit's colour, what it does. */
+  const encCombosTable = () => {
+    const E = state.encounters?.E;
+    if (E === undefined) return '';
+    const combo = (suit, k, tag = '') => `<span class="vj-combo${suit === 'mixed' ? '' : ` vj-suit-${suit}`}">${esc(t(E.comboKey(suit, k)))}${tag}</span>`
+      + `<span class="vj-combo-fx">${markTerms(esc(t(`${E.comboKey(suit, k)}_TEXT`)))}</span>`;
+    const rows = E.SUITS.map((suit) => [{ html: suitMark(suit, esc(t(E.suitKey(suit)))) }, { html: combo(suit, 2) }, { html: combo(suit, 3) }]);
+    const n = (k) => `<span class="vj-combo-n">${esc(t('MOD_VOY_JOURNAL_ENC_SUITS_N', { n: `${k}` }))}</span>`;
+    rows.push([{ html: `<span class="vj-suit vj-suit-mixed">${fa('fa-th-large')}<b>${esc(t('MOD_VOY_JOURNAL_ENC_MIXED'))}</b></span>` }, { html: combo('mixed', 3, n(3)) }, { html: combo('mixed', 4, n(4)) }]);
+    return `<div class="vj-enc-combos">${ledger([t('MOD_VOY_JOURNAL_ENC_COL_SUIT'), t('MOD_VOY_JOURNAL_ENC_COL_TWO'), t('MOD_VOY_JOURNAL_ENC_COL_THREE')], rows)}</div>`;
+  };
+  /** The six bands: their trophy's art as an emblem, where each is met, and their habits (the meet popup's own line). */
+  const encBandsTable = () => {
+    const E = state.encounters?.E;
+    const L = state.encounters?.L;
+    if (E === undefined) return '';
+    const WHERE = { land: ['fa-road'], sea: ['fa-water'], any: ['fa-road', 'fa-water'] };
+    const where = (w) => `${(WHERE[w] ?? []).map((i) => fa(i)).join('')}${esc(t(w === 'sea' ? 'MOD_VOY_ENC_AT_SEA' : w === 'land' ? 'MOD_VOY_ENC_ON_LAND' : 'MOD_VOY_JOURNAL_ENC_BOTH'))}`;
+    const emblem = (id) => { const tr = L?.LOOT?.[id]?.trophy; return tr === undefined ? '' : `<img src="${esc(ctx.getResourceUrl(`assets/trophy_${tr}.webp`))}" alt="">`; };
+    const rows = Object.values(E.BANDS).map((b) => [
+      { html: `<span class="vj-band">${emblem(b.id)}<span><b>${esc(t(b.key))}</b><span class="vj-band-where">${where(b.where)}</span></span></span>`, plain: true },
+      { html: markTerms(esc(t(`${b.key}_HABIT`))) }]);
+    return `<div class="vj-enc-bands">${ledger([t('MOD_VOY_JOURNAL_ENC_COL_BAND'), t('MOD_VOY_JOURNAL_ENC_COL_HABIT')], rows)}</div>`;
   };
   // The relics are named only in Ancient Relics mode (the user, 22 Oct 2026: "drop if not on"); a text that names them
   // has a relic-free twin (build .404 for the outfit guide and the leaving chapter).
@@ -553,10 +652,15 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       // The map key (build .171) opens the map from any page: one more line while it is set.
       if (id === 'map' && sec === 'KEYS' && vars.map !== '') lines.unshift(t('MOD_VOY_JOURNAL_CH_MAP_KEYS_OPEN', vars));
       const body = spec.points ? `<ul class="vj-points">${lines.map((l) => `<li>${rich(l)}</li>`).join('')}</ul>` : prose(lines);
-      html += `<div class="vj-section${spec.warn?.includes(sec) ? ' vj-warn' : ''}"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_${sec}_HEAD`))}</h3>${body}</div>`;
+      // The bands chapter (the user, 30 Oct 2026): an icon on each heading, the game's words marked.
+      const encIcon = id === 'encounters' && ENC_HEAD_ICON[sec] ? fa(ENC_HEAD_ICON[sec], 'vj-h3-icon') : '';
+      html += `<div class="vj-section${spec.warn?.includes(sec) ? ' vj-warn' : ''}"><h3 class="vj-h3">${encIcon}${esc(t(`MOD_VOY_JOURNAL_CH_${key}_${sec}_HEAD`))}</h3>${id === 'encounters' ? (sec === 'ROUND' ? encSteps() : '') + encDress(body) : body}</div>`;
       if (id === 'foreword' && sec === 'WHO') html += galleon();
       if (id === 'settings' && sec === 'EASIER') html += settingsTable();
       if (id === 'weather' && sec === 'SEASON') html += weatherNow();
+      if (id === 'encounters' && sec === 'MEET') html += encTiersTable();
+      if (id === 'encounters' && sec === 'SUITS') html += encCombosTable();
+      if (id === 'encounters' && sec === 'BANDS') html += encBandsTable();
       if (id === 'settings' && sec === 'KEYS') html += keysTable();
       if (id === 'lands' && sec === 'KINDS') html += landsTable();
       if (id === 'lands' && sec === 'FEATURES') html += featuresTable();

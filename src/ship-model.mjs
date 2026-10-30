@@ -492,7 +492,7 @@ export const atShip = (playerRec, ship) => ship != null && playerRec !== undefin
  * Pure: the hold given is not changed.
  */
 /**
- * `k` entries of a hold thrown overboard at random (the pirates, build .387): `roll()` in [0, 1) picks each. Returns
+ * `k` entries of a hold thrown overboard at random (a run from a band at sea; build .387): `roll()` in [0, 1) picks each. Returns
  * { hold, dropped } with the hold's order kept; never more than the hold holds.
  */
 export function jettison(hold, k, roll = Math.random) {

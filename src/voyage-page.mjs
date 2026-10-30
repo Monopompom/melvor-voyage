@@ -786,7 +786,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     // Outside Ancient Relics mode the lines leave the relics out (the user, 22 Oct 2026: "drop if not on").
     const relicsOn = () => { try { return gear?.relicsOn?.() === true; } catch { return false; } };
     const NO_RELICS = {
-      MOD_VOY_HELP_GEAR_WEAR: 'MOD_VOY_HELP_GEAR_WEAR_NR', MOD_VOY_HELP_GEAR_PIRATES: 'MOD_VOY_HELP_GEAR_PIRATES_NR',
+      MOD_VOY_HELP_GEAR_WEAR: 'MOD_VOY_HELP_GEAR_WEAR_NR', MOD_VOY_HELP_GEAR_TOLL: 'MOD_VOY_HELP_GEAR_TOLL_NR',
       MOD_VOY_HELP_GEAR_SIGHT: 'MOD_VOY_HELP_GEAR_SIGHT_NR', MOD_VOY_HELP_GEAR_STORES: 'MOD_VOY_HELP_GEAR_STORES_NR',
     };
     const gearLine = (key, id, vars = {}) => {
@@ -815,15 +815,16 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
           t('MOD_VOY_HELP_REPAIR_LOGS'),
           t('MOD_VOY_HELP_PITCH', { chance: `${shipModel.pitchChance(1)}` }),
         ] },
-        // Pirates (the flat mechanics): the big ship on deep sea; a share of the hold, or run.
-        ...(state.events?.model === undefined ? [] : [(() => {
-          const EM = state.events.model;
-          return { head: t('MOD_VOY_HELP_HEAD_PIRATES'), body: [
-            t('MOD_VOY_HELP_PIRATES', { chance: `${Math.round(1 / EM.PIRATE_CHANCE)}` }),
-            { text: t('MOD_VOY_HELP_PIRATES_PAY', { pct: `${Math.round(EM.PIRATE_SHARE * 100)}`, coin: decimal(EM.PIRATE_COIN_SHARE * 100), cap: shortNumber(EM.PIRATE_COIN_CAP), hexes: `${EM.PIRATE_FLOOR_HEXES}` }), cls: 'text-warning' },
-            { text: t('MOD_VOY_HELP_PIRATES_RUN', { wear: `${EM.pirateRunWear(storesModel.WEAR.deep)}` }), cls: 'text-warning' },
-            t('MOD_VOY_HELP_PIRATES_AWAY', { sound: `${EM.PIRATE_SOUND}` }),
-            ...gearLine('MOD_VOY_HELP_GEAR_PIRATES', 'pirateCut'),
+        // Bands at sea (4.33): the big ship on deep sea; the toll, or run. The fight itself is the Journal's.
+        ...(state.encounters?.R === undefined ? [] : [(() => {
+          const ER = state.encounters.R;
+          const odds = (tier) => `${Math.round(1 / ER.ODDS[tier])}`;
+          return { head: t('MOD_VOY_HELP_HEAD_BANDS'), body: [
+            t('MOD_VOY_HELP_BANDS', { home: odds(1), far: odds(ER.MAX_TIER) }),
+            { text: t('MOD_VOY_HELP_BANDS_PAY', { low: `${ER.TOLL_PCT[1]}`, high: `${ER.TOLL_PCT[ER.MAX_TIER]}`, hold: `${Math.round(ER.HOLD_SHARE * 100)}`, hexes: `${ER.FARE_HEXES}` }), cls: 'text-warning' },
+            { text: t('MOD_VOY_HELP_BANDS_RUN', { wear: `${state.encounters.runWear()}` }), cls: 'text-warning' },
+            t('MOD_VOY_HELP_BANDS_AWAY'),
+            ...gearLine('MOD_VOY_HELP_GEAR_TOLL', 'pirateCut'),
           ] };
         })()]),
       ];

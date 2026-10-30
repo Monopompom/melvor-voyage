@@ -266,7 +266,7 @@ export function install(ctx, { state, shipModel, helpLayout, log }) {
     } catch (e) { log('hold stow block failed', e); }
   });
 
-  /** `k` crates overboard at random (the pirates, build .387): what went, [{ item, qty, cargo }]; nothing from a hold that can't be used. */
+  /** `k` crates overboard at random (a run from a band at sea; build .387): what went, [{ item, qty, cargo }]; nothing from a hold that can't be used. */
   const jettison = (k, kind = 'ship') => {
     if (!(k > 0) || !usable()) return [];
     const { hold: next, dropped } = shipModel.jettison(hold(kind), k);

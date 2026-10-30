@@ -8,10 +8,11 @@
  * "write it all down": reading the map, tricks, settings, removing the mod, Adventure's first coins). 'lands' (build
  * .113) adds two live ledgers from the rule table: what each kind of land and each feature lets a craft do.
  * 'road' (build .170, the user's ask) is the land upgrades and the Crossroads Sign (4.27, 4.28), with live ledgers.
- * 'clock' (build .219) is timed travel (phase 5a, 4.5); 'weather' (phase 5c-1, 4.24) the seasons, the bands and the ice. Cargo, markets, notices and planning were chapters here until
+ * 'clock' (build .219) is timed travel (phase 5a, 4.5); 'weather' (phase 5c-1, 4.24) the seasons, the bands and the ice.
+ * 'encounters' (version 1.1.0, 4.33) is the bands met on road and sea and their card game, with live ledgers. Cargo, markets, notices and planning were chapters here until
  * build .231; they are Guide pages now (JOURNAL_GUIDE_SECTIONS), written at their first moment.
  */
-export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'crew', 'travels', 'clock', 'weather', 'road', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
+export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'crew', 'travels', 'clock', 'weather', 'road', 'encounters', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
 /**
  * The Old Man's Crew pages (build .116, the user's ask): a guide to Worker Folks: Hiring in the captain's voice, shown
  * as their own tab only while that mod is loaded. Written chapters like the ones below (MOD_VOY_JOURNAL_CH_CREW_*).
@@ -59,6 +60,8 @@ export const JOURNAL_WRITTEN = {
   clock: { sections: ['PACE', 'WAY', 'LAND', 'ASK', 'FOG', 'AWAY', 'OFF'] },
   // The weather (phase 5c-1).
   weather: { sections: ['SEASON', 'BANDS', 'HARVEST', 'ICE', 'WIND', 'STORMS', 'RARE', 'OFF'] },
+  // Bands and their card game (4.33, version 1.1.0): the tiers, the combos and the bands as live ledgers (journal.mjs).
+  encounters: { sections: ['MEET', 'ANSWER', 'ROUND', 'SUITS', 'STAKES', 'DECK', 'AWAY', 'BANDS'] },
 };
 
 /**

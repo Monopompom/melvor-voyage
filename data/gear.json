@@ -70,7 +70,7 @@
             "scopes": {},
             "descriptions": [
               {
-                "text": "Pirates ask ${value}% less",
+                "text": "Bands ask ${value}% less toll",
                 "includeSign": false,
                 "lang": "MOD_VOY_MODIFIER_pirateCut"
               }

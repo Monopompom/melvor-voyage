@@ -114,8 +114,18 @@ body:not(.darkMode) .voyage-store-item.btn-outline-info { color: var(--voyage-se
 body:not(.darkMode) .voyage-store-item.btn-info { background: var(--voyage-sea); border-color: var(--voyage-sea); } /* chip digits 4.5:1 in Light (.308, A2-07) */
 .voyage-here-label { color: var(--voyage-label); font-weight: 600; margin-right: 2px; }
 
-/* settings: the Strictness dropdown sits under its two-line hint, lined up with the label */
-.form-inline:has(.voyage-setting-hint) > .dropdown { margin: 0.5rem 0 0.25rem 0.5rem; }
+/* settings: Strictness as Worker Folks' Wage difficulty (the user): the Mod Manager lays a dropdown setting out as a
+   flex row (validation message, .dropdown, label) whose label is a flex box too. Rebuilt as a stack: the title, a
+   gap, the two-line hint, a gap, a full-width button. */
+label[for="voyage:strictness"] { display: block !important; flex: 0 0 100%; width: 100%; margin: 0.25rem 0 0 0 !important; line-height: 1.4; font-size: 1.1rem; }
+label[for="voyage:strictness"] > .ms__force-wrap { display: none; }
+label[for="voyage:strictness"] > small, label[for="voyage:strictness"] .voyage-setting-hint { display: block; margin: 0.75rem 0 1rem 0; font-size: .9rem; line-height: 1.5; }
+label[for="voyage:strictness"] > small .voyage-setting-hint { margin: 0; }
+div.form-inline:has(> .dropdown > [id="voyage:strictness"]) { display: flex; flex-direction: column-reverse; align-items: stretch; }
+div.form-inline:has(> .dropdown > [id="voyage:strictness"]) > .dropdown { width: 100%; margin: 0 0 1rem 0; }
+[id="voyage:strictness"] { display: flex; width: 100%; align-items: center; justify-content: space-between; text-align: left; padding: 0.6rem 1rem; margin: 0; }
+[id="voyage:strictness"]::after { margin-left: 0.75rem; }
+.dropdown-menu[aria-labelledby="voyage:strictness"] { width: 100%; }
 
 /* phase 3a: the Voyage skill page */
 .bg-voyage { background-color: #1f4e6b !important; }
@@ -567,6 +577,64 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 /* A column of figures is centred under its head; the last column's stays right against the edge (the user, 29 Oct 2026). */
 .vj-ledger .vj-num:not(:last-child) { text-align: center; }
 .vj-ledger .vj-end { text-align: right; }
+/* The bands chapter (the user, 30 Oct 2026: "bolding, decorations, icons"): the suits in their colours on the paper,
+   the game's words bold, a badge per tier, the trophies as the bands' emblems, a round as three steps. */
+.vj-suit { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+.vj-suit .fa { font-size: .82em; }
+.vj-suit-steel { color: #3d5d7d; } .vj-suit-powder { color: #b0461a; } .vj-suit-coin { color: #85650c; } .vj-suit-wits { color: #6a4ea2; }
+.vj-suit-mixed { color: var(--vj-red); }
+.vj-term { font-weight: 600; }
+.vj-h3-icon { color: var(--vj-red); font-size: .72em; width: 1.4em; margin-right: 8px; text-align: center; vertical-align: 2px; }
+.vj-tier { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%;
+  font-weight: 600; font-size: 15px; font-variant-numeric: lining-nums; border: 1.5px solid var(--vj-red); color: var(--vj-red); }
+.vj-tier-0 { border-color: var(--vj-rule); color: var(--vj-faint); }
+.vj-tier-2 { background: rgba(122, 42, 28, .12); } .vj-tier-3 { background: rgba(122, 42, 28, .3); }
+.vj-tier-4 { background: var(--vj-red); color: var(--vj-paper); }
+/* The tiers: a band each, read left to right; places are chips that never break inside (the user). */
+.vj-enc-tiers { margin: 10px 0 14px; border-top: 2px solid var(--vj-red); border-bottom: 2px solid var(--vj-red); }
+.vj-tierband { padding: 9px 2px 10px; }
+.vj-tierband + .vj-tierband { border-top: 1px solid var(--vj-rule); }
+.vj-tierband-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; margin-bottom: 4px; }
+.vj-tierband-name { font-weight: 700; color: var(--vj-red); margin-left: -8px; margin-right: auto; }
+.vj-stat { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.vj-stat small { color: var(--vj-faint); font-size: .8em; text-transform: uppercase; letter-spacing: .04em; }
+.vj-stat b { font-variant-numeric: lining-nums tabular-nums; }
+/* The values keep one width band to band, so the labels line up down the table (the user). */
+.vj-stat-odds b { min-width: 4.4em; } .vj-stat-toll b { min-width: 5em; }
+.vj-stat-never b { color: var(--vj-faint); font-weight: 600; }
+.vj-tierband-line { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 0 10px; align-items: baseline; padding-left: 36px; }
+.vj-tierband-lab { white-space: nowrap; color: var(--vj-faint); font-size: .85em; }
+.vj-tierband-lab .fa { margin-right: 5px; color: var(--vj-blue); }
+.vj-where { display: flex; flex-wrap: wrap; gap: 2px 16px; }
+.vj-place { display: inline-flex; align-items: baseline; white-space: nowrap; }
+@media (max-width: 575.98px) {
+  .vj-tierband-line { grid-template-columns: minmax(0, 1fr); padding-left: 0; }
+  .vj-tierband-lab { margin-top: 3px; }
+}
+.vj-place .vj-swatch { margin-right: 5px; }
+.vj-place .fa { color: var(--vj-blue); margin-right: 6px; font-size: .85em; }
+.vj-never { color: var(--vj-faint); font-style: italic; }
+.vj-combo { display: block; font-weight: 600; }
+.vj-combo-fx { display: block; font-size: 15px; }
+.vj-combo-n { font-weight: 400; font-size: .85em; color: var(--vj-faint); font-style: italic; margin-left: 6px; }
+.vj-enc-combos td:first-child { white-space: nowrap; width: 1%; padding-right: 14px; }
+.vj-band { display: flex; align-items: center; gap: 10px; }
+.vj-band img { width: 40px; height: 40px; object-fit: contain; flex: none; }
+.vj-band-where { display: block; font-weight: 400; font-size: .85em; color: var(--vj-faint); white-space: nowrap; }
+.vj-band-where .fa { margin-right: 4px; color: var(--vj-blue); }
+.vj-enc-bands td:first-child { width: 1%; padding-right: 14px; }
+.vj-enc-bands td { vertical-align: middle; padding-top: 8px; padding-bottom: 8px; }
+.vj-steps { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 6px; margin: 4px 0 2px; }
+.vj-step { display: inline-flex; align-items: center; gap: 7px; padding: 3px 12px; border: 1px solid rgba(122, 42, 28, .4);
+  border-radius: 999px; background: rgba(122, 42, 28, .05); font-size: 16px; justify-content: center; white-space: nowrap; }
+.vj-step .fa { color: var(--vj-red); }
+.vj-step-arrow { color: var(--vj-faint); }
+.vj-step-rounds { grid-column: 1 / -1; justify-self: end; display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-style: italic; color: var(--vj-faint); }
+@media (max-width: 575.98px) {
+  .vj-steps { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .vj-step-arrow { transform: rotate(90deg); }
+  .vj-step-rounds { justify-self: center; }
+}
 /* The road chapter (build .170): a mount's icon and name, its price as icon, count, name; the buffs one per line. */
 .vj-mount { display: inline-flex; align-items: center; gap: 8px; }
 .vj-mount img { width: 32px; height: 32px; object-fit: contain; }
@@ -1582,6 +1650,9 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-enc-actions { position: sticky; bottom: 0; z-index: 2; background-color: inherit;
   background-image: linear-gradient(var(--voyage-band), var(--voyage-band)); }
 .voyage-enc-piles { margin-left: auto; color: var(--voyage-label); font-size: .82rem; display: flex; gap: 10px; }
+/* The trick book sits on the right, before the piles (the user). */
+.voyage-enc-tricks-btn { margin-left: auto; }
+.voyage-enc-tricks-btn + .voyage-enc-piles { margin-left: 4px; }
 .voyage-enc-logwrap { padding-top: .5rem; }
 .voyage-enc-log { max-height: 190px; overflow: auto; font-size: .82rem; }
 .voyage-enc-log > div { padding: 2px 0; border-bottom: 1px solid var(--voyage-rule-soft); display: flex; gap: 8px; }
@@ -1690,18 +1761,50 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-deck-charm-icon { width: 32px; height: 32px; object-fit: contain; }
 .voyage-deck-charm-name { font-weight: 600; color: var(--voyage-gold); } /* gear in gold, a won trophy in the rare purple (the user) */
 .voyage-deck-charm-trophy { color: var(--voyage-wits); }
-.voyage-deck-trick-name { font-weight: 600; color: var(--voyage-wits); } /* the purple the fight marks tricks with (the user) */
 .voyage-deck-charm-fa { display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--voyage-gold); }
-/* The trick book: the name on the left, the run and what it does on the right (the user), lined up row to row. */
-.voyage-deck-tricks { display: grid; grid-template-columns: minmax(7rem, 1fr) auto auto; column-gap: 14px; }
-.voyage-deck-trick { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; padding: 3px 0; border-bottom: 1px solid var(--voyage-rule-soft); font-size: .9rem; }
-.voyage-deck-trick > :not(:first-child) { text-align: right; }
 @media (max-width: 560px) {
   .voyage-deck-preset { grid-template-columns: minmax(0, 1fr); }
   .voyage-deck-preset-act { grid-column: 1; grid-row: auto; justify-content: flex-start; }
-  .voyage-deck-tricks { grid-template-columns: minmax(0, 1fr); }
-  .voyage-deck-trick > :not(:first-child) { text-align: left; }
 }
+/* The trick book: tiles of runs, a sheet over the deck builder or the fight (the user).
+   Names in the purple the fight marks tricks with; each card of a run a chip in its suit's colour and icon. */
+.voyage-tb-sheet { position: absolute; inset: var(--voyage-enc-f, 14px); z-index: 20; display: flex; flex-direction: column; border-radius: 7px; background-color: inherit; overflow: hidden; box-shadow: 0 0 0 2px var(--voyage-enc-rule, transparent); }
+.voyage-enc-popup .voyage-enc-html .voyage-tb, .voyage-tb-sheet .voyage-tb { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.voyage-tb-body { flex: 1 1 0; min-height: 0; overflow: auto; padding: .75rem 1rem 1rem; }
+.voyage-tb-head .voyage-tb-close { margin-left: auto; padding: 2px 9px; }
+.voyage-tb-note { margin: 0 0 .75rem; font-size: .85rem; opacity: .8; }
+/* Up to three tiles a row, by the book's own width: a tile keeps 23rem, room for the longest run (The Old Switch,
+   three cards) on one line, so the book drops to two and then one a row before a run would wrap (the user). */
+.voyage-tb-body { container: voyage-tb / inline-size; }
+.voyage-tb-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+@container voyage-tb (min-width: 47rem) { .voyage-tb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container voyage-tb (min-width: 70rem) { .voyage-tb-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* A found tile stands off the page in its suit's tint (the user: tiles and page were too alike). */
+.voyage-tb-tile { --tb: var(--voyage-wits); display: flex; flex-direction: column; gap: 7px; padding: 9px 11px 10px; border: 1px solid color-mix(in srgb, var(--tb) 45%, transparent); border-left: 4px solid var(--tb); border-radius: 6px; background: color-mix(in srgb, var(--tb) 13%, transparent); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+.voyage-tb-suit-steel { --tb: var(--voyage-steel); } .voyage-tb-suit-powder { --tb: var(--voyage-powder); }
+.voyage-tb-suit-coin { --tb: var(--voyage-coin); } .voyage-tb-suit-wits { --tb: var(--voyage-wits); }
+.voyage-tb-name { display: flex; align-items: center; gap: 7px; font-weight: 700; color: var(--voyage-wits); }
+.voyage-tb-run { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.voyage-tb-card { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border: 1px solid currentColor; border-radius: 4px; font-size: .85rem; font-weight: 600; white-space: nowrap; background: color-mix(in srgb, currentColor 16%, transparent); }
+.voyage-tb-arrow { opacity: .55; font-size: .8rem; }
+.voyage-tb-step { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+/* A narrow tile (two a row on a tablet) packs its run tighter, so a three-card run stays on one line (the user). */
+.voyage-tb-tile { container-type: inline-size; }
+@container (max-width: 340px) {
+  .voyage-tb-run, .voyage-tb-step { gap: 3px; }
+  .voyage-tb-card { padding: 1px 4px; gap: 3px; font-size: .78rem; }
+  .voyage-tb-turn { font-size: .7rem; gap: 3px; }
+}
+/* and a 360 px phone's tile a little more. */
+@container (max-width: 310px) { .voyage-tb-card { font-size: .72rem; } }
+.voyage-tb-turn { display: inline-flex; align-items: center; gap: 4px; font-size: .75rem; font-style: italic; opacity: .7; white-space: nowrap; }
+.voyage-tb-fx { display: flex; align-items: baseline; gap: 7px; font-size: .9rem; }
+.voyage-tb-fx .fa { color: var(--voyage-gold); }
+.voyage-tb-locked { --tb: var(--voyage-curse); background: transparent; box-shadow: none; border-style: dashed; border-left-style: solid; opacity: .6; }
+.voyage-tb-locked .voyage-tb-name { color: inherit; font-weight: 600; }
+.voyage-tb-locked .voyage-tb-fx { font-size: .8rem; font-style: italic; }
+.voyage-tb-blank { min-width: 2.2rem; justify-content: center; border-style: dashed; opacity: .8; }
+@media (max-width: 560px) { .voyage-tb-body { padding: .6rem; } }
 .voyage-deck-popup { --voyage-enc-rule: #c9a24a; --voyage-enc-frame: repeating-linear-gradient(45deg, #24364f 0 7px, #3d5d7d 7px 14px); }
 .voyage-enc-popup .voyage-enc.voyage-deck { flex: 1 1 auto; min-height: 0; }
 .voyage-deck > .voyage-enc-body { flex: 1 1 0; min-height: 0; overflow: auto; }
