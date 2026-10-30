@@ -86,7 +86,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   /** The same with the ration and fuel art (page and panel), titled with the words. */
   // `tip` false (build .283): inside something with its own tooltip (the Here strip's stores chip), so only one shows.
   const icons = (food, fuel, tip = true) => `<span class="voyage-stores-icons"${tip ? ` title="${esc(amounts(food, fuel))}"` : ''}>` +
-    `<img src="${ctx.getResourceUrl('assets/ration.webp')}">${t('MOD_VOY_UNIT_FOOD', { n: hp(food) })} <img src="${ctx.getResourceUrl('assets/fuel.webp')}">${t('MOD_VOY_UNIT_FUEL', { n: fuelText(fuel) })}</span>`; // both units (.308, A-11/B-20)
+    `<span class="voyage-stores-pair"><img src="${ctx.getResourceUrl('assets/ration.webp')}">${t('MOD_VOY_UNIT_FOOD', { n: hp(food) })}</span> <span class="voyage-stores-pair"><img src="${ctx.getResourceUrl('assets/fuel.webp')}">${t('MOD_VOY_UNIT_FUEL', { n: fuelText(fuel) })}</span></span>`; // both units (.308, A-11/B-20)
 
   // ---- planning a move -----------------------------------------------------------------------------------------
   /** The vessel a move ends in: the last step's (build .150, two vessels), else the small boat. */

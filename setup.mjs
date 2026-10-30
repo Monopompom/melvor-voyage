@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-29.428';
+export const BUILD = '2026-10-30.471';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -461,6 +461,15 @@ export async function setup(ctx) {
     const s = voyageSkill();
     if (s !== undefined) s.events = events;
   } catch (e) { console.error('[Voyage] events failed to load', e); state.events = undefined; }
+  // Encounters (4.33): bandits and pirates as a card game. A failure: no encounters.
+  try {
+    const F = (await ctx.loadModule('src/encounter-fight.mjs')).install(ctx, { state, log });
+    const encounters = (await ctx.loadModule('src/encounters.mjs')).install(ctx, { state, E: await ctx.loadModule('src/encounter-model.mjs'), R: await ctx.loadModule('src/encounter-rules-model.mjs'), L: await ctx.loadModule('src/encounter-loot-model.mjs'), D: await ctx.loadModule('src/deck-model.mjs'), F, EM: await ctx.loadModule('src/events-model.mjs'), S: storesModel, terrainMod, shortNumber, log });
+    const s = voyageSkill();
+    if (s !== undefined) s.encounters = encounters;
+    // The Deck block on the Voyage page (slice 3): the deck, presets, charms and the trick book.
+    state.deck = (await ctx.loadModule('src/deck.mjs')).install(ctx, { state, F, log });
+  } catch (e) { console.error('[Voyage] encounters failed to load', e); state.encounters = undefined; state.deck = undefined; }
   const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, shortNumber, decimal, log }) : undefined;
   // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
   // popups and everything else as they were.
@@ -561,6 +570,8 @@ export async function setup(ctx) {
   if (voyageSkillOk) {
     ctx.patch(Cartography, 'movePlayer').replace(function (original, path, ignoreCosts, ...rest) {
       const from = this.activeMap?.playerPosition;
+      // A band met (encounters.mjs) is answered first: no move while its popup waits (the clock's own steps aside).
+      try { if (!ignoreCosts && state.clock?.stepping?.() !== true && state.encounters?.fightOpen?.() === true) { state.encounters.refuse(); state.encounters.open(); return; } } catch (e) { log('encounter check failed', e); }
       let planned;
       let steps;
       try {
@@ -614,6 +625,9 @@ export async function setup(ctx) {
             state.weather?.stepped?.(steps);
             // Gear, relics and the Albatross (4.31): the relic and Lesser Relic rolls, the tablet charges and the mark rolls, one each per hex entered.
             try { state.gear?.afterMove?.(steps); } catch (e) { log('gear after move failed', e); }
+            // Encounters (4.33): an instant move's hexes each roll for a band, met on arrival; a timed voyage's steps
+            // roll in the clock, which holds for the answer.
+            try { if (state.clock?.stepping?.() !== true) state.encounters?.moved?.(steps, path, Math.max(0, gpBefore - game.gp.amount)); } catch (e) { log('encounter roll failed', e); }
           }
           ship.afterMove(path);
         }

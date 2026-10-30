@@ -553,6 +553,39 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
      * the next voyage with enough sea hexes carries a stowaway. Each fires once.
      */
     event(kind) { return state.events?.force?.(kind) ?? 'events not loaded'; },
+    /**
+     * voyageDev.encounter('sim', n): the starter deck's win % per band at tiers 1 to 4 (fixed strength, n fights);
+     * voyageDev.encounter('sample', band, tier, seed): one plain fight's log as words; 'you': your tilt and grade;
+     * 'meet', band, tier, where: a band meets you here and now; 'force': the next hex that can meet a band does;
+     * 'state': the save's encounter record; 'battered', n: set Battered; 'calibrate': the cached strengths;
+     * 'trophy', ...ids: win those trophy charms (all six when none named); 'rare', kind: the next win's rare find is
+     * that kind ('token', 'bankslot', 'signet' or 'trophy'); 'away', n, where: n bands met as if you were away (they
+     * fold into one encounter on the next tick); 'owe', gp, band, ground: a debt; 'debts': what you owe.
+     */
+    encounter(what = 'sim', ...args) {
+      const e = state.encounters;
+      if (e === undefined) return 'encounters not loaded';
+      if (what === 'sim') return e.sim(...args);
+      if (what === 'sample') return e.sample(...args);
+      if (what === 'you') return { tilt: e.tilt(), grade: e.grade() };
+      if (what === 'meet') return e.meetNow(...args);
+      if (what === 'force') return e.force();
+      if (what === 'state') return JSON.parse(JSON.stringify(e.enc() ?? null));
+      if (what === 'battered') { const r = e.enc(); if (r === undefined) return 'no save'; r.battered = Math.max(0, Math.min(3, args[0] ?? 1)); return `Battered ${r.battered}`; }
+      if (what === 'calibrate') return e.enc()?.cal;
+      if (what === 'trophy') {
+        const r = e.enc(); if (r === undefined) return 'no save';
+        const all = Object.keys(e.E.CHARMS).filter((id) => e.E.CHARMS[id].trophy !== undefined);
+        for (const id of args.length > 0 ? args : all) if (all.includes(id)) r.trophies[id] = true;
+        e.redraw?.();
+        return Object.keys(r.trophies);
+      }
+      if (what === 'rare') { e.rareNext(args[0] ?? 'trophy'); return `next win's rare find: ${args[0] ?? 'trophy'}`; }
+      if (what === 'away') return e.awayNow(...args);
+      if (what === 'owe') return e.oweNow(...args);
+      if (what === 'debts') return e.debts();
+      return 'sim, sample, you, meet, force, state, battered, calibrate, trophy, rare, away, owe or debts';
+    },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },
     state,

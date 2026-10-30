@@ -209,7 +209,7 @@ test('every water and shoal hex has a shore distance; land has none', async () =
 
 test('save v1 migrates up with no ship; a ship round-trips; a bad ship is dropped', () => {
   const { save, report } = loadSave(JSON.stringify({ v: 1, landHexes: 4, waterHexes: 0, backfilled: true }));
-  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]);
+  assert.deepEqual(report.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]);
   // An old character has long since started, and has opened its journal.
   assert.deepEqual(save, { ...defaultSave(), landHexes: 4, backfilled: true, start: 'game', journal: { ...defaultSave().journal, opened: true } });
   const withShip = { ...defaultSave(), boat: { ...dinghy(3, 7), cond: 64, hold: [], aboard: false }, ship: { hull: 'brig', q: 9, r: 1, cond: 70, hold: [] }, shipChecked: true };

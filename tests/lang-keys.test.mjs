@@ -11,6 +11,7 @@ import { SEASONS, BANDS } from '../src/weather-model.mjs';
 import { TRAITS as TRAVEL_TRAITS } from '../src/folk-traits-model.mjs';
 import { JOURNAL_CHAPTERS, JOURNAL_CREW, JOURNAL_WRITTEN, JOURNAL_GUIDE_SECTIONS, JOURNAL_ASIDES, JOURNAL_NOTES, CHART_ITEMS, splitLinks, linkTargetExists } from '../src/journal-model.mjs';
 import { OUTFIT, LESSER_RELIC, RELICS, MODIFIERS, SKILLCAPE, SUPERIOR_SKILLCAPE } from '../src/gear-model.mjs';
+import { CARDS, TRICKS, BANDS as ENC_BANDS, CHARMS, SUITS, ATTACKS } from '../src/encounter-model.mjs';
 
 const root = new URL('../', import.meta.url);
 const en = JSON.parse(readFileSync(new URL('languages/en.json', root), 'utf8'));
@@ -80,6 +81,14 @@ export const FAMILIES = {
   MOD_VOY_ADRIFT_RESCUE_: RESCUES.flatMap((r) => ['TITLE', 'BODY', 'OFFLINE'].map((x) => `${r.id.toUpperCase()}_${x}`)),
   MOD_VOY_ADRIFT_TOW_BY_: TOW_KINDS.map((k) => k.toUpperCase()),
   MOD_VOY_ADRIFT_ENDED_BY_: ['KRAKEN', 'NOODLE'],
+  // Encounters (4.33, src/encounter-model.mjs): the cards, tricks, bands, charms and suits by id, the combos, the attacks
+  MOD_VOY_CARD_: Object.keys(CARDS).map((id) => id.toUpperCase()).flatMap((id) => [id, `${id}_TEXT`]),
+  MOD_VOY_TRICK_: Object.keys(TRICKS).map((id) => id.toUpperCase()).flatMap((id) => [id, `${id}_TEXT`]),
+  MOD_VOY_BAND_: Object.keys(ENC_BANDS).map((id) => id.toUpperCase()).flatMap((id) => [id, `${id}_HABIT`, `${id}_CAPTAIN`]),
+  MOD_VOY_CHARM_: Object.keys(CHARMS).map((id) => id.toUpperCase()).flatMap((id) => [id, `${id}_TEXT`]),
+  MOD_VOY_SUIT_: SUITS.map((s) => s.toUpperCase()),
+  MOD_VOY_COMBO_: [...SUITS.flatMap((s) => [2, 3].map((k) => `${s.toUpperCase()}_${k}`)), 'MIXED_3', 'MIXED_4'].flatMap((k) => [k, `${k}_TEXT`]),
+  MOD_VOY_ENC_KIND_: ATTACKS.map((k) => k.toUpperCase()),
   MOD_VOY_RULE_LABEL_: localIds.filter((id, i) => rules.ruleLabelKey(Object.keys(rules.SKILL_RULES)[i]) !== undefined),
 };
 

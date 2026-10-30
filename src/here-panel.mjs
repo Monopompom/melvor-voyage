@@ -307,6 +307,25 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
 
   /**
+   * What you owe bands met on the road (encounters): the total, each band in its tooltip, and Pay off, which pays the
+   * biggest debt first as far as your GP goes. It works wherever you can trade; elsewhere the button keeps why as its
+   * tooltip only, as the cargo buttons do (aria-disabled, so the tooltip still shows).
+   */
+  const DEBT_WHY = { trade: 'MOD_VOY_ENC_DEBT_WHY_TRADE', gp: 'MOD_VOY_ENC_DEBT_WHY_GP', band: 'MOD_VOY_ENC_DEBT_WHY_BAND', none: 'MOD_VOY_ENC_DEBT_WHY_NONE' };
+  const debtLine = () => {
+    const enc = state.encounters;
+    const total = enc?.debtTotal?.() ?? 0;
+    if (!(total > 0)) return '';
+    const list = enc.debts().map((d) => templateLangString('MOD_VOY_ENC_DEBT_ROW', { who: d.name, gp: shortNumber(d.gp) })).join('\n');
+    const why = enc.payOffWhy();
+    const btn = why === ''
+      ? `<button type="button" class="btn btn-sm btn-warning voyage-row-btn voyage-debt-pay">${esc(getLangString('MOD_VOY_ENC_DEBT_PAY'))}</button>`
+      : `<button type="button" class="btn btn-sm btn-outline-secondary disabled voyage-row-btn voyage-debt-pay" aria-disabled="true" title="${esc(getLangString(DEBT_WHY[why] ?? 'MOD_VOY_ENC_DEBT_WHY_TRADE'))}">${esc(getLangString('MOD_VOY_ENC_DEBT_PAY'))}</button>`;
+    return `<div class="voyage-here-ship voyage-debt-row"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_ENC_DEBT_LABEL'))}</span> ` +
+      `<span class="text-warning" title="${esc(list)}"><i class="fa fa-file-invoice-dollar mr-1" aria-hidden="true"></i>${esc(templateLangString('MOD_VOY_ENC_GP', { gp: shortNumber(total) }))}</span></span>${btn}</div>`;
+  };
+
+  /**
    * "Folks here: Tobin (Junior, Mining), Mira (Middle, Idle)": Worker Folks standing on this hex (phase 6b), and "With
    * you: …", the crew (6c). Up to two names stand in the line; from three on it says how many, the names in its tooltip
    * (a galleon's twelve took ten rows of the panel), and the crew's line has a button to the Crew block.
@@ -391,7 +410,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const c = sh.cond?.(kind) ?? 100;
       const hull = c >= 100 ? '' : ` <span class="voyage-keep ${c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : 'text-muted'}">(${esc(templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` }))})</span>`;
       if (sh.inVessel() === kind) return `<div class="voyage-here-ship text-info"><span><i class="fa fa-ship mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_ABOARD', { hull: name }))}${hull}</span></div>`;
-      return `<div class="voyage-here-ship"><span><i class="fa fa-anchor mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_MOORED', { hull: name, where: sh.whereIs(v, true) }))}${hull}</span>` +
+      return `<div class="voyage-here-ship voyage-ship-moored"><span><i class="fa fa-anchor mr-1"></i>${esc(templateLangString('MOD_VOY_PANEL_MOORED', { hull: name, where: sh.whereIs(v, true) }))}${hull}</span>` +
         `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-find-ship" data-kind="${kind}">${esc(getLangString('MOD_VOY_PANEL_SHOW_SHIP'))}</button></div>`;
     }).join('');
   };
@@ -533,7 +552,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return parts.join(' · ');
   };
   const placeBox = (status, pos) => {
-    const inner = tradeLine(status) + harbourLine() + fightLine() + folksLine(pos) + signLine() + (state.outposts?.panelHtml?.() ?? '');
+    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + folksLine(pos) + signLine() + (state.outposts?.panelHtml?.() ?? '');
     if (inner === '') return '';
     const toggle = `<button type="button" class="voyage-legend-toggle voyage-place-toggle" aria-expanded="${placeOpen}">` +
       `<i class="fa fa-caret-${placeOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_PLACE_TITLE'))}</button>`;
@@ -1117,6 +1136,10 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (e.target instanceof Element && e.target.closest('.voyage-journal-link')) {
         e.preventDefault();
         state.journal?.open();
+      }
+      if (e.target instanceof Element && e.target.closest('.voyage-debt-pay')) {
+        e.preventDefault();
+        if (e.target.closest('.voyage-debt-pay').getAttribute('aria-disabled') !== 'true') state.encounters?.payOff?.();
       }
       if (e.target instanceof Element && e.target.closest('.voyage-shipyard-link')) {
         e.preventDefault();

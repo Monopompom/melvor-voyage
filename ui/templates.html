@@ -67,7 +67,7 @@
         <div class="block block-rounded border-top border-voyage border-4x d-none voyage-block" data-voyage="hold-block" role="region" aria-labelledby="voyage-title-hold-block">
           <div class="block-content p-3">
             <div class="voyage-block-head">
-              <h5 class="font-w600 mb-0" id="voyage-title-hold-block" aria-level="2"><lang-string lang-id="MOD_VOY_HOLD_LABEL"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="hold"><i class="fa fa-question-circle"></i></button></h5>
+              <h5 class="font-w600 mb-0" id="voyage-title-hold-block" aria-level="2"><i class="fa fa-box-open voyage-title-fa" aria-hidden="true"></i><lang-string lang-id="MOD_VOY_HOLD_LABEL"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="hold"><i class="fa fa-question-circle"></i></button></h5>
               <span class="voyage-block-sum" id="voyage-sum-hold-block" data-voyage="hold-block-sum"></span>
               <span class="font-w600" data-voyage="hold-slots"></span>
             </div>
@@ -78,13 +78,13 @@
       <div class="col-12 col-lg-6 voyage-col voyage-col-right" data-voyage="col-right">
         <div class="block block-rounded border-top border-voyage border-4x voyage-block" data-voyage="stores-block" role="region" aria-labelledby="voyage-title-stores-block">
           <div class="block-content p-3">
-            <div class="voyage-block-head"><h5 class="font-w600 mb-0" id="voyage-title-stores-block" aria-level="2"><lang-string lang-id="MOD_VOY_PAGE_STORES_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="stores"><i class="fa fa-question-circle"></i></button></h5><span class="voyage-block-sum" id="voyage-sum-stores-block" data-voyage="stores-block-sum"></span></div>
+            <div class="voyage-block-head"><h5 class="font-w600 mb-0" id="voyage-title-stores-block" aria-level="2"><i class="fa fa-utensils voyage-title-fa" aria-hidden="true"></i><lang-string lang-id="MOD_VOY_PAGE_STORES_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="stores"><i class="fa fa-question-circle"></i></button></h5><span class="voyage-block-sum" id="voyage-sum-stores-block" data-voyage="stores-block-sum"></span></div>
             <div data-voyage="stores"></div>
           </div>
         </div>
         <div class="block block-rounded border-top border-voyage border-4x voyage-block" data-voyage="ship-block" role="region" aria-labelledby="voyage-title-ship-block">
           <div class="block-content p-3">
-            <div class="voyage-block-head"><h5 class="font-w600 mb-0" id="voyage-title-ship-block" aria-level="2"><lang-string lang-id="MOD_VOY_PAGE_SHIP_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="ship"><i class="fa fa-question-circle"></i></button></h5><span class="voyage-block-sum" id="voyage-sum-ship-block" data-voyage="ship-block-sum"></span></div>
+            <div class="voyage-block-head"><h5 class="font-w600 mb-0" id="voyage-title-ship-block" aria-level="2"><i class="fa fa-ship voyage-title-fa" aria-hidden="true"></i><lang-string lang-id="MOD_VOY_PAGE_SHIP_TITLE"></lang-string><button type="button" class="btn btn-sm voyage-help" data-voyage-help="ship"><i class="fa fa-question-circle"></i></button></h5><span class="voyage-block-sum" id="voyage-sum-ship-block" data-voyage="ship-block-sum"></span></div>
             <div data-voyage="ship"></div>
           </div>
         </div>
@@ -97,6 +97,16 @@
               <span class="font-w600" data-voyage="crew-count"></span>
             </div>
             <div data-voyage="crew"></div>
+          </div>
+        </div>
+        <!-- Encounters (4.33): the deck you carry, its presets, the charms and the trick book (src/deck.mjs). -->
+        <div class="block block-rounded border-top border-voyage border-4x d-none voyage-block" data-voyage="deck-block" role="region" aria-labelledby="voyage-title-deck-block">
+          <div class="block-content p-3">
+            <div class="voyage-block-head">
+              <h5 class="font-w600 mb-0" id="voyage-title-deck-block" aria-level="2"><i class="fa fa-layer-group voyage-title-fa" aria-hidden="true"></i><lang-string lang-id="MOD_VOY_DECK_TITLE"></lang-string></h5>
+              <span class="voyage-block-sum" id="voyage-sum-deck-block" data-voyage="deck-block-sum"></span>
+            </div>
+            <div data-voyage="deck"></div>
           </div>
         </div>
       </div>

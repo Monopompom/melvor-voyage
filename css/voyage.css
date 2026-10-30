@@ -21,6 +21,10 @@
   --voyage-tuck: #ececec; --voyage-tuck-hover: #e0e0e0; --voyage-name-shadow: none; --voyage-locked-alpha: .65; --voyage-qty-chip: rgba(0, 0, 0, .62);
   --voyage-storm: #8a5a00; --voyage-storm-bg: rgba(43, 51, 64, .1);
   --voyage-pick: #54a6e8; --voyage-good: #2c8550; --voyage-good-fill: #46a35e; --voyage-good-tint: rgba(44, 133, 80, .14); --voyage-bad-dot: #e5483b; --voyage-warn-dot: #f0b43c; --voyage-dot-ring: #1f2433; /* .386: accents as tokens (VT2-19) */
+  /* Encounters (4.33): the four suits, the cards, the band's Nerve and your Resolve. */
+  --voyage-steel: #3d5d7d; --voyage-powder: #b0461a; --voyage-coin: #85650c; --voyage-wits: #6a4ea2; --voyage-curse: #59606b;
+  --voyage-card: #fffdf8; --voyage-card-ink: #2b2620; --voyage-card-edge: #d9d1c2; --voyage-card-shadow: 0 1px 2px rgba(20, 30, 40, .12), 0 4px 10px rgba(20, 30, 40, .08);
+  --voyage-nerve: #b3261e; --voyage-resolve: #1f6a8f; --voyage-hot-tint: rgba(179, 38, 30, .09); --voyage-wits-tint: rgba(106, 78, 162, .12); --voyage-bar-text: #fff; --voyage-bar-halo: rgba(0, 0, 0, .75);
 }
 body.darkMode {
   --voyage-band: rgba(255, 255, 255, .045); --voyage-tile: rgba(255, 255, 255, .06); --voyage-well: rgba(0, 0, 0, .22);
@@ -37,6 +41,9 @@ body.darkMode {
   --voyage-way-fill: rgba(91, 173, 226, .22); --voyage-way-run: rgba(255, 255, 255, .16);
   --voyage-tuck: #2b3038; --voyage-tuck-hover: #323843; --voyage-name-shadow: 0 0 2px rgba(0, 0, 0, .7), 0 0 1px rgba(0, 0, 0, .9); --voyage-locked-alpha: .4; --voyage-qty-chip: transparent;
   --voyage-storm: #f0b43c; --voyage-storm-bg: rgba(240, 180, 60, .1);
+  --voyage-steel: #a3bfdc; --voyage-powder: #ff9e72; --voyage-coin: #e8c766; --voyage-wits: #c5abff; --voyage-curse: #a9b0ba;
+  --voyage-card: #262c36; --voyage-card-ink: #e9e4da; --voyage-card-edge: #3d4552; --voyage-card-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 4px 10px rgba(0, 0, 0, .3);
+  --voyage-nerve: #d9473b; --voyage-resolve: #3c8dbc; --voyage-hot-tint: rgba(255, 138, 124, .12); --voyage-wits-tint: rgba(197, 171, 255, .14); --voyage-bar-text: #fff; --voyage-bar-halo: rgba(0, 0, 0, .7);
 }
 body.darkMode.superDark {
   --voyage-band: rgba(255, 255, 255, .055); --voyage-tile: rgba(255, 255, 255, .07); --voyage-well: rgba(255, 255, 255, .06);
@@ -47,6 +54,7 @@ body.darkMode.superDark {
   --voyage-adrift: #e89b0c;
   --voyage-way-fill: rgba(91, 173, 226, .2); --voyage-way-run: rgba(255, 255, 255, .13);
   --voyage-tuck: #000; --voyage-tuck-hover: #141414; --voyage-storm-bg: rgba(240, 180, 60, .12);
+  --voyage-card: #161616; --voyage-card-edge: #333;
 }
 /* The game's progress track inside a Voyage band takes the band's track tint; the game sets .progress
    with !important under body.darkMode, so the override carries the same theme class. */
@@ -239,6 +247,9 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-cost-own > quantity-icons { display: none !important; }
 .voyage-stores-icons img { width: 20px; height: 20px; vertical-align: -4px; margin: 0 2px 0 4px; }
 .voyage-stores-icons img:first-child { margin-left: 0; }
+/* Each icon with its amount, never parted; the fuel's icon keeps its gap after the food. */
+.voyage-stores-pair { white-space: nowrap; }
+.voyage-stores-pair + .voyage-stores-pair img:first-child { margin-left: 4px; }
 /* What the stores carry (build .360): food, then fuel, each on one line; the fuel wraps under the food on a phone. */
 .voyage-stores-carried { display: inline-flex; flex-wrap: wrap; column-gap: 10px; row-gap: 2px; }
 /* The Voyage page's notes (<small>, 80% by default) read too small (user feedback, build .67): close to body size. */
@@ -937,7 +948,9 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 #voyage-here.voyage-mini { width: max-content; max-width: 100%; padding: 4px 8px !important; }
 .voyage-mini-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .voyage-mini-toggle { display: inline-flex; align-items: center; white-space: nowrap; margin-right: 2px; }
-.voyage-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 0 8px; border-radius: 16px; background: var(--voyage-band); white-space: nowrap; font-size: .95rem; line-height: 1.2; }
+.voyage-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 0 8px; border-radius: 16px; white-space: nowrap; font-size: .95rem; line-height: 1.2; }
+/* The band's grey on every chip but a warning button, which keeps its amber fill (.457, the user). */
+.voyage-chip:where(:not(.btn)) { background: var(--voyage-band); }
 .voyage-chip.btn { border-radius: 16px; padding: 0 10px; font-size: .95rem; }
 .voyage-chip-plain { border: 0; color: inherit; cursor: pointer; }
 /* A chip that goes where it is about (build .267): the stores to Stores, the hull to the vessel, under way to its block.
@@ -956,6 +969,10 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-chip-name { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
 .voyage-chip-img { width: 20px; height: 20px; margin-right: 4px; }
 .voyage-chip .voyage-stores-icons img { width: 18px; height: 18px; }
+/* The stores chip within the panel: the fuel drops under the food when both don't fit (.457, the user). */
+.voyage-load-link { max-width: 100%; padding-block: 3px; }
+.voyage-load-link .voyage-stores-icons { display: inline-flex; flex-wrap: wrap; column-gap: 8px; row-gap: 2px; }
+.voyage-load-link .voyage-stores-pair img:first-child { margin-left: 0; }
 @media (pointer: coarse) { .voyage-chip, .voyage-chip .voyage-skill-btn { min-height: 40px; } }
 /* Phone width: the strip takes the open panel's edges (the user, build .121): full width under the bar, stopping
    short of the zoom buttons like the open panel (clearOfControls sets `right`). */
@@ -1300,8 +1317,10 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-crew-berth { display: inline-flex; align-items: center; }
 .voyage-crew-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 0; } /* .386: the button drops under a long name */
 .voyage-crew-face { width: 36px; height: 36px; flex: 0 0 auto; object-fit: contain; }
-.voyage-crew-who { flex: 1 1 auto; min-width: 0; }
-.voyage-crew-row .btn { flex: 0 0 auto; }
+/* The Folk takes the row's spare room (9999 to 1), so the buttons keep to their own width beside it and, once they wrap
+   under a long line, grow to the row's width (.448, the user). The Folk never wraps under its own portrait (36px + gap). */
+.voyage-crew-who { flex: 9999 1 auto; min-width: 0; max-width: calc(100% - 46px); }
+.voyage-crew-row > .btn { flex: 1 0 8rem; white-space: nowrap; }
 .voyage-crew-hp { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; margin-top: 2px; }
 .voyage-crew-hpbar { width: 72px; height: 5px; margin: 0; flex: 0 0 auto; }
 .voyage-crew-eats, .voyage-crew-lasts { display: inline-flex; align-items: center; margin-left: 4px; }
@@ -1310,9 +1329,17 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 /* Put ashore's pick as wide as the popup's body, so a long choice ("Woodcutting (now X's)") keeps to one line (.367). */
 .voyage-crew-work .dropdown { max-width: 100%; margin: 0 auto; }
 .voyage-crew-work .dropdown-item { white-space: nowrap; }
-/* Walking alone (6d): the row's two buttons stacked, one width; the Send dialog's places as picker buttons. */
-.voyage-crew-buttons { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
-.voyage-crew-buttons .btn { width: 100%; }
+/* Walking alone (6d): the row's two buttons stacked, one width, beside the Folk; dropped under it, side by side in
+   equal halves (each wants 7rem, so two fit only in a dropped group). The Send dialog's places as picker buttons. */
+.voyage-crew-buttons { display: flex; flex-wrap: wrap; gap: 4px; flex: 1 0 8rem; }
+.voyage-crew-buttons .btn { flex: 1 1 7rem; white-space: nowrap; }
+/* A narrow block, or one row too long for its buttons (voyage-crew-drop, set by the page), drops every row's buttons
+   under the Folk at once (.446, .450, the user). */
+.voyage-crew-drop .voyage-crew-row > .btn, .voyage-crew-drop .voyage-crew-row > .voyage-crew-buttons { flex-basis: 100%; }
+[data-voyage="crew"] { container-type: inline-size; }
+@container (max-width: 32rem) {
+  .voyage-crew-row > .btn, .voyage-crew-row > .voyage-crew-buttons { flex-basis: 100%; }
+}
 /* The work: the skill's dropdown, the resource's under it (the planner's dropdown); a list of one is a plain line
    lined up with a toggle's face. */
 #voyage-walk-works > * + * { margin-top: 8px; }
@@ -1345,7 +1372,14 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-vessel-group + .voyage-here-shipbox { margin-top: 0; }
 .voyage-vessel-head { display: flex; align-items: center; }
 .voyage-vessel-head > .voyage-here-ship { flex: 1 1 auto; min-width: 0; }
-.voyage-vessel-toggle { flex: 0 0 auto; text-align: left; }
+.voyage-vessel-toggle { flex: 0 0 auto; } /* centred as a button's own, so its caret lines up with the others (.455) */
+/* The moored ship's row as the head's own items (.453, the user): the caret beside its line, and Show, when it drops,
+   across the whole width under both. */
+.voyage-vessel-head:has(> .voyage-ship-moored) { flex-wrap: wrap; row-gap: 4px; align-items: baseline; }
+.voyage-vessel-head > .voyage-ship-moored { display: contents; }
+/* The line never wraps under the caret (24px for it): it wraps within. Caret, line and Show share the line's baseline,
+   so the caret sits on its first line and in the row's middle beside Show (.455, the user). */
+.voyage-vessel-head > .voyage-ship-moored > span:first-child { margin-right: 8px; max-width: calc(100% - 24px); }
 /* The hour in the panel's head, in the band's look. */
 .voyage-here-clock { font-weight: 400; }
 /* The sun or moon at its own width (the toggle's .7em is the caret's), a gap before the words. */
@@ -1375,3 +1409,306 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-buy-costs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; }
 .voyage-buy-cost { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
 .voyage-walk-across { margin: 0 0 6px; }
+
+/* ---- Encounters (4.33): the popup from the meeting to the result. Cards 150 x 212 px (132 until build .441: the user, a long card's text did not fit); on a phone the hand is one
+   row that scrolls. Colours from the tokens above, so Light, Dark and Super Dark each read. ---- */
+.voyage-enc-popup.swal2-popup { --voyage-enc-f: 14px; position: relative; padding: var(--voyage-enc-f) var(--voyage-enc-f) calc(.75rem + var(--voyage-enc-f)); border-radius: 10px; }
+/* The band's frame: a wide patterned border drawn by ::before (masked to the edge, so the corners stay round) and a
+   thin inner rule by ::after. Each band sets its pattern (--voyage-enc-frame) and rule (--voyage-enc-rule); the
+   colours are the band's own, the same in every theme. */
+.voyage-enc-popup.swal2-popup::before, .voyage-enc-popup.swal2-popup::after { content: ''; position: absolute; pointer-events: none; border-radius: inherit; }
+.voyage-enc-popup.swal2-popup::before { inset: 0; padding: var(--voyage-enc-f); background: var(--voyage-enc-frame, var(--voyage-curse)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35); }
+.voyage-enc-popup.swal2-popup::after { inset: calc(var(--voyage-enc-f) - 3px); border: 2px solid var(--voyage-enc-rule, transparent); border-radius: 7px; }
+.voyage-enc-popup[data-band="highwaymen"] { --voyage-enc-rule: #c9a24a; --voyage-enc-frame: repeating-linear-gradient(45deg, #5b3a1e 0 7px, #3f5a2a 7px 14px); }
+.voyage-enc-popup[data-band="deserters"] { --voyage-enc-rule: #c9a24a; --voyage-enc-frame: repeating-linear-gradient(90deg, #8e1f1f 0 12px, #b08a3a 12px 15px, #2b2f3a 15px 18px, #b08a3a 18px 21px); }
+.voyage-enc-popup[data-band="smugglers"] { --voyage-enc-rule: #2a3550; --voyage-enc-frame: repeating-linear-gradient(-55deg, #c4a06c 0 4px, #8a6a3e 4px 7px, #5c4528 7px 9px); }
+.voyage-enc-popup[data-band="corsairs"] { --voyage-enc-rule: #d4a83a; --voyage-enc-frame: radial-gradient(circle at 50% 0, transparent 5px, #d4a83a 5.5px 7px, transparent 7.5px) 0 3px / 14px 9px, #16324f; }
+.voyage-enc-popup[data-band="cultists"] { --voyage-enc-rule: #c6a6ff; --voyage-enc-frame: radial-gradient(circle, #c6a6ff 1.4px, transparent 2px) 0 0 / 9px 9px, linear-gradient(135deg, #3b1f4f, #6a2f63); }
+.voyage-enc-popup[data-band="wreckers"] { --voyage-enc-rule: #d9922b; --voyage-enc-frame: repeating-linear-gradient(45deg, #2f343b 0 9px, #d9922b 9px 13px); }
+/* 90% of the game's screen over a dimmed game: the popup is a column, the board grows into the room and the log keeps
+   its own scroll. */
+.swal2-container.voyage-enc-backdrop.swal2-backdrop-show { background: rgba(0, 0, 0, .75); }
+/* SweetAlert sets display inline on the popup and its html box, hence the !important. */
+.voyage-enc-popup.swal2-popup { height: 90vh; display: flex !important; flex-direction: column; }
+.voyage-enc-popup .voyage-enc-html { flex: 1 1 auto; min-height: 0; max-height: none; display: flex !important; flex-direction: column; justify-content: flex-start; overflow: auto; }
+.voyage-enc-popup .voyage-enc { flex: 1 0 auto; display: flex; flex-direction: column; }
+.voyage-enc > .voyage-enc-body { flex: 1 0 auto; }
+.voyage-enc > .voyage-enc-logwrap { flex: 0 0 auto; }
+/* The board: their Nerve and your Resolve side by side, the hand across both, spread over the height there is. */
+.voyage-enc-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem 1.5rem; align-content: space-around; }
+.voyage-enc-board > :not(.voyage-enc-side) { grid-column: 1 / -1; }
+.voyage-enc-board > .voyage-enc-side { align-content: start; }
+@media (min-width: 901px) { .voyage-enc-board > .voyage-enc-side + .voyage-enc-side { border-top: 0; margin-top: 0; padding-top: 0; } }
+@media (max-width: 900px) { .voyage-enc-board { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) { .voyage-enc-popup.swal2-popup { --voyage-enc-f: 8px; width: 96vw !important; height: 92vh; } }
+.voyage-enc-popup .voyage-enc-html { margin: 0; padding: 0; text-align: left; }
+.voyage-enc { text-align: left; font-size: .95rem; }
+.voyage-enc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: .75rem 1rem; border-bottom: 1px solid var(--voyage-rule); background: var(--voyage-band); }
+.voyage-enc-title { font-size: 1.25rem; font-weight: 600; margin-right: 4px; }
+.voyage-enc-body { padding: .75rem 1rem; }
+.voyage-enc-habit { font-style: italic; color: var(--voyage-label); font-size: .9rem; }
+.voyage-enc-note { color: var(--voyage-label); font-size: .85rem; }
+.voyage-enc-muted { color: var(--voyage-label); }
+.voyage-enc-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.voyage-enc-plus { color: var(--voyage-ok); font-weight: 600; }
+.voyage-enc-minus { color: var(--voyage-hot); font-weight: 600; }
+.voyage-enc-hot { color: var(--voyage-nerve); }
+.voyage-enc-sea { color: var(--voyage-resolve); }
+.voyage-enc-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 10px; font-size: .78rem; font-weight: 600; background: var(--voyage-tile); border: 1px solid var(--voyage-rule); white-space: nowrap; }
+.voyage-enc-chip-tier { color: var(--voyage-hot); border-color: currentColor; background: var(--voyage-hot-tint); }
+.voyage-enc-chip-sea { color: var(--voyage-sea); }
+.voyage-enc-chip-land { color: var(--voyage-foot); }
+.voyage-enc-traits { display: flex; flex-wrap: wrap; gap: 5px; }
+.voyage-enc-weak { border-color: currentColor; }
+.voyage-enc-tough { border-style: dashed; }
+.voyage-enc-s-steel { color: var(--voyage-steel); } .voyage-enc-s-powder { color: var(--voyage-powder); }
+.voyage-enc-s-coin { color: var(--voyage-coin); } .voyage-enc-s-wits { color: var(--voyage-wits); } .voyage-enc-s-curse { color: var(--voyage-curse); }
+.voyage-enc-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 560px) { .voyage-enc-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* A folded offline encounter has no Run: three across, and on a phone the third under the two. */
+.voyage-enc-choices.voyage-enc-choices-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 560px) { .voyage-enc-choices.voyage-enc-choices-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .voyage-enc-choices-3 > :last-child { grid-column: 1 / -1; } }
+.voyage-enc-choices .voyage-enc-btn { display: grid; gap: 1px; padding: .5rem .4rem; text-align: center; }
+.voyage-enc-btn small { font-size: .78rem !important; opacity: .9; }
+/* the fight */
+.voyage-enc-side { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 14px; align-items: center; }
+.voyage-enc-side + .voyage-enc-side { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--voyage-rule); }
+.voyage-enc-who { font-weight: 600; display: flex; gap: 8px; align-items: center; }
+.voyage-enc-guard { color: var(--voyage-steel); font-weight: 600; white-space: nowrap; }
+.voyage-enc-bar { grid-column: 1 / -1; position: relative; height: 18px; background: var(--voyage-well); border: 1px solid var(--voyage-rule); border-radius: 3px; overflow: hidden; }
+.voyage-enc-bar > i { position: absolute; inset: 0 auto 0 0; transition: width .35s ease; }
+.voyage-enc-nerve > i { background: var(--voyage-nerve); } .voyage-enc-resolve > i { background: var(--voyage-resolve); }
+/* the number sits on a dark plate of its own: it reads the same on the fill and on an empty track, Light included */
+.voyage-enc-bar span { position: relative; display: block; width: fit-content; margin: 0 auto; padding: 0 6px; border-radius: 3px; background: rgba(0, 0, 0, .45); text-align: center; font-size: .75rem; font-weight: 600; line-height: 16px; color: var(--voyage-bar-text); text-shadow: 0 0 2px var(--voyage-bar-halo); font-variant-numeric: tabular-nums; }
+.voyage-enc-flash { animation: voyage-enc-flash .45s ease; }
+@keyframes voyage-enc-flash { 30% { transform: translateX(-3px); } 60% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) { .voyage-enc-flash { animation: none; } .voyage-enc-bar > i { transition: none; } }
+.voyage-enc-intent { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; padding: 8px 12px; border-radius: 5px; background: var(--voyage-hot-tint); border: 1px solid var(--voyage-rule); }
+.voyage-enc-ico { font-size: 1.35rem; color: var(--voyage-nerve); width: 30px; text-align: center; flex: none; }
+.voyage-enc-move { font-weight: 700; font-size: 1.05rem; }
+.voyage-enc-sub { color: var(--voyage-label); font-size: .85rem; }
+.voyage-enc-live { font-size: .85rem; font-weight: 600; margin-top: 2px; }
+.voyage-enc-live-good { color: var(--voyage-ok); } .voyage-enc-live-bad { color: var(--voyage-hot); }
+.voyage-enc-intent.voyage-enc-off { background: var(--voyage-tile); }
+.voyage-enc-intent.voyage-enc-off .voyage-enc-ico { color: var(--voyage-label); }
+.voyage-enc-intent.voyage-enc-hidden-move { background: var(--voyage-tile); border-style: dashed; }
+.voyage-enc-intent.voyage-enc-hidden-move .voyage-enc-ico { color: var(--voyage-wits); }
+.voyage-enc-then, .voyage-enc-side .voyage-enc-traits, .voyage-enc-side .voyage-enc-habit { grid-column: 1 / -1; }
+.voyage-enc-then { font-size: .85rem; color: var(--voyage-label); }
+.voyage-enc-chase { grid-column: 1 / -1; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--voyage-ok); color: var(--voyage-ok); font-weight: 600; }
+.voyage-enc-status { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: .85rem; }
+.voyage-enc-suits { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.voyage-enc-pips { display: inline-flex; gap: 3px; vertical-align: middle; }
+.voyage-enc-pips b { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--voyage-resolve); }
+.voyage-enc-pips b.on { background: var(--voyage-resolve); }
+.voyage-enc-edge b { border-color: var(--voyage-gold); } .voyage-enc-edge b.on { background: var(--voyage-gold); }
+.voyage-enc-suitc { display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border-radius: 10px; border: 1px solid var(--voyage-rule); font-size: .8rem; }
+.voyage-enc-suitc[data-n="2"], .voyage-enc-suitc[data-n="3"] { border-color: currentColor; font-weight: 600; }
+.voyage-enc-run { color: var(--voyage-label); }
+.voyage-enc-gp { width: 16px; height: 16px; vertical-align: -3px; }
+.voyage-enc-trick-strip { margin-top: 10px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--voyage-wits); font-size: .88rem; }
+.voyage-enc-trick-strip > .fa { color: var(--voyage-wits); }
+.voyage-enc-trick-strip.voyage-enc-new { background: var(--voyage-wits-tint); }
+/* the hand */
+.voyage-enc-hand { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 14px 4px 6px; }
+@media (max-width: 560px) { .voyage-enc-hand { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; padding-bottom: 10px; scroll-snap-type: x proximity; } .voyage-enc-hand > * { scroll-snap-align: start; } }
+.voyage-enc-card-btn { all: unset; position: relative; cursor: pointer; border-radius: 8px; transition: transform .12s ease; flex: none; }
+.voyage-enc-card-btn:hover:not([aria-disabled="true"]) { transform: translateY(-4px); }
+.voyage-enc-card-btn:focus-visible { outline: 2px solid var(--voyage-help); outline-offset: 3px; }
+.voyage-enc-card-btn[aria-disabled="true"] { cursor: not-allowed; }
+.voyage-enc-card-btn[aria-disabled="true"] .voyage-enc-card { opacity: .5; }
+.voyage-enc-hint .voyage-enc-card { box-shadow: 0 0 0 3px var(--voyage-gold), var(--voyage-card-shadow); }
+.voyage-enc-trick .voyage-enc-card { box-shadow: 0 0 0 3px var(--voyage-wits), var(--voyage-card-shadow); }
+.voyage-enc-trick.voyage-enc-hint .voyage-enc-card { box-shadow: 0 0 0 3px var(--voyage-gold), 0 0 0 6px var(--voyage-wits), var(--voyage-card-shadow); }
+.voyage-enc-tossing .voyage-enc-card-btn:not([aria-disabled="true"]) .voyage-enc-card { box-shadow: 0 0 0 2px var(--voyage-hot), var(--voyage-card-shadow); }
+.voyage-enc-trick-badge { position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%); white-space: nowrap; font-size: .7rem; font-weight: 600; padding: 1px 6px; border-radius: 9px; background: var(--voyage-wits); color: var(--voyage-card); max-width: 146px; overflow: hidden; text-overflow: ellipsis; }
+.voyage-enc-card { --s: var(--voyage-curse); width: 150px; height: 212px; background: var(--voyage-card); color: var(--voyage-card-ink); border: 1px solid var(--voyage-card-edge); border-radius: 8px; box-shadow: var(--voyage-card-shadow); display: flex; flex-direction: column; overflow: hidden; text-align: left; }
+.voyage-enc-card[data-suit="steel"] { --s: var(--voyage-steel); } .voyage-enc-card[data-suit="powder"] { --s: var(--voyage-powder); }
+.voyage-enc-card[data-suit="coin"] { --s: var(--voyage-coin); } .voyage-enc-card[data-suit="wits"] { --s: var(--voyage-wits); }
+/* A card's dress (.458, the user): the edge and a wash at the head in its suit, and a thin inner frame, as a playing
+   card (the corner dots dropped in .462, the user). Where color-mix is missing the plain edge and face stay. */
+.voyage-enc-card { position: relative; isolation: isolate; border-color: color-mix(in srgb, var(--s) 45%, var(--voyage-card-edge));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--s) 12%, var(--voyage-card)), var(--voyage-card) 40%, var(--voyage-card) 85%, color-mix(in srgb, var(--s) 7%, var(--voyage-card))); }
+.voyage-enc-card::before { content: ""; position: absolute; pointer-events: none; inset: 3px; border: 1px solid color-mix(in srgb, var(--s) 30%, transparent); border-radius: 6px; }
+.voyage-enc-card-top { display: flex; align-items: center; gap: 4px; padding: 4px 7px; border-bottom: 2px solid var(--s); color: var(--s); font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+/* The skill, level and tilt at the head's right (.461, the user). */
+.voyage-enc-card-skill { margin-left: auto; font-size: .66rem; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--voyage-label); }
+.voyage-enc-card-name { font-size: .98rem; font-weight: 600; line-height: 1.15; padding: 7px 8px 3px; }
+/* The body (.461, the user): the emblem or the main line, centred over a faint mark of the suit, so a short card is not
+   a top line and a gap and a long one is not cramped. */
+.voyage-enc-card-body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+/* The suit's faint symbol, big in the bottom right corner and cut off by the card's edge, behind everything on it, so
+   the middle stays clear for the card's value or text (.463, the user). */
+.voyage-enc-card-wm { position: absolute; z-index: -1; right: -30px; bottom: -28px; font-size: 120px; color: var(--s); opacity: .07; pointer-events: none; }
+.voyage-enc-card-text { position: relative; font-size: .78rem; line-height: 1.35; padding: 0 8px; }
+.voyage-enc-ems { position: relative; display: flex; justify-content: center; gap: 16px; }
+.voyage-enc-em { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.voyage-enc-em-v { display: flex; align-items: center; gap: 5px; font-size: 2rem; font-weight: 700; color: var(--c); }
+.voyage-enc-em-v > .fa { font-size: 1.15rem; }
+.voyage-enc-em-cap { margin-top: 4px; font-size: .6rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--voyage-label); }
+/* What else a card does, under its main line: a small panel in the suit's tint (.460, the user). */
+.voyage-enc-card-more { margin: 4px 6px 0; padding: 4px 6px; border-radius: 4px; font-size: .7rem; line-height: 1.3; color: var(--voyage-label);
+  background: rgba(127, 127, 127, .1); border: 1px solid rgba(127, 127, 127, .2); }
+/* Solid, so the corner symbol doesn't show through the panel. */
+.voyage-enc-card-more { background: color-mix(in srgb, var(--s) 9%, var(--voyage-card)); border-color: color-mix(in srgb, var(--s) 28%, transparent); }
+.voyage-enc-card-foot { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; padding: 5px 7px 6px; font-size: .68rem; color: var(--voyage-label); }
+/* The terms in a card's text (.459): bold, and only the icon and number in the term's colour (.461, the user: calmer);
+   words with no icon (the suits, "misses") take it whole. A move keeps the text's colour. */
+.voyage-enc-mark { font-weight: 600; white-space: nowrap; }
+.voyage-enc-mark > .fa { font-size: .85em; margin-right: 2px; }
+.voyage-enc-mark > .fa, .voyage-enc-mark > b { color: var(--c, inherit); }
+.voyage-enc-m-hit { --c: var(--voyage-nerve); } .voyage-enc-m-guard { --c: var(--voyage-steel); } .voyage-enc-m-heal { --c: var(--voyage-resolve); }
+.voyage-enc-m-draw { --c: var(--voyage-wits); } .voyage-enc-m-edge { --c: var(--voyage-gold); }
+.voyage-enc-m-stop { color: var(--voyage-ok); } .voyage-enc-m-steel { color: var(--voyage-steel); } .voyage-enc-m-powder { color: var(--voyage-powder); }
+.voyage-enc-m-coin { color: var(--voyage-coin); } .voyage-enc-m-wits { color: var(--voyage-wits); }
+.voyage-enc-tag { border: 1px solid var(--voyage-card-edge); border-radius: 3px; padding: 0 4px; }
+.voyage-enc-tag-supply { color: var(--voyage-ok); border-color: currentColor; }
+.voyage-enc-tag-where { color: var(--voyage-sea); border-color: currentColor; }
+.voyage-enc-tag-gp { color: var(--voyage-coin); border-color: currentColor; }
+.voyage-enc-tag-fin { color: var(--voyage-gold); border-color: currentColor; }
+.voyage-enc-tag-sym { padding: 0 3px; }
+.voyage-enc-tag-rare { color: var(--voyage-wits); border-color: currentColor; }
+.voyage-enc-tilt-up { color: var(--voyage-ok); font-weight: 700; } .voyage-enc-tilt-dn { color: var(--voyage-hot); font-weight: 700; }
+.voyage-enc-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: .6rem 1rem; border-top: 1px solid var(--voyage-rule); border-bottom: 1px solid var(--voyage-rule); background: var(--voyage-band); }
+.voyage-enc-piles { margin-left: auto; color: var(--voyage-label); font-size: .82rem; display: flex; gap: 10px; }
+.voyage-enc-logwrap { padding-top: .5rem; }
+.voyage-enc-log { max-height: 190px; overflow: auto; font-size: .82rem; }
+.voyage-enc-log > div { padding: 2px 0; border-bottom: 1px solid var(--voyage-rule-soft); display: flex; gap: 8px; }
+.voyage-enc-r { color: var(--voyage-label); font-size: .75rem; flex: none; width: 2.2em; }
+.voyage-enc-log-band { color: var(--voyage-hot); } .voyage-enc-log-combo { color: var(--voyage-gold); font-weight: 600; }
+.voyage-enc-log-end { font-weight: 700; } .voyage-enc-log-sys { color: var(--voyage-label); }
+/* the result */
+.voyage-enc-good { color: var(--voyage-ok); } .voyage-enc-bad { color: var(--voyage-hot); } .voyage-enc-mid { color: var(--voyage-warn); }
+.voyage-enc-lines { display: grid; gap: 2px; font-size: .9rem; }
+.voyage-enc-row { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--voyage-rule-soft); padding: 3px 0; }
+.voyage-enc-rare { color: var(--voyage-gold); font-weight: 600; }
+.voyage-enc-press { border: 1px solid var(--voyage-gold); background: var(--voyage-ring-bg); border-radius: 6px; padding: 10px 12px; display: grid; gap: 8px; }
+.voyage-enc-mini { display: flex; flex-wrap: wrap; gap: 4px; }
+.voyage-enc-mini span { font-size: .78rem; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--voyage-rule); background: var(--voyage-tile); }
+/* Meet and result on the board (the user, 30 Oct 2026: every screen of the card game keeps the board's size). The
+   middle scrolls when it must, the dock with the choices stays at the foot, and the content sits centred in the room. */
+.voyage-enc[data-stage="meet"], .voyage-enc[data-stage="result"] { flex: 1 1 auto; min-height: 0; }
+.voyage-enc[data-stage="meet"] > .voyage-enc-body, .voyage-enc[data-stage="result"] > .voyage-enc-body { flex: 1 1 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; padding: .6rem 1.25rem; }
+.voyage-enc-stage { --voyage-enc-mid: 3rem; margin: auto; width: 100%; max-width: 1100px; display: grid; gap: .6rem; }
+.voyage-enc-lead { font-size: 1.05rem; text-align: center; }
+/* What you owe this band on this ground: under the lead, in the warning's colour. */
+.voyage-enc-owed { margin-top: .2rem; font-size: .9rem; color: var(--voyage-warm); }
+/* you and them, as the fight sets them: you left, the band right, "vs" between. Every card on the board is one
+   size: two even columns with the "vs" lane between, and the panels below keep the same columns and the same lane. */
+.voyage-enc-vs { display: grid; grid-template-columns: minmax(0, 1fr) var(--voyage-enc-mid) minmax(0, 1fr); gap: 1rem; align-items: stretch; }
+.voyage-enc-vs-side { display: grid; gap: 8px; align-content: start; padding: 12px 14px; border-radius: 8px; background: var(--voyage-band); border: 1px solid var(--voyage-rule); }
+.voyage-enc-vs-side .voyage-enc-who { font-size: .95rem; font-weight: 700; }
+.voyage-enc-vs-you { border-top: 3px solid var(--voyage-resolve); }
+.voyage-enc-vs-them { border-top: 3px solid var(--voyage-nerve); }
+.voyage-enc-vs-mid { align-self: center; text-align: center; font-size: 1.4rem; font-weight: 700; font-style: italic; text-transform: uppercase; letter-spacing: .05em; color: var(--voyage-gold); }
+.voyage-enc-vs-facts { display: flex; flex-wrap: wrap; gap: 5px; }
+.voyage-enc-vs .voyage-enc-bar { height: 22px; }
+.voyage-enc-vs .voyage-enc-bar span { line-height: 20px; font-size: .8rem; }
+.voyage-enc-chip .voyage-enc-gp { width: 14px; height: 14px; }
+/* panels: what a fight risks beside the ways out of one; the reckoning beside the spoils */
+.voyage-enc-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem calc(var(--voyage-enc-mid) + 2rem); align-items: stretch; }
+.voyage-enc-panels.voyage-enc-one { grid-template-columns: minmax(0, 1fr); }
+.voyage-enc-panel { display: grid; gap: 6px; align-content: start; padding: 12px 14px; border-radius: 8px; background: var(--voyage-band); border: 1px solid var(--voyage-rule); }
+.voyage-enc-panel.voyage-enc-press { border-color: var(--voyage-gold); background: var(--voyage-ring-bg); }
+.voyage-enc-panel-ttl { margin: 0 0 2px; padding-bottom: 6px; border-bottom: 1px solid var(--voyage-rule); color: inherit; font-size: 1.05rem; font-weight: 700; letter-spacing: .01em; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.voyage-enc-panel-ttl > .fa { color: var(--voyage-gold); }
+.voyage-enc-panel-ttl small { font-weight: 400; font-size: .8rem; color: var(--voyage-label); }
+.voyage-enc-out { display: grid; grid-template-columns: 1.3rem minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: .86rem; line-height: 1.4; }
+.voyage-enc-out > .fa { text-align: center; }
+.voyage-enc-out b { margin-right: 2px; }
+/* the outcome's banner */
+.voyage-enc-banner { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 14px 18px; border-radius: 8px; border: 1px solid currentColor; background: var(--voyage-tile); }
+.voyage-enc-banner-ico { font-size: 2.4rem; line-height: 1; }
+.voyage-enc-banner-head { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+.voyage-enc-banner .voyage-enc-chip { margin-top: 6px; color: var(--voyage-label); }
+/* the spoils as tiles: the picture with its count, the name and worth; a trophy across the row */
+.voyage-enc-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr)); gap: 8px; align-content: start; }
+.voyage-enc-tile { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 10px; border-radius: 6px; background: var(--voyage-tile); border: 1px solid var(--voyage-rule); font-size: .88rem; }
+.voyage-enc-tile-pic { position: relative; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border-radius: 6px; background: var(--voyage-well); }
+.voyage-enc-tile-img { width: 40px; height: 40px; object-fit: contain; }
+.voyage-enc-tile-qty { position: absolute; right: -5px; bottom: -5px; min-width: 20px; padding: 0 4px; border-radius: 9px; font-size: .72rem; font-weight: 700; line-height: 16px; text-align: center; background: var(--voyage-card); color: var(--voyage-card-ink); border: 1px solid var(--voyage-rule); }
+.voyage-enc-tile-name { font-weight: 600; }
+.voyage-enc-tile-sub { font-size: .8rem; color: var(--voyage-label); }
+.voyage-enc-tile-text { font-size: .85rem; }
+.voyage-enc-tile-mark { margin-right: 4px; color: var(--voyage-label); }
+.voyage-enc-tile-rare { border-color: var(--voyage-gold); background: var(--voyage-ring-bg); }
+.voyage-enc-tile-trophy { grid-column: 1 / -1; border-color: var(--voyage-wits); background: var(--voyage-wits-tint); }
+.voyage-enc-tile-trophy > .voyage-enc-tile-img { width: 48px; height: 48px; }
+.voyage-enc-tile-trophy .voyage-enc-tile-name { color: var(--voyage-wits); } /* a trophy in the rare purple, as in the Deck */
+.voyage-enc-tile-find { border-style: dashed; border-color: var(--voyage-wits); }
+.voyage-enc-harm { color: var(--voyage-hot); }
+.voyage-enc-waits { font-weight: 600; }
+/* the dock: the choices, or Go on, at the board's foot */
+.voyage-enc-dock { flex: none; padding: .75rem 1.25rem; border-top: 1px solid var(--voyage-rule); background: var(--voyage-band); }
+.voyage-enc-dock .voyage-enc-choices { max-width: 1100px; margin: 0 auto; }
+.voyage-enc-dock .voyage-enc-choices .voyage-enc-btn { padding: .6rem .5rem; font-size: 1rem; }
+.voyage-enc-dock-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.voyage-enc-dock-row .voyage-enc-btn { flex: 0 1 16rem; min-width: 12rem; padding: .55rem 1rem; font-size: 1rem; }
+@media (max-width: 900px) { .voyage-enc-panels { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) {
+  .voyage-enc[data-stage="meet"] > .voyage-enc-body, .voyage-enc[data-stage="result"] > .voyage-enc-body { padding: .6rem .7rem; }
+  .voyage-enc-stage { gap: .7rem; }
+  .voyage-enc-vs { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .voyage-enc-vs-mid { justify-self: center; font-size: 1rem; }
+  .voyage-enc-vs.voyage-enc-vs-end { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .voyage-enc-vs-end .voyage-enc-vs-mid { display: none; }
+  .voyage-enc-vs-end .voyage-enc-vs-side { padding: 8px 10px; }
+  .voyage-enc-banner { gap: 10px; padding: 10px 12px; }
+  .voyage-enc-banner-ico { font-size: 1.8rem; }
+  .voyage-enc-banner-head { font-size: 1.15rem; }
+  .voyage-enc-dock { padding: .5rem .6rem; }
+  .voyage-enc-dock-row .voyage-enc-btn { min-width: 0; flex: 1 1 0; }
+}
+
+/* ---- The Deck block and the deck builder (encounters, slice 3). The builder is the encounter popup's frame with a
+   deck look of its own; its head and action bar stay put while the cards scroll between them. ---- */
+.voyage-deck-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.voyage-deck-suits { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; font-weight: 600; }
+.voyage-deck-suit { white-space: nowrap; }
+.voyage-deck-presets { display: grid; gap: 6px; }
+.voyage-deck-preset { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 6px 8px; border: 1px solid var(--voyage-rule); border-radius: 6px; }
+.voyage-deck-preset-on { border-color: var(--voyage-good); background: var(--voyage-good-tint); }
+.voyage-deck-preset-name { font-weight: 600; overflow-wrap: anywhere; }
+.voyage-deck-preset-sum { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .85rem; grid-column: 1; }
+.voyage-deck-preset-act { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: flex-end; }
+.voyage-deck-save { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.voyage-deck-save input { flex: 1 1 10rem; max-width: 18rem; margin-left: auto; } /* the box and its button on the right (the user) */
+.voyage-deck-sub { font-weight: 600; margin: 8px 0 4px; }
+.voyage-deck-charm { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--voyage-rule-soft); }
+.voyage-deck-charm-icon { width: 32px; height: 32px; object-fit: contain; }
+.voyage-deck-charm-name { font-weight: 600; color: var(--voyage-gold); } /* gear in gold, a won trophy in the rare purple (the user) */
+.voyage-deck-charm-trophy { color: var(--voyage-wits); }
+.voyage-deck-trick-name { font-weight: 600; color: var(--voyage-wits); } /* the purple the fight marks tricks with (the user) */
+.voyage-deck-charm-fa { display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--voyage-gold); }
+/* The trick book: the name on the left, the run and what it does on the right (the user), lined up row to row. */
+.voyage-deck-tricks { display: grid; grid-template-columns: minmax(7rem, 1fr) auto auto; column-gap: 14px; }
+.voyage-deck-trick { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; padding: 3px 0; border-bottom: 1px solid var(--voyage-rule-soft); font-size: .9rem; }
+.voyage-deck-trick > :not(:first-child) { text-align: right; }
+@media (max-width: 560px) {
+  .voyage-deck-preset { grid-template-columns: minmax(0, 1fr); }
+  .voyage-deck-preset-act { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+  .voyage-deck-tricks { grid-template-columns: minmax(0, 1fr); }
+  .voyage-deck-trick > :not(:first-child) { text-align: left; }
+}
+.voyage-deck-popup { --voyage-enc-rule: #c9a24a; --voyage-enc-frame: repeating-linear-gradient(45deg, #24364f 0 7px, #3d5d7d 7px 14px); }
+.voyage-enc-popup .voyage-enc.voyage-deck { flex: 1 1 auto; min-height: 0; }
+.voyage-deck > .voyage-enc-body { flex: 1 1 0; min-height: 0; overflow: auto; }
+.voyage-deck-group + .voyage-deck-group { margin-top: 1rem; }
+.voyage-deck-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.voyage-deck-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+/* A card not yours yet: a dashed edge on a soft hatch, so it stands apart from the page; its face dimmed (.458, the user). */
+.voyage-deck-pick-off .voyage-enc-card { border-style: dashed; border-color: var(--voyage-label);
+  background: repeating-linear-gradient(-45deg, var(--voyage-card) 0 7px, color-mix(in srgb, var(--voyage-label) 12%, var(--voyage-card)) 7px 14px); }
+.voyage-deck-pick-off .voyage-enc-card > *, .voyage-deck-pick-off .voyage-enc-card::before { opacity: .5; }
+.voyage-deck-pick-lock { color: var(--voyage-label); }
+.voyage-deck-stepper { display: flex; align-items: center; gap: 6px; }
+/* A narrow Deck block (a phone, a narrow column): Build the deck, the name box and Save preset each take the full
+   width on their own line (the user). Measured on the block, not the screen. */
+[data-voyage="deck"] { container-type: inline-size; }
+@container (max-width: 600px) { /* 480 until .444: Build the deck wrapped before it went full width (the user) */
+  .voyage-deck-build, .voyage-deck-build .btn, .voyage-deck-save input, .voyage-deck-save .btn { flex: 1 1 100%; width: 100%; max-width: none; margin-left: 0; }
+}
+.voyage-deck-cancel { margin-left: auto; } /* red as the game's own Cancel, on the right (the user) */
+.voyage-deck-stepper .btn { min-width: 2rem; }
+.voyage-deck-count-ok { color: var(--voyage-good); border-color: currentColor; }
+.voyage-deck-count-bad { color: var(--voyage-hot); border-color: currentColor; }

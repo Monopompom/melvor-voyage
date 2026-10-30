@@ -188,6 +188,8 @@ export function cleanVoyage(v) {
     worn: (Array.isArray(v.worn) ? v.worn : []).filter((k, i, a) => (k === 'boat' || k === 'ship') && a.indexOf(k) === i),
     // Pirates waiting for an answer (events-model.mjs): the toll and the run's wear; the voyage holds until answered.
     ...(cleanPirates(v.pir) === undefined ? {} : { pir: cleanPirates(v.pir) }),
+    // A band met holds the voyage (encounters.mjs keeps the fight in the save's enc); 1 while it waits.
+    ...(v.enc === 1 ? { enc: 1 } : {}),
     // The walk index where a stowaway climbs out (events-model stowawayAt), until it does.
     ...(isInt(v.stw) && v.stw > at && v.stw < walk.length ? { stw: v.stw } : {}),
   };

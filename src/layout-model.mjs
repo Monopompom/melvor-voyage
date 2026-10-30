@@ -10,8 +10,9 @@
 // Build .367 (the user approved the canvas "Voyage page: panels and default layout", 21 Oct 2026): by weight and use,
 // the plan and the crew on the left, the stores, the hold and the ship on the right; the hold and the ship start folded
 // (their title rows say what they hold).
-export const DEFAULT = Object.freeze({ top: [], left: ['plan-block', 'crew-block'], right: ['stores-block', 'hold-block', 'ship-block'], bottom: [] });
-export const DEFAULT_FOLDED = Object.freeze(['hold-block', 'ship-block']);
+// Encounters (4.33, slice 3): the Deck block, under the ship, folded (build .452, the user).
+export const DEFAULT = Object.freeze({ top: [], left: ['plan-block', 'crew-block'], right: ['stores-block', 'hold-block', 'ship-block', 'deck-block'], bottom: [] });
+export const DEFAULT_FOLDED = Object.freeze(['hold-block', 'ship-block', 'deck-block']);
 export const BLOCKS = [...DEFAULT.left, ...DEFAULT.right];
 /** Every place a block can sit, in page order; SIDES are the two half-width columns. */
 export const COLUMNS = ['top', 'left', 'right', 'bottom'];
@@ -20,7 +21,7 @@ export const SIDES = ['left', 'right'];
 /**
  * A saved layout made safe: `{ top, left, right, bottom, folded }` with every block once, unknown names dropped, and a block the
  * saved layout doesn't have (new in a later build) put back in its default column after the blocks that come before
- * it there by default. Anything unreadable gives the default.
+ * it there by default, folded when it starts folded. Anything unreadable gives the default.
  */
 export function clean(saved) {
   const out = { top: [], left: [], right: [], bottom: [], folded: [...DEFAULT_FOLDED] };
@@ -40,6 +41,7 @@ export function clean(saved) {
     DEFAULT[col].forEach((id, i) => {
       if (seen.has(id)) return;
       seen.add(id);
+      if (DEFAULT_FOLDED.includes(id) && !out.folded.includes(id)) out.folded.push(id);
       // After the last of its default predecessors that sits in this column, else first.
       const before = DEFAULT[col].slice(0, i).filter((p) => out[col].includes(p));
       const at = before.length === 0 ? 0 : out[col].indexOf(before[before.length - 1]) + 1;

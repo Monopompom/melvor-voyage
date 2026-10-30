@@ -56,6 +56,7 @@ export function createVoyageClass({ model, log }) {
       try { this.shipTick?.(); } catch (e) { log('careen tick failed', e); }
       try { this.clock?.waitTick?.(); } catch (e) { log('storm wait tick failed', e); }
       try { this.events?.tick?.(); } catch (e) { log('events tick failed', e); }
+      try { this.encounters?.tick?.(); } catch (e) { log('encounters tick failed', e); }
     }
     get isActive() { return this.clock?.running?.() === true; }
     get activeSkills() { return this.isActive ? [this] : []; }

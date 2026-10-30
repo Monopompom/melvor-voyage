@@ -596,6 +596,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
    */
   const changeCourse = (dest, name, go) => {
     if (cur()?.pir !== undefined) { state.events?.refuseWhileAsked?.(); return; }
+    if (state.encounters?.fightOpen?.() === true) { state.encounters.refuse(); return; }
     const c = courseOf(dest);
     if (c === undefined) { go(); return; }
     if (c === 'same') { alreadyThere(); return; }
@@ -619,6 +620,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
    */
   const confirmSetOff = (path, original, fog, extra = {}) => {
     if (cur()?.pir !== undefined) { state.events?.refuseWhileAsked?.(); return; }
+    if (state.encounters?.fightOpen?.() === true) { state.encounters.refuse(); return; }
     const course = courseOf(path[0]);
     if (course === 'same') { alreadyThere(); return; }
     // A crew the vessels have no berths for (phase 6c) goes the old way too: movePlayer says why.
@@ -964,9 +966,8 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     // A storm on the sea hex entered (phase 5c-3): the step pays its ×3 wear (stepsOf `storm`); told after it lands.
     let met;
     try { met = towed ? undefined : stepsOf(path)[0]; } catch {}
-    // Pirates (events.mjs): rolled for the big ship's deep-sea hex, never the last; the toll counts this hex's GP.
-    let pirates;
-    try { if (!towed && !finalStep && state.events?.meet?.(met) === true) pirates = state.events.offer(gpOf(path)); } catch (e) { log('pirates roll failed', e); }
+    // Encounters (encounters.mjs): rolled for the hex entered, never the last; the toll's floor is this hex's GP.
+    const hexGp = towed || finalStep ? 0 : gpOf(path);
     try { cart().movePlayer(path, towed); } catch (e) { log('voyage step failed', e); } finally { stepping = false; finalStep = false; state.lightHold = 0; }
     putBack();
     const now = map()?.playerPosition;
@@ -986,8 +987,9 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
       } catch (e) { log('storm note failed', e); }
     }
     v.at = i + 1;
-    // The voyage holds for an answer from the next tick (pirateHold); a stowaway climbs out where it was rolled.
-    if (pirates !== undefined) { v.pir = pirates; log(`pirates at step ${v.at}: ${pirates.toll} GP or run`); }
+    // A band met holds the voyage from the next tick until its popup is answered (encHold); a stowaway climbs out
+    // where it was rolled.
+    try { if (!towed && v.at < v.walk.length - 1 && state.encounters?.roll?.(met, path[0], hexGp) === true) { v.enc = 1; log(`band met at step ${v.at}`); } } catch (e) { log('encounter roll failed', e); }
     if (v.stw !== undefined && v.stw <= v.at) {
       delete v.stw;
       // It needs a berth in every vessel the rest of the voyage sails or rows (a boat leg ashore refused for it otherwise).
@@ -1043,10 +1045,34 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
       changed();
     });
   };
+  /**
+   * A band met waits for an answer (encounters.mjs): the clock stands still while its popup is open (asked again if
+   * something closed it). Its end (encDone) lets the voyage go on.
+   */
+  const encHold = (v) => {
+    if (state.encounters?.fightOpen?.() !== true) { delete v.enc; changed(); return; }
+    state.encounters.open();
+  };
+  /** A band waits (the bands met while you were away, folded on your return): the voyage under way holds for it. */
+  const holdForEncounter = () => {
+    const v = cur();
+    if (v === null || v.enc !== undefined) return;
+    v.enc = 1;
+    changed();
+  };
+  /** The encounter is over: running costs the next step's time again; any answer lets the voyage go on. */
+  const encDone = (how) => {
+    const v = cur();
+    if (v === null || v.enc === undefined) return;
+    if (how === 'run') { const extra = stepTicks(v)[v.at] ?? v.of; v.left += extra; v.of += extra; }
+    delete v.enc;
+    changed();
+  };
   const tick = () => {
     const v = cur();
     if (v === null) { clearAction(); return; }
     if (v.pir !== undefined) { pirateHold(v); return; }
+    if (v.enc !== undefined) { encHold(v); return; }
     v.spent++;
     v.left--;
     if (v.left > 0) return;
@@ -1130,6 +1156,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     if (cur()?.tow !== undefined) { state.adrift?.refuseUnderTow?.(); return; }
     // Pirates in sight: no anchoring to slip away; offline their answer comes first.
     if (cur()?.pir !== undefined) { if (!offlineNow()) { state.events?.refuseWhileAsked?.(); return; } pirateHold(cur()); }
+    if (cur()?.enc !== undefined && !offlineNow()) { state.encounters?.refuse?.(); return; }
     forcing = true; try { end('stopped'); } finally { forcing = false; }
   };
   /** A tow docks at once (timed travel turned off under tow): one free move to the quay. */
@@ -1264,6 +1291,9 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
       } else if (v !== null && !endingOnly) {
         out.push(icon() + t(v.tow !== undefined ? 'MOD_VOY_ADRIFT_OFFLINE_TOWING' : 'MOD_VOY_CLOCK_OFFLINE_UNDERWAY', { at: v.at > 0 ? pos(`${v.at}`) : esc(`${v.at}`), of: esc(`${v.walk.length - 1}`), time: helpLayout.timeHtml(duration(msLeft(v))), name: esc(v.name) }));
       }
+      // Bands met on the way wait for your answer (encounters.mjs folds them into one when you are back).
+      const met = endingOnly ? '' : state.encounters?.awayNote?.() ?? '';
+      if (met !== '') out.push(`<span class="text-warning">${esc(met)}</span>`);
     } catch (err) { log('offline note failed', err); }
     return out;
   };
@@ -1463,7 +1493,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     } catch (e) { log('voyage load check failed', e); }
   });
 
-  const api = { on, setOff, changeCourse, tick, stop, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog, confirmSetOff,
+  const api = { on, setOff, changeCourse, tick, stop, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog, confirmSetOff, encDone, holdForEncounter,
     /** A tow is under way (5b part two). */
     towing: () => cur()?.tow !== undefined,
     msLeft: () => { const v = cur(); return v === null ? 0 : msLeft(v); },

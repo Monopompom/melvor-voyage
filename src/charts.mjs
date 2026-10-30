@@ -370,6 +370,10 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
     html, onClick, grant, giveRumour, read, rollStars, readStar,
     /** A cargo delivery at `poi`: now and then its sea chart, free (charts-model CARGO_CHART). */
     rollDelivery: (poi) => (seaMap[poi] !== undefined && Math.random() < CM.CARGO_CHART ? grant(poi) : false), seaOf: (poi) => seaMap[poi], seas: () => Object.keys(seaMap),
+    /** The chart sea (its port) a hex lies in, or the nearest one to a land hex (encounters read its danger tier). */
+    seaAt: (pos) => CM.seaAt(seaMap, pos),
+    /** A chart sea's name from its port: "Frost Drift". */
+    seaName,
     /** The overlay: a hex cleared of fog by a chart or a rumour and not surveyed yet. */
     cleared: (hex) => hex !== undefined && !hex.isFullySurveyed && isCharted(hex.q, hex.r),
     clear, isCharted,

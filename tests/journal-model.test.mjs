@@ -6,7 +6,7 @@ import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, parse
 test('v6 saves get an empty journal', () => {
   const v6 = { v: 6, landHexes: 3, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 10, fuel: 1 }, kitGiven: true, hold: [], unlockNotice: [] };
   const { save, report } = loadSave(JSON.stringify(v6));
-  assert.deepEqual(report.applied, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]);
+  assert.deepEqual(report.applied, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]);
   assert.deepEqual(save.journal, { ...emptyJournal(), opened: true });
   assert.equal(save.landHexes, 3);
 });
@@ -111,7 +111,7 @@ test('crosslinks: split into text and links, targets checked', () => {
 test('v7 saves get charting and unread marks, the rest kept', () => {
   const v7 = { v: 7, landHexes: 1, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [], unlockNotice: [], journal: { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'] } };
   const { save, report } = loadSave(JSON.stringify(v7));
-  assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]);
+  assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]);
   assert.deepEqual(save.journal, { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'], charted: [], freeUsed: 0, unread: {}, golbin: false, ports: {}, opened: true });
 });
 

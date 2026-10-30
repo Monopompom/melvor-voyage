@@ -143,6 +143,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         }
       });
       // The Crew (phase 6c): Come with me, and Put ashore with its work dialog.
+      if (part('crew') !== null && typeof ResizeObserver === 'function') new ResizeObserver(() => fitCrew(part('crew'))).observe(part('crew'));
       part('crew')?.addEventListener('click', (e) => {
         const target = e.target instanceof Element ? e.target.closest('[data-voyage-action]') : null;
         if (target === null || state.crew === undefined) return;
@@ -1087,6 +1088,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     out['hold-block'] = state.cargo?.has?.() === true ? t('MOD_VOY_CARGO_RUNS_COUNT', { n: `${state.cargo.count()}`, max: `${state.cargo.max}` }) : '';
     const near = state.crew?.near?.()?.length ?? 0;
     out['crew-block'] = near > 0 ? t('MOD_VOY_CREW_SUM_NEAR', { count: `${near}` }) : '';
+    try { out['deck-block'] = state.deck?.sum?.() ?? ''; } catch { out['deck-block'] = ''; }
     return out;
   };
   /**
@@ -1141,6 +1143,20 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
    */
   const drawn = new WeakMap();
   let pressed = null;
+  /**
+   * Every Crew row's buttons drop under their Folk together once any row's would wrap (.450, the user): measured with
+   * the drop off, a row's buttons wrapped when they start below the Folk's lines.
+   */
+  const fitCrew = (el) => {
+    if (el === null) return;
+    el.classList.remove('voyage-crew-drop');
+    const drop = [...el.querySelectorAll('.voyage-crew-row')].some((row) => {
+      const who = row.querySelector('.voyage-crew-who');
+      const b = row.lastElementChild;
+      return who !== null && b !== null && b !== who && b.getBoundingClientRect().top >= who.getBoundingClientRect().bottom - 1;
+    });
+    el.classList.toggle('voyage-crew-drop', drop);
+  };
   const put = (el, html) => {
     if (el === null || drawn.get(el) === html) return;
     if (pressed !== null && el.contains(pressed)) { deferred = true; return; }
@@ -1203,11 +1219,21 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     const crewPart = part('crew');
     if (crewPart !== null && crewOn) {
       try {
+        const was = drawn.get(crewPart);
         put(crewPart, crewHtml());
+        if (drawn.get(crewPart) !== was) fitCrew(crewPart);
         const n = state.crew.count();
         const head = part('crew-count');
         if (head !== null) head.textContent = n > 0 ? t('MOD_VOY_CREW_COUNT', { count: `${n}` }) : '';
       } catch (e) { log('crew render failed', e); }
+    }
+    // The Deck (encounters, slice 3): there while encounters run.
+    const deckBlock = part('deck-block');
+    const deckOn = state.deck !== undefined && state.encounters?.enc?.() !== undefined;
+    deckBlock?.classList.toggle('d-none', !deckOn);
+    const deckPart = part('deck');
+    if (deckPart !== null && deckOn) {
+      try { state.deck.bind(deckPart); if (!typing(deckPart)) put(deckPart, state.deck.html()); } catch (e) { log('deck render failed', e); }
     }
     const holdBlock = part('hold-block');
     const holdKinds = state.hold?.kinds?.() ?? [];
