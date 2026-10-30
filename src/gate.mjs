@@ -407,12 +407,21 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
    * whole strip, not greyed tiles), the rules on or off (23 Oct 2026). The box is mounted on character load, before
    * this first runs on interface ready; on Cartography it sits in Worker Folks' own gutter.
    */
+  // The box hidden, kept so the next pass checks it instead of searching the whole page (some 100,000 nodes, build
+  // .481); a box not found is looked for again after FOLK_BOX_RETRY_MS (Worker Folks absent, or not mounted yet).
+  const FOLK_BOX_RETRY_MS = 30000;
+  const folkBoxes = new Map(); // skill id -> { el, missAt }
   const hideFolkBoxes = () => {
     try {
       for (const id of rules.FOLK_NEVER) {
+        const seen = folkBoxes.get(id);
+        if (seen?.el?.isConnected === true && seen.el.classList.contains('voyage-folk-box-hidden')) continue;
+        if (seen?.el === undefined && seen?.missAt !== undefined && Date.now() - seen.missAt < FOLK_BOX_RETRY_MS) continue;
         const box = document.querySelector(`[data-wf-skill="${id}"]`);
-        if (box === null) continue;
-        (box.closest('.wf-ctrl-gutter') ?? box).classList.add('voyage-folk-box-hidden');
+        if (box === null) { folkBoxes.set(id, { missAt: Date.now() }); continue; }
+        const el = box.closest('.wf-ctrl-gutter') ?? box;
+        el.classList.add('voyage-folk-box-hidden');
+        folkBoxes.set(id, { el });
       }
     } catch (e) { log('folk box hide failed', e); }
   };
@@ -1189,10 +1198,18 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       } catch (e) { console.error(`[Voyage] stop check for ${f?.name} failed open`, e); }
     }
   };
+  // One sidebar pass per burst (build .481): a hex sailed ran it from each listener call and again after the move, 10 ms
+  // each, inside the tick.
+  let dimQueued = false;
+  const dimSoon = () => {
+    if (dimQueued) return;
+    dimQueued = true;
+    setTimeout(() => { dimQueued = false; dimSidebar(); }, 0);
+  };
   const onMoved = () => {
     stopWhatDoesNotFit('move');
     refreshRates();
-    dimSidebar();
+    dimSoon();
     refreshFolks();
   };
   // One deferred pass per burst of moves (build .401): a catch-up replays a voyage hex by hex inside one run of ticks, and
@@ -1206,9 +1223,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     } catch {}
   });
   // Deferred: settings handlers run inside the loader's onChange, before it stores the value.
-  state.listeners.push(() => setTimeout(() => stopWhatDoesNotFit('rules'), 0), refreshRates, dimSidebar, () => setTimeout(refreshFolks, 0));
+  state.listeners.push(() => setTimeout(() => stopWhatDoesNotFit('rules'), 0), refreshRates, dimSoon, () => setTimeout(refreshFolks, 0));
   // A level gained can open a zoned skill here (build .280): the sidebar follows at once.
-  ctx.patch(Skill, 'onLevelUp').after(function () { try { if (state.zoneTable?.skills?.[this.id] !== undefined || this.id === ARCHAEOLOGY) setTimeout(dimSidebar, 0); } catch {} });
+  ctx.patch(Skill, 'onLevelUp').after(function () { try { if (state.zoneTable?.skills?.[this.id] !== undefined || this.id === ARCHAEOLOGY) dimSoon(); } catch {} });
   // The game awaits the end of its offline catch-up before the interface is ready.
   ctx.onInterfaceReady(() => setTimeout(() => { ready = true; stopWhatDoesNotFit('load'); dimSidebar(); }, 0));
   // The gates switch on when the tutorial ends (state.active). The entry gates read that live, but the sidebar and

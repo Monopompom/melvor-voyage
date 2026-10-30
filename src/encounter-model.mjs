@@ -794,21 +794,30 @@ export function autoFight(opt) {
  * the share of their Nerve still standing (what they take is the stake times it); drawLeft the same for draws.
  */
 export function odds(opt, n) {
-  let win = 0;
-  let draw = 0;
-  let lose = 0;
-  let fled = 0;
-  let chased = 0;
-  const left = [];
-  const drawLeft = [];
+  const it = oddsRun(opt, n);
+  for (;;) { const x = it.next(); if (x.done) return x.value; }
+}
+/**
+ * odds() a fight at a time: each `next()` plays one and yields the tally so far (`n` fights), the return value is
+ * odds()'s, so the game can spread them over frames and stop early (oddsOfTally).
+ */
+export function* oddsRun(opt, n) {
+  const t = { n: 0, win: 0, draw: 0, lose: 0, fled: 0, chased: 0, left: [], drawLeft: [] };
   for (let k = 0; k < n; k++) {
     const s = autoFight({ ...opt, seed: (opt.seed || 7) * 7919 + k * 104729 });
-    if (s.chaseFrom) chased++;
-    if (s.over === 'win') win++; else if (s.over === 'fled') fled++;
-    else if (s.over === 'draw') { draw++; drawLeft.push(s.band.nerve / s.band.max); }
-    else { lose++; left.push(s.band.nerve / s.band.max); }
+    if (s.chaseFrom) t.chased++;
+    if (s.over === 'win') t.win++; else if (s.over === 'fled') t.fled++;
+    else if (s.over === 'draw') { t.draw++; t.drawLeft.push(s.band.nerve / s.band.max); }
+    else { t.lose++; t.left.push(s.band.nerve / s.band.max); }
+    t.n++;
+    yield t;
   }
-  return { win: win / n, fled: fled / n, draw: draw / n, lose: lose / n, left, drawLeft, chased: chased / n };
+  return oddsOfTally(t);
+}
+/** The odds from a tally of oddsRun (the fights played so far). */
+export function oddsOfTally(t) {
+  const { n } = t;
+  return { win: t.win / n, fled: t.fled / n, draw: t.draw / n, lose: t.lose / n, left: t.left.slice(), drawLeft: t.drawLeft.slice(), chased: t.chased / n };
 }
 
 /** What the plain strategy wins at each tier when the bands scale to you. */

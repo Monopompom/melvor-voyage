@@ -68,9 +68,27 @@ export function install(ctx, { log }) {
     return { text: text || item?.name || '', media: item?.media ?? el.dataset.tipMedia };
   };
 
+  // A tooltip on a row of buttons (the Here panel's combat areas) points at the button under the pointer, focus or
+  // finger, not the middle of the row (the user, build .482): the last such target is kept, and a shown tooltip
+  // moves its arrow when it changes.
+  let at;
+  const PART = 'button, a, [role="button"]';
+  const track = (e) => {
+    const part = e.target instanceof Element ? e.target.closest(PART) : null;
+    if (part === at) return;
+    at = part;
+    const owner = part?.parentElement?.closest('[data-tip-text], [data-tip-lines], [data-tip-lazy]');
+    const inst = owner?._tippy;
+    if (inst?.state.isVisible) inst.popperInstance?.update(); // isVisible: isShown waits for an animation these have none of
+  };
+  document.addEventListener('mouseover', track, true);
+  document.addEventListener('focusin', track, true);
+  document.addEventListener('touchstart', track, { capture: true, passive: true });
+  const anchorOf = (el) => () => (at != null && at !== el && el.contains(at) ? at : el).getBoundingClientRect();
+
   const make = (el, content, opts = {}) => {
     const inst = tippy(el, {
-      content, placement: 'top', interactive: false, animation: false,
+      content, placement: 'top', interactive: false, animation: false, getReferenceClientRect: anchorOf(el),
       // `data-tip-touch="off"`: no tooltip on touch, the press-and-hold does something else (the Here strip's name, build .187).
       touch: el.dataset.tipTouch === 'off' ? false : el.closest('button, [role="button"], a') !== null ? 'hold' : true, ...opts, // the element or its button (.308, scan A-18/C-09)
     });
@@ -78,7 +96,38 @@ export function install(ctx, { log }) {
     return inst;
   };
 
-  /** Turns the `title`s under `root` (and on it) into Melvor tooltips. */
+  /**
+   * The tooltip of a marked element, made from what it says now. A little wider than tippy's 350px for lines, so a
+   * compass row fits on one line (build .282).
+   */
+  const build = (el) => {
+    const lines = linesOf(el);
+    if (lines !== undefined) { const inst = make(el, linesBody(lines), { maxWidth: 400 }); el.dataset.tipShown = el.dataset.tipLines; return inst; }
+    const { text, media } = contentOf(el, el.dataset.tipText ?? '');
+    return text === '' ? undefined : make(el, body(text, media));
+  };
+
+  // Made on first use (build .481): apply() only marks an element (`data-tip-lazy`), and the first pointer, touch or
+  // focus on it makes its tippy. Every redraw used to make all of them at once: 48 on the Voyage page, 20-50 ms a hex
+  // while sailing. Made in the capture phase, before the event reaches the element, so tippy's own listeners on it
+  // still get this event: the hover shows, a press-and-hold holds. Focus has already fired by then: shown here.
+  const wake = (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    const el = target.closest('[data-tip-lazy]');
+    if (el === null) return;
+    delete el.dataset.tipLazy;
+    if (el._tippy !== undefined || typeof tippy !== 'function') return;
+    try {
+      const inst = build(el);
+      if (inst !== undefined && e.type === 'focusin' && target === el) inst.show();
+    } catch (err) { log('tooltip failed', err); }
+  };
+  document.addEventListener('mouseover', wake, true);
+  document.addEventListener('focusin', wake, true);
+  document.addEventListener('touchstart', wake, { capture: true, passive: true });
+
+  /** Turns the `title`s under `root` (and on it) into Melvor tooltips, made when first pointed at. */
   const apply = (root) => {
     if (root == null || typeof tippy !== 'function') return;
     for (const inst of [...live]) {
@@ -87,21 +136,19 @@ export function install(ctx, { log }) {
     const sel = '[title], [data-tip-item], [data-tip-media], [data-tip-lines]';
     const els = [...(root.matches?.(sel) ? [root] : []), ...root.querySelectorAll(sel)];
     for (const el of els) {
-      const lines = linesOf(el);
-      if (lines !== undefined) {
+      if (el.dataset.tipLines !== undefined && linesOf(el) !== undefined) {
         el.removeAttribute('title');
-        // A little wider than tippy's 350px, so a compass row fits on one line (build .282).
-        if (el._tippy === undefined) { try { make(el, linesBody(lines), { maxWidth: 400 }); el.dataset.tipShown = el.dataset.tipLines; } catch (e) { log('tooltip failed', e); } }
-        else if (el.dataset.tipShown !== el.dataset.tipLines) { el._tippy.setContent(linesBody(lines)); el.dataset.tipShown = el.dataset.tipLines; }
+        if (el._tippy === undefined) el.dataset.tipLazy = '';
+        else if (el.dataset.tipShown !== el.dataset.tipLines) { el._tippy.setContent(linesBody(linesOf(el))); el.dataset.tipShown = el.dataset.tipLines; }
         continue;
       }
       const fresh = el.getAttribute('title');
       if (fresh !== null) { el.removeAttribute('title'); el.dataset.tipText = fresh; }
       const tip = el._tippy;
       const { text, media } = contentOf(el, el.dataset.tipText ?? '');
-      if (text === '') { if (tip !== undefined) { tip.destroy(); live.delete(tip); } continue; }
+      if (text === '') { delete el.dataset.tipLazy; if (tip !== undefined) { tip.destroy(); live.delete(tip); } continue; }
       if (tip !== undefined) { if (fresh !== null) tip.setContent(body(text, media)); continue; }
-      try { make(el, body(text, media)); } catch (e) { log('tooltip failed', e); }
+      el.dataset.tipLazy = '';
     }
   };
 

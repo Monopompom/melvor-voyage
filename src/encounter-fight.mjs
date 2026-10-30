@@ -142,12 +142,6 @@ export function install(ctx, { state, log }) {
     + `<span>${icon ? `${fa(icon)} ` : ''}${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`;
 
   // ---- the meet ----------------------------------------------------------------------------------------------------
-  const oddsCache = new Map();
-  const oddsOf = (api, f) => {
-    const id = `${f.opt.seed}:${f.opt.gp}`;
-    if (!oddsCache.has(id)) { oddsCache.clear(); oddsCache.set(id, api.E.odds(f.opt, 300)); }
-    return oddsCache.get(id);
-  };
   const lootLine = (api, f) => {
     const { L } = api;
     const at = L.lootAt(f.opt.band, f.opt.tier, api.grade(), api.has);
@@ -168,7 +162,7 @@ export function install(ctx, { state, log }) {
     const { E, R } = api;
     const def = E.BANDS[f.opt.band];
     const s = E.newFight(f.opt);
-    const o = oddsOf(api, f);
+    const o = api.oddsOf(f);
     const sea = f.opt.where === 'sea';
     const stake = R.stakeOf(f.opt.toll, f.opt.gp);
     const pct = (x) => `${Math.round(x * 100)}`;

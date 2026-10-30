@@ -3,6 +3,7 @@
 // visible and on settings changes. Everything is wrapped: a failing panel never touches the game.
 
 const PANEL_ID = 'voyage-here';
+const CARTOGRAPHY_PAGE = 'melvorAoD:Cartography';
 // Modal buttons: confirm green, cancel blue outline.
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
@@ -1287,8 +1288,15 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       alignRowButtons(true);
     } catch (e) { log('here panel failed', e); }
   };
-  /** Draws the panel, then gives its titles Melvor's tooltips (build .160). */
+  /** The map page is the one open: the panel lives on it and is drawn only then. */
+  const mapShown = () => { try { return game.openPage?.id === CARTOGRAPHY_PAGE; } catch { return true; } };
+  /**
+   * Draws the panel, then gives its titles Melvor's tooltips (build .160). Only while the map page is open (build
+   * .481): on another page the panel is hidden, yet its layout reads made the open page lay out again, 32 ms a call on
+   * the Bank while sailing. Opening the map draws it (onPageVisible below).
+   */
   const render = () => {
+    if (!mapShown()) return;
     drew = false;
     draw();
     if (!drew) return;
@@ -1313,12 +1321,20 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     } catch (e) { log('overview line failed', e); }
   });
 
-  ctx.patch(Cartography, 'onPageVisible').after(() => { setTimeout(render, 0); });
+  // One draw per burst (build .481): a hex sailed called the listeners two or three times and the travel event once
+  // more, each a full draw inside the tick; now they share one, after it.
+  let renderQueued = false;
+  const renderSoon = () => {
+    if (renderQueued) return;
+    renderQueued = true;
+    setTimeout(() => { renderQueued = false; render(); }, 0);
+  };
+  ctx.patch(Cartography, 'onPageVisible').after(() => { renderSoon(); });
   // A level gained can open a zoned skill here (build .280): Works and Locked follow at once.
-  ctx.patch(Skill, 'onLevelUp').after(function () { try { if (state.zoneTable?.skills?.[this.id] !== undefined) setTimeout(render, 0); } catch {} });
+  ctx.patch(Skill, 'onLevelUp').after(function () { try { if (state.zoneTable?.skills?.[this.id] !== undefined) renderSoon(); } catch {} });
   ctx.onCharacterLoaded(() => {
-    try { game.cartography?.on('travel', () => setTimeout(render, 0)); } catch (e) { log('travel hook failed', e); }
+    try { game.cartography?.on('travel', renderSoon); } catch (e) { log('travel hook failed', e); }
   });
-  state.listeners.push(render);
+  state.listeners.push(renderSoon);
   return { render };
 }

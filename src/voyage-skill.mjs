@@ -175,17 +175,19 @@ export function createVoyageClass({ model, log }) {
     // ---- page ----------------------------------------------------------------------------------------
     render() {
       super.render();
+      // The page is drawn only while it is open (build .481): every change marks it, and a closed page was rebuilt with
+      // each one, 76 ms a hex while sailing on the Bank page. The mark waits here until the page opens.
+      const open = this.game.openPage?.id === model.SKILL_ID;
+      if (!open) return;
       // The game shows "Game Guide" under every skill page's title; Voyage has no guide page, so the link did nothing
       // (Folks scan C-02, build .311). changePage only calls page.action.onPageChange(), and this page has no action,
       // so the link is hidden here, in the render loop, while the page is open.
-      if (this.game.openPage?.id === model.SKILL_ID) {
-        const link = document.getElementById('game-guide-header-link');
-        if (link !== null && !link.classList.contains('d-none')) link.classList.add('d-none');
-      }
+      const link = document.getElementById('game-guide-header-link');
+      if (link !== null && !link.classList.contains('d-none')) link.classList.add('d-none');
       // While the page is open, redraw when its signature moves (the bank and GP have no event the page listens to).
       // Compared four times a second, not every frame (build .401): with GP or logs coming in each tick the signature
       // moved every frame and the page was rebuilt with it. The skill's own events still redraw at once.
-      if (!this.renderQueue.page && this.pageSignature !== undefined && this.game.openPage?.id === model.SKILL_ID) {
+      if (!this.renderQueue.page && this.pageSignature !== undefined) {
         const now = performance.now();
         if (now - (this._pageSigAt ?? 0) >= PAGE_SIG_MS) {
           this._pageSigAt = now;
@@ -198,7 +200,7 @@ export function createVoyageClass({ model, log }) {
         try { this.pageRenderer?.(); } catch (e) { log('Voyage page render failed', e); }
       }
       // The Under way block's bars move every frame while the page is open.
-      if (this.game.openPage?.id === model.SKILL_ID) { try { this.clock?.render?.(); } catch (e) { log('Under way render failed', e); } }
+      try { this.clock?.render?.(); } catch (e) { log('Under way render failed', e); }
     }
 
     getErrorLog() {

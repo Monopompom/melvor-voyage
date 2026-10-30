@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CARDS, TRICKS, BANDS, CHARMS, STARTER, FOLK_DECK, SUITS, ATTACKS, TIER_F, TARGET, DECK_MIN, DECK_MAX,
-  newFight, play, toss, endRound, pressOn, replay, autoFight, aiRound, odds, calibrate, calibration, bandsOf,
+  newFight, play, toss, endRound, pressOn, replay, autoFight, aiRound, odds, oddsRun, oddsOfTally, calibrate, calibration, bandsOf,
   canPlay, cardN, cardCost, trickOf, kindKey, moveText,
 } from '../src/encounter-model.mjs';
 
@@ -164,4 +164,24 @@ test('calibration: the generator steps band by band and ends where calibrate() d
   for (const band of bandsOf('land')) { const o = odds(base({ band, tier: 1, strength: S }), 200); w += o.win + o.fled; }
   const share = w / bandsOf('land').length;
   assert.ok(Math.abs(share - TARGET[1]) < 0.06, `tier 1 scaled win share ${share}`);
+});
+
+test('oddsRun plays one fight a step and ends with what odds() says', () => {
+  const opt = base({ band: 'smugglers', tier: 2, seed: 5 });
+  const it = oddsRun(opt, 40);
+  let steps = 0;
+  let x;
+  while (!(x = it.next()).done) { steps++; assert.equal(x.value.n, steps); }
+  assert.equal(steps, 40);
+  assert.deepEqual(x.value, odds(opt, 40));
+});
+
+test('stopped early, oddsRun\'s tally gives the odds of the fights played so far', () => {
+  const opt = base({ band: 'smugglers', tier: 2, seed: 5 });
+  const it = oddsRun(opt, 40);
+  let t;
+  for (let k = 0; k < 15; k++) t = it.next().value;
+  const o = oddsOfTally(t);
+  assert.deepEqual(o, odds(opt, 15));
+  assert.ok(Math.abs(o.win + o.fled + o.draw + o.lose - 1) < 1e-9);
 });

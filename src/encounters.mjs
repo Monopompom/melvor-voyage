@@ -609,12 +609,54 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
   };
 
   // ---- the popup -----------------------------------------------------------------------------------------------------
+  // The meet's odds: up to ODDS_N fights played the plain way (about ±3 points), never fewer than ODDS_MIN (about ±5).
+  // Played inside the popup's first draw they made one long frame (build .481: up to a second, as a fight costs 0.4 ms
+  // or 3 ms in game depending on how long ago the save loaded). Now they are played in slices of a few ms from the
+  // moment the popup is asked for, in the wait before it opens; the popup shows what the slices got through, made up
+  // to ODDS_MIN at once if they fell short, and the number stays as shown.
+  const ODDS_N = 300;
+  const ODDS_MIN = 100;
+  let odds; // { id, it, tally, value }
+  const oddsId = (f) => `${f.opt.seed}:${f.opt.gp}`;
+  const oddsFor = (f) => {
+    const id = oddsId(f);
+    if (odds?.id !== id) odds = { id, it: E.oddsRun(f.opt, ODDS_N), tally: undefined, value: undefined };
+    return odds;
+  };
+  /** Plays fights until `until` (one at least) or the last one. */
+  const oddsStep = (run, until) => {
+    while (run.value === undefined) {
+      const x = run.it.next();
+      if (x.done) run.value = x.value; else run.tally = x.value;
+      if (performance.now() >= until) break;
+    }
+  };
+  const prepOdds = () => {
+    const f = enc()?.fight;
+    if (f == null || f.stage !== 'meet') return;
+    const run = oddsFor(f);
+    const slice = () => {
+      if (odds !== run || run.value !== undefined) return;
+      oddsStep(run, performance.now() + 8);
+      if (run.value === undefined) setTimeout(slice, 16);
+    };
+    setTimeout(slice, 0);
+  };
+  /** The meet's odds for `f`: the fights played so far, at least ODDS_MIN of them. */
+  const oddsOf = (f) => {
+    const run = oddsFor(f);
+    while (run.value === undefined && (run.tally?.n ?? 0) < ODDS_MIN) oddsStep(run, 0);
+    if (run.value === undefined) run.value = E.oddsOfTally(run.tally);
+    return run.value;
+  };
+
   let asking = false;
   const ui = { hint: false, toss: false };
   /** The popup on the open encounter (asked again by the tick if something else closed it). */
   const open = () => {
     if (asking || offlineNow() || enc()?.fight == null) return;
     asking = true;
+    prepOdds();
     const go = () => {
       if (enc()?.fight == null) { asking = false; return; }
       F.popup({ api, onClosed: () => { asking = false; } });
@@ -682,7 +724,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     /** The offline summary's line: how many bands wait on your return ('' for none). */
     awayNote: () => { const n = enc()?.away?.length ?? 0; return n === 0 ? '' : t(n === 1 ? 'MOD_VOY_ENC_AWAY_NOTE_ONE' : 'MOD_VOY_ENC_AWAY_NOTE', { n: `${n}` }); },
     enc, fight, ui, placeOf, roll, moved, act, autoRound, startFight, pay, run, autoResolve, take, pressOn, close,
-    canPatch, patch, tick, open, refuse, warm, meetNow, rareNext, strengthFor,
+    canPatch, patch, tick, open, refuse, warm, meetNow, rareNext, strengthFor, oddsOf,
     D, have, ownsItem, charmsNow, shipNow, kitLocked, redraw, notify,
     /** The hull wear a run at sea costs (%). */
     runWear: () => EM.pirateRunWear(S.WEAR.deep),
