@@ -98,6 +98,9 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
   let memoKey = '';
   const readingFor = (skillId, pos) => {
     if (pos === undefined || state.terrain === undefined) return undefined;
+    // Zones on: toward where something at your level works (gate.mjs skillTargets), kept out of the memo below.
+    const targets = state.skillTargets?.(skillId);
+    if (targets !== undefined) return readingTo(targets, pos);
     const key = `${state.settings.strictness()}`;
     if (key !== memoKey) { memo.clear(); memoKey = key; }
     const k = `${skillId}@${terrainMod.hexKey(pos.q, pos.r)}`;

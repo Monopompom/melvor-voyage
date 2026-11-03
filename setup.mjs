@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-10-31.501';
+export const BUILD = '2026-11-03.504';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -658,7 +658,13 @@ export async function setup(ctx) {
       // Where you stand counts as visited, without XP (the balance pass; a new character or one moved by an event).
       try { const here = map?.playerPosition; if (here !== undefined && !terrainMod.isCloud(state.terrain.get(here.q, here.r))) voyageSkill()?.markHere(here); } catch (e) { log('visited mark failed', e); }
       const opts = () => state.ruleOpts();
-      state.nearestFor = terrainMod.createNearestFinder(state.terrain, rules, state.knowledge, opts);
+      const ruleNearest = terrainMod.createNearestFinder(state.terrain, rules, state.knowledge, opts);
+      // With resource zones on, a skill's nearest place is one where something at your level works (gate.mjs
+      // skillTargets), not any hex its rule takes.
+      state.nearestFor = (skillId, from) => {
+        const targets = state.skillTargets?.(skillId);
+        return targets === undefined ? ruleNearest(skillId, from) : terrainMod.nearestIn(targets, from, (rec) => state.knowledge?.isKnown(rec) ?? true);
+      };
       state.anyNearestFor = terrainMod.createNearestFinder(state.terrain, rules, undefined, () => state.ruleOpts({ all: true }));
       state.mode = check.ok ? 'strict' : 'relaxed';
       state.reasons = check.reasons;

@@ -183,7 +183,7 @@
     },
     "melvorD:Mithril_Ore": {
      "level": 50,
-     "why": "cold, high and far: the frozen north (by boat)",
+     "why": "cold, high and far: Frost Island in the south (by boat, or over the ice in Winter)",
      "terms": [
       {
        "t": [
@@ -658,7 +658,7 @@
     },
     "melvorD:Redwood": {
      "level": 90,
-     "why": "foggy cliff coasts, the cold north",
+     "why": "foggy cliff coasts, or snowy forest",
      "terms": [
       {
        "f": [

@@ -290,11 +290,17 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const showLocked = (skill, skillId, locked, args = []) => {
     const d = describe(skill, skillId, locked);
     log(`refused ${skillId} at (${locked.pos.q},${locked.pos.r}) ${locked.rec.t}`);
+    const action = actionOfCall(skillId, skill, args);
+    // A clicked ore, tree or fish with its own zone (Mithril in the snow): the nearest place and the compass aim at
+    // where that one works, not at the skill anywhere (user report, 3 Nov 2026: the compass sent a Mithril miner
+    // north-east, toward the nearest copper rock, with every Mithril hex to the south).
+    const zone = zonedTargets(action, skillId, locked.pos);
+    const lines = zone === undefined ? d.lines : [d.lines[0], line('MOD_VOY_ZONE_NEEDS', { name: esc(action.name ?? action.id), need: zoneNeed(zone.zone).html }), ...zone.lines];
     const plan = () => {
-      const near = state.nearestFor(skillId, locked.pos);
-      return state.planner?.forAction(skillId, actionOfCall(skillId, skill, args), near === undefined ? [] : [near.hex]);
+      const near = zone !== undefined ? zone.best : state.nearestFor(skillId, locked.pos);
+      return state.planner?.forAction(skillId, action, near === undefined ? [] : [near.hex]);
     };
-    modal(templateLangString('MOD_VOY_GATE_LOCKED_TITLE', { name: d.name }), undefined, d.lines, { guide: 'terrain', plan });
+    modal(templateLangString('MOD_VOY_GATE_LOCKED_TITLE', { name: d.name }), undefined, lines, { guide: 'terrain', plan });
   };
 
   /**
@@ -522,7 +528,62 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     }
     return list;
   };
+  /**
+   * Where a zoned skill has something for you (zones on): every hex where one of its actions at your level works.
+   * A hex the skill's rule takes but whose zones hold nothing for your level is no target (user report, 3 Nov 2026:
+   * the compass led a miner to rock that held no ore of theirs). Undefined when zones are off, the skill has no zone
+   * table, one of its actions at your level has no zone (it works wherever the rule does) or nothing at your level
+   * works anywhere: the skill's rule alone is the target then.
+   */
+  const skillTargetsMemo = { key: undefined, map: new Map() };
+  const skillTargets = (skillId) => {
+    if (!zonesOn() || state.terrain === undefined) return undefined;
+    const table = state.zoneTable?.skills?.[skillId]?.actions;
+    const skill = game.skills.getObjectByID(skillId);
+    if (table === undefined || skill === undefined) return undefined;
+    const opts = state.ruleOpts();
+    const key = `${opts.strictness}|${state.terrain.version}|${state.knowledge?.version}`;
+    if (key !== skillTargetsMemo.key) { skillTargetsMemo.key = key; skillTargetsMemo.map.clear(); }
+    const memoKey = `${skillId}@${skill.level}`;
+    if (skillTargetsMemo.map.has(memoKey)) return skillTargetsMemo.map.get(memoKey);
+    const seen = new Set();
+    let out = [];
+    for (const action of skill.actions?.allObjects ?? []) {
+      if ((action.level ?? 1) > skill.level || (action.abyssalLevel ?? 0) > 0) continue;
+      if (table[action.id] === undefined) { out = undefined; break; }
+      for (const rec of zoneCandidates(action.id)) if (!seen.has(rec)) { seen.add(rec); out.push(rec); }
+    }
+    const result = out === undefined || out.length === 0 ? undefined : out;
+    skillTargetsMemo.map.set(memoKey, result);
+    return result;
+  };
+  state.skillTargets = (skillId) => { try { return skillTargets(skillId); } catch (e) { log('skill targets failed', e); return undefined; } };
   const hexDistance = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
+  /** The nearest known of a zone's hexes as a line, else "none known" and the compass toward all of them; { lines, best }. */
+  const zoneWhere = (all, pos) => {
+    let best;
+    for (const rec of all) {
+      if (!state.knowledge?.isKnown(rec)) continue;
+      const d = hexDistance(pos, rec);
+      if (best === undefined || d < best.distance) best = { hex: rec, distance: d };
+    }
+    if (best !== undefined) return { lines: [line('MOD_VOY_ZONE_NEAREST', { where: whereIs(pos, best.hex, best.distance) })], best };
+    const lines = [line('MOD_VOY_ZONE_NONE_KNOWN')];
+    const compass = compassLine(state.compass?.readingTo(all, pos));
+    if (compass !== undefined) lines.push(compass);
+    return { lines, best };
+  };
+  /**
+   * For an action of `skillId` that has its own zone (zones on): where it works, as zoneWhere, plus the zone. Undefined
+   * when it has none, or when no hex takes it under the current rules (the skill's own lines say it then).
+   */
+  const zonedTargets = (action, skillId, pos) => {
+    if (!zonesOn() || action === undefined || action === null || pos === undefined) return undefined;
+    const z = zoneIndex.get(action.id);
+    if (z === undefined || z.skillId !== skillId) return undefined;
+    const all = zoneCandidates(action.id);
+    return all.length === 0 ? undefined : { ...zoneWhere(all, pos), zone: z.zone };
+  };
   /** What the zone names, coloured: "Desert or Badlands or Rock or the coast". */
   const zoneNeed = (zone) => {
     const t = zones.zoneTerms(zone);
@@ -560,20 +621,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   };
   const showZoneLocked = (action, { pos, zone, skillId }) => {
     const name = action.name ?? action.id;
-    const lines = zoneLines(name, zone);
-    const all = zoneCandidates(action.id);
-    let best;
-    for (const rec of all) {
-      if (!state.knowledge?.isKnown(rec)) continue;
-      const d = hexDistance(pos, rec);
-      if (best === undefined || d < best.distance) best = { hex: rec, distance: d };
-    }
-    if (best !== undefined) lines.push(line('MOD_VOY_ZONE_NEAREST', { where: whereIs(pos, best.hex, best.distance) }));
-    else {
-      lines.push(line('MOD_VOY_ZONE_NONE_KNOWN'));
-      const compass = compassLine(state.compass?.readingTo(all, pos));
-      if (compass !== undefined) lines.push(compass);
-    }
+    const { lines: whereLines, best } = zoneWhere(zoneCandidates(action.id), pos);
+    const lines = [...zoneLines(name, zone), ...whereLines];
     log(`refused ${action.id} at (${pos?.q},${pos?.r}): outside its zone`);
     state.journal?.miss(action, pos);
     const plan = () => state.planner?.forAction(skillId, action, best === undefined ? [] : [best.hex]);
