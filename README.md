@@ -80,8 +80,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   waits while you answer in the same popup with its own deck (a base, a card for its rank, a swap for each travel
   trait) and one card you lent it when you sent it, from 22 Resolve. It stakes its pack and its HP, never your GP:
   Pay takes 25% of the pack left at tier 1 up to 70% at tier 4, a draw or loss that share times the band's Nerve
-  left, Run 15% and the next hex's time again, and the last hexes it can't feed it walks hungry. A loss also wounds
-  it 30% of its max HP, which can kill it. A win's purse and loot go to your bank. Offline its bands fold in with
+  left, Run 15% and the next hex's time again, and the last hexes it can't feed it walks hungry. A loss, or a failed
+  Press on, also wounds it 30% of its max HP, which can kill it. A win's purse and loot go to your bank. Offline its bands fold in with
   yours; each Folk answers from its pack, and a fold only your Folks met puts none of your GP at stake.
 - **The card game.** A fight is your Resolve against the band's Nerve over at most 6 rounds. Each round you draw up
   to 5 cards and make up to 3 plays (a Quick card costs none), and once a round you may toss a card. The band shows

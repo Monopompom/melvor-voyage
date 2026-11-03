@@ -675,7 +675,9 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     // The walking Folks a fold's bands met pay from their packs.
     for (const x of R.foldFolks(f.away?.parts)) folkTake(x, R.folkTakeShare('pay', x.tier), lines);
     // A fold only your Folks met is paid from their packs alone.
-    f.res = { head: k(mine ? 'MOD_VOY_ENC_RES_PAID' : 'MOD_VOY_ENC_RES_PAID_FOLKS'), tone: 'mid', lines, purse: 0, loot: [], press: false, banked: true, done: 'pay', owed };
+    const payers = mine ? [] : R.foldFolks(f.away.parts);
+    const head = mine ? k('MOD_VOY_ENC_RES_PAID') : payers.length === 1 ? k('MOD_VOY_ENC_RES_FOLK_PAID', { name: payers[0].name }) : k('MOD_VOY_ENC_RES_PAID_FOLKS');
+    f.res = { head, tone: 'mid', lines, purse: 0, loot: [], press: false, banked: true, done: 'pay', owed };
     f.stage = 'result';
     log(`encounters: paid ${paid} GP`);
     render();

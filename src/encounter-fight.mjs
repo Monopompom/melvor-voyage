@@ -152,9 +152,10 @@ export function install(ctx, { state, log }) {
     const at = L.lootAt(f.opt.band, f.opt.tier, api.grade(), api.has);
     const name = (id) => itemOf(id)?.name ?? id;
     const items = [...new Set(at.haul)].map(name);
-    return t('MOD_VOY_ENC_STAKE_LOOT_LINE', {
-      items: api.text(items), draws: `${at.draws}`, stash: at.stash ? name(at.stash) : '', stashPct: `${Math.round(at.stashOdds * 100)}`, rarePct: `${Math.round(at.rareOdds * 100)}`,
-    });
+    // "A win brings one of …" (two picks at tiers 3 and 4), then the stash when your grade finds one, the rare find.
+    const vars = { items: api.text(items), n: `${at.draws}`, stash: at.stash ? name(at.stash) : '', stashPct: `${Math.round(at.stashOdds * 100)}`, rarePct: `${Math.round(at.rareOdds * 100)}` };
+    return t(at.draws === 1 ? 'MOD_VOY_ENC_STAKE_LOOT_ONE' : 'MOD_VOY_ENC_STAKE_LOOT_MANY', vars)
+      + t(at.stash ? 'MOD_VOY_ENC_STAKE_LOOT_STASH' : 'MOD_VOY_ENC_STAKE_LOOT_RARE', vars);
   };
   /** The board's two sides at a glance, as the fight has them: you on the left, the band on the right. */
   const sideHtml = (who, icon, iconCls, label, cls, now, max, extra) => `<div class="voyage-enc-vs-side voyage-enc-vs-${who}">`
