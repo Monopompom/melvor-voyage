@@ -168,7 +168,13 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   };
   const startable = (skillId) => ['melvorD:Woodcutting', 'melvorD:Mining', 'melvorD:Fishing', 'melvorD:Thieving', 'melvorD:Astrology', 'melvorAoD:Archaeology'].includes(skillId);
   const isDungeon = (area) => { try { return game.dungeons.getObjectByID(area.id) === area; } catch { return false; } };
-  const isFightArea = (area) => { try { return game.combatAreas.getObjectByID(area.id) === area || game.slayerAreas.getObjectByID(area.id) === area; } catch { return false; } };
+  // The game's combatAreas holds its dungeons, strongholds and Abyss depths too; only combat and slayer areas pick a monster.
+  const isFightArea = (area) => {
+    try {
+      if (game.combatAreas.getObjectByID(area.id) !== area && game.slayerAreas.getObjectByID(area.id) !== area) return false;
+      return ![game.dungeons, game.strongholds, game.abyssDepths].some((r) => r?.getObjectByID(area.id) === area);
+    } catch { return false; }
+  };
   // What the game would refuse on arrival (build .130), asked quietly with the game's own tests:
   // the ones selectMonster / selectDungeon run (combatManager.js v1.3.1) and a skill action's level. Voyage's own
   // location gate is left out (game.checkRequirement, not checkAreaEntryRequirements): you will be there. Each returns
@@ -321,6 +327,34 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
         refresh();
       },
     };
+  };
+  /**
+   * The map's Travel with Timed travel off (the user, 3 Nov 2026: "can we fix this too?"): to the planned place it
+   * keeps the plan as the timed one does. On the plan's own route, when its Set off could sail it, it sails as that
+   * Set off does (the stops, the pick on arrival); on another route to a planned hex the map's Travel goes, then the
+   * pick starts there. `travel` is the map's own Travel. True once it went (the plan cleared on arrival); undefined
+   * for a trip elsewhere, which is left to the caller.
+   */
+  const travelInstant = (path, travel) => {
+    if (!open() || target === undefined) return undefined;
+    const plan = compute();
+    const how = P.travelHandover(target.hexes, path, plan?.path);
+    if (how === 'none') return undefined;
+    if (how === 'route' && plan.split?.ok === true && plan.refused === undefined && owned() && (plan.costs?.checkIfOwned() ?? true)) {
+      sailLegs(plan, target.name);
+      return true;
+    }
+    const dest = path[0];
+    const name = target.name;
+    travel();
+    // Refused or stopped short (the stores, the purse, a berth): the plan stays for another try.
+    if (live()?.playerPosition !== dest) return true;
+    log(`travelled to ${name} by the map`);
+    notify(t('MOD_VOY_PLAN_ARRIVED', { name }));
+    arrive();
+    target = undefined;
+    refresh();
+    return true;
   };
   /** The instant way (Timed travel off): leg by leg through movePlayer, loading here first and at the planned stops. */
   const sailLegs = (plan, name) => {
@@ -598,7 +632,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
   };
   const reopen = () => { if (target === undefined) return false; showBlock(); return true; };
   // startAction and startable: a Folk arriving from a walk (6d) starts its resource the same way.
-  const api = { planTo, forAction, forArea, forTravel, html, onClick, signature, open, owned, summary, reopen, navHtml, startAction, startable, isRunning, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
+  const api = { planTo, forAction, forArea, forTravel, travelInstant, html, onClick, signature, open, owned, summary, reopen, navHtml, startAction, startable, isRunning, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
   state.planner = api;
   return api;
 }

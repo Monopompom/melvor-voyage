@@ -149,6 +149,16 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
   const actionOf = (sk, id) => { try { return sk?.actions?.getObjectByID(id); } catch { return undefined; } };
   const areaById = (id) => { try { return game.combatAreas.getObjectByID(id) ?? game.slayerAreas.getObjectByID(id); } catch { return undefined; } };
   const dungeonById = (id) => { try { return game.dungeons.getObjectByID(id); } catch { return undefined; } };
+  /**
+   * A combat or slayer area, where one monster is picked (selectMonster). The game's combatAreas also holds its
+   * dungeons, strongholds and Abyss depths, each started its own way: not one of these.
+   */
+  const isFightArea = (area) => {
+    try {
+      if (area === undefined || areaById(area.id) !== area) return false;
+      return ![game.dungeons, game.strongholds, game.abyssDepths].some((r) => r?.getObjectByID(area.id) === area);
+    } catch { return false; }
+  };
   const monsterById = (id) => { try { return game.monsters.getObjectByID(id); } catch { return undefined; } };
   /** The action a running skill is doing now, if it has one to name. */
   const currentOf = (a) => {
@@ -167,7 +177,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
         if (area === undefined) return undefined;
         if (dungeonById(area.id) === area) return { k: 'dungeon', area: area.id };
         const m = a.selectedMonster;
-        return m === undefined || areaById(area.id) !== area ? undefined : { k: 'resume', area: area.id, monster: m.id };
+        return m === undefined || !isFightArea(area) ? undefined : { k: 'resume', area: area.id, monster: m.id };
       }
       if (typeof GatheringSkill !== 'undefined' && a instanceof GatheringSkill && a.id !== CARTOGRAPHY_ID) {
         const x = currentOf(a);
@@ -338,7 +348,12 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     const before = state.posOverride;
     try {
       state.posOverride = dest;
+      // A dungeon there is one pick, the dungeon (user report, 3 Nov 2026: a dungeon planned, then the map's Travel,
+      // and the Set off popup had lost it: each of its monsters was offered as a fight instead). Strongholds and Abyss
+      // depths are left out: they start their own way.
       for (const area of state.combatHere?.() ?? []) {
+        if (dungeonById(area.id) === area) { add({ k: 'dungeon', area: area.id }); continue; }
+        if (!isFightArea(area)) continue;
         const seen = new Set();
         for (const m of area.monsters ?? []) { if (m !== undefined && !seen.has(m.id)) { seen.add(m.id); add({ k: 'fight', area: area.id, monster: m.id }); } }
       }
@@ -658,15 +673,15 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
       + `<div class="dropdown voyage-plan-arrival voyage-clock-dd"><input type="hidden" id="${id}" value="${pick}">`
       + `<button type="button" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-labelledby="${id}-label" data-voyage-dd="${id}"><span>${esc(pickLabel(pick))}</span></button>`
       + `<div class="dropdown-menu overflow-y-auto">${[-1, ...opts.keys()].map((i) => `<a class="dropdown-item pointer-enabled${i === pick ? ' active' : ''}" role="button" data-voyage-dd-for="${id}" data-pick="${i}">${pickFace(i)}</a>`).join('')}</div></div></div>`);
-    // The defaults: what you were doing, if it works there, then the first
-    // crafts there. A fight only when it is what you were doing (build .233: with nothing running, a battle camp's
-    // first two fights were picked, and a Combat 10 character landed in one and died).
+    // The defaults: what you were doing, if it works there, then the first crafts there. A fight or a dungeon only
+    // when it is what you were doing or the plan's pick (build .233: with nothing running, a battle camp's first two
+    // fights were picked, and a Combat 10 character landed in one and died).
     const now = doingNow();
     const nowChoice = now === undefined ? undefined : C.cleanChoice(now);
     const isNow = (o) => nowChoice !== undefined && C.sameChoice(o.choice, nowChoice);
     // The planner's own arrival pick goes first (its block's dropdown).
     const preferred = extra.prefer === undefined ? -1 : ([...opts.keys()].find((i) => C.sameChoice(opts[i].choice, extra.prefer)) ?? -1);
-    const defaults = [...(preferred >= 0 ? [preferred] : []), ...[...opts.keys()].filter((i) => i !== preferred && (opts[i].choice.k !== 'fight' || isNow(opts[i])))].slice(0, 2);
+    const defaults = [...(preferred >= 0 ? [preferred] : []), ...[...opts.keys()].filter((i) => i !== preferred && ((opts[i].choice.k !== 'fight' && opts[i].choice.k !== 'dungeon') || isNow(opts[i])))].slice(0, 2);
     // Hull wear: the condition now less the condition the plan leaves, per vessel.
     let wear = 0;
     if (pl?.cond !== undefined) wear += Math.max(0, (state.ship?.cond?.('boat') ?? pl.cond) - pl.cond);
@@ -1212,6 +1227,14 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
   ctx.patch(Cartography, 'travelOnClick').replace(function (original) {
     try {
       const path = this.activeMap?.selectedHexPath;
+      if (!on() && usable() && !this.game.isGolbinRaid && Array.isArray(path) && path.length >= 2 && !stepping) {
+        // Timed travel off: the instant Travel to the planned place keeps the plan too. Once it went, never twice.
+        let went = false;
+        const go = () => { went = true; return original(); };
+        try { if (state.planner?.travelInstant?.(path, go) === true) return; } catch (e) { log('instant plan hand-over failed', e); }
+        if (went) return;
+        return original();
+      }
       if (!on() || this.game.isGolbinRaid || !Array.isArray(path) || path.length < 2 || stepping) return original();
       if (cur()?.tow !== undefined) { state.adrift?.refuseUnderTow?.(); return; }
       // To the planned place, the plan's On arrival pick, and on its own route its stops (build .420).
