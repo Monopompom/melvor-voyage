@@ -550,6 +550,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     let out = [];
     for (const action of skill.actions?.allObjects ?? []) {
       if ((action.level ?? 1) > skill.level || (action.abyssalLevel ?? 0) > 0) continue;
+      // Another realm's actions (the Abyss, Into the Abyss's Eternal realm at level 0) are not done on this map.
+      if (action.realm !== undefined && game.defaultRealm !== undefined && action.realm !== game.defaultRealm) continue;
       if (table[action.id] === undefined) { out = undefined; break; }
       for (const rec of zoneCandidates(action.id)) if (!seen.has(rec)) { seen.add(rec); out.push(rec); }
     }
