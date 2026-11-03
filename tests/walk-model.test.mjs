@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WALK_MS, hexMs, findRoad, roadMs, roadPack, walkAt, nextAt, folkStepCost, sortPlaces, cleanWalk, cleanWalks, WALKS_MAX, ROAD_MAX, repaceRest } from '../src/walk-model.mjs';
+import { WALK_MS, hexMs, findRoad, roadMs, roadPack, walkAt, nextAt, folkStepCost, sortPlaces, cleanWalk, cleanWalks, WALKS_MAX, ROAD_MAX, repaceRest, holdWalk, resumeWalk, hungryAt, enteredAt } from '../src/walk-model.mjs';
 import { stepCost } from '../src/stores-model.mjs';
 import { foodShare } from '../src/crew-model.mjs';
 import { stepMs } from '../src/clock-model.mjs';
@@ -143,4 +143,50 @@ test('walks: a trait learned on the road times the rest of it again, from the he
   // Arrived, or on its last hex: nothing to time.
   assert.equal(repaceRest(walk, 1e12, fast), walk);
   assert.equal(repaceRest(walk, 1000 + 3 * g + h + 1, fast), walk);
+});
+
+test('walk: a band holds the walk on the hex it was met, and it goes on from where it stood', () => {
+  const road = [{ q: 1, r: 0, cls: 'grasslands', ms: 100 }, { q: 2, r: 0, cls: 'desert', ms: 150 }, { q: 3, r: 0, cls: 'desert', ms: 150 }];
+  const w = { from: { q: 0, r: 0 }, road, start: 1000, skillId: null };
+  assert.equal(enteredAt(w, 0), 1100);
+  assert.equal(enteredAt(w, 1), 1250);
+  const held = holdWalk(w, enteredAt(w, 1));
+  assert.equal(holdWalk(held, 9999).held, 1250, 'held once');
+  assert.deepEqual(walkAt(held, 99999).at, { q: 2, r: 0 }, 'it stands still while the band waits');
+  assert.equal(walkAt(held, 99999).done, false);
+  assert.equal(nextAt(held, 2000), undefined, 'nothing is due while held');
+  const on = resumeWalk(held, 5000);
+  assert.equal(on.held, undefined);
+  assert.equal(on.start, 1000 + (5000 - 1250));
+  assert.deepEqual(walkAt(on, 5000).at, { q: 2, r: 0 }, 'it goes on from the hex it stood on');
+  assert.equal(nextAt(on, 5000), 5000 + 150);
+  const ran = resumeWalk(held, 5000, { extraMs: 150 });
+  assert.equal(nextAt(ran, 5000), 5000 + 300, 'Run: the next hex\'s time again');
+  assert.equal(resumeWalk(w, 5000), w, 'a walk not held stays');
+});
+
+test('walk: a band\'s take leaves the road\'s last hexes hungry, kept through a save', () => {
+  const road = [1, 2, 3, 4].map((q) => ({ q, r: 0, cls: 'desert', ms: 100 }));
+  const w = holdWalk({ from: { q: 0, r: 0 }, road, start: 0, skillId: null }, 100);
+  const on = resumeWalk(w, 200, { hungry: 2 });
+  assert.equal(on.hungry, 2);
+  assert.deepEqual([0, 1, 2, 3].map((i) => hungryAt(on, i)), [false, false, true, true]);
+  assert.equal(resumeWalk(holdWalk(on, 300), 400, { hungry: 9 }).hungry, 4, 'never more than the road');
+  assert.equal(hungryAt({ road }, 3), false);
+  const kept = cleanWalk({ ...on, held: 300, seen: 2 });
+  assert.equal(kept.hungry, 2);
+  assert.equal(kept.held, 300);
+  assert.equal(kept.seen, 2);
+  assert.equal(cleanWalk({ ...on, hungry: 99, seen: 99 }).hungry, 4);
+  assert.equal(cleanWalk({ ...on, seen: 99 }).seen, 4);
+  assert.equal(cleanWalk({ ...on, held: -5 }).held, undefined, 'a hold before the start is junk');
+  assert.equal(cleanWalk({ ...on, hungry: 1.5, seen: -1 }).hungry, undefined);
+});
+
+test('walk: the card lent for the road is kept on the walk as it set off', () => {
+  const road = [{ q: 1, r: 0, cls: 'desert', ms: 100 }];
+  const w = { from: { q: 0, r: 0 }, road, start: 0, skillId: null };
+  assert.equal(cleanWalk({ ...w, lent: 'drive' }).lent, 'drive');
+  assert.equal(cleanWalk(w).lent, undefined);
+  for (const junk of ['', 'a b', 5, 'x'.repeat(41), '<b>']) assert.equal(cleanWalk({ ...w, lent: junk }).lent, undefined, String(junk));
 });

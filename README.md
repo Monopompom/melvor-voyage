@@ -75,6 +75,14 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   What the GP you carry can't cover is owed to that band on that ground: you meet bands there twice as often until
   you pay it off wherever you can trade. Offline nobody stops you; the bands met wait for you as one when you are
   back, and you fight, auto-resolve or pay.
+
+  A Folk walking alone (with Worker Folks) meets them too, and the quiet road after a band is shared. Online its walk
+  waits while you answer in the same popup with its own deck (a base, a card for its rank, a swap for each travel
+  trait) and one card you lent it when you sent it, from 22 Resolve. It stakes its pack and its HP, never your GP:
+  Pay takes 25% of the pack left at tier 1 up to 70% at tier 4, a draw or loss that share times the band's Nerve
+  left, Run 15% and the next hex's time again, and the last hexes it can't feed it walks hungry. A loss also wounds
+  it 30% of its max HP, which can kill it. A win's purse and loot go to your bank. Offline its bands fold in with
+  yours; each Folk answers from its pack, and a fold only your Folks met puts none of your GP at stake.
 - **The card game.** A fight is your Resolve against the band's Nerve over at most 6 rounds. Each round you draw up
   to 5 cards and make up to 3 plays (a Quick card costs none), and once a round you may toss a card. The band shows
   its next move (a Strike, a Grab at your purse, a Call for help, a Brace), and you block it, race it or trick it.
@@ -186,6 +194,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   work at a place your Journal found: pick the skill, the resource and the place, or press Send a Folk here on a
   Journal resource page. It walks on foot over land you know, packing its food and fuel from the stores, and starts
   the work when it arrives, offline too. The map shows it with a boot badge and its road dashed; Stop here halts it.
+  On rough ground it can meet a band, as you do (see Bands on road and sea); the Send dialog lets you lend it one card
+  from your deck for those fights.
   A Tent from the Voyage shop (Voyage level 30) makes an outpost: pitch it from the Here panel on a land hex where one
   of your Folks works (not on a town, port, market or camp). That Folk puts it up over about an hour, offline too,
   its own skill set aside meanwhile; Cancel takes it down again. Then the hex counts as a camp for you and your Folks.

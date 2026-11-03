@@ -493,7 +493,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       encEdge: n(E.EDGE_MAX), encPurseLow: numberWithCommas(R.purseOf('land', 1)), encPurseHigh: numberWithCommas(R.purseOf('sea', R.MAX_TIER)),
       encCardDrop: n(L.CARD_DROP * 100), encPressDrop: n(L.CARD_DROP_PRESS * 100), encLoss: n(R.LOSS_SHARE * 100), encBatter: n(E.BATTER),
       encBatterMax: n(E.BATTER * E.BATTER_MAX), encRestH: n(R.REST_MS / 3600000), encPatch: n(R.PATCH_FOOD), encDeckMin: n(E.DECK_MIN),
-      encDeckMax: n(E.DECK_MAX), encCharms: n(D.CHARM_SLOTS), encPresets: n(D.PRESETS_MAX), encAwayCap: n(R.AWAY_CAP) };
+      encDeckMax: n(E.DECK_MAX), encCharms: n(D.CHARM_SLOTS), encPresets: n(D.PRESETS_MAX), encAwayCap: n(R.AWAY_CAP),
+      // A walking Folk's bands (6c): its Resolve, its deck before the lent card, its pack's tolls, its wound, its hunger.
+      encFolkResolve: n(E.FOLK_RESOLVE), encFolkDeck: n(E.FOLK_DECK.length + 1), encFolkTollLow: n(R.FOLK_TOLL_PCT[1]),
+      encFolkTollHigh: n(R.FOLK_TOLL_PCT[R.MAX_TIER]), encFolkWound: n(R.FOLK_WOUND * 100), encHunger: n((state.crewModel?.HUNGER_SHARE ?? 0.1) * 100) };
   };
   // ---- the bands chapter's dressing (the user, 30 Oct 2026: "make some text bolding, decorations, icons") ----------
   const fa = (icon, cls = '') => `<i class="fa ${icon}${cls ? ` ${cls}` : ''}" aria-hidden="true"></i>`;
@@ -501,7 +504,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   const SUIT_ICON = { steel: 'fa-khanda', powder: 'fa-bomb', coin: 'fa-coins', wits: 'fa-chess-knight' };
   /** An icon before each of the chapter's headings. */
   const ENC_HEAD_ICON = { MEET: 'fa-map-signs', ANSWER: 'fa-balance-scale', ROUND: 'fa-hourglass-half', SUITS: 'fa-layer-group',
-    STAKES: 'fa-coins', DECK: 'fa-clone', AWAY: 'fa-moon', BANDS: 'fa-skull-crossbones' };
+    STAKES: 'fa-coins', DECK: 'fa-clone', AWAY: 'fa-moon', FOLKS: 'fa-walking', BANDS: 'fa-skull-crossbones' };
   const suitMark = (suit, name) => `<span class="vj-suit vj-suit-${suit}">${fa(SUIT_ICON[suit])}<b>${name}</b></span>`;
   /**
    * The game's words in escaped text marked: a suit in its colour with its icon, the moves, bars and answers bold

@@ -212,3 +212,32 @@ export const charmsInPlay = (slots, have, E) => slots.filter((id) => charmOwned(
  */
 export const SHIP_CANNONS = { brig: 2, galleon: 4 };
 export const shipKit = (hull) => (SHIP_CANNONS[hull] !== undefined ? { cannons: SHIP_CANNONS[hull], hull: true } : { cannons: 0, hull: false });
+
+// ---- a walking Folk's deck (6c) ----------------------------------------------------------------------------------------
+/** The card a Folk's rank adds to the base deck. */
+export const FOLK_RANK_CARD = { Newbie: 'purse', Junior: 'parry', Middle: 'haggle', Senior: 'drive', Expert: 'standfirm' };
+/** Travel traits each swap one card of the deck for another: [out, in]. Footsore's is a curse. */
+export const FOLK_TRAIT_SWAP = {
+  Navigator: ['feint', 'slip'], Hardy: ['holdfast', 'standfirm'], Wanderer: ['slash', 'overwall'],
+  Stargazer: ['feint', 'starread'], Footsore: ['slash', 'dread'],
+};
+/** The cards you may lend a Folk: your own kinds a Folk can carry (no ship's card, no supply that the bank holds). */
+export const lendable = (id, E) => E.CARDS[id] !== undefined && ['starter', 'milestone', 'shop', 'drop'].includes(E.CARDS[id].src);
+/**
+ * A walking Folk's deck: the base (`E.FOLK_DECK`), its rank's card, a swap for each travel trait it holds (when the card
+ * to swap out is still there), then the card you lent it.
+ */
+export function folkDeck({ tier, traits = [], lent } = {}, E) {
+  const deck = E.FOLK_DECK.slice();
+  const rank = FOLK_RANK_CARD[tier];
+  if (rank !== undefined) deck.push(rank);
+  for (const raw of traits ?? []) {
+    const id = typeof raw === 'string' && raw.includes(':') ? raw.slice(raw.indexOf(':') + 1) : raw;
+    const swap = FOLK_TRAIT_SWAP[id];
+    if (swap === undefined) continue;
+    const i = deck.indexOf(swap[0]);
+    if (i >= 0) deck[i] = swap[1];
+  }
+  if (lent !== undefined && lendable(lent, E)) deck.push(lent);
+  return deck.filter((id) => E.CARDS[id] !== undefined);
+}

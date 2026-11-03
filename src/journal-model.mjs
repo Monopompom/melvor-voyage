@@ -61,7 +61,7 @@ export const JOURNAL_WRITTEN = {
   // The weather (phase 5c-1).
   weather: { sections: ['SEASON', 'BANDS', 'HARVEST', 'ICE', 'WIND', 'STORMS', 'RARE', 'OFF'] },
   // Bands and their card game (4.33, version 1.1.0): the tiers, the combos and the bands as live ledgers (journal.mjs).
-  encounters: { sections: ['MEET', 'ANSWER', 'ROUND', 'SUITS', 'STAKES', 'DECK', 'AWAY', 'BANDS'] },
+  encounters: { sections: ['MEET', 'ANSWER', 'ROUND', 'SUITS', 'STAKES', 'DECK', 'AWAY', 'FOLKS', 'BANDS'] },
 };
 
 /**

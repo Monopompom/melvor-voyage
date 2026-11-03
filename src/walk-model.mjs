@@ -83,7 +83,10 @@ export function roadPack(road, costOf) {
  */
 export function walkAt(walk, now) {
   const road = walk?.road ?? [];
-  const elapsed = Math.max(0, (Number.isFinite(now) ? now : 0) - (Number.isFinite(walk?.start) ? walk.start : 0));
+  // A walk held by a band stands where it was met until the band is answered.
+  const t0 = Number.isFinite(now) ? now : 0;
+  const until = Number.isFinite(walk?.held) ? Math.min(t0, walk.held) : t0;
+  const elapsed = Math.max(0, until - (Number.isFinite(walk?.start) ? walk.start : 0));
   let t = 0;
   let reached = 0;
   for (const s of road) {
@@ -99,7 +102,7 @@ export function walkAt(walk, now) {
 /** The moment the walk enters its next hex (ms since the epoch), or undefined once it has arrived. */
 export function nextAt(walk, now) {
   const { reached, done } = walkAt(walk, now);
-  if (done) return undefined;
+  if (done || Number.isFinite(walk?.held)) return undefined;
   let t = walk.start;
   for (let i = 0; i <= reached; i++) t += walk.road[i].ms;
   return t;
@@ -117,6 +120,34 @@ export function repaceRest(walk, now, pace) {
   const rest = walk.road.slice(reached + 1).map((s) => ({ ...s, ms: hexMs(s.cls) }));
   if (rest.length === 0) return walk;
   return { ...walk, road: [...keep, ...pace(rest, walk.start + roadMs(keep))] };
+}
+
+/** A walk a band met (6c): held at `at`, the moment it entered the hex, until the band is answered. */
+export const holdWalk = (walk, at) => (Number.isFinite(walk?.held) ? walk : { ...walk, held: Math.round(at) });
+/**
+ * A held walk goes on at `now`: the time it stood still is added to its start, and `extraMs` more to the next hex
+ * (Run: its time again; on the road's last hex there is none). `hungry` hexes more at the road's end go unfed (a band
+ * took food from its pack), at most the road.
+ */
+export function resumeWalk(walk, now, { extraMs = 0, hungry = 0 } = {}) {
+  if (!Number.isFinite(walk?.held)) return walk;
+  const { held, ...rest } = walk;
+  const waited = Math.max(0, (Number.isFinite(now) ? now : held) - held);
+  const out = { ...rest, start: Math.round(walk.start + waited) };
+  const more = Math.max(0, Number.isFinite(extraMs) ? Math.round(extraMs) : 0);
+  const next = walkAt(walk, held).reached;
+  if (more > 0 && next < walk.road.length) out.road = walk.road.map((s, i) => (i === next ? { ...s, ms: s.ms + more } : s));
+  const n = Math.min(walk.road.length, (walk.hungry ?? 0) + Math.max(0, Math.floor(Number.isFinite(hungry) ? hungry : 0)));
+  if (n > 0) out.hungry = n; else delete out.hungry;
+  return out;
+}
+/** Whether the road's hex `i` (0-based) is one the Folk walks hungry: the last `walk.hungry` of the road. */
+export const hungryAt = (walk, i) => Number.isInteger(walk?.hungry) && walk.hungry > 0 && i >= walk.road.length - walk.hungry;
+/** The moment the walk enters the road's hex `i` (0-based), as a held walk stands: its start and the hexes before it. */
+export function enteredAt(walk, i) {
+  let t = Number.isFinite(walk?.start) ? walk.start : 0;
+  for (let j = 0; j <= i && j < (walk?.road?.length ?? 0); j++) t += walk.road[j].ms;
+  return t;
 }
 
 /**
@@ -159,7 +190,9 @@ const cleanStep = (s) => {
  * One walk as a save keeps it: { from, road, start, skillId, actionId?, holder? }. `from` the hex it set off from,
  * `start` the moment (ms since the epoch), `skillId` the work it starts on arrival (null: none), `actionId` the resource
  * picked from the Journal, `holder` the Folk that held that skill when it was sent (it takes the skill over from that
- * one, and only that one). Undefined when it can't be read.
+ * one, and only that one). `held` the moment a band stopped it (6c), `hungry` how many hexes at the road's end it
+ * walks unfed, `seen` the hexes it has entered and been through (hunger paid, the dice rolled), so a reload neither
+ * skips nor repeats one, `lent` the card of yours it carries for the road's bands. Undefined when it can't be read.
  */
 export function cleanWalk(w) {
   if (w === null || typeof w !== 'object') return undefined;
@@ -175,6 +208,10 @@ export function cleanWalk(w) {
   const out = { from, road, start: Math.round(w.start), skillId: typeof w.skillId === 'string' && w.skillId !== '' ? w.skillId : null };
   if (typeof w.actionId === 'string' && w.actionId !== '') out.actionId = w.actionId;
   if (typeof w.holder === 'string' && w.holder !== '') out.holder = w.holder;
+  if (Number.isFinite(w.held) && w.held >= out.start) out.held = Math.round(w.held);
+  if (Number.isInteger(w.hungry) && w.hungry > 0) out.hungry = Math.min(w.hungry, road.length);
+  if (Number.isInteger(w.seen) && w.seen >= 0) out.seen = Math.min(w.seen, road.length);
+  if (typeof w.lent === 'string' && /^\w{1,40}$/.test(w.lent)) out.lent = w.lent;
   return out;
 }
 

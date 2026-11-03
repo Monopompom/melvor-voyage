@@ -125,6 +125,43 @@ export const BATTERED_MAX = 3;
 export const REST_MS = 8 * 3600 * 1000;
 export const PATCH_FOOD = 200;
 export const batteredAfterLoss = (b) => Math.min(BATTERED_MAX, Math.max(0, Math.floor(num(b))) + 1);
+/** A result's lines once patched up on its board: its Battered line says you are healed, the rest stay as they were. */
+export const patchedLines = (lines, food = PATCH_FOOD) => (Array.isArray(lines) ? lines : [])
+  .map((l) => (l?.key === 'MOD_VOY_ENC_RES_BATTERED' ? { key: 'MOD_VOY_ENC_RES_PATCHED', vars: { food } } : l));
+
+// ---- a walking Folk's stakes (6c) ----------------------------------------------------------------------------------
+// A Folk on the road carries no GP: it stakes the food and fuel it packed for the rest of its road, and its HP.
+/** The share of its pack left a band takes when the Folk pays, by tier. */
+export const FOLK_TOLL_PCT = [0, 25, 35, 50, 70];
+/** A lost fight (or a Press on that fails) costs the Folk this share of its max HP; it can die of it. */
+export const FOLK_WOUND = 0.3;
+export const folkWound = (maxHp) => Math.max(1, Math.ceil(num(maxHp) * FOLK_WOUND));
+/**
+ * The share of its pack left a Folk loses (0 to 1) by how it ended: Pay the tier's toll; a loss or a draw that toll
+ * times their Nerve left (`left`, 0 to 1); Run the land run's drop; a win or their flight nothing.
+ */
+export function folkTakeShare(how, tier, left = 1) {
+  const toll = (FOLK_TOLL_PCT[tier] ?? 0) / 100;
+  if (how === 'pay') return toll;
+  if (how === 'lose' || how === 'draw') return toll * Math.min(1, Math.max(0, Number.isFinite(left) ? left : 0));
+  if (how === 'run') return RUN_LAND_DROP;
+  return 0;
+}
+/**
+ * How many hexes at its road's end a Folk walks hungry once `take` food is gone from its pack: `costs` the food each hex
+ * still ahead eats, in road order. The pack feeds the nearest hexes first, so the last ones go short.
+ */
+export function hungryTail(costs, take) {
+  const want = num(take);
+  if (want <= 0) return 0;
+  let covered = 0;
+  let n = 0;
+  for (let i = (costs ?? []).length - 1; i >= 0 && covered < want; i--) {
+    covered += num(costs[i]);
+    n += 1;
+  }
+  return n;
+}
 
 // ---- offline and debt -------------------------------------------------------------------------------------------------
 /**
@@ -139,6 +176,17 @@ const stronger = (a, b) => b.tier - a.tier || b.toll - a.toll;
 const topSum = (list, key) => list.map((x) => num(x[key])).sort((a, b) => b - a).slice(0, AWAY_CAP).reduce((a, b) => a + b, 0);
 /** Adds a band met while away to the list (a new list), dropping the weakest past AWAY_MAX. */
 export const awayAdd = (list, met) => [...(list ?? []), met].sort(stronger).slice(0, AWAY_MAX);
+/**
+ * The walking Folks a fold's bands met (6c), each once, at the highest tier it met: [{ id, name, tier }]. A Folk's part
+ * claims no GP (`toll` 0); its pack and HP answer for it when the fold is settled.
+ */
+export function foldFolks(parts) {
+  const by = new Map();
+  for (const x of parts ?? []) if (x?.folk !== undefined && (by.get(x.folk.id)?.tier ?? 0) < x.tier) by.set(x.folk.id, { id: x.folk.id, name: x.folk.name, tier: x.tier });
+  return [...by.values()];
+}
+/** Whether a fold holds a band that met you (not only walking Folks): only then is your GP at stake, and you Battered. */
+export const foldMine = (parts) => (parts ?? []).some((x) => x?.folk === undefined);
 /** The waiting encounter: `{ lead, toll, purse, n }`, or undefined when nobody was met. */
 export function foldAway(list) {
   if (!Array.isArray(list) || list.length === 0) return undefined;
@@ -286,7 +334,12 @@ function cleanAway(raw, BANDS) {
     if (plain(x) === undefined || BANDS[x.band] === undefined || !(isInt(x.tier) && x.tier >= 1 && x.tier <= MAX_TIER)) continue;
     if (x.where !== 'land' && x.where !== 'sea') continue;
     if (typeof x.ground !== 'string' || !/^\w{0,40}$/.test(x.ground)) continue;
-    out.push({ band: x.band, tier: x.tier, where: x.where, ground: x.ground, toll: Number.isFinite(x.toll) && x.toll >= 1 ? Math.round(x.toll) : 1, purse: Number.isFinite(x.purse) && x.purse >= 0 ? Math.round(x.purse) : 0 });
+    // A walking Folk's part (6c): who it was; it claims no GP.
+    const folk = plain(x.folk);
+    const who = folk !== undefined && typeof folk.id === 'string' && folk.id !== '' && folk.id.length <= 80
+      ? { id: folk.id, name: typeof folk.name === 'string' ? folk.name.slice(0, 60) : '' } : undefined;
+    const toll = who !== undefined ? 0 : Number.isFinite(x.toll) && x.toll >= 1 ? Math.round(x.toll) : 1;
+    out.push({ band: x.band, tier: x.tier, where: x.where, ground: x.ground, toll, purse: Number.isFinite(x.purse) && x.purse >= 0 ? Math.round(x.purse) : 0, ...(who !== undefined ? { folk: who } : {}) });
   }
   return out.sort(stronger).slice(0, AWAY_MAX);
 }
@@ -314,6 +367,8 @@ export function cleanFight(raw, E) {
     toll: Number.isFinite(o.toll) && o.toll >= 1 ? Math.round(o.toll) : 1, battered: intIn(o.battered, 0, BATTERED_MAX),
     know: Array.isArray(o.know) ? o.know.filter((k) => TRICKS[k] !== undefined) : [], learn: true,
   };
+  // A walking Folk's fight (6c) starts at the Folk's Resolve: without the flag a reload would replay it at yours.
+  if (o.folk === true) opt.folk = true;
   const actions = [];
   for (const a of Array.isArray(f.actions) ? f.actions.slice(0, ACTIONS_MAX) : []) {
     if (!Array.isArray(a)) break;
@@ -330,6 +385,11 @@ export function cleanFight(raw, E) {
     purse: Number.isFinite(f.purse) && f.purse >= 0 ? Math.round(f.purse) : 0,
     ground: typeof f.ground === 'string' && /^\w{0,40}$/.test(f.ground) ? f.ground : '',
   };
+  // The walking Folk who met it: who, what it is called, and the food its pack held for the road ahead.
+  const folk = plain(f.folk);
+  if (opt.folk === true && folk !== undefined && typeof folk.id === 'string' && folk.id !== '' && folk.id.length <= 80) {
+    out.folk = { id: folk.id, name: typeof folk.name === 'string' ? folk.name.slice(0, 60) : '', pack: Number.isFinite(folk.pack) && folk.pack > 0 ? Math.round(folk.pack) : 0 };
+  }
   const used = plain(f.usedDone);
   if (used !== undefined) {
     const u = {};
@@ -382,7 +442,10 @@ export function cleanEnc(raw, E) {
     const [band, ground, extra] = key.split(':');
     if (extra === undefined && E.BANDS[band] !== undefined && /^\w{1,40}$/.test(ground ?? '') && Number.isFinite(gp) && gp >= 1) debts[key] = Math.min(Math.round(gp), 1e15);
   }
+  // The card last lent a walking Folk (6c), the Send dialog's first pick: one of your own kinds, never a crafted one.
+  const lent = deckCard(e.lent, E) && E.CARDS[e.lent].src !== 'crafted' ? { lent: e.lent } : {};
   return {
+    ...lent,
     deck: cleanDeck(e.deck, E),
     battered: intIn(e.battered, 0, BATTERED_MAX),
     rest: Number.isFinite(e.rest) && e.rest > 0 ? Math.min(Math.floor(e.rest), REST_MS) : 0,

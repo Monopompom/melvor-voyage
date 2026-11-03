@@ -138,8 +138,11 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     try { api()?.refresh(); } catch {}
   };
 
-  /** Sends a Folk to `hex` for `actionId` (a place from `places`). False, with a notice, when refused. */
-  const send = (id, actionId, hex) => {
+  /**
+   * Sends a Folk to `hex` for `actionId` (a place from `places`), carrying `lent`, a card of your deck, for the road's
+   * bands. False, with a notice, when refused.
+   */
+  const send = (id, actionId, hex, lent) => {
     const a = api();
     const f = a?.folkById(id);
     const why = sendRefusal(f);
@@ -155,10 +158,13 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     if (!a.setTravel(id, 'walking')) return false;
     // The Folk holding that skill now, if another: on arrival the skill moves from it, as Put ashore moves one.
     const holder = a.skills().find((s) => s.id === p.skillId)?.holder ?? null;
-    const walk = W.cleanWalk({ from, road: p.road, start: now(), skillId: p.skillId, actionId: p.actionId, holder: holder === id ? null : holder });
+    // The lent card is kept on the walk as it set off: a deck changed later doesn't reach it.
+    const card = state.encounters?.lendables?.().cards.some((c) => c.id === lent) ? lent : undefined;
+    const walk = W.cleanWalk({ from, road: p.road, start: now(), skillId: p.skillId, actionId: p.actionId, holder: holder === id ? null : holder, lent: card, seen: 0 });
     setWalks({ ...walks(), [id]: walk });
+    if (card !== undefined) state.encounters.rememberLent(card);
     counted.set(id, 0);
-    log(`${f.name} walks to (${hex.q},${hex.r}) for ${actionId}: ${p.road.length} hexes, ${Math.round(p.ms / 60000)} min, pack ${p.pack.food} food ${p.pack.fuel} fuel`);
+    log(`${f.name} walks to (${hex.q},${hex.r}) for ${actionId}: ${p.road.length} hexes, ${Math.round(p.ms / 60000)} min, pack ${p.pack.food} food ${p.pack.fuel} fuel, lent ${card ?? 'nothing'}`);
     notify(t('MOD_VOY_WALK_SENT', { name: f.name, to: placeText(hex, p.skillId, p.actionId), time: duration(p.ms) }), 'success');
     changed();
     return true;
@@ -188,11 +194,15 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
   };
 
   /** Stop here: the Folk stands on the hex it has reached, with no work. The food packed for the rest is gone. */
+  /** The Folk stands before a band on its road (its walk held, its fight open): Stop waits until it is answered. */
+  const facing = (id, w = walks()[id]) => w !== undefined && Number.isFinite(w.held) && state.encounters?.folkMet?.()?.id === id;
+  /** The hexes still ahead of a walking Folk (a held walk counts from the hex after the band's). */
+  const hexesAhead = (id) => { const w = walks()[id]; return w === undefined ? 0 : Math.max(0, w.road.length - W.walkAt(w, now()).reached); };
   const stopHere = (id) => {
     const a = api();
     const w = walks()[id];
     const f = a?.folkById(id);
-    if (w === undefined || f === undefined) return false;
+    if (w === undefined || f === undefined || facing(id, w)) return false;
     const at = W.walkAt(w, now()).at ?? w.from;
     ending(id);
     a.setTravel(id, 'idle');
@@ -270,10 +280,93 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     if (f === undefined) { ending(id); return; }
     // Worker Folks set it back (an assignment, or the mod without Voyage for a while): the walk is over where it stands.
     if (f.travel !== 'walking') { ending(id); log(`${f.name}'s walk ended outside Voyage`); return; }
-    const pos = W.walkAt(w, at);
+    let pos = W.walkAt(w, at);
+    // Each hex entered once (6c; `seen` is kept in the walk): a hungry one costs HP, then a band may meet the Folk
+    // there, which holds the walk on that hex. A walk from before 6c starts from where it stands.
+    if (!Number.isInteger(w.seen) || w.seen < pos.reached) {
+      const from = Number.isInteger(w.seen) ? w.seen : pos.reached;
+      w = enter(id, f, w, from, pos.reached);
+      if (w === undefined) return;
+      pos = W.walkAt(w, at);
+    }
     countWalked(id, w, pos.reached);
-    if (pos.done) { arrive(id, w); return; }
+    if (pos.done && !Number.isFinite(w.held)) { arrive(id, w); return; }
     if (pos.at !== undefined && !same(f.place, pos.at)) a.setPlace(id, pos.at);
+  };
+  /**
+   * The hexes `from` to `to` (0-based, `to` not included) entered: each hungry one costs a tenth of max HP, then the
+   * dice roll for a band; a band met holds the walk there and the rest wait. The walk as saved now, or undefined when
+   * the Folk died on the road.
+   */
+  const enter = (id, f, w, from, to) => {
+    const a = api();
+    let i = from;
+    let hp = 0;
+    let dead = false;
+    let held = false;
+    for (; i < to && !dead; i++) {
+      if (W.hungryAt(w, i)) {
+        const each = state.crewModel?.hungerDamage?.(f.maxHp) ?? 1;
+        const r = a.hurt(id, each, { cause: 'hunger' });
+        hp += each;
+        dead = r?.dead === true;
+        if (dead) break;
+      }
+      let met = false;
+      try { met = state.encounters?.rollFolk?.(w.road[i], { id, name: f.name, tier: f.tier, traits: f.traits ?? [], lent: w.lent, pack: packCosts(id, { ...w, seen: i + 1 }, i + 1).reduce((x, y) => x + y, 0) }) === true; } catch (e) { log('walk band roll failed', e); }
+      if (met) { w = W.holdWalk(w, W.enteredAt(w, i)); i += 1; held = true; break; }
+    }
+    if (hp > 0) {
+      log(`${f.name} walks hungry: -${hp} HP${dead ? ', died' : ''}`);
+      if (!dead) notify(t('MOD_VOY_CREW_HUNGRY', { name: f.name, hp: `${hp}` }));
+    }
+    if (dead) { ending(id); changed(); return undefined; }
+    const next = W.cleanWalk({ ...w, seen: Math.min(i, to) });
+    setWalks({ ...walks(), [id]: next });
+    if (held) log(`${f.name}'s walk held by a band on hex ${i} of ${w.road.length}`);
+    return next;
+  };
+  /**
+   * The food each hex still ahead eats from the Folk's pack, in road order: the hexes after the one it stands on that
+   * are not walked hungry already. None with provisions off.
+   */
+  const packCosts = (id, w0, from0) => {
+    const w = w0 ?? walks()[id];
+    const f = api()?.folkById(id);
+    if (w === undefined || f === undefined || !provisions()) return [];
+    const from = from0 ?? W.walkAt(w, now()).reached;
+    const out = [];
+    for (let j = from; j < w.road.length; j++) if (!W.hungryAt(w, j)) out.push(Math.round(stepCost(w.road[j], f).food));
+    return out;
+  };
+  /** A band took food from the pack: `n` more hexes at the road's end are walked hungry. */
+  const goHungry = (id, n) => {
+    const w = walks()[id];
+    if (w === undefined || !(n > 0)) return;
+    setWalks({ ...walks(), [id]: W.cleanWalk({ ...w, hungry: Math.min(w.road.length, (w.hungry ?? 0) + Math.floor(n)) }) });
+    log(`walk ${id}: ${n} more hex(es) hungry`);
+  };
+  /** A band beat the Folk: a share of its max HP (encounter-rules FOLK_WOUND); { hp, dead }, undefined when gone. */
+  const bandWound = (id) => {
+    const a = api();
+    const f = a?.folkById(id);
+    if (f === undefined) return undefined;
+    const hp = state.encounters?.R?.folkWound?.(f.maxHp) ?? 1;
+    const r = a.hurt(id, hp, { cause: 'band' });
+    if (r === undefined) return undefined;
+    log(`${f.name} wounded by a band: -${hp} HP${r.dead ? ', died' : ''}`);
+    if (r.dead) { ending(id); changed(); }
+    return { hp, dead: r.dead === true };
+  };
+  /** The band answered: the walk goes on from now; a Run walks the next hex's time again (none after the last). */
+  const bandDone = (id, done) => {
+    const w = walks()[id];
+    if (w === undefined || !Number.isFinite(w.held)) return;
+    const reached = W.walkAt(w, now()).reached;
+    const extraMs = done === 'run' ? (w.road[reached]?.ms ?? 0) : 0;
+    setWalks({ ...walks(), [id]: W.cleanWalk(W.resumeWalk(w, now(), { extraMs })) });
+    log(`walk ${id} goes on after the band (${done})`);
+    changed();
   };
   const tick = () => {
     // Every tick, online and offline (build .401): nobody walking means two property reads and no allocation; the
@@ -286,6 +379,8 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     if (offline()) walkedAway = true;
     const at = now();
     if (due === undefined || at >= due) {
+      // A walk held for a band that is no longer open (its fight dropped from the save, the bands module gone) goes on.
+      for (const id of Object.keys(walks())) if (Number.isFinite(walks()[id].held) && state.encounters?.folkMet?.()?.id !== id) bandDone(id, 'lost');
       const all = walks();
       for (const id of Object.keys(all)) step(id, all[id], at);
       const left = walks();
@@ -436,12 +531,23 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
         b.setAttribute('aria-pressed', `${on}`);
       }
     };
+    // The card it carries for the road's bands (6c): one of your deck's, the last one lent first. Kept as it set off.
+    const lend = state.encounters?.lendables?.() ?? { cards: [], first: undefined };
+    let lent = lend.first;
+    const cardFace = (c) => `<i class="fa fa-layer-group voyage-plan-pick-ico voyage-enc-s-${esc(c?.suit ?? 'curse')}" aria-hidden="true"></i><span>${esc(c?.name ?? '')}</span>`;
+    const lendHtml = () => {
+      const c = lend.cards.find((x) => x.id === lent);
+      return (lend.cards.length === 1 ? one(cardFace(c))
+        : dd('lend', 'voyage-walk-lend-label', cardFace(c), lend.cards.map((x) => item('data-walk-lend', x.id, x.id === lent, cardFace(x))).join('')))
+        + `<div class="voyage-walk-note text-muted">${esc(t('MOD_VOY_WALK_LEND_NOTE', { name: f.name, n: `${state.encounters.folkDeckOf(f).length}` }))}</div>`;
+    };
     const section = (labelId, labelKey, inner, extra = '') => `<div class="voyage-section${extra}"><div class="font-w600 mb-2" id="${labelId}">${esc(t(labelKey))}</div>${inner}</div>`;
     const bodyHtml = () => helpLayout.msgHtml([fixed ? esc(t('MOD_VOY_WALK_HERE_TEXT')) : t('MOD_VOY_WALK_SEND_TEXT', { name: `<b>${esc(f.name)}</b>` })])
       + (fixed ? section('voyage-walk-who-label', 'MOD_VOY_WALK_WHO_LABEL', `<div id="voyage-walk-who" data-no-skill-names>${whoHtml()}</div>`, ' mt-3') : '')
       + section('voyage-walk-work-label', 'MOD_VOY_WALK_WORK_LABEL', `<div id="voyage-walk-works" data-no-skill-names>${worksHtml()}</div>`
         + `<div id="voyage-walk-work-note" class="voyage-walk-note text-muted">${workNote()}</div>`, fixed ? '' : ' mt-3')
       + section('voyage-walk-place-label', 'MOD_VOY_WALK_PLACE_LABEL', `<div id="voyage-walk-places" class="voyage-walk-places">${placesHtml()}</div>`)
+      + (lend.cards.length > 0 ? section('voyage-walk-lend-label', 'MOD_VOY_WALK_LEND_LABEL', `<div id="voyage-walk-lend" data-no-skill-names>${lendHtml()}</div>`, ' mt-3') : '')
       + (provisions() ? `<small class="d-block text-muted mt-3">${esc(t('MOD_VOY_WALK_PACK_HINT'))}</small>` : '');
     const body = all.length === 0 ? helpLayout.msgHtml([t('MOD_VOY_WALK_NO_WORKS')]) : `<div id="voyage-walk-body">${bodyHtml()}</div>`;
     SwalLocale.fire({
@@ -457,6 +563,15 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
           const fk = at?.closest('[data-walk-folk]');
           const sk = at?.closest('[data-walk-skill]');
           const wk = at?.closest('[data-walk-work]');
+          const ld = at?.closest('[data-walk-lend]');
+          if (ld != null) {
+            // Only the card's own pick and note change: the places keep the one picked.
+            if (ld.dataset.walkLend === lent) return;
+            lent = ld.dataset.walkLend;
+            const el2 = document.getElementById('voyage-walk-lend');
+            if (el2 !== null) el2.innerHTML = lendHtml();
+            return;
+          }
           if (fk != null && fk.dataset.walkFolk !== f.id) f = who.find((x) => x.id === fk.dataset.walkFolk) ?? f;
           // A new skill picks its first resource.
           else if (sk != null && sk.dataset.walkSkill !== skillPicked) { skillPicked = sk.dataset.walkSkill; workPicked = groups.get(skillPicked)?.[0]?.id; }
@@ -478,11 +593,11 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
       preConfirm: () => {
         if (picked === undefined) { Swal.showValidationMessage(t('MOD_VOY_WALK_PICK_PLACE')); return false; }
         const [q, r] = picked.split(',').map(Number);
-        return { id: f.id, actionId: workPicked ?? '', hex: { q, r } };
+        return { id: f.id, actionId: workPicked ?? '', hex: { q, r }, lent };
       },
     }).then((res) => {
       if (!res.isConfirmed || res.value == null) return;
-      try { if (send(res.value.id, res.value.actionId, res.value.hex)) done?.(); } catch (e) { log('walk send failed', e); }
+      try { if (send(res.value.id, res.value.actionId, res.value.hex, res.value.lent)) done?.(); } catch (e) { log('walk send failed', e); }
     });
   };
 
@@ -491,6 +606,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     const f = api()?.folkById(id);
     const w = describe(id);
     if (f === undefined || w === undefined) return;
+    if (facing(id)) { notify(t('MOD_VOY_WALK_STOP_BAND', { name: f.name })); return; }
     SwalLocale.fire({
       didRender: state.popupDidRender,
       customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_STOP) : SWAL_STOP,
@@ -508,6 +624,8 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
   const out = {
     ground, road, canWalk, walks, owned, usable, sendRefusal, works, places, send, stopHere, askSend, askStop, tick, describe, walking, routes, repace,
     canSendFor,
+    // A band met on the road (encounters.mjs, 6c): what the pack holds, what it takes, the wound, the walk going on.
+    packCosts: (id) => packCosts(id), goHungry, bandWound, bandDone, hexesAhead,
     /** The Journal's door: the work set, the Folk picked in the dialog. */
     askHere: (actionId, done) => askSend(undefined, done, actionId),
     arriving: () => arrivingId,

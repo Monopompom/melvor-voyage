@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   SEA_TIER, GROUND_TIER, seaTier, landTier, ODDS, meets, BREATHER, tollOf, stakeOf, purseOf, settle, pressPurse,
-  batteredAfterLoss, BATTERED_MAX, tiltOf, gradeOf, pickBand, bandRoll, HIDEOUT_HEX, cleanEnc, cleanFight, cleanDeck, calKey,
-  DEBT_PCT, AWAY_CAP, AWAY_MAX, awayAdd, foldAway, debtKey, debtOf, creditors, meetOn, shareDebt, owe, payDebts,
+  batteredAfterLoss, BATTERED_MAX, patchedLines, PATCH_FOOD, FOLK_TOLL_PCT, FOLK_WOUND, folkWound, folkTakeShare, hungryTail, RUN_LAND_DROP, tiltOf, gradeOf, pickBand, bandRoll, HIDEOUT_HEX, cleanEnc, cleanFight, cleanDeck, calKey,
+  DEBT_PCT, AWAY_CAP, AWAY_MAX, awayAdd, foldAway, foldFolks, foldMine, debtKey, debtOf, creditors, meetOn, shareDebt, owe, payDebts,
 } from '../src/encounter-rules-model.mjs';
 import * as E from '../src/encounter-model.mjs';
 const { STARTER, replay } = E;
@@ -80,6 +80,13 @@ test('settling: a win banks the purse, a flight half of it, a draw and a loss ar
 test('Battered stacks to three losses', () => {
   assert.equal(batteredAfterLoss(0), 1);
   assert.equal(batteredAfterLoss(BATTERED_MAX), BATTERED_MAX);
+});
+
+test('patching up on the result turns its Battered line into the cure and keeps the rest', () => {
+  const toll = { key: 'MOD_VOY_ENC_RES_LOSE_TAKE', vars: { pct: 55 }, gp: -100 };
+  const out = patchedLines([toll, { key: 'MOD_VOY_ENC_RES_BATTERED', vars: { n: 2 } }]);
+  assert.deepEqual(out, [toll, { key: 'MOD_VOY_ENC_RES_PATCHED', vars: { food: PATCH_FOOD } }]);
+  assert.deepEqual(patchedLines(undefined), []);
 });
 
 test('your levels: a skill well above or below your average tilts its cards; the grade from your five best', () => {
@@ -212,4 +219,81 @@ test('the save keeps the bands met away and the debts; junk is dropped', () => {
   assert.equal(f.away.parts.length, 1);
   assert.equal(f.res.owed, 251);
   assert.equal(fightOf({ opt, away: { n: 2, parts: [] } }).away, undefined, 'no parts, no fold');
+});
+
+test('a walking Folk: Pay takes the tier\'s share of its pack, a loss or a draw that times their Nerve left, Run the run\'s drop', () => {
+  assert.equal(folkTakeShare('pay', 1), FOLK_TOLL_PCT[1] / 100);
+  assert.equal(folkTakeShare('pay', 4), 0.7);
+  assert.equal(folkTakeShare('lose', 2, 0.5), FOLK_TOLL_PCT[2] / 200);
+  assert.equal(folkTakeShare('draw', 3, 2), FOLK_TOLL_PCT[3] / 100, 'their Nerve left counts at most whole');
+  assert.equal(folkTakeShare('lose', 3, -1), 0);
+  assert.equal(folkTakeShare('run', 4), RUN_LAND_DROP);
+  for (const how of ['win', 'fled', 'presswin']) assert.equal(folkTakeShare(how, 4, 1), 0, how);
+  for (let tier = 1; tier < FOLK_TOLL_PCT.length; tier++) assert.ok(FOLK_TOLL_PCT[tier] > FOLK_TOLL_PCT[tier - 1], `tier ${tier} asks more`);
+});
+
+test('a walking Folk: a lost fight wounds it for a share of its max HP, never nothing', () => {
+  assert.equal(folkWound(100), Math.ceil(100 * FOLK_WOUND));
+  assert.equal(folkWound(99), 30);
+  assert.equal(folkWound(0), 1);
+  assert.equal(folkWound(undefined), 1);
+});
+
+test('a walking Folk: the food a band takes leaves the road\'s last hexes hungry, as many as it no longer feeds', () => {
+  assert.equal(hungryTail([10, 10, 10, 10], 0), 0);
+  assert.equal(hungryTail([10, 10, 10, 10], 10), 1);
+  assert.equal(hungryTail([10, 10, 10, 10], 11), 2, 'a hex fed in part goes hungry');
+  assert.equal(hungryTail([10, 10, 10, 10], 40), 4);
+  assert.equal(hungryTail([10, 10, 10, 10], 400), 4, 'never more than the road ahead');
+  assert.equal(hungryTail([5, 20], 15), 1, 'counted from the road\'s end');
+  assert.equal(hungryTail([], 15), 0);
+});
+
+test('a walking Folk\'s fight keeps its flag and the Folk through a save, and only with the flag', () => {
+  const base = { opt: { band: 'highwaymen', tier: 2, where: 'land', seed: 7, strength: 1, deck: E.FOLK_DECK.slice(), folk: true }, stage: 'meet', folk: { id: 'worker_folks:F1', name: 'Ada', pack: 412.4 } };
+  const f = fightOf(base);
+  assert.equal(f.opt.folk, true);
+  assert.deepEqual(f.folk, { id: 'worker_folks:F1', name: 'Ada', pack: 412 });
+  const s = E.newFight(f.opt);
+  assert.equal(s.you.max, E.FOLK_RESOLVE, 'a reload replays it at the Folk\'s Resolve');
+  const mine = fightOf({ ...base, opt: { ...base.opt, folk: undefined } });
+  assert.equal(mine.opt.folk, undefined);
+  assert.equal(mine.folk, undefined, 'a Folk without the flag is dropped');
+  assert.equal(fightOf({ ...base, folk: { id: '', name: 'x' } }).folk, undefined);
+  assert.equal(fightOf({ ...base, folk: { id: 'a', name: 'n'.repeat(99), pack: -5 } }).folk.name.length, 60);
+  assert.equal(fightOf({ ...base, folk: { id: 'a', name: 'n', pack: -5 } }).folk.pack, 0);
+});
+
+test('the card last lent a Folk is kept, one of your own kinds only', () => {
+  assert.equal(cleanEnc({ lent: 'drive' }, E).lent, 'drive');
+  assert.equal(cleanEnc({}, E).lent, undefined);
+  for (const id of ['slip', 'broadside', 'dread', 'nonsense', 7]) assert.equal(cleanEnc({ lent: id }, E).lent, undefined, String(id));
+  const crafted = Object.keys(E.CARDS).find((id) => E.CARDS[id].src === 'crafted');
+  if (crafted !== undefined) assert.equal(cleanEnc({ lent: crafted }, E).lent, undefined, 'a crafted card is used up: never lent');
+});
+
+test('offline: a band that met a walking Folk claims no GP; the fold names each Folk once, at the highest tier', () => {
+  const cora = { id: 'worker_folks:C', name: 'Cora' };
+  const bram = { id: 'worker_folks:B', name: 'Bram' };
+  const raw = [
+    { band: 'highwaymen', tier: 2, where: 'land', ground: 'desert', toll: 500, purse: 2000, folk: cora },
+    { band: 'deserters', tier: 3, where: 'land', ground: 'badlands', toll: 9, purse: 3000, folk: cora },
+    { band: 'cultists', tier: 1, where: 'land', ground: 'swamplands', toll: 0, purse: 1000, folk: bram },
+  ];
+  const away = cleanEnc({ away: raw }, E).away;
+  assert.ok(away.every((x) => x.toll === 0), 'a Folk\'s part claims nothing of your GP');
+  assert.deepEqual(away.find((x) => x.band === 'cultists').folk, bram);
+  assert.deepEqual(foldFolks(away), [{ ...cora, tier: 3 }, { ...bram, tier: 1 }]);
+  assert.equal(foldMine(away), false);
+  const fold = foldAway(away);
+  assert.equal(fold.toll, 1, 'the least a toll can be');
+  assert.equal(fold.purse, 6000, 'their purses are yours to win');
+  const withYou = [...away, { band: 'highwaymen', tier: 1, where: 'land', ground: 'highlands', toll: 400, purse: 1000 }];
+  assert.equal(foldMine(withYou), true);
+  assert.equal(foldAway(withYou).toll, 400);
+  assert.equal(foldFolks([{ band: 'x', tier: 1 }]).length, 0);
+  assert.equal(cleanEnc({ away: [{ ...raw[0], folk: { id: '' } }] }, E).away[0].folk, undefined, 'junk Folk: an ordinary part');
+  assert.equal(cleanEnc({ away: [{ ...raw[0], folk: { id: '' } }] }, E).away[0].toll, 500);
+  const f = fightOf({ opt: { band: 'deserters', tier: 3, where: 'land', seed: 3, strength: 1 }, stage: 'meet', away: { n: 3, parts: raw } });
+  assert.deepEqual(foldFolks(f.away.parts).map((x) => x.name), ['Cora', 'Bram'], 'kept through a reload');
 });

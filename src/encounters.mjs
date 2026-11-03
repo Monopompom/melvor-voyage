@@ -283,15 +283,16 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
    * Met while you are away: the band's claim is kept for your return (the toll from the GP you carry now), and the trip
    * goes on as if you got away.
    */
-  const meetAway = (p, hexGp, band) => {
+  const meetAway = (p, hexGp, band, folk) => {
     const e = enc();
     if (e === undefined) return;
     const b = band ?? R.pickBand(E.bandsOf(p.where), Math.random());
-    const { toll } = tollAt(p, b, hexGp);
-    e.away = R.awayAdd(e.away, { band: b, tier: p.tier, where: p.where, ground: p.ground, toll, purse: R.purseOf(p.where, p.tier) });
+    // A walking Folk's part (6c) claims no GP: its pack and HP answer for it on your return.
+    const toll = folk !== undefined ? 0 : tollAt(p, b, hexGp).toll;
+    e.away = R.awayAdd(e.away, { band: b, tier: p.tier, where: p.where, ground: p.ground, toll, purse: R.purseOf(p.where, p.tier), ...(folk !== undefined ? { folk: { id: folk.id, name: folk.name } } : {}) });
     e.calm = R.BREATHER;
     e.met += 1;
-    log(`encounters: ${b} met while away (${p.where}, tier ${p.tier}, ${p.ground}), toll ${toll} GP, ${e.away.length} waiting`);
+    log(`encounters: ${b} met ${folk !== undefined ? folk.name : 'you'} while away (${p.where}, tier ${p.tier}, ${p.ground}), toll ${toll} GP, ${e.away.length} waiting`);
   };
   /**
    * A hex entered (`step` the move's step for it, `hex` the game's hex): the breather counts down, then the dice roll
@@ -321,11 +322,12 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     if (fold === undefined || e.fight !== null) return false;
     const { lead } = fold;
     const roll = R.bandRoll(Math.random());
-    const gp = Math.max(0, Math.floor(game.gp.amount));
+    // Bands that met only your walking Folks claim nothing of your GP: you answer for them with your deck.
+    const gp = R.foldMine(e.away) ? Math.max(0, Math.floor(game.gp.amount)) : 0;
     const kit = kitOpt(lead.where, lead.tier);
     e.fight = {
       opt: { ...kit, band: lead.band, seed: seed(), strength: strengthFor(lead.where, lead.tier) * roll, gp, toll: fold.toll, battered: e.battered, know: e.tricks.slice(), learn: true },
-      actions: [], stage: 'meet', roll, rule: 'gp', purse: fold.purse, ground: lead.ground, debt: R.debtOf(e.debts, lead.band, lead.ground),
+      actions: [], stage: 'meet', roll, rule: 'gp', purse: fold.purse, ground: lead.ground, debt: R.foldMine(e.away) ? R.debtOf(e.debts, lead.band, lead.ground) : 0,
       away: { n: fold.n, parts: e.away.slice() },
     };
     e.away = [];
@@ -335,6 +337,47 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     open();
     redraw();
     return true;
+  };
+  /**
+   * A band meets a walking Folk (6c) at `p`: the Folk's own deck and Resolve (no charm, no ship, no Battered of yours),
+   * its pack for the stake, never your GP. `folk` { id, name, tier, traits, lent, pack }: `pack` the food it still
+   * carries for the road ahead. Its walk holds until you answer (walks.mjs).
+   */
+  const beginFolk = (p, folk, band) => {
+    const e = enc();
+    if (e === undefined) return false;
+    const b = band ?? R.pickBand(E.bandsOf(p.where), Math.random());
+    const roll = R.bandRoll(Math.random());
+    const deck = D.folkDeck({ tier: folk.tier, traits: folk.traits, lent: folk.lent }, E);
+    e.fight = {
+      opt: { tier: p.tier, where: p.where, deck, cannons: 0, hull: false, charms: [], tilt: {}, band: b, seed: seed(), strength: strengthFor(p.where, p.tier) * roll, gp: 0, toll: 1, battered: 0, know: e.tricks.slice(), learn: true, folk: true },
+      actions: [], stage: 'meet', roll, rule: 'gp', purse: R.purseOf(p.where, p.tier), ground: p.ground, debt: 0,
+      folk: { id: folk.id, name: folk.name, pack: Math.max(0, Math.round(folk.pack ?? 0)) },
+    };
+    e.calm = R.BREATHER;
+    e.met += 1;
+    log(`encounters: ${b} met ${folk.name} (${p.where}, tier ${p.tier}, ${p.ground}), deck ${deck.length}, pack ${e.fight.folk.pack} food`);
+    view = undefined;
+    open();
+    redraw();
+    return true;
+  };
+  /**
+   * A walking Folk entered a hex (`step` { q, r, cls } of its road): the one breather all travellers share counts down,
+   * then the dice roll on the hex's ground. True when a band meets it and its popup opens; offline the band waits for
+   * your return in the fold, and the Folk walks on.
+   */
+  const rollFolk = (step, folk) => {
+    const e = enc();
+    if (e === undefined || e.fight !== null || step == null || folk == null) return false;
+    if (e.calm > 0 && !forced) { e.calm -= 1; return false; }
+    const p = placeOf({}, step);
+    if (p === undefined || p.tier < 1) return false;
+    const m = forced ? { band: undefined } : R.meetOn(p.tier, Math.random());
+    if (m === undefined) return false;
+    forced = false;
+    if (offlineNow()) { meetAway(p, 0, m.band, folk); return false; }
+    return beginFolk(p, folk, m.band);
   };
   /** An instant move (timed travel off) landed: each hex of it rolls, at most one band a move, met on arrival. */
   const moved = (steps, path, gpPaid = 0) => {
@@ -402,7 +445,8 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     if (e === undefined || !(n > 0)) return 0;
     const add = f.away !== undefined ? R.shareDebt(f.away.parts, n) : { [R.debtKey(f.opt.band, f.ground)]: n };
     e.debts = R.owe(e.debts, add);
-    const who = Object.keys(add).map((key) => { const [band, ground] = key.split(':'); return debtName(band, ground); }).join(', ');
+    // A Folk's part (toll 0) owes nothing: only the bands with a share are named.
+    const who = Object.keys(add).filter((key) => add[key] > 0).map((key) => { const [band, ground] = key.split(':'); return debtName(band, ground); }).join(', ');
     lines.push(k('MOD_VOY_ENC_RES_OWED', { gp: n, who }));
     log(`encounters: ${n} GP owed (${Object.keys(add).join(', ')})`);
     return n;
@@ -444,11 +488,69 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     f.usedDone = { ...(s.used ?? {}) };
     if (taken.length > 0) lines.push(k('MOD_VOY_ENC_RES_USED', { what: taken.map((x) => t('MOD_VOY_ENC_SUPPLY_COUNT', { name: t(E.cardKey(x.card)), n: `${x.qty}` })).join(', ') }));
   };
+  // ---- a walking Folk's stakes (6c): its pack and its HP, never your GP ---------------------------------------------
+  /** A band takes `share` of the food left in the Folk's pack: the road's last hexes it can no longer feed go hungry. */
+  const folkTake = (folk, share, lines) => {
+    if (!(share > 0)) return;
+    // The food each hex still ahead eats from the pack, in road order (none with provisions off, nor once it arrived).
+    const costs = state.walks?.packCosts?.(folk.id) ?? [];
+    const food = Math.round(costs.reduce((a, b) => a + b, 0) * share);
+    const name = folk.name;
+    if (food <= 0) { lines.push(k('MOD_VOY_ENC_RES_FOLK_TAKE_NONE', { name })); return; }
+    const n = R.hungryTail(costs, food);
+    if (n > 0) state.walks?.goHungry?.(folk.id, n);
+    lines.push(k(n === 1 ? 'MOD_VOY_ENC_RES_FOLK_TAKE_HUNGRY_ONE' : 'MOD_VOY_ENC_RES_FOLK_TAKE_HUNGRY', { pct: `${Math.round(share * 100)}`, food, n: `${n}`, name }));
+  };
+  /** A lost fight wounds the Folk (R.FOLK_WOUND of its max HP); it can die of it. */
+  const folkWound = (folk, lines) => {
+    const r = state.walks?.bandWound?.(folk.id);
+    if (r === undefined) return;
+    // A Folk that died walks no hungry hexes: its pack line goes, the death says it all.
+    if (r.dead) for (let i = lines.length - 1; i >= 0; i--) if (lines[i]?.key?.startsWith('MOD_VOY_ENC_RES_FOLK_TAKE_') && lines[i].vars?.name === folk.name) lines.splice(i, 1);
+    lines.push(k(r.dead ? 'MOD_VOY_ENC_RES_FOLK_DIED' : 'MOD_VOY_ENC_RES_FOLK_WOUND', { name: folk.name, hp: r.hp }));
+  };
+  /** A Folk's fight ended: a win's purse and loot are yours as ever; a loss or a draw takes from its pack, a loss its HP. */
+  const folkOver = (s, auto) => {
+    const f = enc().fight;
+    const lines = [];
+    for (const id of s.found) lines.push(trickLine(id));
+    const st = R.settle(s, { toll: 1, purse: f.purse, gp: 0 });
+    const res = { tone: 'mid', lines, purse: 0, loot: [], press: false, banked: false, auto, done: 'fight', end: endOf(s), owed: 0 };
+    if (s.over === 'win') {
+      res.head = k(s.chaseFrom ? 'MOD_VOY_ENC_RES_FOLK_WIN_CHASE' : 'MOD_VOY_ENC_RES_WIN', { name: f.folk.name });
+      res.tone = 'good';
+      res.purse = st.purse;
+      res.loot = lootFor(f, false);
+      res.press = !auto;
+      dropCard(lines, false);
+    } else if (s.over === 'fled') {
+      res.head = k('MOD_VOY_ENC_RES_FLED');
+      const half = Math.round(f.purse / 2);
+      gpBy(half);
+      lines.push(k('MOD_VOY_ENC_RES_HALF_PURSE', {}, half));
+    } else if (s.over === 'draw') {
+      res.head = k('MOD_VOY_ENC_RES_DRAW');
+      folkTake(f.folk, R.folkTakeShare('draw', f.opt.tier, st.left), lines);
+    } else {
+      res.head = k('MOD_VOY_ENC_RES_FOLK_LOSE', { name: f.folk.name });
+      res.tone = 'bad';
+      folkTake(f.folk, R.folkTakeShare('lose', f.opt.tier, st.left), lines);
+      folkWound(f.folk, lines);
+    }
+    f.stage = 'result';
+    f.res = res;
+    log(`encounters: ${f.opt.band} against ${f.folk.name}: ${s.over}${auto ? ' (auto-resolve)' : ''}, purse ${res.purse}`);
+  };
+
   /** The fight ended: the result, GP settled at once, the purse and loot waiting for Take or Press on. */
   const over = (s, auto = false) => {
     const e = enc();
     const f = e.fight;
     if (s.over === 'presswin' || s.over === 'presslose') { pressed(s); return; }
+    if (f.folk !== undefined) { folkOver(s, auto); return; }
+    // A fold (offline) may hold walking Folks' parts; one that met only Folks puts nothing of yours at stake.
+    const mine = f.away === undefined || R.foldMine(f.away.parts);
+    const folks = R.foldFolks(f.away?.parts);
     const lines = [];
     useUp(s, lines);
     const st = R.settle(s, { toll: f.opt.toll, purse: f.purse, gp: f.opt.gp });
@@ -470,14 +572,21 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
       lines.push(k(keeps ? 'MOD_VOY_ENC_RES_HALF_PURSE' : 'MOD_VOY_ENC_RES_HALF_PURSE_GRABS', {}, st.now + s.spent + s.grabbed));
     } else if (s.over === 'draw') {
       res.head = k('MOD_VOY_ENC_RES_DRAW');
-      lines.push(k('MOD_VOY_ENC_RES_DRAW_TAKE', { pct: `${Math.round(st.left * 100)}` }, -st.take));
-      res.owed = oweFor(f, st.short, lines);
+      if (mine) {
+        lines.push(k('MOD_VOY_ENC_RES_DRAW_TAKE', { pct: `${Math.round(st.left * 100)}` }, -st.take));
+        res.owed = oweFor(f, st.short, lines);
+      }
+      for (const x of folks) folkTake(x, R.folkTakeShare('draw', x.tier, st.left), lines);
     } else {
       res.head = k('MOD_VOY_ENC_RES_LOSE');
       res.tone = 'bad';
-      lines.push(k('MOD_VOY_ENC_RES_LOSE_TAKE', { pct: `${Math.round(st.left * 100)}`, stake: st.stake }, -st.take));
-      res.owed = oweFor(f, st.short, lines);
-      batter(lines);
+      if (mine) {
+        lines.push(k('MOD_VOY_ENC_RES_LOSE_TAKE', { pct: `${Math.round(st.left * 100)}`, stake: st.stake }, -st.take));
+        res.owed = oweFor(f, st.short, lines);
+        batter(lines);
+      }
+      // The walking Folks the fold's bands met lose as they would have on the road: a share of the pack and the wound.
+      for (const x of folks) { folkTake(x, R.folkTakeShare('lose', x.tier, st.left), lines); folkWound(x, lines); }
     }
     f.stage = 'result';
     f.res = res;
@@ -498,9 +607,12 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
       r.loot = r.loot.concat(lootFor(f, true));
       bank(2);
     } else {
-      r.head = k('MOD_VOY_ENC_RES_PRESS_LOSE');
+      r.head = k(f.folk !== undefined ? 'MOD_VOY_ENC_RES_FOLK_PRESS_LOSE' : 'MOD_VOY_ENC_RES_PRESS_LOSE', { name: f.folk?.name ?? '' });
       r.tone = 'mid';
-      batter(r.lines);
+      // Battered only when a band met you; a fold only your Folks met wounds them instead.
+      if (f.folk !== undefined) folkWound(f.folk, r.lines);
+      else if (f.away === undefined || R.foldMine(f.away.parts)) batter(r.lines);
+      else for (const x of R.foldFolks(f.away.parts)) folkWound(x, r.lines);
       bank(0.5);
     }
   };
@@ -545,12 +657,25 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
   const pay = () => {
     const f = enc()?.fight;
     if (f == null || f.stage !== 'meet') return;
-    const paid = Math.min(f.opt.toll, Math.floor(gpNow()));
+    if (f.folk !== undefined) {
+      const lines = [];
+      folkTake(f.folk, R.folkTakeShare('pay', f.opt.tier), lines);
+      f.res = { head: k('MOD_VOY_ENC_RES_FOLK_PAID', { name: f.folk.name }), tone: 'mid', lines, purse: 0, loot: [], press: false, banked: true, done: 'pay', owed: 0 };
+      f.stage = 'result';
+      log(`encounters: ${f.folk.name} paid from its pack`);
+      render();
+      return;
+    }
+    const mine = f.away === undefined || R.foldMine(f.away.parts);
+    const paid = mine ? Math.min(f.opt.toll, Math.floor(gpNow())) : 0;
     gpBy(-paid);
-    const lines = [k('MOD_VOY_ENC_RES_TOLL', {}, -paid)];
+    const lines = mine ? [k('MOD_VOY_ENC_RES_TOLL', {}, -paid)] : [];
     // A toll you can't cover in full isn't refused: the rest is owed.
-    const owed = oweFor(f, f.opt.toll - paid, lines);
-    f.res = { head: k('MOD_VOY_ENC_RES_PAID'), tone: 'mid', lines, purse: 0, loot: [], press: false, banked: true, done: 'pay', owed };
+    const owed = mine ? oweFor(f, f.opt.toll - paid, lines) : 0;
+    // The walking Folks a fold's bands met pay from their packs.
+    for (const x of R.foldFolks(f.away?.parts)) folkTake(x, R.folkTakeShare('pay', x.tier), lines);
+    // A fold only your Folks met is paid from their packs alone.
+    f.res = { head: k(mine ? 'MOD_VOY_ENC_RES_PAID' : 'MOD_VOY_ENC_RES_PAID_FOLKS'), tone: 'mid', lines, purse: 0, loot: [], press: false, banked: true, done: 'pay', owed };
     f.stage = 'result';
     log(`encounters: paid ${paid} GP`);
     render();
@@ -560,6 +685,17 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     const f = enc()?.fight;
     if (f == null || f.stage !== 'meet' || f.away !== undefined) return;
     const lines = [];
+    if (f.folk !== undefined) {
+      // A Folk drops a share of its pack and walks the hex's time again.
+      folkTake(f.folk, R.folkTakeShare('run', f.opt.tier), lines);
+      // On its road's last hex there is no next hex to walk again.
+      if ((state.walks?.hexesAhead?.(f.folk.id) ?? 0) > 0) lines.push(k('MOD_VOY_ENC_RES_FOLK_RUN_TIME'));
+      f.res = { head: k('MOD_VOY_ENC_RES_FOLK_RAN', { name: f.folk.name }), tone: 'mid', lines, purse: 0, loot: [], press: false, banked: true, done: 'run' };
+      f.stage = 'result';
+      log(`encounters: ${f.folk.name} ran`);
+      render();
+      return;
+    }
     if (f.opt.where === 'sea') {
       const wear = EM.seaRunWear(S.WEAR.deep);
       const to = EM.condAfterRun(state.ship?.cond?.('ship') ?? 0, wear);
@@ -600,11 +736,14 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     if (f == null || f.stage !== 'result') return;
     if (f.res?.banked !== true) bank(1);
     const done = f.res?.done ?? 'fight';
+    const folk = f.folk;
     e.fight = null;
     view = undefined;
     asking = false;
     try { Swal.close(); } catch {}
-    try { state.clock?.encDone?.(done); } catch (err) { log('encounters: voyage hold failed', err); }
+    // A Folk's band held its walk, not your voyage.
+    if (folk !== undefined) { try { state.walks?.bandDone?.(folk.id, done); } catch (err) { log('encounters: walk resume failed', err); } }
+    else { try { state.clock?.encDone?.(done); } catch (err) { log('encounters: voyage hold failed', err); } }
     redraw();
   };
 
@@ -674,6 +813,9 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     state.stores.set(st.food - R.PATCH_FOOD, st.fuel);
     e.battered = 0;
     e.rest = 0;
+    // Patched from the result's own button: its Battered line turns into the cure, so the board no longer says Battered.
+    const res = e.fight?.res;
+    if (res != null) res.lines = R.patchedLines(res.lines, R.PATCH_FOOD);
     notify(t('MOD_VOY_ENC_PATCHED', { food: `${R.PATCH_FOOD}` }));
     log('encounters: patched up with food');
     render();
@@ -823,7 +965,25 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     debts, debtTotal, payOffWhy, payOff, debtName, awayNow, oweNow, kindsNow, buyWhy, buyCard, bankQty, deckNow, shortSupplies,
     /** The offline summary's line: how many bands wait on your return ('' for none). */
     awayNote: () => { const n = enc()?.away?.length ?? 0; return n === 0 ? '' : t(n === 1 ? 'MOD_VOY_ENC_AWAY_NOTE_ONE' : 'MOD_VOY_ENC_AWAY_NOTE', { n: `${n}` }); },
-    enc, fight, ui, placeOf, roll, moved, act, autoRound, startFight, pay, run, autoResolve, take, pressOn, close,
+    enc, fight, ui, placeOf, roll, rollFolk, moved, act,
+    /** The walking Folk the open encounter met ({ id, name, pack }), or undefined: yours, or none open. */
+    folkMet: () => enc()?.fight?.folk,
+    /** The hexes still ahead of that Folk's walk: none on its road's last hex, where Run costs no time. */
+    folkAhead: (id) => state.walks?.hexesAhead?.(id) ?? 0,
+    /**
+     * The cards of your deck you may lend a Folk you send (6c), each once, in the deck's order: [{ id, name, suit }],
+     * and the one to offer first (the last one lent while it is still in your deck).
+     */
+    lendables: () => {
+      if (enc() === undefined) return { cards: [], first: undefined };
+      const cards = [...new Set(deckNow())].filter((id) => D.lendable(id, E)).map((id) => ({ id, name: t(E.cardKey(id)), suit: E.CARDS[id].suit ?? 'curse' }));
+      const last = enc().lent;
+      return { cards, first: cards.some((c) => c.id === last) ? last : cards[0]?.id };
+    },
+    /** The card lent to a Folk sent now, offered first next time. */
+    rememberLent: (id) => { const e = enc(); if (e !== undefined && D.lendable(id, E)) e.lent = id; },
+    /** A Folk's own deck for the road (rank and travel traits), without the lent card. */
+    folkDeckOf: (f) => D.folkDeck({ tier: f?.tier, traits: f?.traits ?? [] }, E), autoRound, startFight, pay, run, autoResolve, take, pressOn, close,
     canPatch, patch, tick, open, refuse, warm, meetNow, rareNext, strengthFor, oddsOf,
     D, have, ownsItem, charmsNow, shipNow, kitLocked, redraw, notify,
     /** The hull wear a run at sea costs (%). */

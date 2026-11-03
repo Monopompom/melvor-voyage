@@ -1720,6 +1720,7 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-enc-tile-trophy .voyage-enc-tile-name { color: var(--voyage-wits); } /* a trophy in the rare purple, as in the Deck */
 .voyage-enc-tile-find { border-style: dashed; border-color: var(--voyage-wits); }
 .voyage-enc-harm { color: var(--voyage-hot); }
+.voyage-enc-cure { color: var(--voyage-ok); }
 .voyage-enc-waits { font-weight: 600; }
 /* the dock: the choices, or Go on, at the board's foot */
 .voyage-enc-dock { flex: none; padding: .75rem 1.25rem; border-top: 1px solid var(--voyage-rule); background: var(--voyage-band); }

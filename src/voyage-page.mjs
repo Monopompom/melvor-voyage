@@ -888,7 +888,9 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
           t('MOD_VOY_HELP_CREW_BLOCK'),
         ] },
         { head: t('MOD_VOY_HELP_HEAD_CREW_ASHORE'), body: [t('MOD_VOY_HELP_CREW_ASHORE'), t('MOD_VOY_HELP_CREW_FIXED'), ...yoursAlone()] },
-        { head: t('MOD_VOY_HELP_HEAD_CREW_WALK'), body: [t('MOD_VOY_HELP_CREW_WALK'), t('MOD_VOY_HELP_CREW_WALK_PACK'), t('MOD_VOY_HELP_CREW_WALK_ARRIVE')] },
+        { head: t('MOD_VOY_HELP_HEAD_CREW_WALK'), body: [t('MOD_VOY_HELP_CREW_WALK'), t('MOD_VOY_HELP_CREW_WALK_PACK'), t('MOD_VOY_HELP_CREW_WALK_ARRIVE'),
+          // Bands on its road (6c): only with the encounters module.
+          ...(state.encounters === undefined ? [] : [t('MOD_VOY_HELP_CREW_WALK_BANDS', { wound: `${Math.round(state.encounters.R.FOLK_WOUND * 100)}` })])] },
         ...outpostHelp(),
         ...traitsHelp(),
         // A stowaway (the flat mechanics): with Worker Folks' hire.

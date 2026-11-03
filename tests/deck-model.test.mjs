@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import * as E from '../src/encounter-model.mjs';
-import { SHOP, SHOP_GP, TRADE_KINDS, priceOf, kindsHere, buyWhy, CRAFTED, heldOf, usedItems } from '../src/deck-model.mjs';
+import { SHOP, SHOP_GP, TRADE_KINDS, priceOf, kindsHere, buyWhy, CRAFTED, heldOf, usedItems, FOLK_RANK_CARD, FOLK_TRAIT_SWAP, lendable, folkDeck } from '../src/deck-model.mjs';
 import { readFileSync } from 'node:fs';
 import { COPIES, GROUPS, CHARM_ITEMS, capOf, groupCards, fitDeck, deckOk, addCard, removeCard, suitCounts, sameDeck, savePreset, cleanPresets, cleanCharms, charmOwned, charmsInPlay, shipKit, trophyArt, PRESETS_MAX } from '../src/deck-model.mjs';
 
@@ -183,4 +183,26 @@ test('crafted cards: the bank holds the stock; a kept deck keeps its copies, a b
   assert.deepEqual(addCard(E.STARTER, 'hotmeal', held(0), E), E.STARTER, 'none to add without one in the bank');
   assert.deepEqual(usedItems({ hotmeal: 2, slash: 4, grapeshot: 1 }, held(1).qty), [{ card: 'hotmeal', id: CRAFTED.hotmeal.item, qty: 1 }]);
   assert.deepEqual(usedItems(undefined, held(1).qty), []);
+});
+
+test('a walking Folk\'s deck: the base, its rank\'s card, a swap per travel trait, then the card lent', () => {
+  const count = (deck, id) => deck.filter((x) => x === id).length;
+  const newbie = folkDeck({ tier: 'Newbie' }, E);
+  assert.deepEqual(newbie, [...E.FOLK_DECK, 'purse']);
+  assert.equal(folkDeck({ tier: 'Nobody' }, E).length, E.FOLK_DECK.length, 'an unknown rank adds nothing');
+  for (const [rank, id] of Object.entries(FOLK_RANK_CARD)) assert.ok(E.CARDS[id] !== undefined, `${rank}: ${id}`);
+  for (const [trait, [out, inn]] of Object.entries(FOLK_TRAIT_SWAP)) {
+    assert.ok(E.CARDS[out] !== undefined && E.CARDS[inn] !== undefined, trait);
+    const d = folkDeck({ tier: 'Middle', traits: [`voyage:${trait}`] }, E);
+    assert.equal(d.length, E.FOLK_DECK.length + 1, `${trait} keeps the size`);
+    assert.equal(count(d, inn), count(folkDeck({ tier: 'Middle' }, E), inn) + 1, `${trait} brings ${inn}`);
+  }
+  const both = folkDeck({ tier: 'Expert', traits: ['Navigator', 'Stargazer', 'Seasick'] }, E);
+  assert.equal(count(both, 'feint'), count(E.FOLK_DECK, 'feint') - 2, 'two traits swap both Feints');
+  assert.ok(both.includes('slip') && both.includes('starread') && both.includes('standfirm'));
+  assert.equal(folkDeck({ tier: 'Junior', lent: 'drive' }, E).at(-1), 'drive');
+  assert.equal(folkDeck({ tier: 'Junior', lent: 'broadside' }, E).length, E.FOLK_DECK.length + 1, 'a ship\'s card can\'t be lent');
+  assert.equal(lendable('slip', E), false, 'nor a Folk\'s own');
+  assert.equal(lendable('nonsense', E), false);
+  assert.equal(lendable('slash', E), true);
 });
