@@ -39,12 +39,18 @@ export function install(ctx, { state, F, log }) {
   const button = (act, label, { cls = 'btn-info', disabled = false, title, data = '' } = {}) =>
     `<button type="button" class="btn btn-sm ${cls}" data-voyage-deck="${act}"${data}${disabled ? ' disabled' : ''}${title ? ` title="${esc(title)}"` : ''}>${label}</button>`;
 
-  /** The crafted cards the deck keeps but the bank can't fill now, and the deck a band meets instead ('' for none). */
-  const supplyCount = (id, n) => t('MOD_VOY_ENC_SUPPLY_COUNT', { name: t(api().E.cardKey(id)), n: `${n}` });
-  const shortLine = () => {
+  /**
+   * The crafted cards the deck keeps but the bank can't fill now, and how many of the deck's cards a band meets
+   * instead ('' for none). Said as what it means (build .524, the user): left out of fights, "Hot Meal (×3)".
+   */
+  const supplyCount = (id, n) => t('MOD_VOY_DECK_SHORT_COUNT', { name: t(api().E.cardKey(id)), n: `${n}` });
+  const shortLine = (e) => {
     const short = api().shortSupplies();
     if (short.length === 0) return '';
-    return `<div class="text-warning mt-2">${fa('fa-box-open mr-1')}${esc(t('MOD_VOY_DECK_SHORT', { what: short.map((x) => supplyCount(x.id, x.short)).join(', '), n: `${api().deckNow().length}` }))}</div>`;
+    // Each "Hot Meal (×3)" one piece that never breaks across a line (the user); the list is put in after escaping.
+    const what = short.map((x) => `<span class="text-nowrap">${esc(supplyCount(x.id, x.short))}</span>`).join(', ');
+    const text = esc(t('MOD_VOY_DECK_SHORT', { what: '\u0001', met: `${api().deckNow().length}`, n: `${e.deck.length}` })).replace('\u0001', what);
+    return `<div class="text-warning mt-2">${fa('fa-box-open mr-1')}${text}</div>`;
   };
   const deckPart = (e, locked) => {
     const { E, D } = api();
@@ -56,7 +62,7 @@ export function install(ctx, { state, F, log }) {
       + `<span class="voyage-deck-suits">${suitChips(e.deck)}</span>`
       + `<span class="ml-auto voyage-deck-build">${button('build', `${fa('fa-layer-group mr-1')}${esc(t('MOD_VOY_DECK_BUILD'))}`, { cls: 'btn-primary', disabled: locked })}</span></div>`
       + (locked ? `<div class="text-warning mt-2">${fa('fa-lock mr-1')}${esc(t('MOD_VOY_DECK_LOCKED'))}</div>` : '')
-      + shortLine()
+      + shortLine(e)
       + `<small class="d-block text-muted mt-2">${esc(t('MOD_VOY_DECK_RANGE', { min: `${E.DECK_MIN}`, max: `${E.DECK_MAX}` }))} ${esc(shipLine)}</small>`);
   };
 
