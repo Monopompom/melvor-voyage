@@ -121,10 +121,13 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
         } catch (e) { log('plan arrival times failed', e); }
       }
       const t0 = state.gameNow?.() ?? Date.now();
-      const loadAt = (i, h, stock) => {
+      // A place in reach of two stops gives once (build .520): the second stop finds what the first took gone. Taken
+      // off the stock on arrival, which counts the refill since the first stop as lost (it plans a little short).
+      const loadAt = (i, h, stock, taken) => {
         const rates = st.loadingAtHex(walk[i]);
         if (rates === undefined) return undefined;
-        const sources = st.sourcesAt?.(walk[i], t0 + (arrive?.[i] ?? 0));
+        const sources = st.sourcesAt?.(walk[i], t0 + (arrive?.[i] ?? 0))
+          ?.map((s) => (taken?.[s.key] === undefined ? s : { ...s, stock: { food: s.stock.food - taken[s.key].food, fuel: s.stock.fuel - taken[s.key].fuel } }));
         const from = sources !== undefined && sources.length > 0 && supplyModel !== undefined ? sources : rates;
         return { ...P.simulateLoad(S, h, cap, from, stock, supplyModel?.planLoad), place: rates.place };
       };

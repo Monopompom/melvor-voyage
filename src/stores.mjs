@@ -206,6 +206,9 @@ export function install(ctx, { state, model, storesModel, supplyModel, shipModel
    * fuel, which could be spent going the other way and asked for again (the user's exploit question).
    */
   let rescueMemo;
+  // A stock refills with time alone, which moves no version: with local supply on the key also takes the game clock in
+  // steps of this (build .520), so a place that has a ration again is a way out again within the step.
+  const RESCUE_CLOCK_MS = 10 * 60 * 1000;
   const rescue = () => {
     const pos = state.position();
     if (pos === undefined || !enabled()) return undefined;
@@ -214,7 +217,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, shipModel
     const have = stores();
     const food = bankFood();
     const c = crew();
-    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}|${c.count}:${c.food}|${modsKey()}|${supplyVersion}`;
+    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}|${c.count}:${c.food}|${modsKey()}|${supplyVersion}|${supplyOn() ? Math.floor(gameNow() / RESCUE_CLOCK_MS) : 0}`;
     if (rescueMemo?.key === key) return rescueMemo.value;
     let value;
     try { value = rescueFrom(pos, have, food); } catch (e) { log('provisions rescue failed', e); }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../src/stores-model.mjs';
-import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs, legPath, worthLoading, travelHandover } from '../src/plan-model.mjs';
+import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs, legPath, worthLoading, travelHandover, addDrawn } from '../src/plan-model.mjs';
 import { planLoad } from '../src/supply-model.mjs';
 
 test('Navigator\'s Charts: owned, level, port, cost, then buyable', () => {
@@ -37,6 +37,26 @@ test('loading at a stop with local supply: the stocks in reach cap it, drawn ite
   assert.equal(places[1].stock.food, 300, 'the stocks handed in are not changed');
   // without planLoad an array is no rates: nothing loads (the old callers hand in rates)
   assert.deepEqual(simulateLoad(S, { food: 0, fuel: 0 }, { food: 1000, fuel: 10 }, places, bank).used, []);
+  // what each place gave, for the stops after it
+  assert.deepEqual(r.drawn, { '1,2': { food: 300, fuel: 2 }, '1,1': { food: 100, fuel: 1 } });
+  assert.deepEqual(addDrawn(r.drawn, { '1,2': { food: 5 } }), { '1,2': { food: 305, fuel: 2 }, '1,1': { food: 100, fuel: 1 } });
+});
+
+test('legs: two stops in reach of one place share its stock (build .520: the second counted all of it again)', () => {
+  // Steps cost 100 food; one port (key "p") in reach of hexes 2 and 4 holds 300 HP; the stores hold 200.
+  const price = (have, from, to) => (have.food >= (to - from) * 100 ? { ok: true, food: have.food - (to - from) * 100, fuel: have.fuel } : { ok: false, why: 'food', at: 0 });
+  const seen = [];
+  const loadAt = (i, have, bank, taken) => {
+    if (i !== 2 && i !== 4) return undefined;
+    seen.push([i, taken?.p?.food ?? 0]);
+    const port = [{ key: 'p', place: 'port', food: 1, fuel: 1, stock: { food: 300 - (taken?.p?.food ?? 0), fuel: 0 } }];
+    return { ...simulateLoad(S, have, { food: 1000, fuel: 10 }, port, bank, planLoad), place: 'port' };
+  };
+  const r = splitLegs(6, { food: 200, fuel: 0 }, [{ id: 'fish', kind: 'food', unit: 100, qty: 50 }], price, loadAt);
+  // hex 2 takes the port's 300; hex 4 finds nothing left, so the trip can't be paid
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.legs.map((l) => [l.to, l.load?.stores.food]), [[2, 300]]);
+  assert.deepEqual(seen.at(-1), [4, 300]);
 });
 
 // A toy route: each step costs 1 food; loading places refill to 5.

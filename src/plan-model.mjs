@@ -35,6 +35,8 @@ export function simulateLoad(S, stores, cap, rates, bank, planLoad) {
   // Local supply (4.4a): `rates` may be the places in reach, each with its stock ({ key, place, food, fuel, stock }),
   // loaded through supply-model planLoad (best rate first, each up to its stock), the stocks drawn item by item.
   const sources = Array.isArray(rates) && typeof planLoad === 'function' ? rates.map((s) => ({ ...s, stock: { ...s.stock } })) : undefined;
+  // What each place gave, in stores units by key ({ food, fuel }): a later stop of the same trip finds it gone.
+  const drawn = {};
   for (const x of left) {
     let n;
     let added;
@@ -42,7 +44,12 @@ export function simulateLoad(S, stores, cap, rates, bank, planLoad) {
       const p = planLoad(S, x.unit, x.qty, cap[x.kind] - out[x.kind], sources, x.kind);
       n = p.n;
       added = p.added;
-      for (const part of p.parts) { const s = sources.find((y) => y.key === part.key); if (s !== undefined) s.stock[x.kind] -= part.added; }
+      for (const part of p.parts) {
+        const s = sources.find((y) => y.key === part.key);
+        if (s !== undefined) s.stock[x.kind] -= part.added;
+        drawn[part.key] ??= { food: 0, fuel: 0 };
+        drawn[part.key][x.kind] += part.added;
+      }
     } else {
       const rate = rates?.[x.kind] ?? 0;
       n = S.loadCount(x.unit, rate, x.qty, cap[x.kind] - out[x.kind]);
@@ -53,15 +60,27 @@ export function simulateLoad(S, stores, cap, rates, bank, planLoad) {
     x.qty -= n;
     used.push({ id: x.id, n, kind: x.kind, added });
   }
-  return { stores: out, bank: left, used };
+  return { stores: out, bank: left, used, drawn };
+}
+
+/** Two `drawn` maps (simulateLoad) added up, key by key: what the stops so far took from each place. */
+export function addDrawn(a, b) {
+  const out = {};
+  for (const m of [a, b]) for (const [k, v] of Object.entries(m ?? {})) {
+    out[k] ??= { food: 0, fuel: 0 };
+    out[k].food += v?.food ?? 0;
+    out[k].fuel += v?.fuel ?? 0;
+  }
+  return out;
 }
 
 /**
  * Cuts a route of `n` steps into legs (hex 0 is where you stand, hex n the destination; step i enters hex i + 1).
  *  - `price(have, from, to)` prices steps from..to-1 starting with `have` (food, fuel and hull condition): a
  *    stores-model planMove result ({ ok, food, fuel, cond, why, at }).
- *  - `loadAt(i, have, bank)` loads at hex i: undefined where nothing can be loaded, else simulateLoad's result plus
- *    `place` (the loading place's id).
+ *  - `loadAt(i, have, bank, taken)` loads at hex i: undefined where nothing can be loaded, else simulateLoad's result
+ *    plus `place` (the loading place's id). `taken`: what the stops before it drew from each place (addDrawn of their
+ *    `drawn`), so two stops in reach of one place share its stock instead of both counting all of it.
  * Greedy: the whole rest of the way when it can be paid, else the farthest loading place it reaches, where the stores
  * are refilled. Loading where you stand comes first when the way can't be paid without it. Returns
  * { ok, legs: [{ from, to, load? }], have (what is left at the end), why, at } with `load` the stop's loading at
@@ -74,11 +93,12 @@ export function splitLegs(n, have, bank, price, loadAt) {
   let from = 0;
   let cur = have;
   let stock = bank;
+  let taken = {};
   let depart;
   if (n <= 0) return { ok: true, legs, have: cur };
   if (!price(cur, 0, n).ok) {
-    const l = loadAt(0, cur, stock);
-    if (worthLoading(l)) { depart = l; cur = { ...cur, ...l.stores }; stock = l.bank; }
+    const l = loadAt(0, cur, stock, taken);
+    if (worthLoading(l)) { depart = l; cur = { ...cur, ...l.stores }; stock = l.bank; taken = addDrawn(taken, l.drawn); }
   }
   while (from < n) {
     const all = price(cur, from, n);
@@ -91,7 +111,7 @@ export function splitLegs(n, have, bank, price, loadAt) {
       const p = price(cur, from, to);
       if (!p.ok) continue;
       const after = { ...cur, food: p.food, fuel: p.fuel, ...(p.cond === undefined ? {} : { cond: p.cond }), ...(p.conds === undefined ? {} : { conds: p.conds }) };
-      const l = loadAt(to, after, stock);
+      const l = loadAt(to, after, stock, taken);
       if (!worthLoading(l)) continue;
       stop = { to, load: l, after };
       break;
@@ -100,6 +120,7 @@ export function splitLegs(n, have, bank, price, loadAt) {
     legs.push({ from, to: stop.to, load: stop.load });
     cur = { ...stop.after, ...stop.load.stores };
     stock = stop.load.bank;
+    taken = addDrawn(taken, stop.load.drawn);
     from = stop.to;
   }
   return { ok: true, legs, depart, have: cur };
