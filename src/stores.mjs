@@ -494,6 +494,24 @@ export function install(ctx, { state, model, storesModel, supplyModel, shipModel
     return out;
   };
   const supplyHere = () => supplyAt(state.position());
+  /**
+   * One loading hex's own stock, for its Journal entry (build .521): { place, day, left, full, never } in stores
+   * units, `full` the game-clock ms until it is full again, `never` on an island with no easy ground. Undefined with
+   * local supply off or no loading place on the hex itself (a neighbour's stock is its own entry).
+   */
+  const placeSupply = (hex) => {
+    if (!supplyOn()) return undefined;
+    const rec = hex === undefined ? undefined : recOf(hex);
+    if (rec === undefined || state.terrain === undefined) return undefined;
+    const own = S.loadingList(rec)[0];
+    if (own === undefined) return undefined;
+    const cap = capacity();
+    const day = SM.dayOf(own.place, cap);
+    if (state.supplyIslands?.has(own.key) === true) return { place: own.place, day, left: day, full: 0, never: true };
+    const e = supplyOf()[own.key];
+    const now = gameNow();
+    return { place: own.place, day, left: SM.stockOf(e, own.place, cap, now), full: SM.msUntilFull(e, now), never: false };
+  };
   /** Draws a load's parts from the stocks they came from (4.4a). */
   const draw = (kind, parts, now) => {
     if (!supplyOn() || parts.length === 0) return;
@@ -583,7 +601,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, shipModel
 
   const api = {
     enabled, stores, planFor, priceSteps, loadingAtHex, afterMove, refuse, rescue,
-    supplyOn, sourcesAt, supplyAt, supplyHere, loadPlan, supplyVersion: () => supplyVersion,
+    supplyOn, sourcesAt, supplyAt, supplyHere, placeSupply, loadPlan, supplyVersion: () => supplyVersion,
     /** Offers the trader's share when the stores can't reach safe ground (the panel's Stranded? button). */
     offer() {
       const help = rescue();

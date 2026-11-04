@@ -660,6 +660,11 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .vj-sign-here { display: flex; align-items: center; gap: 8px; }
 .vj-sign-here img { width: 28px; height: 28px; }
 .vj-sign-here .vj-yes { display: inline; }
+.vj-supply { display: flex; flex-direction: column; gap: 12px; }
+.vj-supply b { font-weight: 700; font-variant-numeric: lining-nums tabular-nums; }
+.vj-supply-amt { white-space: nowrap; }
+.vj-supply-amt img { width: 1.15em; height: 1.15em; margin-right: 3px; vertical-align: -.22em; }
+.vj-supply .vj-yes { display: inline; font-size: inherit; }
 /* Build .138: slipped between paragraphs, no longer pushed to the foot. */
 .vj-note { margin: 4px 0; display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid rgba(122, 42, 28, .45); border-radius: 4px; font-size: 16px; line-height: 1.4; font-style: italic; }
 .vj-note svg { flex: none; margin-top: 2px; color: var(--vj-red); }

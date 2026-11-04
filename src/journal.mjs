@@ -1504,6 +1504,38 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       + ledger([t('MOD_VOY_JOURNAL_COL_MARKET'), t('MOD_VOY_JOURNAL_COL_DEAR'), t('MOD_VOY_JOURNAL_COL_CHEAP')], rows)
       + `<p class="vj-p vj-faint">${esc(t(left > 0 ? 'MOD_VOY_JOURNAL_MARKETS_LEFT' : 'MOD_VOY_JOURNAL_MARKETS_ALL', { n: `${left}` }))}</p>`;
   };
+  /**
+   * What a loading place packs a day (local supply, build .521): its day's worth at your level's carry limit, what it
+   * has left now and when it is full again, or that it never runs out (an island with no easy ground).
+   */
+  const placeSupply = (p) => {
+    if (p.q === undefined || p.group === 'island') return '';
+    let s;
+    try { s = state.stores?.placeSupply?.({ q: p.q, r: p.r }); } catch (e) { log('journal place supply failed', e); }
+    if (s === undefined) return '';
+    const st = state.stores;
+    // The figures in bold, each amount after the stores' own ration or fuel icon (build .522, the user: "bold
+    // numbers"); the words around them stay the book's plain text.
+    const html = (key, vars) => {
+      const marks = Object.keys(vars);
+      const text = t(key, Object.fromEntries(marks.map((k, n) => [k, `\u0001${n}\u0001`])));
+      return esc(text).replace(/\u0001(\d+)\u0001/g, (m, n) => vars[marks[+n]]);
+    };
+    const num = (s) => `<b>${esc(s)}</b>`;
+    const amount = (kind, n) => `<span class="vj-supply-amt"><img src="${supplyIcon[kind]}" alt="">${html(kind === 'food' ? 'MOD_VOY_UNIT_FOOD' : 'MOD_VOY_UNIT_FUEL', { n: num(kind === 'food' ? st.hp(Math.max(0, n)) : st.fuelText(Math.max(0, Math.round(n * 1000) / 1000))) })}</span>`;
+    const pair = (food, fuel) => ({ food: amount('food', food), fuel: amount('fuel', fuel) });
+    const block = (lines) => `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_PLACE_SUPPLY'))}</h3><div class="vj-supply">${lines.map((l) => `<p class="vj-p">${l}</p>`).join('')}</div>`;
+    // On an island with no easy ground a day's worth means nothing: the place never runs out.
+    if (s.never) return block([`<span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_PLACE_SUPPLY_NEVER'))}</span>`]);
+    const lines = [html('MOD_VOY_JOURNAL_PLACE_SUPPLY_DAY', pair(s.day.food, s.day.fuel))];
+    if (s.full > 0) {
+      let time = '';
+      try { time = state.clock.duration(Math.max(60000, s.full)); } catch {}
+      lines.push(html('MOD_VOY_JOURNAL_PLACE_SUPPLY_LEFT', { ...pair(s.left.food, s.left.fuel), time: num(time) }));
+    } else lines.push(`<span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_PLACE_SUPPLY_FULL'))}</span>`);
+    return block(lines);
+  };
+  const supplyIcon = { food: ctx.getResourceUrl('assets/ration.webp'), fuel: ctx.getResourceUrl('assets/fuel.webp') };
   /** What an outpost's tent holds (phase 6e), while provisions are on. */
   const outpostStore = (p) => {
     const o = state.outposts?.list?.().find((x) => `outpost|${x.key}` === p.key);
@@ -1528,6 +1560,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
         + (p.group === 'port' ? portDeeds(p) : '')
         + (p.group === 'outpost' ? outpostStore(p) : '')
         + (p.group === 'island' ? islandKnows(p, all) : '')
+        + placeSupply(p)
         + placeEffects(p)
         + (p.group === 'trade' || p.group === 'port' ? marketPrices(p) : '')
         + `<div class="vj-foot vj-foot-end vj-foot-actions">${planButton('place', p.key)}${mapButton('place', p.key)}</div>`;
