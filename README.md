@@ -54,7 +54,10 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   more on hills, mountains and wastes, most in snow and lava (Firemaking levels make the fuel go further). Load food
   and fuel from the bank on the Voyage page at a port (everything at full measure), a town or market, or a farm or camp
   (less), standing on it or next to it. The stores hold only so much, and every Voyage level adds room. You start with
-  a kit. With empty stores you can still walk easy ground, for no Voyage XP and 30% more GP a hex (Set off counts it in the cost). At sea you always keep the food to get
+  a kit. A place packs only so much a day, a share of your carry limit (a farm or camp an eighth of a load, a market
+  half and a third of its fuel, a town one load, a port two), and what you take comes back over a game day, offline
+  too; next to two places the better one is drawn first, then the other. The page, the Here panel, the planner and
+  the Journal's Places say what is left. On the two islands with no easy ground a place never runs out. With empty stores you can still walk easy ground, for no Voyage XP and 30% more GP a hex (Set off counts it in the cost). At sea you always keep the food to get
   back ashore, and fast travel between ports sails your ship, so it has to be waiting at the port.
 - **Hull wear.** Every sea hex wears your ship's hull a little. Repair it in the Voyage page's Stores block with logs
   and Pitch, which Firemaking now makes from time to time (more often from better logs): the small boat on a beach,
@@ -222,6 +225,7 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   are in different regions; the panel's skill icons list what is found on your hex). Off: the skill's terrain decides alone.
 - **Combat needs its area** and **Trade only near markets**: each can be switched off on its own.
 - **Provisions**: off, moves take nothing from your stores and sailing wears nothing.
+- **Local supply**: off, every place loads as much as your bank holds.
 - **Night** and **Move the night (hours)**: night on or off, and when it falls (−12 to 12 hours from 21:00 to 05:00).
 - **Motion on the map**: while a voyage is under way the traveller walks and the vessel rolls; off, they stand still.
 - **Open the journal by its cover**: the cover and a few turning pages on every open, not only the first time.
