@@ -8,7 +8,12 @@
 // Modal buttons: confirm green, cancel blue outline (the game's default cancel is red; grey means disabled).
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
-export function install(ctx, { state, model, storesModel, supplyModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log }) {
+/** The Voyage shop's Dry Casks (data/package.json): spoilage halved for good. */
+export const CASKS_ID = 'voyage:Dry_Casks';
+/** Curing Salt (data/package.json, a Cooking recipe): loaded beside fuel, each one keeps the stores cured 6 game-hours. */
+export const SALT_ID = 'voyage:Curing_Salt';
+
+export function install(ctx, { state, model, storesModel, supplyModel, spoilModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log }) {
   const S = storesModel;
   const SM = supplyModel;
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
@@ -530,6 +535,8 @@ export function install(ctx, { state, model, storesModel, supplyModel, shipModel
   const loadPlan = (unit, qty, kind) => {
     const s = stores();
     if (s === undefined) return { n: 0, added: 0, parts: [] };
+    // Curing Salt (4.4b): yours, not a place's stock; as many as fit under the curing's 48 h.
+    if (kind === 'cure') { const n = spoilOn() ? Math.min(Math.max(0, Math.floor(qty)), P.curesRoom(spoilOf().cure)) : 0; return { n, added: n * unit, parts: [] }; }
     return SM.planLoad(S, unit, qty, capacity()[kind] - s[kind], sourcesAt(state.position()), kind);
   };
   let logIds;
@@ -554,15 +561,19 @@ export function install(ctx, { state, model, storesModel, supplyModel, shipModel
         const food = foodOf(item);
         if (food > 0) { out.push({ item, kind: 'food', unit: food, qty }); continue; }
         const fuel = fuelOf(item);
-        if (fuel > 0) out.push({ item, kind: 'fuel', unit: fuel, qty });
+        if (fuel > 0) { out.push({ item, kind: 'fuel', unit: fuel, qty }); continue; }
+        // Curing Salt with spoilage on: `unit` its game-hours of curing.
+        if (item.id === SALT_ID && spoilOn()) out.push({ item, kind: 'cure', unit: P.CURE_MS / P.HOUR_MS, qty });
       }
     } catch (e) { log('loadable failed', e); }
-    return out.sort((a, b) => (a.kind === b.kind ? b.unit - a.unit : a.kind === 'food' ? -1 : 1));
+    const order = { food: 0, fuel: 1, cure: 2 };
+    return out.sort((a, b) => (a.kind === b.kind ? b.unit - a.unit : order[a.kind] - order[b.kind]));
   };
   /** Loads `qty` of an item from the bank at this place's rate. Returns what went in, or undefined. */
   const load = (item, qty) => {
     const rates = loadingHere();
     if (!usable() || rates === undefined) return undefined;
+    if (item.id === SALT_ID) return loadSalt(item, qty);
     const food = foodOf(item);
     const kind = food > 0 ? 'food' : 'fuel';
     const unit = food > 0 ? food : fuelOf(item);
@@ -581,6 +592,207 @@ export function install(ctx, { state, model, storesModel, supplyModel, shipModel
     log(`loaded ${n} ${item.id}: +${added} ${kind} at ${plan.parts.map((p) => `${p.place} ${p.key} ${p.added}`).join(', ')}`);
     return { kind, added, n, parts: plan.parts };
   };
+
+  // ---- spoilage (4.4b): the stores lose a share with every game-hour ----------------------------------------------
+  const P = spoilModel;
+  /** On with Provisions and its own "Spoilage" setting. */
+  const spoilOn = () => P !== undefined && enabled() && state.settings.spoilage?.() !== false;
+  let spoilFor;
+  const spoilOf = () => {
+    const r = skill().record;
+    if (spoilFor !== r) { r.spoil = P.cleanSpoil(r.spoil); spoilFor = r; }
+    return r.spoil;
+  };
+  /** Dry Casks bought (the Voyage shop, for good): every store loses half. */
+  const casks = () => {
+    try { const p = game.shop.purchases.getObjectByID(CASKS_ID); return p !== undefined && game.shop.getPurchaseCount(p) > 0; } catch { return false; }
+  };
+  /**
+   * The multipliers on a store at a game hex: `where` 'stores' (yours: a food place ×¼ and the salt count) or 'tent'
+   * or 'pack' (neither). The band and the damp come from the weather (off: both ×1).
+   */
+  const spoilFactors = (where, hex, cured = false) => {
+    const rec = hex === undefined ? undefined : recOf(hex);
+    const wx = rec === undefined ? undefined : state.weather?.effectsAt?.(rec);
+    const foodPlace = where === 'stores' && (loadingAtHex(hex)?.food ?? 0) > 0;
+    return P.factors({ where: where === 'tent' ? 'tent' : 'stores', band: wx?.band, sea: wx !== undefined && shipModel.isSea(rec), foodPlace, casks: casks(), cured: where === 'stores' && cured });
+  };
+  // What a voyage under way still costs (the floor: never spoiled into a refusal mid-leg), memoised per step.
+  let legMemo;
+  const legAhead = () => {
+    const v = state.clock?.running?.() === true ? skill().record.voyage : null;
+    if (v == null || !Array.isArray(v.walk)) return { food: 0, fuel: 0 };
+    const key = `${v.walk.length}|${v.at}|${v.walk[v.walk.length - 1]?.q},${v.walk[v.walk.length - 1]?.r}`;
+    if (legMemo?.key === key) return legMemo.value;
+    let value = { food: 0, fuel: 0 };
+    try {
+      const map = game.cartography.activeMap;
+      const path = v.walk.slice(Math.max(0, v.at)).map((h) => map.getHex(new HexCoords(h.q, h.r))).reverse();
+      if (path.length >= 2 && path.every((h) => h !== undefined)) value = S.pathCost(state.ship.stepsOf(path), fmLevel(), crew(), mods());
+    } catch (e) { log('spoilage: leg ahead failed', e); }
+    legMemo = { key, value };
+    return value;
+  };
+  /** Never below: the food to get ashore at sea (with the crew's share), plus what the rest of a leg under way costs. */
+  const spoilFloor = (pos) => {
+    let food = 0;
+    try {
+      const kinds = state.ship?.big?.() != null ? ['boat', 'ship'] : ['boat'];
+      food = Math.max(...kinds.map((k) => reserveAt(pos, k))) * (1 + (crew().seaFood ?? crew().food));
+    } catch { food = 0; }
+    const leg = legAhead();
+    return { food: Math.ceil(food + leg.food), fuel: leg.fuel };
+  };
+  /** What spoiled during this catch-up, for the Welcome Back box (not saved: the box comes in the same session). */
+  let spoiledAway = { food: 0, fuel: 0 };
+  /** Settles every store from the last stamp to now (the passive tick, once a game-minute; a load, a move). */
+  const settleSpoil = (now = gameNow()) => {
+    if (!usable()) return;
+    const sp = spoilOf();
+    if (!spoilOn() || !(sp.at > 0) || now < sp.at) { sp.at = now; return; }
+    const ms = now - sp.at;
+    if (ms <= 0) return;
+    sp.at = now;
+    const pos = state.position();
+    // Your stores, the curing split where it runs out.
+    const have = stores();
+    if (have.food > 0 || have.fuel > 0) {
+      const r = P.settle(have, sp.debt, ms, { fWith: spoilFactors('stores', pos, true), fWithout: spoilFactors('stores', pos, false), cure: sp.cure, floor: spoilFloor(pos) });
+      sp.debt = r.debt;
+      sp.cure = r.cure;
+      if (r.lost.food > 0 || r.lost.fuel > 0) {
+        skill().record.stores = { food: r.have.food, fuel: r.have.fuel };
+        if (offlineNow()) { spoiledAway.food += r.lost.food; spoiledAway.fuel = S.roundFuel(spoiledAway.fuel + r.lost.fuel); }
+        else spoilShown();
+      }
+    } else sp.cure = Math.max(0, sp.cure - ms);
+    // The tents' stores (×½ wherever they stand), each with its own carried fraction.
+    try {
+      state.outposts?.mapStores?.((key, store) => {
+        if (!(store.food > 0 || store.fuel > 0)) { delete sp.tents[key]; return undefined; }
+        const [q, r] = key.split(',').map(Number);
+        const r1 = P.spoil(store, sp.tents[key], ms, spoilFactors('tent', { q, r }));
+        sp.tents[key] = r1.debt;
+        return r1.lost.food > 0 || r1.lost.fuel > 0 ? r1.have : undefined;
+      });
+    } catch (e) { log('spoilage: tents failed', e); }
+  };
+  const offlineNow = () => { try { return game._isInOnlineLoop === false; } catch { return false; } };
+  // The page and the Here panel redraw at most once a game-minute for it (a whole HP lost), never per tick, and not
+  // through every listener as a load does (the map and the sidebar show no amounts).
+  const spoilShown = () => {
+    const s = skill();
+    if (s !== undefined) s.renderQueue.page = true;
+    try { state.herePanel?.render?.(); } catch {}
+  };
+  const SPOIL_STEP_MS = 60 * 1000;
+  let spoilTicks = 0;
+  /** The skill's passive tick: a settle once a game-minute, counted in ticks so the catch-up costs little. */
+  const spoilTick = () => {
+    spoilTicks += 1;
+    if (spoilTicks < (offlineNow() ? 200 : 20)) return;
+    spoilTicks = 0;
+    if (!usable()) return;
+    const now = gameNow();
+    const sp = spoilOf();
+    if (sp.at > 0 && now - sp.at < SPOIL_STEP_MS && spoilOn()) return;
+    settleSpoil(now);
+  };
+  /**
+   * What your stores lose an hour where you stand, for the Stores block: { food, fuel, parts, cure } (`parts` the
+   * multipliers that are not ×1, `cure` the curing time left), or undefined with spoilage off or nothing to lose.
+   */
+  const spoilRate = () => {
+    if (!spoilOn()) return undefined;
+    const have = stores();
+    if (!(have.food > 0 || have.fuel > 0)) return undefined;
+    const sp = spoilOf();
+    const f = spoilFactors('stores', state.position(), sp.cure > 0);
+    return { food: P.lossPerHour('food', have.food, f.food), fuel: P.lossPerHour('fuel', have.fuel, f.fuel), parts: f.parts, cure: sp.cure };
+  };
+  /**
+   * What your stores will lose on a timed trip (4.4b, the planner and Set off): `path` the game path (destination
+   * first), `stepMs` each step's game time (voyage-clock routeInfo), `split` the planner's legs (plan-model splitLegs:
+   * a stop's load sets the stores before the next step). Each step spoils at the hex it leaves, the curing counted
+   * while it lasts. { food, fuel } lost, or undefined with spoilage off, no time on the way or nothing lost. The floors
+   * keep a leg under way from falling short, so this only lowers what arrives.
+   */
+  const spoilAhead = (path, stepMs, split) => {
+    if (!spoilOn() || !Array.isArray(path) || path.length < 2 || !Array.isArray(stepMs) || state.ship?.stepsOf === undefined) return undefined;
+    try {
+      const steps = state.ship.stepsOf(path);
+      const walk = [...path].reverse();
+      const sets = new Map();
+      if (split?.depart !== undefined) sets.set(0, split.depart.stores);
+      for (const leg of split?.legs ?? []) if (leg.load !== undefined) sets.set(leg.to, leg.load.stores);
+      const cure = spoilOf().cure;
+      let elapsed = 0;
+      const legs = steps.map((step, i) => {
+        const ms = Number.isFinite(stepMs[i]) ? stepMs[i] : 0;
+        const leg = { ms, f: spoilFactors('stores', walk[i], elapsed < cure), cost: S.pathCost([step], fmLevel(), crew(), mods()), set: sets.get(i) };
+        elapsed += ms;
+        return leg;
+      });
+      const lost = P.forecast(stores(), legs);
+      return lost.food >= 1 || lost.fuel >= 0.01 ? lost : undefined;
+    } catch (e) { log('spoilage: forecast failed', e); return undefined; }
+  };
+  /**
+   * Spoiled amounts in words (4.4b): "7.5 food and 0.02 fuel", each with `sign` before it, a part that rounds to 0
+   * left out ("−0 fuel" read as nothing, the user, 5 Nov 2026), '' when both do. `perHour`: food to a tenth under 10.
+   */
+  const spoilText = (food, fuel, { sign = '', perHour = false } = {}) => {
+    const f = perHour && food < 10 ? Math.round(food * 10) / 10 : Math.round(food);
+    const u = Math.round(fuel * 100) / 100;
+    const parts = [];
+    if (f > 0) parts.push(`${sign}${t('MOD_VOY_UNIT_FOOD', { n: f >= 1000 ? numberWithCommas(f) : `${f}` })}`);
+    if (u > 0) parts.push(`${sign}${t('MOD_VOY_UNIT_FUEL', { n: `${u}` })}`);
+    return parts.length === 2 ? t('MOD_VOY_SPOIL_AND', { a: parts[0], b: parts[1] }) : parts[0] ?? '';
+  };
+  /** What a tent's store (`o`: { q, r, food, fuel }) loses an hour, or undefined with spoilage off or nothing to lose. */
+  const tentRate = (o) => {
+    if (!spoilOn() || !(o?.food > 0 || o?.fuel > 0)) return undefined;
+    const f = spoilFactors('tent', { q: o.q, r: o.r });
+    return { food: P.lossPerHour('food', o.food, f.food), fuel: P.lossPerHour('fuel', o.fuel, f.fuel), parts: f.parts };
+  };
+  /** A walking Folk's pack (4.4b): the road's costs grossed up by what it spoils on the way. `costOf(step)` { food, fuel }. */
+  const packWith = (road, costOf) => {
+    if (!spoilOn()) return undefined;
+    return P.packWith((road ?? []).map((s) => ({ ...costOf(s), ms: Number.isFinite(s.ms) ? s.ms : 0, f: spoilFactors('pack', { q: s.q, r: s.r }) })));
+  };
+  // Dry Casks bought: the Stores line's rate halves at once.
+  try { ctx.patch(Shop, 'buyItemOnClick').after(function (_ret, p) { try { if (p?.id === CASKS_ID) changed(); } catch {} }); } catch (e) { log('spoilage: shop patch failed', e); }
+  try {
+    ctx.patch(Game, 'enterOfflineLoop').after(function () { spoiledAway = { food: 0, fuel: 0 }; });
+    ctx.patch(OfflineProgressElement, 'setMessages').after(function () {
+      try {
+        const a = spoiledAway;
+        spoiledAway = { food: 0, fuel: 0 };
+        if (!(a.food > 0 || a.fuel >= 0.005) || this.messageContainer == null) return;
+        const h = document.createElement('h5');
+        h.className = 'font-w600 mb-1';
+        const m = skill()?.media;
+        h.innerHTML = (m ? `<img class="skill-icon-xs mr-1" src="${esc(m)}" alt="">` : '') + t('MOD_VOY_SPOIL_OFFLINE', { amounts: `<span class="text-warning">${esc(amounts(a.food, a.fuel))}</span>` });
+        this.messageContainer.append(h);
+      } catch (e) { log('spoilage offline line failed', e); }
+    });
+  } catch (e) { log('spoilage offline summary not patched', e); }
+
+  /** Loads Curing Salt (4.4b): the stores settled first, so the curing starts now; `n` salts add 6 game-hours each. */
+  const loadSalt = (item, qty) => {
+    if (!spoilOn()) return undefined;
+    settleSpoil();
+    const sp = spoilOf();
+    const n = Math.min(Math.floor(qty), game.bank.getQty(item), P.curesRoom(sp.cure));
+    if (!(n > 0)) return undefined;
+    game.bank.removeItemQuantity(item, n, true);
+    sp.cure = P.cureAfter(sp.cure, n);
+    changed();
+    log(`loaded ${n} Curing Salt: cured for ${Math.round(sp.cure / 60000)} min`);
+    return { kind: 'cure', added: n * (P.CURE_MS / P.HOUR_MS), n, parts: [] };
+  };
+  /** The curing time left (ms), 0 with spoilage off. */
+  const cureLeft = () => (spoilOn() ? spoilOf().cure : 0);
 
   // ---- the starter kit -----------------------------------------------------------------------------------------
   /** Once per character, after the tutorial: a few days' food and some fuel (existing characters too). */
@@ -602,6 +814,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, shipModel
   const api = {
     enabled, stores, planFor, priceSteps, loadingAtHex, afterMove, refuse, rescue,
     supplyOn, sourcesAt, supplyAt, supplyHere, placeSupply, loadPlan, supplyVersion: () => supplyVersion,
+    spoilOn, spoilTick, settleSpoil, spoilRate, spoilFactors, spoilAhead, tentRate, spoilText, packWith, casks, cureLeft, spoilModel: P,
     /** Offers the trader's share when the stores can't reach safe ground (the panel's Stranded? button). */
     offer() {
       const help = rescue();

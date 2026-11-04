@@ -208,6 +208,17 @@ div.form-inline:has(> .dropdown > [id="voyage:strictness"]) > .dropdown { width:
 .voyage-store-well-empty { display: flex; align-items: center; justify-content: center; text-align: center; color: var(--voyage-label); padding: 12px; }
 @media (max-width: 575.98px) { .voyage-store-cols { grid-template-columns: 1fr; } }
 @container (max-width: 28rem) { .voyage-store-cols { grid-template-columns: 1fr; } } /* the block's width, not the window's (.308, A-28) */
+/* Against spoiling (4.4b): the Dry Casks and the Curing Salt in one strip under the wells. */
+.voyage-store-keep { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border-radius: 6px; background: var(--voyage-tile); border: 1px solid var(--voyage-rule); }
+.voyage-store-keep .voyage-store-items { display: contents; }
+.voyage-store-keep-tile { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; min-width: 44px; padding: .2rem .45rem; border-radius: .25rem; box-shadow: inset 0 0 0 1px var(--voyage-rule); }
+.voyage-store-keep-tile img { width: 32px; height: 32px; }
+.voyage-store-keep-off { color: var(--voyage-label); }
+.voyage-store-keep-on { position: relative; }
+.voyage-store-keep-tile.voyage-store-keep-on { box-shadow: inset 0 0 0 1px var(--voyage-ok); }
+#voyage-container .voyage-store-keep .voyage-store-keep-badge { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; background: var(--voyage-ok); color: #fff; pointer-events: none; }
+.darkMode #voyage-container .voyage-store-keep .voyage-store-keep-badge { color: #10261a; }
+.voyage-store-keep-off img { opacity: .4; filter: grayscale(1); }
 .voyage-store-item { display: inline-flex; align-items: center; gap: 4px; padding: .2rem .45rem; min-height: 40px; }
 .voyage-store-item img { width: 32px; height: 32px; } /* 32px icons on item chips */
 .voyage-store-item small { font-size: .8rem; }
@@ -304,7 +315,7 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 @container (max-width: 32rem) { .voyage-hold-row .voyage-hold-gos { flex: 1 1 100%; margin-left: 0; } #voyage-container .voyage-hold-gos .voyage-hold-go { flex: 1 1 auto; width: auto; } }
 /* Every green button on the page one width (build .157, the user). Alone at a band's foot it is centred (hull repairs .158, the ship block's build, upgrade and buy .182, the user); in an amount row
    it sits at the row's right (.voyage-hold-go above). */
-:root { --voyage-main-width: 13rem; }
+:root { --voyage-main-width: 15rem; } /* 15rem (was 13): "Stock up (+12,345 food)" on one line (the user, 4 Nov 2026) */
 .voyage-hold-main { display: flex; justify-content: center; padding-top: 12px; }
 #voyage-container .voyage-hold-main .btn-success, #voyage-container .voyage-hold-go, #voyage-container .voyage-plan-buttons .btn-success { width: var(--voyage-main-width); max-width: 100%; min-height: 40px; }
 /* Two vessels (build .150): the bank's choice of hold, the brig's heading on the Ship tab, and both holds side by side. */
@@ -1466,12 +1477,14 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 #voyage-here .voyage-outpost-x { min-width: 32px; padding: 0 .55rem; }
 .voyage-stacked .voyage-outpost-line > .voyage-outpost-btns { flex: 1 1 100%; flex-wrap: nowrap; }
 .voyage-stacked .voyage-outpost-btns > .voyage-row-btn { flex: 1 1 auto; }
-.voyage-outpost-share { display: flex; flex-direction: column; gap: 10px; text-align: left; }
-.voyage-outpost-row { display: grid; grid-template-columns: 5.5rem minmax(96px, 140px) 1fr; align-items: center; gap: 6px 8px; }
+.voyage-outpost-share { display: grid; grid-template-columns: auto minmax(96px, 140px) auto; justify-content: center; align-items: center; gap: 6px 8px; text-align: left; }
+/* One grid for both rows, so the labels and inputs line up; the block and the buttons sit centred (the user, 5 Nov 2026). */
+.voyage-outpost-row { display: contents; }
+.voyage-outpost-row label { margin-bottom: 0; }
 .voyage-outpost-row .voyage-outpost-qty { min-height: 40px; }
-.voyage-outpost-quick { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.voyage-outpost-quick { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 6px; }
 .voyage-outpost-quick .btn { min-height: 36px; }
-@media (max-width: 575.98px) { .voyage-outpost-row { grid-template-columns: 4.5rem 1fr; } .voyage-outpost-of { grid-column: 2; } }
+@media (max-width: 575.98px) { .voyage-outpost-share { grid-template-columns: auto minmax(96px, 1fr); } .voyage-outpost-of { grid-column: 2; } }
 
 /* A refusal reads lower case after a colon elsewhere; on its own line it starts with a capital (build .367). */
 

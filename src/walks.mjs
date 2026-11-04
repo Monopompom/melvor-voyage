@@ -76,7 +76,8 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
   /** The road at this Folk's own pace from now (its travel traits: Navigator, Hardy, Stargazer and the like). */
   const paced = (r, f) => state.folkTraits?.pace?.(r, f, now()) ?? r;
   /** The food and fuel a road takes from the stores for this Folk; nothing with provisions off. */
-  const packFor = (r, f) => (provisions() ? W.roadPack(r, (s) => stepCost(s, f)) : { food: 0, fuel: 0 });
+  // With spoilage on (4.4b) the pack carries the extra its road spoils, so the walk arrives as it would without it.
+  const packFor = (r, f) => (provisions() ? state.stores?.packWith?.(r, (s) => stepCost(s, f)) ?? W.roadPack(r, (s) => stepCost(s, f)) : { food: 0, fuel: 0 });
   const hexText = (h) => { try { const o = new HexCoords(h.q, h.r).to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${h.q}, ${h.r})`; } };
   const duration = (ms) => { const p = C.durationParts(ms); return p.h > 0 ? t('MOD_VOY_CLOCK_H_M', { h: `${p.h}`, m: `${p.m}` }) : t('MOD_VOY_CLOCK_M', { m: `${p.m}` }); };
   const hexesText = (n) => t(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });

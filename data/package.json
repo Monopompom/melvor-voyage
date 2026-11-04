@@ -225,6 +225,19 @@
         "sellsFor": 60
       },
       {
+        "itemType": "Item",
+        "id": "Curing_Salt",
+        "name": "Curing Salt",
+        "category": "Voyage",
+        "type": "Misc",
+        "media": "assets/curing_salt.webp",
+        "customDescription": "Sea salt boiled out of seaweed. Load it into your stores on the Voyage page, under Against spoiling: each one keeps them cured for 6 game-hours, and cured stores spoil at half the rate.",
+        "ignoreCompletion": true,
+        "obtainFromItemLog": false,
+        "golbinRaidExclusive": false,
+        "sellsFor": 20
+      },
+      {
         "itemType": "Potion",
         "id": "Bitter_Draught_I",
         "name": "Bitter Draught I",
@@ -429,6 +442,28 @@
                 {
                   "id": "melvorD:Garum_Herb",
                   "quantity": 50
+                }
+              ],
+              "currencyCosts": []
+            },
+            {
+              "id": "Curing_Salt",
+              "productID": "voyage:Curing_Salt",
+              "perfectCookID": "voyage:Curing_Salt",
+              "baseExperience": 20,
+              "level": 20,
+              "baseInterval": 3000,
+              "baseQuantity": 1,
+              "categoryID": "melvorD:Pot",
+              "subcategoryID": "melvorD:Soup",
+              "itemCosts": [
+                {
+                  "id": "melvorD:Seaweed",
+                  "quantity": 20
+                },
+                {
+                  "id": "melvorD:Coal_Ore",
+                  "quantity": 2
                 }
               ],
               "currencyCosts": []
@@ -819,6 +854,48 @@
         "defaultBuyLimit": 0,
         "buyLimitOverrides": [],
         "showBuyLimit": false
+      },
+      {
+        "id": "Dry_Casks",
+        "customName": "Dry Casks",
+        "customDescription": "Pitch-sealed casks for your stores, a tent's store and a walking Folk's pack: everything you carry spoils at half the rate, for good.",
+        "media": "assets/dry_casks.webp",
+        "category": "voyage:Voyage",
+        "contains": {
+          "items": [],
+          "modifiers": {}
+        },
+        "cost": {
+          "items": [
+            {
+              "id": "melvorD:Maple_Logs",
+              "quantity": 100
+            },
+            {
+              "id": "melvorD:Steel_Bar",
+              "quantity": 50
+            }
+          ],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 1000000
+            }
+          ]
+        },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          {
+            "type": "SkillLevel",
+            "skillID": "voyage:Voyage",
+            "level": 40
+          }
+        ],
+        "defaultBuyLimit": 1,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
       }
     ],
     "shopDisplayOrder": [
@@ -832,7 +909,8 @@
           "voyage:Unicorn",
           "voyage:Crossroads_Sign",
           "voyage:Walking_Orders",
-          "voyage:Tent"
+          "voyage:Tent",
+          "voyage:Dry_Casks"
         ]
       }
     ]

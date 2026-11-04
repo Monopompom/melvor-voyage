@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 26;
+export const SAVE_VERSION = 27;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -124,7 +124,7 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * one ended, for the page's note, or null. adrift-model.mjs cleanAdrift and cleanAdriftEnd check them in depth.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {} };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {} };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -220,6 +220,8 @@ export const MIGRATIONS = {
   24: (rec) => ({ ...rec, v: 25, enc: {} }),
   // local supply (4 Nov 2026): no place drawn yet, so every place is full
   25: (rec) => ({ ...rec, v: 26, supply: {} }),
+  // Spoilage (4.4b): nothing settled yet, so a 1.3.0 save starts spoiling from its first settle, with no back charge.
+  26: (rec) => ({ ...rec, v: 27, spoil: {} }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -388,6 +390,8 @@ function clean(rec) {
     // Local supply (save v26): { "q,r": { f, u, at } }, the share of a day's worth left at each loading hex drawn,
     // checked by supply-model.mjs cleanSupply where it is read. A hex with no entry is full.
     supply: plainObject(rec.supply) ?? {},
+    // Spoilage (save v27): { at, cure, debt, tents, away }, checked by spoil-model.mjs cleanSpoil where it is read.
+    spoil: plainObject(rec.spoil) ?? {},
   };
 }
 /** Folks the most a save keeps jobs for: Worker Folks never hires more than there are skills to hold. */

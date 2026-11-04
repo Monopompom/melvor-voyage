@@ -236,6 +236,20 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   const nearOne = (key) => near().find((o) => o.key === key);
 
   // ---- the store -----------------------------------------------------------------------------------------------------
+  /**
+   * Spoilage (4.4b): `fn(key, { food, fuel })` for each tent's store gives the store after, or undefined to leave it.
+   * Written back once, with no redraw of the camps (the store is not on the map).
+   */
+  const mapStores = (fn) => {
+    if (!usable()) return;
+    const all = outposts();
+    let any = false;
+    for (const [key, o] of Object.entries(all)) {
+      const next = fn(key, { food: o.food ?? 0, fuel: o.fuel ?? 0 });
+      if (next !== undefined) { all[key] = { ...o, food: next.food, fuel: next.fuel }; any = true; }
+    }
+    if (any) setOutposts(all, false);
+  };
   /** Shares food and fuel with the tent's store: you carry `carry`, the rest stays. False when refused. */
   const share = (key, carry) => {
     const o = nearOne(key);
@@ -248,25 +262,54 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     log(`outpost ${key} store: ${out.store.food} food, ${out.store.fuel} fuel`);
     return true;
   };
+  const spoilLine = (o) => {
+    const rot = state.stores?.tentRate?.(o);
+    if (rot === undefined) return [];
+    const words = state.stores.spoilText(rot.food, rot.fuel, { sign: '−', perHour: true });
+    if (words === '') return [];
+    // One line, worded and coloured as the Stores page's (the user, 5 Nov 2026); why it is slower sits in its tooltip.
+    const why = t(rot.parts.some((p) => p.id === 'casks') ? 'MOD_VOY_OUTPOST_STORE_SPOIL_CASKS' : 'MOD_VOY_OUTPOST_STORE_SPOIL');
+    return [`<span class="text-warning" title="${esc(why)}">${esc(t('MOD_VOY_PAGE_SPOIL', { amounts: words }))}</span>`];
+  };
   const askStore = (key, done) => {
     const o = nearOne(key);
     if (o === undefined || !provisions()) return;
     const have = state.stores.stores();
     const cap = state.stores.capacity();
     const most = { food: Math.min(have.food + o.food, Math.max(cap.food, have.food)), fuel: Math.min(have.fuel + o.fuel, Math.max(cap.fuel, have.fuel)) };
+    // The boxes are text, not number inputs (the user, 5 Nov 2026): a number input writes 19.986 as "19,986" in a
+    // browser that uses a decimal comma. They show the amount through the game's formatters, as the lines above do
+    // (1,938 and 20.0, never 19.986), and a box left at a shown amount keeps the exact one, so pressing Done unchanged
+    // moves nothing. The game has no parser, so a typed amount is read here.
+    const boxText = (kind, n) => (kind === 'food' ? state.stores.hp(n) : state.stores.fuelText(n));
+    const exact = {};
+    for (const kind of ['food', 'fuel']) {
+      exact[kind] = new Map([[boxText(kind, most[kind]), most[kind]], [boxText(kind, have[kind]), have[kind]], ['0', 0]]);
+    }
+    const readBox = (kind) => {
+      const raw = String(document.getElementById(`voyage-outpost-${kind}`)?.value ?? '').trim().replace(/[\s\u00a0']/g, '');
+      if (exact[kind].has(raw)) return exact[kind].get(raw);
+      // Food is whole HP: every separator is grouping. Fuel (75 at most, never grouped): the last ',' or '.' is the point.
+      const last = Math.max(raw.lastIndexOf(','), raw.lastIndexOf('.'));
+      const plain = kind === 'food' ? raw.replace(/[.,]/g, '')
+        : last < 0 ? raw : `${raw.slice(0, last).replace(/[.,]/g, '')}.${raw.slice(last + 1)}`;
+      const n = Number(plain);
+      return plain === '' || !Number.isFinite(n) ? have[kind] : Math.max(0, n);
+    };
     const row = (kind) => {
       const label = t(kind === 'food' ? 'MOD_VOY_OUTPOST_STORE_FOOD' : 'MOD_VOY_OUTPOST_STORE_FUEL');
-      const step = kind === 'food' ? 1 : 0.1;
       return `<div class="voyage-outpost-row"><label for="voyage-outpost-${kind}" class="font-w600">${esc(label)}</label>`
-        + `<input id="voyage-outpost-${kind}" type="number" min="0" max="${most[kind]}" step="${step}" inputmode="decimal" class="form-control voyage-outpost-qty" value="${have[kind]}">`
+        + `<input id="voyage-outpost-${kind}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" class="form-control voyage-outpost-qty" value="${boxText(kind, have[kind])}">`
         + `<span class="voyage-outpost-of text-muted">${esc(t('MOD_VOY_OUTPOST_STORE_OF', { n: kind === 'food' ? state.stores.hp(most[kind]) : state.stores.fuelText(most[kind]) }))}</span>`
-        + `<span class="voyage-outpost-quick"><button type="button" class="btn btn-sm btn-outline-info" data-outpost-fill="${kind}" data-value="${most[kind]}">${esc(t('MOD_VOY_OUTPOST_STORE_TAKE_ALL'))}</button>`
+        + `<span class="voyage-outpost-quick"><button type="button" class="btn btn-sm btn-outline-info" data-outpost-fill="${kind}" data-value="${boxText(kind, most[kind])}">${esc(t('MOD_VOY_OUTPOST_STORE_TAKE_ALL'))}</button>`
         + `<button type="button" class="btn btn-sm btn-outline-info" data-outpost-fill="${kind}" data-value="0">${esc(t('MOD_VOY_OUTPOST_STORE_LEAVE_ALL'))}</button></span></div>`;
     };
     const html = helpLayout.msgHtml([
       // One sentence a line (build .367, the user): the tent's half no longer wraps in after yours.
       t('MOD_VOY_OUTPOST_STORE_YOU', { have: state.stores.icons(have.food, have.fuel) }),
       t('MOD_VOY_OUTPOST_STORE_TENT', { store: state.stores.icons(o.food, o.fuel) }),
+      // Spoilage (4.4b): the tent's store goes off at half the rate of yours, the casks halving it again.
+      ...spoilLine(o),
     ]) + `<div class="voyage-outpost-share mt-3">${row('food')}${row('fuel')}</div>`
       + `<small class="d-block text-muted mt-2">${esc(t('MOD_VOY_OUTPOST_STORE_HINT', { amounts: state.stores.amounts(cap.food, cap.fuel) }))}</small>`;
     SwalLocale.fire({
@@ -288,10 +331,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
       showCancelButton: true,
       confirmButtonText: t('MOD_VOY_OUTPOST_STORE_BUTTON'),
       cancelButtonText: t('MOD_VOY_OUTPOST_CANCEL'),
-      preConfirm: () => ({
-        food: Number(document.getElementById('voyage-outpost-food')?.value ?? have.food),
-        fuel: Number(document.getElementById('voyage-outpost-fuel')?.value ?? have.fuel),
-      }),
+      preConfirm: () => ({ food: readBox('food'), fuel: readBox('fuel') }),
     }).then((res) => {
       if (!res.isConfirmed || res.value == null) return;
       try { if (share(key, res.value)) done?.(); } catch (e) { log('outpost store failed', e); }
@@ -467,7 +507,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   ctx.patch(Shop, 'buyItemOnClick').after(function (_ret, p) { try { if (p?.id === `voyage:${O.TENT.id}`) changed(); } catch {} });
 
   const api = {
-    list, near, outposts, tents, pitchHere, pitch, share, strike, askStore, askStrike, panelHtml, click, nameOf,
+    list, near, outposts, tents, pitchHere, pitch, share, strike, mapStores, askStore, askStrike, panelHtml, click, nameOf,
     media, refreshMarkers, building, stopBuild, builderText, tick, buildTick, passiveTick,
     /** On character load, after the terrain and its ice: lays the camps. */
     loaded() { try { sync(); tick(); } catch (e) { log('outposts failed to load', e); } },

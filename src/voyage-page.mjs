@@ -207,13 +207,15 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
   };
   /** The load preview: what the typed amount adds to the stores. */
   let loadPreview;
+  /** The load button's verb: "Stock up", or "Salt the stores" with Curing Salt picked. */
+  let loadVerb = 'MOD_VOY_PAGE_STORES_LOAD';
   // Local supply (4.4a): where a load of n comes from when it draws more than one place, or ''.
   let loadSplit;
   const refreshMain = (action) => {
     if (action !== 'load' || loadPreview === undefined) return;
     const btn = document.querySelector(`#${CONTAINER_ID} [data-voyage-action="load"]`);
     const n = typed('load');
-    if (btn !== null) btn.textContent = n > 0 ? `${t('MOD_VOY_PAGE_STORES_LOAD')} (${loadPreview(n)})` : t('MOD_VOY_PAGE_STORES_LOAD');
+    if (btn !== null) btn.textContent = n > 0 ? `${t(loadVerb)} (${loadPreview(n)})` : t(loadVerb);
     if (btn !== null) btn.disabled = n <= 0;
     const split = document.querySelector(`#${CONTAINER_ID} .voyage-load-split`);
     if (split !== null) split.textContent = n > 0 ? loadSplit?.(n) ?? '' : '';
@@ -954,6 +956,32 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
           ] });
         }
       }
+      // Spoilage (4.4b): the rates and every multiplier, in the Stores help and so in the Journal's Victuals chapter.
+      const SP = st?.spoilModel;
+      if (SP !== undefined) {
+        if (st.spoilOn?.() !== true) out.push({ head: t('MOD_VOY_HELP_HEAD_SPOIL'), body: [t('MOD_VOY_HELP_SPOIL_OFF')] });
+        else {
+          const x = (n) => `×${n}`;
+          const one = x(1);
+          const casksOn = st.casks?.() === true;
+          const band = (b) => ({ cells: [t(`MOD_VOY_WX_BAND_${b.toUpperCase()}`), x(SP.WARMTH[b]), one] });
+          out.push({ head: t('MOD_VOY_HELP_HEAD_SPOIL'), body: [
+            t('MOD_VOY_HELP_SPOIL_WHAT', { food: `${SP.RATE.food * 100}`, fuel: `${SP.RATE.fuel * 100}` }),
+            { table: { cols: [t('MOD_VOY_HELP_COL_SPOIL'), t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_HELP_COL_FUEL')], rows: [
+              { cells: [t('MOD_VOY_HELP_SPOIL_PLACE'), x(SP.AT_FOOD_PLACE), x(SP.AT_FOOD_PLACE)] },
+              { cells: [t('MOD_VOY_HELP_SPOIL_TENT'), x(SP.IN_TENT), x(SP.IN_TENT)] },
+              band('bitter'), band('cold'), band('warm'), band('scorching'),
+              { cells: [t('MOD_VOY_HELP_SPOIL_SEA'), one, x(SP.SEA_DAMP)] },
+              { cells: [t(casksOn ? 'MOD_VOY_HELP_SPOIL_CASKS_ON' : 'MOD_VOY_HELP_SPOIL_CASKS'), x(SP.PRESERVE), x(SP.PRESERVE)], ...(casksOn ? { cls: ['text-success', 'text-success'] } : {}) },
+              { cells: [t('MOD_VOY_HELP_SPOIL_SALT', { h: `${SP.CURE_MS / SP.HOUR_MS}` }), x(SP.PRESERVE), x(SP.PRESERVE)] },
+            ] } },
+            t('MOD_VOY_HELP_SPOIL_STACK'),
+            t('MOD_VOY_HELP_SPOIL_GET', { max: `${SP.CURE_MAX / SP.HOUR_MS}` }),
+            t('MOD_VOY_HELP_SPOIL_FLOOR'),
+            t('MOD_VOY_HELP_SPOIL_PACK'),
+          ] });
+        }
+      }
       const night = st?.timeOfDay?.() !== undefined;
       if (!night) out.push({ head: t('MOD_VOY_HELP_HEAD_NIGHT'), body: [t('MOD_VOY_PAGE_NIGHT_OFF')] });
       else {
@@ -1026,6 +1054,31 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     } catch (e) { log('help popup failed', e); }
   };
 
+  /**
+   * Spoilage (4.4b): what the stores lose an hour where you stand, its tooltip the multipliers that are not ×1. Empty
+   * with spoilage off or nothing to lose.
+   */
+  const spoilHtml = (api) => {
+    const rot = api.spoilRate?.();
+    if (rot === undefined) return '';
+    const x = (n) => `×${decimal(n, 2)}`;
+    const partWords = (p) => {
+      if (p.id === 'warmth') return t('MOD_VOY_SPOIL_PART_WARMTH', { band: t(`MOD_VOY_WX_BAND_${String(p.band).toUpperCase()}`), x: x(p.x) });
+      const key = { place: 'MOD_VOY_SPOIL_PART_PLACE', tent: 'MOD_VOY_SPOIL_PART_TENT', damp: 'MOD_VOY_SPOIL_PART_DAMP', casks: 'MOD_VOY_SPOIL_PART_CASKS', cured: 'MOD_VOY_SPOIL_PART_CURED' }[p.id];
+      return key === undefined ? '' : t(key, { x: x(p.x) });
+    };
+    // The tooltip (the user, 4 Nov 2026: "hard to read/understand"): the base rate, then what slows it here and what
+    // speeds it up, one multiplier a line; the curing time is on the line itself.
+    const slower = rot.parts.filter((p) => p.x < 1).map(partWords);
+    const faster = rot.parts.filter((p) => p.x > 1).map(partWords);
+    const tip = [t('MOD_VOY_SPOIL_TIP'), ...(slower.length > 0 ? [t('MOD_VOY_SPOIL_SLOWER'), ...slower] : []), ...(faster.length > 0 ? [t('MOD_VOY_SPOIL_FASTER'), ...faster] : [])].join('\n');
+    const words = api.spoilText(rot.food, rot.fuel, { sign: '−', perHour: true });
+    const line = words === '' ? t('MOD_VOY_PAGE_SPOIL_TINY') : t('MOD_VOY_PAGE_SPOIL', { amounts: words });
+    // The curing left beside it (Curing Salt), so the tooltip is not the only place it shows.
+    const cured = rot.cure > 0 ? ` · ${t('MOD_VOY_PAGE_SPOIL_CURED', { time: state.clock?.duration?.(Math.max(60000, rot.cure)) ?? '' })}` : '';
+    return `<div class="voyage-spoil-line small text-warning mt-1" title="${esc(tip)}"><i class="fa fa-hourglass-half mr-1" aria-hidden="true"></i>${esc(line + cured)}</div>`;
+  };
+
   const storesHtml = () => {
     const api = state.stores;
     const have = api?.stores();
@@ -1044,7 +1097,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     const carried = `<span class="voyage-stores-carried"><span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}" alt="" title="${esc(t('MOD_VOY_PAGE_STORES_FOOD_TIP', { ration: `${storesModel.RATION_HP} HP` }))}"><span class="${level('food')}">${api.hp(have.food)}${word('food')}</span> ${of(api.hp(cap.food))} ${esc(t('MOD_VOY_UNIT_FOOD', { n: '' })).trim()}</span>` +
       `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/fuel.webp')}" alt="" title="${esc(t('MOD_VOY_HELP_COL_FUEL'))}"><span class="${level('fuel')}">${api.fuelText(have.fuel)}${word('fuel')}</span> ${of(api.fuelText(cap.fuel))} ${esc(t('MOD_VOY_PAGE_STORES_FUEL_WORD'))}</span></span>`;
     let html = section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt=""><b>${carried}</b></div>` +
-      (api.enabled() ? '' : `<div class="text-warning">${t(game.tutorial?.complete === false ? 'MOD_VOY_PAGE_TUTORIAL' : 'MOD_VOY_PAGE_STORES_OFF')}</div>`)); // (.308, C-01)
+      spoilHtml(api) + (api.enabled() ? '' :`<div class="text-warning">${t(game.tutorial?.complete === false ? 'MOD_VOY_PAGE_TUTORIAL' : 'MOD_VOY_PAGE_STORES_OFF')}</div>`)); // (.308, C-01)
     // What a sail costs (build .205, the user): food, fuel and the hull's wear, in one block.
     const big = state.ship?.big?.() != null;
     html += hullHtml('boat', big) + (big ? hullHtml('ship', true) : '');
@@ -1060,8 +1113,10 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       const left = t('MOD_VOY_PAGE_STORES_SUPPLY', { food: t('MOD_VOY_UNIT_FOOD', { n: api.hp(sup.food) }), fuel: t('MOD_VOY_UNIT_FUEL', { n: api.fuelText(storesModel.roundFuel(sup.fuel)) }) });
       load += `<div class="voyage-supply-line small">${esc(left)}${sup.full > 0 ? ` ${esc(t('MOD_VOY_PAGE_STORES_SUPPLY_FULL_IN', { time: at(sup.full) }))}` : ''}</div>`;
     }
-    const items = api.loadable().filter((x) => rates[x.kind] > 0);
-    const unit = (x) => `${x.item.name}, ${x.kind === 'food' ? t('MOD_VOY_PAGE_STORES_UNIT_FOOD', { hp: `${x.unit}` }) : t('MOD_VOY_PAGE_STORES_UNIT_FUEL', { fuel: `${x.unit}` })}`;
+    // Curing Salt (4.4b) loads at any loading place, in its own strip under the wells (the user, 4 Nov 2026: "Salt in
+    // fuel slots? Where are the kegs, then?"), beside the Dry Casks.
+    const items = api.loadable().filter((x) => x.kind === 'cure' || rates[x.kind] > 0);
+    const unit = (x) => `${x.item.name}, ${x.kind === 'food' ? t('MOD_VOY_PAGE_STORES_UNIT_FOOD', { hp: `${x.unit}` }) : x.kind === 'cure' ? t('MOD_VOY_PAGE_STORES_UNIT_CURE', { h: `${x.unit}` }) : t('MOD_VOY_PAGE_STORES_UNIT_FUEL', { fuel: `${x.unit}` })}`;
     if (items.length > 0 && !items.some((x) => x.item.id === picked)) picked = items[0].item.id;
     // Two wells, food | fuel, four chip rows tall, scrolling past that (build .149, the user; DESIGN "The Stores
     // picker"). An empty well says why in its middle.
@@ -1075,20 +1130,45 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
           : `<div class="voyage-store-well">${chips(mine, picked, 'pick', unit)}</div>`) + '</div>';
     };
     load += `<div class="voyage-store-cols mt-2">${well('food')}${well('fuel')}</div>`;
+    // Against spoiling (4.4b): the Dry Casks (bought or where to buy them) and the Curing Salt (its chips, or where it
+    // comes from). Only with Spoilage on.
+    if (api.spoilOn?.() === true) {
+      // Icons only, as the salt's chip (the user, 4 Nov 2026: "extra text for casks but not for salt?"): the words
+      // are the tooltip, a dim icon is not bought / none in the bank.
+      // Working now (casks bought, curing running): a green outline and a check badge (the user, 4 Nov 2026: "can we
+      // show that casks are active if bought?").
+      const badge = '<i class="fa fa-check voyage-store-keep-badge" aria-hidden="true"></i>';
+      const tile = (media, text, on) => `<div class="voyage-store-keep-tile ${on ? 'voyage-store-keep-on' : 'voyage-store-keep-off'}" title="${esc(text)}" aria-label="${esc(text)}" role="img"><img src="${esc(media)}" alt="">${on ? badge : ''}</div>`;
+      const casksBuy = game.shop.purchases.getObjectByID('voyage:Dry_Casks');
+      const casksLevel = casksBuy?.purchaseRequirements?.find((r) => r.type === 'SkillLevel')?.level ?? '';
+      const casks = casksBuy === undefined ? '' : tile(casksBuy.media, t(api.casks?.() ? 'MOD_VOY_PAGE_KEEP_CASKS_ON' : 'MOD_VOY_PAGE_KEEP_CASKS_OFF', { level: `${casksLevel}` }), api.casks?.() === true);
+      const salts = items.filter((x) => x.kind === 'cure');
+      const saltItem = game.items.getObjectByID('voyage:Curing_Salt');
+      const saltLevel = game.cooking?.actions?.getObjectByID?.('voyage:Curing_Salt')?.level ?? '';
+      const curing = (api.cureLeft?.() ?? 0) > 0;
+      const salt = salts.length > 0
+        ? (curing ? chips(salts, picked, 'pick', unit).replace('<button type="button" class="btn btn-sm voyage-store-item ', '<button type="button" class="btn btn-sm voyage-store-item voyage-store-keep-on ').replace('</button>', `${badge}</button>`) : chips(salts, picked, 'pick', unit))
+        : saltItem === undefined ? '' : tile(saltItem.media, t(curing ? 'MOD_VOY_PAGE_KEEP_SALT_CURING' : 'MOD_VOY_PAGE_KEEP_SALT_NONE', { level: `${saltLevel}` }), curing);
+      load += `<div class="voyage-store-col-head mt-2"><i class="fa fa-hourglass-half" aria-hidden="true"></i>${esc(t('MOD_VOY_PAGE_KEEP_HEAD'))}</div>` +
+        `<div class="voyage-store-keep">${casks}${salt}</div>`;
+    }
     if (items.length === 0) return html + section(load);
     const sel = items.find((x) => x.item.id === picked);
-    const rate = rates[sel.kind];
+    const cure = sel.kind === 'cure';
+    loadVerb = cure ? 'MOD_VOY_PAGE_STORES_CURE_GO' : 'MOD_VOY_PAGE_STORES_LOAD';
+    const rate = cure ? 1 : rates[sel.kind];
     // The limit (build .66): no more items than it takes to fill the room left.
-    const room = Math.max(0, cap[sel.kind] - have[sel.kind]);
+    const room = cure ? Infinity : Math.max(0, cap[sel.kind] - have[sel.kind]);
     // Up to the room and the stocks in reach (local supply, 4.4a): the best place first, then the next.
     const plan = (n) => api.loadPlan?.(sel.unit, n, sel.kind) ?? { n: storesModel.loadCount(sel.unit, rate, n, room), parts: [] };
     const most = plan(sel.qty).n;
     load += `<div class="mt-2">${esc(t('MOD_VOY_PAGE_SELECTED', { item: unit(sel), count: numberWithCommas(sel.qty) }))}</div>`;
+    if (most <= 0 && cure) return html + section(`${load}<div class="mt-2 text-warning">${esc(t('MOD_VOY_PAGE_STORES_CURE_FULL'))}</div>`);
     if (most <= 0 && room > 0 && sup !== undefined) {
       return html + section(`${load}<div class="mt-2 text-warning">${esc(t(sel.kind === 'food' ? 'MOD_VOY_PAGE_STORES_SOLD_OUT_FOOD' : 'MOD_VOY_PAGE_STORES_SOLD_OUT_FUEL', { time: at(sup.back[sel.kind]) }))}</div>`);
     }
     if (most <= 0) return html + section(`${load}<div class="mt-2 text-warning">${t(sel.kind === 'food' ? 'MOD_VOY_PAGE_STORES_FULL_FOOD' : 'MOD_VOY_PAGE_STORES_FULL_FUEL')}</div>`);
-    const amountText = (v) => (sel.kind === 'food' ? t('MOD_VOY_UNIT_FOOD', { n: api.hp(v) }) : t('MOD_VOY_UNIT_FUEL', { n: api.fuelText(storesModel.roundFuel(v)) }));
+    const amountText = (v) => (sel.kind === 'food' ? t('MOD_VOY_UNIT_FOOD', { n: api.hp(v) }) : cure ? t('MOD_VOY_PAGE_STORES_CURE_H', { h: numberWithCommas(v) }) : t('MOD_VOY_UNIT_FUEL', { n: api.fuelText(storesModel.roundFuel(v)) }));
     loadSplit = (n) => {
       const parts = plan(Math.min(n, most)).parts;
       if (parts.length < 2) return '';
@@ -1103,7 +1183,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       action: 'load', itemId: sel.item.id, max: most, value,
       presets: [10, 100].filter((n) => n < most).map((n) => ({ n, label: numberWithCommas(n) }))
         .concat([{ n: most, label: t(most < sel.qty ? 'MOD_VOY_PAGE_STORES_LOAD_FILL' : 'MOD_VOY_PAGE_STORES_LOAD_ALL') }]),
-      main: `${t('MOD_VOY_PAGE_STORES_LOAD')} (${loadPreview(value)})`,
+      main: `${t(loadVerb)} (${loadPreview(value)})`,
     });
     if (sup !== undefined) load += `<div class="voyage-load-split small text-muted mt-1">${esc(loadSplit(value))}</div>`;
     return html + section(load);

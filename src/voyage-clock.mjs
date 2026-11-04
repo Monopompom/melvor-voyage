@@ -698,6 +698,10 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     const crewN = state.crew?.count?.() ?? 0;
     if (crewN > 0) costBits.push(`<span class="voyage-clock-cost" title="${esc(t('MOD_VOY_CLOCK_COST_CREW_TIP'))}"><i class="fa fa-users voyage-clock-icon" aria-hidden="true"></i>${esc(t(crewN === 1 ? 'MOD_VOY_CLOCK_COST_CREW_ONE' : 'MOD_VOY_CLOCK_COST_CREW', { count: `${crewN}` }))}</span>`);
     if (wear > 0 && fog === undefined) costBits.push(`<span class="voyage-clock-cost">${img(res('hull_condition.webp'))}${esc(t('MOD_VOY_CLOCK_COST_WEAR', { pct: `${Math.round(wear)}` }))}</span>`);
+    // Spoilage (4.4b): what the stores lose on the way, the planner's stops counted when it sent the trip.
+    let rot;
+    try { if (fog === undefined) rot = state.stores?.spoilAhead?.(path, info.stepMs, extra.split); } catch (e) { log('spoil forecast failed', e); }
+    if (rot !== undefined) costBits.push(`<span class="voyage-clock-cost text-warning"><i class="fa fa-hourglass-half voyage-clock-icon" aria-hidden="true"></i>${esc(t('MOD_VOY_CLOCK_COST_SPOIL', { amounts: state.stores.spoilText(rot.food, rot.fuel) }))}</span>`);
     // The route as a strip: land and sea legs in their colours, as long as they take (the user, 18 Oct 2026: "spice it up").
     const o = timeOpts();
     const legs = [];

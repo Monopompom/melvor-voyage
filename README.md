@@ -59,6 +59,12 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   too; next to two places the better one is drawn first, then the other. The page, the Here panel, the planner and
   the Journal's Places say what is left. On the two islands with no easy ground a place never runs out. With empty stores you can still walk easy ground, for no Voyage XP and 30% more GP a hex (Set off counts it in the cost). At sea you always keep the food to get
   back ashore, and fast travel between ports sails your ship, so it has to be waiting at the port.
+- **Spoilage.** What you carry goes off with the game clock, offline too: food 1% of what is left an hour, fuel 0.25%.
+  A quarter as fast where food loads, half as fast in a tent's store; food slower in the cold and faster in the heat,
+  fuel faster at sea. Dry Casks (the Voyage shop, Voyage 40) halve it for good, and Curing Salt (Cooking 20, from
+  Seaweed and Coal Ore) halves your stores' loss for 6 hours each. It never takes the food you need to get ashore or
+  what a voyage under way still needs, and a walking Folk's pack carries the extra. The Stores block, the planner,
+  Set off, a tent's store and the Welcome Back box say how much.
 - **Hull wear.** Every sea hex wears your ship's hull a little. Repair it in the Voyage page's Stores block with logs
   and Pitch, which Firemaking now makes from time to time (more often from better logs): the small boat on a beach,
   the big ship at a port. Repairing is careening: the hull is hauled out 6 minutes for every 10% and can't sail
@@ -226,6 +232,7 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Combat needs its area** and **Trade only near markets**: each can be switched off on its own.
 - **Provisions**: off, moves take nothing from your stores and sailing wears nothing.
 - **Local supply**: off, every place loads as much as your bank holds.
+- **Spoilage**: off, nothing in the stores goes off.
 - **Night** and **Move the night (hours)**: night on or off, and when it falls (−12 to 12 hours from 21:00 to 05:00).
 - **Motion on the map**: while a voyage is under way the traveller walks and the vessel rolls; off, they stand still.
 - **Open the journal by its cover**: the cover and a few turning pages on every open, not only the first time.

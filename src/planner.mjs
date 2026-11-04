@@ -315,6 +315,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
       clock.confirmSetOff(plan.path, () => sailLegs(plan, name), undefined, {
         name,
         loads,
+        split: plan.split,
         prefer: pickChoice(),
         started: () => {
           if (plan.split.depart !== undefined) loadHere();
@@ -342,7 +343,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     const stops = how === 'route' && plan.split?.ok === true && plan.refused === undefined && owned() && (plan.costs?.checkIfOwned() ?? true);
     return {
       name: target.name,
-      ...(stops ? { loads: plan.split.legs.filter((leg) => leg.load !== undefined).map((leg) => leg.to) } : {}),
+      ...(stops ? { loads: plan.split.legs.filter((leg) => leg.load !== undefined).map((leg) => leg.to), split: plan.split } : {}),
       prefer: pickChoice(),
       started: () => {
         if (stops && plan.split.depart !== undefined) loadHere();
@@ -508,9 +509,12 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     let rows = row(t('MOD_VOY_PLAN_ROW_ROUTE'), parts.join(''));
     // Timed travel (phase 5a): how long the route takes and when you arrive.
     const clock = state.clock;
+    let stepMs;
     if (clock?.on?.() === true) {
       try {
-        const ms = clock.routeInfo(plan.path).ms;
+        const info = clock.routeInfo(plan.path);
+        const ms = info.ms;
+        stepMs = info.stepMs;
         rows += row(t('MOD_VOY_PLAN_ROW_TIME'), `${helpLayout.timeHtml(clock.duration(ms))}<span class="text-muted ml-2">${esc(t('MOD_VOY_CLOCK_ARRIVE_AT', { time: clock.clockAt(Date.now() + ms) }))}</span>`);
       } catch (e) { log('plan time failed', e); }
     }
@@ -531,13 +535,17 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     const st = state.stores;
     if (st?.enabled?.() === true) {
       const have = st.stores();
-      const end = sp.ok ? sp.have : undefined;
+      // Spoilage (4.4b): what the stores lose on the way, a timed trip only (an instant one takes no game time). The
+      // floors keep every leg paid, so it only lowers what arrives.
+      const rot = sp.ok && stepMs !== undefined ? st.spoilAhead?.(plan.path, stepMs, sp) : undefined;
+      const end = !sp.ok ? undefined : rot === undefined ? sp.have : { ...sp.have, food: Math.max(0, sp.have.food - rot.food), fuel: S.roundFuel(Math.max(0, sp.have.fuel - rot.fuel)) };
       const hp = (n) => esc(t('MOD_VOY_PLAN_FOOD', { count: st.hp(n) }));
       // The Stores block's number form, with the unit (.308, scan A2-18).
       const fuel = (n) => esc(t('MOD_VOY_UNIT_FUEL', { n: st.fuelText(S.roundFuel(n)) }));
       rows += `<div></div><div class="voyage-plan-when">${esc(t(end === undefined ? 'MOD_VOY_PLAN_WHEN_NOW' : 'MOD_VOY_PLAN_WHEN'))}</div>`;
       rows += row(t('MOD_VOY_PLAN_ROW_FOOD'), `${icon('assets/ration.webp', t('MOD_VOY_PLAN_ROW_FOOD'))}${hp(have.food)}${end === undefined ? '' : `${arrow}<span class="${tone(end.food, S.LOW.food)}">${hp(end.food)}</span>`}`);
       rows += row(t('MOD_VOY_PLAN_ROW_FUEL'), `${icon('assets/fuel.webp', t('MOD_VOY_PLAN_ROW_FUEL'))}${fuel(have.fuel)}${end === undefined ? '' : `${arrow}<span class="${tone(end.fuel, S.LOW.fuel)}">${fuel(end.fuel)}</span>`}`);
+      if (rot !== undefined) rows += row(t('MOD_VOY_PLAN_ROW_SPOIL'), `<span class="text-warning"><i class="fa fa-hourglass-half mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_PLAN_SPOIL', { amounts: st.spoilText(rot.food, rot.fuel) }))}</span>`);
       // One hull row per vessel that wears on the way; named when you own two (build .150).
       const sh = state.ship;
       const two = sh?.big?.() != null;

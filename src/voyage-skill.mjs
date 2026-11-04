@@ -53,6 +53,7 @@ export function createVoyageClass({ model, log }) {
       try { this.walks?.tick(); } catch (e) { log('walks tick failed', e); }
       try { this.folkTraits?.tick(); } catch (e) { log('travel traits tick failed', e); }
       try { this.outpostTick?.(); } catch (e) { log('tent tick failed', e); }
+      try { this.spoilTick?.(); } catch (e) { log('spoilage tick failed', e); }
       try { this.shipTick?.(); } catch (e) { log('careen tick failed', e); }
       try { this.clock?.waitTick?.(); } catch (e) { log('storm wait tick failed', e); }
       try { this.events?.tick?.(); } catch (e) { log('events tick failed', e); }
