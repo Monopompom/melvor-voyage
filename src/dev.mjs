@@ -443,6 +443,22 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       if (food !== undefined) api.set(food, fuel ?? api.stores().fuel);
       return { ...api.stores(), loading: api.loadingHere() ?? 'none here' };
     },
+    /**
+     * Local supply (4.4a): what the places in reach hold now, each source's stock, and the save's entries. `empty`
+     * true empties every place in reach (a test of the sold-out paths); `reset` true makes every place full again.
+     */
+    supply({ empty = false, reset = false } = {}) {
+      const api = state.stores;
+      const s = state.voyageSkill?.();
+      if (api?.stores() === undefined || s === undefined) return 'Voyage skill missing';
+      if (reset) s.record.supply = {};
+      if (empty) {
+        const now = state.gameNow();
+        for (const p of api.sourcesAt(state.position())) s.record.supply[p.key] = { f: 0, u: 0, at: now };
+      }
+      if (reset || empty) state.onSettingsChange();
+      return { on: api.supplyOn(), here: api.supplyHere() ?? 'nowhere to load or off', sources: api.sourcesAt(state.position()), saved: { ...s.record.supply } };
+    },
     /** Sets the hull condition (3d), 0 to 100, or reads it with no argument. `kind` 'boat' or 'ship' (the brig). */
     hull(cond, kind = 'boat') {
       const sh = state.ship;

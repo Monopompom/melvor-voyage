@@ -1051,18 +1051,36 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     + `<input id="${id}" type="search" autocomplete="off" value="${esc(value)}">`
     + `<button type="button" class="vj-search-clear" data-vj-clear="${id}" aria-label="${esc(t('MOD_VOY_JOURNAL_SEARCH_CLEAR'))}"${value === '' ? ' hidden' : ''}>`
     + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"></path></svg></button></div></div>';
-  const resultsHtml = () => {
-    const all = entries();
+  // The list a page was drawn from and its search index (made on the first query), kept while you type in its search
+  // box: a key used to rebuild the list and fold every name again (build .519: 35-134 ms a key in Places, 267 places).
+  // A redraw of the page makes them afresh.
+  let resIdx;
+  let placeIdx;
+  /** A row's inner HTML, kept with the list (its hex label, land and unread tag were made again on every key). */
+  const rowOf = (idx, key, make) => {
+    idx.rows ??= new Map();
+    let html = idx.rows.get(key);
+    if (html === undefined) { html = make(); idx.rows.set(key, html); }
+    return html;
+  };
+  /** The ids that `query` finds in a kept list ({ all, index? }, entries the search takes), or undefined for no query. */
+  const hitsIn = (idx, query, entry) => {
+    if (jm.fold(query) === '') return undefined;
+    idx.index ??= jm.searchIndex(entry === undefined ? idx.all : idx.all.map(entry));
+    return new Set(jm.searchIn(idx.index, query));
+  };
+  const resultsHtml = (idx = { all: entries() }) => {
+    const all = idx.all;
     if (all.length === 0) return empty('MOD_VOY_JOURNAL_RESOURCES_EMPTY');
-    const hits = new Set(jm.search(all, view.query));
-    const shown = all.filter((e) => hits.has(e.id));
+    const hits = hitsIn(idx, view.query);
+    const shown = hits === undefined ? all : all.filter((e) => hits.has(e.id));
     if (shown.length === 0) return `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_SEARCH_NONE', { query: view.query.trim() }))}</p>`;
     let html = '';
     let skill;
     for (const e of shown) {
       if (e.skillId !== skill) { skill = e.skillId; html += `<div class="vj-group">${esc(skillOf(skill)?.name ?? skill)}</div>`; }
       html += `<button type="button" class="vj-row${e.id === view.entry ? ' vj-on' : ''}" data-vj-entry="${esc(e.id)}" aria-pressed="${e.id === view.entry}">`
-        + `<span class="vj-row-name">${e.action?.media ? `<img src="${e.action.media}" alt="">` : ''}<b>${esc(e.names[0])}</b>${unreadTag(`a:${e.id}`)}</span><span class="vj-row-count">${esc(countText(e))}</span></button>`;
+        + rowOf(idx, e.id, () => `<span class="vj-row-name">${e.action?.media ? `<img src="${e.action.media}" alt="">` : ''}<b>${esc(e.names[0])}</b>${unreadTag(`a:${e.id}`)}</span><span class="vj-row-count">${esc(countText(e))}</span>`) + '</button>';
     }
     return html;
   };
@@ -1108,6 +1126,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   };
   const resourcesSpread = () => {
     const all = entries();
+    resIdx = { all };
     if (view.entry === undefined || !all.some((e) => e.id === view.entry)) view.entry = all[0]?.id;
     const picker = view.pick !== undefined ? pickerPage() : undefined;
     if (picker === undefined && view.entry !== undefined) seen(`a:${view.entry}`);
@@ -1115,7 +1134,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_RESOURCES_TITLE'))}</h2>`
       + chartsBand() + readAll('a:')
       + searchBox('vj-search', 'MOD_VOY_JOURNAL_SEARCH_LABEL', view.query)
-      + `<div class="vj-results">${resultsHtml()}</div>`;
+      + `<div class="vj-results">${resultsHtml(resIdx)}</div>`;
     return { left, right: picker ?? entryPage(all.find((e) => e.id === view.entry)) };
   };
 
@@ -1312,13 +1331,22 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
    * "Cow, Chicken drop Bones" under a combat row the search found by a drop and not by its name or a monster's name:
    * the drops whose names every query word starts a word of, and the monsters that drop them.
    */
+  // A name's folded words, kept (build .519): the note ran per combat row shown on every key typed, folding each
+  // monster's and drop's name again. Names don't change in a session.
+  const foldedWords = new Map();
+  const wordsOf = (name) => {
+    let w = foldedWords.get(name);
+    if (w === undefined) { w = jm.fold(name).split(' '); foldedWords.set(name, w); }
+    return w;
+  };
   const dropNote = (p, query) => {
     const words = jm.fold(query).split(' ').filter((w) => w !== '');
     if (words.length === 0 || p.group !== 'combat') return '';
-    const hit = (name) => { const parts = jm.fold(name).split(' '); return words.every((w) => parts.some((x) => x.startsWith(w))); };
-    if (hit(p.name) || hit(land(p.q, p.r)) || monstersOf(p).some((m) => hit(m?.name ?? ''))) return '';
+    const hit = (name) => { const parts = wordsOf(name); return words.every((w) => parts.some((x) => x.startsWith(w))); };
+    const monsters = monstersOf(p);
+    if (hit(p.name) || hit(land(p.q, p.r)) || monsters.some((m) => hit(m?.name ?? ''))) return '';
     const byItem = new Map();
-    for (const m of monstersOf(p)) for (const item of dropsOf(m)) if (hit(item.name)) { if (!byItem.has(item)) byItem.set(item, []); byItem.get(item).push(m.name); }
+    for (const m of monsters) for (const item of dropsOf(m)) if (hit(item.name)) { if (!byItem.has(item)) byItem.set(item, []); byItem.get(item).push(m.name); }
     if (byItem.size === 0) return '';
     return [...byItem].map(([item, who]) => t(who.length === 1 ? 'MOD_VOY_JOURNAL_PLACES_DROP_ONE' : 'MOD_VOY_JOURNAL_PLACES_DROP_MANY', { monsters: who.join(', '), item: item.name })).join(' · ');
   };
@@ -1394,12 +1422,13 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     log('golbin gift given', g);
     showLetter();
   };
-  const placeResultsHtml = (all = placeList()) => {
+  const placeResultsHtml = (idx = { all: placeList() }) => {
+    const all = idx.all;
     if (all.length === 0) return empty('MOD_VOY_JOURNAL_PLACES_EMPTY');
     const isGoblin = isGoblinQuery(view.placeQuery);
     const query = isGoblin ? 'golbin' : view.placeQuery;
-    const hits = new Set(jm.search(all.map(placeSearchEntry), query));
-    const shown = all.filter((p) => hits.has(p.key));
+    const hits = hitsIn(idx, query, placeSearchEntry);
+    const shown = hits === undefined ? all : all.filter((p) => hits.has(p.key));
     if (shown.length === 0) return (isGoblin ? golbin() : '') + `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_SEARCH_NONE', { query: view.placeQuery.trim() }))}</p>`;
     let list = isGoblin ? golbin() : '';
     for (const g of ['outpost', 'combat', 'port', 'trade', 'island', 'poi']) {
@@ -1409,7 +1438,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       for (const p of rows) {
         const drop = dropNote(p, query);
         list += `<button type="button" class="vj-row${p.key === view.place ? ' vj-on' : ''}" data-vj-place="${esc(p.key)}" aria-pressed="${p.key === view.place}">`
-          + `<span class="vj-row-name">${p.media ? `<img src="${p.media}" alt="">` : ''}<b>${esc(p.name)}</b>${unreadTag(`p:${p.key}`)}</span><span class="vj-row-count">${esc(p.ledger !== undefined ? t('MOD_VOY_JOURNAL_MARKETS_COUNT', { n: `${p.ledger}`, of: `${state.market.total()}` }) : at(p.q, p.r))}</span>`
+          + rowOf(idx, p.key, () => `<span class="vj-row-name">${p.media ? `<img src="${p.media}" alt="">` : ''}<b>${esc(p.name)}</b>${unreadTag(`p:${p.key}`)}</span><span class="vj-row-count">${esc(p.ledger !== undefined ? t('MOD_VOY_JOURNAL_MARKETS_COUNT', { n: `${p.ledger}`, of: `${state.market.total()}` }) : at(p.q, p.r))}</span>`)
           + (drop === '' ? '' : `<span class="vj-row-drop">${esc(drop)}</span>`) + '</button>';
       }
       if (g === 'island' && view.placeQuery.trim() === '') {
@@ -1483,12 +1512,13 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   };
   const placesSpread = () => {
     const all = placeList();
+    placeIdx = { all };
     if (view.place === undefined || !all.some((p) => p.key === view.place)) view.place = all[0]?.key;
     if (view.place !== undefined) seen(`p:${view.place}`);
     const left = runningHead(t('MOD_VOY_JOURNAL_TITLE'), t('MOD_VOY_JOURNAL_TAB_PLACES'))
       + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_PLACES_TITLE'))}</h2>` + readAll('p:')
       + (all.length === 0 ? '' : searchBox('vj-place-search', 'MOD_VOY_JOURNAL_PLACES_SEARCH_LABEL', view.placeQuery))
-      + `<div class="vj-results vj-place-results">${placeResultsHtml(all)}</div>`;
+      + `<div class="vj-results vj-place-results">${placeResultsHtml(placeIdx)}</div>`;
     const p = all.find((x) => x.key === view.place);
     const right = p === undefined ? runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), '') + empty('MOD_VOY_JOURNAL_ENTRY_NONE')
       : p.ledger !== undefined ? marketsLedger()
@@ -1733,8 +1763,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     /** A search field's text changed (typed, or emptied by its ×): the list under it follows, and the × shows while there is text. */
     const searched = (input) => {
       let list = null;
-      if (input.id === 'vj-search') { view.query = input.value; list = root.querySelector('.vj-results'); if (list !== null) list.innerHTML = resultsHtml(); }
-      else if (input.id === 'vj-place-search') { view.placeQuery = input.value; list = root.querySelector('.vj-place-results'); if (list !== null) list.innerHTML = placeResultsHtml(); }
+      if (input.id === 'vj-search') { view.query = input.value; list = root.querySelector('.vj-results'); if (list !== null) list.innerHTML = resultsHtml(resIdx); }
+      else if (input.id === 'vj-place-search') { view.placeQuery = input.value; list = root.querySelector('.vj-place-results'); if (list !== null) list.innerHTML = placeResultsHtml(placeIdx); }
       else return;
       const x = root.querySelector(`[data-vj-clear="${input.id}"]`);
       if (x !== null) x.hidden = input.value === '';

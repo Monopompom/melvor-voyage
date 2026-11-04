@@ -455,11 +455,20 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const have = api?.stores();
     if (have === undefined || !api.enabled()) return '';
     const rates = api.loadingHere();
+    // Local supply (4.4a): the places in reach say what is left only when it is less than your room; sold out of
+    // both, Stock up is greyed with the reason as its tooltip.
+    const sup = rates === undefined ? undefined : api.supplyHere?.();
+    const at = (ms) => { try { return state.clock.duration(Math.max(60000, ms)); } catch { return ''; } };
+    const sold = sup !== undefined && sup.food < storesModel.RATION_HP && sup.fuel < 1 && (sup.room.food > 0 || sup.room.fuel > 0);
+    const soon = sup === undefined ? Infinity : Math.min(sup.back.food, sup.back.fuel);
     const load = rates === undefined ? ''
+      : sold ? `<button type="button" class="btn btn-sm btn-outline-secondary disabled voyage-row-btn voyage-load-link" aria-disabled="true" title="${esc(templateLangString('MOD_VOY_PANEL_SUPPLY_SOLD_OUT', { time: at(soon) }))}">${esc(getLangString('MOD_VOY_PANEL_STORES_LOAD'))}</button>`
       : `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-manage-link voyage-load-link" title="${esc(templateLangString('MOD_VOY_PANEL_STORES_LOAD_HINT', { food: `${Math.round(rates.food * 100)}`, fuel: `${Math.round(rates.fuel * 100)}` }))}">${esc(getLangString('MOD_VOY_PANEL_STORES_LOAD'))}</button>`;
+    const short = sup !== undefined && (sup.short.food || sup.short.fuel)
+      ? `<div class="voyage-here-supply small text-warning">${esc(templateLangString('MOD_VOY_PANEL_SUPPLY_SHORT', { food: api.hp(sup.food), fuel: api.fuelText(storesModel.roundFuel(sup.fuel)), time: at(sup.full) }))}</div>` : '';
     // Amber when either runs low, red when either is empty (the same LOW the Voyage page uses).
     const low = have.food <= 0 || have.fuel <= 0 ? ' text-danger' : have.food < storesModel.LOW.food || have.fuel < storesModel.LOW.fuel ? ' text-warning' : '';
-    return `<div class="voyage-here-ship"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_STORES_LABEL'))}</span> <span class="${low}">${api.icons(have.food, have.fuel)}</span></span>${load}</div>`;
+    return `<div class="voyage-here-ship"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_STORES_LABEL'))}</span> <span class="${low}">${api.icons(have.food, have.fuel)}</span>${short}</span>${load}</div>`;
   };
 
   // The wind's "turns in" moves on between redraws; a turn redraws the panel (phase 5c-2).
@@ -1154,6 +1163,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       // to block"): the Voyage page at its Stores block, opened if it was folded.
       if (e.target instanceof Element && e.target.closest('.voyage-load-link')) {
         e.preventDefault();
+        // Sold out (local supply): greyed, the tooltip says when it loads again.
+        if (e.target.closest('.voyage-load-link').getAttribute('aria-disabled') === 'true') return;
         try {
           state.openPage(game.pages.getObjectByID('voyage:Voyage'));
           state.pageLayout?.unfold('stores-block');
@@ -1226,6 +1237,17 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   // panel, so it is neither set again nor given its tooltips again (build .401): a render per move and per listener call
   // destroyed and remade every tooltip in it.
   let drew = false;
+  // The placement pass (placeUnderBar, alignRowButtons) reads the layout between its writes, so each one laid out the
+  // whole map page again: 19 ms a draw on average, up to 54 (build .519, measured on slot 8). It runs only when the
+  // panel's HTML changed, or once after the map page is shown again; a resize of the panel, the search box or the top
+  // bar runs it through their ResizeObservers, as before.
+  let layoutDue = true;
+  const settle = (rows) => {
+    if (!drew && !layoutDue) return;
+    layoutDue = false;
+    placeUnderBar();
+    if (rows) alignRowButtons(true);
+  };
   const put = (panel, html) => {
     if (panel.voyageHtml === html && panel.childNodes.length > 0) return;
     panel.voyageHtml = html;
@@ -1259,7 +1281,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (!panelOpen) {
         const tip = `${d.label}${d.features.length > 0 ? ` · ${d.features.join(', ')}` : ''}${place ? ` · ${[poi, d.area].filter(Boolean).join(', ')}` : ''} ${coordsOf(pos)}`;
         put(panel, tucked ? tuckHtml(tip, status) : miniHtml(pos, d, tip, status) + mode);
-        placeUnderBar();
+        settle(false);
         return;
       }
       // The head: the fold toggle, which shows the hour when there is one (the user, 20 Oct 2026, a mock-up of the
@@ -1284,8 +1306,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         placeBox(status, pos) +
         `<div class="voyage-skills">${worksRows(lists)}</div>` +
         lockedBlock(lists));
-      placeUnderBar();
-      alignRowButtons(true);
+      settle(true);
     } catch (e) { log('here panel failed', e); }
   };
   /** The map page is the one open: the panel lives on it and is drawn only then. */
@@ -1329,7 +1350,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     renderQueued = true;
     setTimeout(() => { renderQueued = false; render(); }, 0);
   };
-  ctx.patch(Cartography, 'onPageVisible').after(() => { renderSoon(); });
+  ctx.patch(Cartography, 'onPageVisible').after(() => { layoutDue = true; renderSoon(); });
   // A level gained can open a zoned skill here (build .280): Works and Locked follow at once.
   ctx.patch(Skill, 'onLevelUp').after(function () { try { if (state.zoneTable?.skills?.[this.id] !== undefined) renderSoon(); } catch {} });
   ctx.onCharacterLoaded(() => {

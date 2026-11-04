@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultSave, loadSave, serializeSave, emptyJournal, cleanJournal, JOURNAL_GUIDES, JOURNAL_LIMITS, FREE_CHART_LEVELS, GOLBIN_GIFT } from '../src/voyage-model.mjs';
-import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, parseHex, splitLinks, linkTargetExists, folksLines, chart, chartChance, freeChartsLeft, markUnread, markRead, unreadCount, CHART_ITEMS, JOURNAL_GUIDE_SECTIONS, JOURNAL_CHAPTERS, JOURNAL_WRITTEN } from '../src/journal-model.mjs';
+import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, searchIndex, searchIn, parseHex, splitLinks, linkTargetExists, folksLines, chart, chartChance, freeChartsLeft, markUnread, markRead, unreadCount, CHART_ITEMS, JOURNAL_GUIDE_SECTIONS, JOURNAL_CHAPTERS, JOURNAL_WRITTEN } from '../src/journal-model.mjs';
 
 test('v6 saves get an empty journal', () => {
   const v6 = { v: 6, landHexes: 3, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 10, fuel: 1 }, kitGiven: true, hold: [], unlockNotice: [] };
   const { save, report } = loadSave(JSON.stringify(v6));
-  assert.deepEqual(report.applied, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]);
+  assert.deepEqual(report.applied, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]);
   assert.deepEqual(save.journal, { ...emptyJournal(), opened: true });
   assert.equal(save.landHexes, 3);
 });
@@ -94,6 +94,18 @@ test('search takes the skill name too, alone or with a name', () => {
   assert.deepEqual(search(entries, 'mining shark'), []);
 });
 
+test('searchIn over a kept index finds what search finds, query by query', () => {
+  const entries = [
+    { id: 'iron', names: ['Iron', 'Iron Ore'], skill: 'Mining' },
+    { id: 'goblin', names: ['Goblin Village', 'Grasslands', 'Golbin', 'Bones'], skill: 'Fought at' },
+    { id: 'cafe', names: ['Café Ómnibus'] },
+  ];
+  const index = searchIndex(entries);
+  for (const q of ['', 'i', 'iron o', 'min', 'gol', 'bones', 'fought gob', 'cafe omni', 'x']) assert.deepEqual(searchIn(index, q), search(entries, q), q);
+  assert.deepEqual(searchIn(index, 'cafe'), ['cafe']);
+  assert.deepEqual(searchIndex(undefined), []);
+});
+
 test('crosslinks: split into text and links, targets checked', () => {
   assert.deepEqual(splitLinks('See [[ch:stores|the table]] and [[tab:places|Places]].'), [
     { text: 'See ' }, { kind: 'ch', id: 'stores', text: 'the table' }, { text: ' and ' }, { kind: 'tab', id: 'places', text: 'Places' }, { text: '.' },
@@ -111,7 +123,7 @@ test('crosslinks: split into text and links, targets checked', () => {
 test('v7 saves get charting and unread marks, the rest kept', () => {
   const v7 = { v: 7, landHexes: 1, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [], unlockNotice: [], journal: { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'] } };
   const { save, report } = loadSave(JSON.stringify(v7));
-  assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]);
+  assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]);
   assert.deepEqual(save.journal, { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'], charted: [], freeUsed: 0, unread: {}, golbin: false, ports: {}, opened: true });
 });
 

@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-03.517';
+export const BUILD = '2026-11-04.519';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -162,7 +162,7 @@ export async function setup(ctx) {
   // Four sections (build .387, the user; the alpha report: 17 entries in one 1,929 px list): Rules, Travel, Display,
   // Keys. The game stores a value under its section's name, so the split set the test saves back to the defaults
   // once (Voyage had no release). The names stay English: they key the save.
-  const SECTION_OF = { rules: 'Rules', strictness: 'Rules', zones: 'Rules', combat: 'Rules', trade: 'Rules', provisions: 'Rules',
+  const SECTION_OF = { rules: 'Rules', strictness: 'Rules', zones: 'Rules', combat: 'Rules', trade: 'Rules', provisions: 'Rules', supply: 'Rules',
     timedTravel: 'Travel', weather: 'Travel', night: 'Travel', nightShift: 'Travel',
     overlay: 'Display', mapMotion: 'Display', bookOpening: 'Display', journalKey: 'Keys', centreKey: 'Keys', mapKey: 'Keys' };
   const sections = Object.fromEntries(['Rules', 'Travel', 'Display', 'Keys'].map((n) => [n, ctx.settings.section(n)]));
@@ -202,6 +202,7 @@ export async function setup(ctx) {
     { type: 'switch', name: 'combat', label: getLangString('MOD_VOY_SETTING_COMBAT'), hint: getLangString('MOD_VOY_SETTING_COMBAT_HINT'), default: true, onChange: onChange('combat') },
     { type: 'switch', name: 'trade', label: getLangString('MOD_VOY_SETTING_TRADE'), hint: getLangString('MOD_VOY_SETTING_TRADE_HINT'), default: true, onChange: onChange('trade') },
     { type: 'switch', name: 'provisions', label: getLangString('MOD_VOY_SETTING_PROVISIONS'), hint: getLangString('MOD_VOY_SETTING_PROVISIONS_HINT'), default: true, onChange: onChange('provisions') },
+    { type: 'switch', name: 'supply', label: getLangString('MOD_VOY_SETTING_SUPPLY'), hint: getLangString('MOD_VOY_SETTING_SUPPLY_HINT'), default: true, onChange: onChange('supply') },
     { type: 'switch', name: 'timedTravel', label: getLangString('MOD_VOY_SETTING_TIMED'), hint: getLangString('MOD_VOY_SETTING_TIMED_HINT'), default: true, onChange: onChange('timedTravel') },
     { type: 'switch', name: 'weather', label: getLangString('MOD_VOY_SETTING_WEATHER'), hint: getLangString('MOD_VOY_SETTING_WEATHER_HINT'), default: true, onChange: onChange('weather') },
     { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
@@ -251,6 +252,7 @@ export async function setup(ctx) {
       zones: () => flag('zones'),
       trade: () => flag('trade'),
       provisions: () => flag('provisions'),
+      supply: () => flag('supply'),
       night: () => flag('night'),
       weather: () => flag('weather'),
       timedTravel: () => flag('timedTravel'),
@@ -378,6 +380,7 @@ export async function setup(ctx) {
   const shipMod = await ctx.loadModule('src/ship.mjs');
   const unlocks = await ctx.loadModule('src/unlocks.mjs');
   const storesModel = await ctx.loadModule('src/stores-model.mjs');
+  const supplyModel = await ctx.loadModule('src/supply-model.mjs');
   const storesMod = await ctx.loadModule('src/stores.mjs');
   const holdMod = await ctx.loadModule('src/hold.mjs');
   // Pitch from Firemaking (3d). A failure leaves repairs short of Pitch, nothing else.
@@ -405,7 +408,7 @@ export async function setup(ctx) {
     state.landModel = landModel;
   } catch (e) { console.error('[Voyage] land upgrades failed to load; the rest runs', e); state.land = undefined; }
   // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
-  const stores = storesMod.install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log });
+  const stores = storesMod.install(ctx, { state, model, storesModel, supplyModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log });
   // Gear, relics and the Albatross (4.31): the effects the stores, the clock, cargo and the bands' tolls read, and the rolls
   // after a landed move. A failure: the gear's items do nothing.
   try { gearMod.install(ctx, { state, G: gearModel, log }); } catch (e) { console.error('[Voyage] gear failed to load; its effects are off', e); state.gear = undefined; }
@@ -471,7 +474,7 @@ export async function setup(ctx) {
     // The Deck block on the Voyage page (slice 3): the deck, presets, charms and the trick book.
     state.deck = (await ctx.loadModule('src/deck.mjs')).install(ctx, { state, F, log });
   } catch (e) { console.error('[Voyage] encounters failed to load', e); state.encounters = undefined; state.deck = undefined; }
-  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, shortNumber, decimal, log }) : undefined;
+  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, supplyModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, shortNumber, decimal, log }) : undefined;
   // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
   // popups and everything else as they were.
   state.helpSections = page?.helpSections;
@@ -485,7 +488,7 @@ export async function setup(ctx) {
   if (voyageSkillOk) {
     try {
       const planModel = await ctx.loadModule('src/plan-model.mjs');
-      (await ctx.loadModule('src/planner.mjs')).install(ctx, { state, model, planModel, storesModel, terrainMod, helpLayout, shortNumber, log });
+      (await ctx.loadModule('src/planner.mjs')).install(ctx, { state, model, planModel, storesModel, supplyModel, terrainMod, helpLayout, shortNumber, log });
     } catch (e) { console.error('[Voyage] the planner failed to load; the rest runs', e); state.planner = undefined; }
     // The ship's clock (phase 5a): travel takes time. A failure leaves phase 4's instant travel.
     try {
@@ -651,6 +654,9 @@ export async function setup(ctx) {
       map?.forEach((hex) => liveHexes.push({ q: hex.q, r: hex.r, isWater: hex.isWater }));
       const check = terrainMod.checkTable(table, { mapId: map?.id, hexes: liveHexes });
       state.terrain = terrainMod.createTerrain(table);
+      // Local supply: the places on land with no easy ground never run out (supply-model islandKeys), found from the
+      // table alone, before the season's ice is laid.
+      try { state.supplyIslands = supplyModel.islandKeys(table.hexes, storesModel.isEasy); } catch (e) { log('supply islands failed', e); state.supplyIslands = undefined; }
       // The season's ice is laid before anything reads the sea (phase 5c-1).
       state.weather?.loaded?.();
       // The tents' camps over the table and the ice (phase 6e): after the ice, which is found from the table alone.

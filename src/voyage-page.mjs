@@ -10,7 +10,7 @@ export const CONTAINER_ID = 'voyage-container';
 export const PAGE_ID = 'voyage:Voyage';
 const CARTOGRAPHY_PAGE_ID = 'melvorAoD:Cartography';
 
-export function install(ctx, { state, model, shipModel, storesModel, rules, pageLayout, helpLayout, helpHtml, HELP_WIDTH, shortNumber, decimal, log }) {
+export function install(ctx, { state, model, shipModel, storesModel, supplyModel, rules, pageLayout, helpLayout, helpHtml, HELP_WIDTH, shortNumber, decimal, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const part = (name) => document.querySelector(`#${CONTAINER_ID} [data-voyage="${name}"]`);
@@ -207,12 +207,16 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
   };
   /** The load preview: what the typed amount adds to the stores. */
   let loadPreview;
+  // Local supply (4.4a): where a load of n comes from when it draws more than one place, or ''.
+  let loadSplit;
   const refreshMain = (action) => {
     if (action !== 'load' || loadPreview === undefined) return;
     const btn = document.querySelector(`#${CONTAINER_ID} [data-voyage-action="load"]`);
     const n = typed('load');
     if (btn !== null) btn.textContent = n > 0 ? `${t('MOD_VOY_PAGE_STORES_LOAD')} (${loadPreview(n)})` : t('MOD_VOY_PAGE_STORES_LOAD');
     if (btn !== null) btn.disabled = n <= 0;
+    const split = document.querySelector(`#${CONTAINER_ID} .voyage-load-split`);
+    if (split !== null) split.textContent = n > 0 ? loadSplit?.(n) ?? '' : '';
   };
 
   /**
@@ -935,6 +939,21 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         t('MOD_VOY_HELP_LOAD_WHERE'),
         { table: { cols: [t('MOD_VOY_HELP_COL_PLACE'), t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_HELP_COL_FUEL')], rows: loadRows() } },
       ] });
+      // Local supply (4.4a): a day's worth by place at your level's carry limit, or a line saying it is off.
+      if (st !== undefined) {
+        if (st.supplyOn?.() !== true) out.push({ head: t('MOD_VOY_HELP_HEAD_SUPPLY'), body: [t('MOD_VOY_HELP_SUPPLY_OFF')] });
+        else {
+          const cap = st.capacity();
+          out.push({ head: t('MOD_VOY_HELP_HEAD_SUPPLY'), body: [
+            t('MOD_VOY_HELP_SUPPLY_WHAT'),
+            { table: { cols: [t('MOD_VOY_HELP_COL_PLACE'), t('MOD_VOY_HELP_COL_FOOD_DAY'), t('MOD_VOY_HELP_COL_FUEL_DAY')], rows: storesModel.LOAD_PLACES.map((p) => {
+              const day = supplyModel.dayOf(p.id, cap);
+              return { cells: [t(HELP_PLACE_KEY[p.id] ?? 'MOD_VOY_HELP_PLACE_FARM'), st.hp(day.food), st.fuelText(storesModel.roundFuel(day.fuel))] };
+            }) } },
+            t('MOD_VOY_HELP_SUPPLY_REFILL'),
+          ] });
+        }
+      }
       const night = st?.timeOfDay?.() !== undefined;
       if (!night) out.push({ head: t('MOD_VOY_HELP_HEAD_NIGHT'), body: [t('MOD_VOY_PAGE_NIGHT_OFF')] });
       else {
@@ -1011,6 +1030,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     const api = state.stores;
     const have = api?.stores();
     loadPreview = undefined;
+    loadSplit = undefined;
     if (api === undefined || have === undefined) return `<div class="text-warning">${t('MOD_VOY_PAGE_NO_SHIP')}</div>`;
     const cap = api.capacity();
     // What you carry against what fits: 600 / 620 HP, 15 / 15.5 fuel. Amber when low, red when empty.
@@ -1031,6 +1051,15 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     const rates = api.loadingHere();
     if (rates === undefined) return `${html}${section(`<div class="text-warning">${t('MOD_VOY_PAGE_STORES_NO_LOADING')}</div>`)}`;
     let load = `<div>${t('MOD_VOY_PAGE_STORES_LOADING', { place: esc(t(PLACE_KEY[rates.place])), food: pct(rates.food), fuel: pct(rates.fuel) })}</div>`;
+    // Local supply (4.4a): what the places in reach have left today, and when they are full again. As a duration on
+    // the game clock, never a clock time: a refill can run past midnight, and spent from a time bank the game clock
+    // runs ahead of the real one.
+    const sup = api.supplyHere?.();
+    const at = (ms) => { try { return state.clock.duration(Math.max(60000, ms)); } catch { return ''; } };
+    if (sup !== undefined) {
+      const left = t('MOD_VOY_PAGE_STORES_SUPPLY', { food: t('MOD_VOY_UNIT_FOOD', { n: api.hp(sup.food) }), fuel: t('MOD_VOY_UNIT_FUEL', { n: api.fuelText(storesModel.roundFuel(sup.fuel)) }) });
+      load += `<div class="voyage-supply-line small">${esc(left)}${sup.full > 0 ? ` ${esc(t('MOD_VOY_PAGE_STORES_SUPPLY_FULL_IN', { time: at(sup.full) }))}` : ''}</div>`;
+    }
     const items = api.loadable().filter((x) => rates[x.kind] > 0);
     const unit = (x) => `${x.item.name}, ${x.kind === 'food' ? t('MOD_VOY_PAGE_STORES_UNIT_FOOD', { hp: `${x.unit}` }) : t('MOD_VOY_PAGE_STORES_UNIT_FUEL', { fuel: `${x.unit}` })}`;
     if (items.length > 0 && !items.some((x) => x.item.id === picked)) picked = items[0].item.id;
@@ -1051,12 +1080,23 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
     const rate = rates[sel.kind];
     // The limit (build .66): no more items than it takes to fill the room left.
     const room = Math.max(0, cap[sel.kind] - have[sel.kind]);
-    const most = storesModel.loadCount(sel.unit, rate, sel.qty, room);
+    // Up to the room and the stocks in reach (local supply, 4.4a): the best place first, then the next.
+    const plan = (n) => api.loadPlan?.(sel.unit, n, sel.kind) ?? { n: storesModel.loadCount(sel.unit, rate, n, room), parts: [] };
+    const most = plan(sel.qty).n;
     load += `<div class="mt-2">${esc(t('MOD_VOY_PAGE_SELECTED', { item: unit(sel), count: numberWithCommas(sel.qty) }))}</div>`;
+    if (most <= 0 && room > 0 && sup !== undefined) {
+      return html + section(`${load}<div class="mt-2 text-warning">${esc(t(sel.kind === 'food' ? 'MOD_VOY_PAGE_STORES_SOLD_OUT_FOOD' : 'MOD_VOY_PAGE_STORES_SOLD_OUT_FUEL', { time: at(sup.back[sel.kind]) }))}</div>`);
+    }
     if (most <= 0) return html + section(`${load}<div class="mt-2 text-warning">${t(sel.kind === 'food' ? 'MOD_VOY_PAGE_STORES_FULL_FOOD' : 'MOD_VOY_PAGE_STORES_FULL_FUEL')}</div>`);
+    const amountText = (v) => (sel.kind === 'food' ? t('MOD_VOY_UNIT_FOOD', { n: api.hp(v) }) : t('MOD_VOY_UNIT_FUEL', { n: api.fuelText(storesModel.roundFuel(v)) }));
+    loadSplit = (n) => {
+      const parts = plan(Math.min(n, most)).parts;
+      if (parts.length < 2) return '';
+      return t('MOD_VOY_PAGE_STORES_SPLIT', { parts: parts.map((x) => t('MOD_VOY_PAGE_STORES_SPLIT_PART', { amount: amountText(x.added), place: t(PLACE_KEY[x.place]) })).join(', ') });
+    };
     loadPreview = (n) => {
-      const v = Math.min(room, storesModel.loadAmount(sel.unit, Math.min(n, most), rate));
-      return `+${sel.kind === 'food' ? t('MOD_VOY_UNIT_FOOD', { n: api.hp(v) }) : t('MOD_VOY_UNIT_FUEL', { n: api.fuelText(storesModel.roundFuel(v)) })}`; // units on both (.308, A-11/A2-18)
+      const v = Math.min(room, plan(Math.min(n, most)).added ?? storesModel.loadAmount(sel.unit, Math.min(n, most), rate));
+      return `+${amountText(v)}`; // units on both (.308, A-11/A2-18)
     };
     const value = amountFor('load', sel.item.id, most, most);
     load += actionBlock({
@@ -1065,6 +1105,7 @@ export function install(ctx, { state, model, shipModel, storesModel, rules, page
         .concat([{ n: most, label: t(most < sel.qty ? 'MOD_VOY_PAGE_STORES_LOAD_FILL' : 'MOD_VOY_PAGE_STORES_LOAD_ALL') }]),
       main: `${t('MOD_VOY_PAGE_STORES_LOAD')} (${loadPreview(value)})`,
     });
+    if (sup !== undefined) load += `<div class="voyage-load-split small text-muted mt-1">${esc(loadSplit(value))}</div>`;
     return html + section(load);
   };
 

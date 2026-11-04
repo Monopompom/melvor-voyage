@@ -8,8 +8,9 @@
 // Modal buttons: confirm green, cancel blue outline (the game's default cancel is red; grey means disabled).
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 
-export function install(ctx, { state, model, storesModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log }) {
+export function install(ctx, { state, model, storesModel, supplyModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log }) {
   const S = storesModel;
+  const SM = supplyModel;
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const skill = () => state.voyageSkill?.();
@@ -192,7 +193,9 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     if (rec === undefined || rec.cloud === true) return false;
     if (S.isEasy(rec.t)) return true;
     const rates = harvested(S.loadingAt(rec, state.knownNeighbours(rec)));
-    return rates !== undefined && rates.food > 0 && food > 0;
+    if (rates === undefined || !(rates.food > 0) || !(food > 0)) return false;
+    // Local supply (4.4a): a place sold out of food is no way out either; one ration's worth in reach will do.
+    return !supplyOn() || SM.totalStock(sourcesAt(hex), 'food') >= S.RATION_HP;
   };
   /** HP of food in the bank, at full worth. */
   const bankFood = () => loadable().reduce((sum, x) => sum + (x.kind === 'food' ? x.unit * x.qty : 0), 0);
@@ -211,7 +214,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     const have = stores();
     const food = bankFood();
     const c = crew();
-    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}|${c.count}:${c.food}|${modsKey()}`;
+    const key = `${pos.q},${pos.r}|${have.food}|${have.fuel}|${fmLevel()}|${state.ship?.boat()?.q},${state.ship?.boat()?.r}|${state.ship?.big()?.q},${state.ship?.big()?.r}|${food}|${c.count}:${c.food}|${modsKey()}|${supplyVersion}`;
     if (rescueMemo?.key === key) return rescueMemo.value;
     let value;
     try { value = rescueFrom(pos, have, food); } catch (e) { log('provisions rescue failed', e); }
@@ -430,6 +433,84 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
   };
   /** Loading rates where the player stands: { place, food, fuel } or undefined (wild, sea, or provisions off). */
   const loadingHere = () => loadingAtHex(state.position());
+
+  // ---- local supply (4.4a): each loading hex packs only so much a day ------------------------------------------
+  /** On with Provisions and its own "Local supply" setting. */
+  const supplyOn = () => enabled() && state.settings.supply?.() !== false;
+  const gameNow = () => { try { return state.gameNow?.() ?? Date.now(); } catch { return Date.now(); } };
+  // The save's stocks, cleaned once per record read (a load or a new character brings a new record).
+  let supplyFor;
+  const supplyOf = () => {
+    const r = skill().record;
+    if (supplyFor !== r) { r.supply = SM.cleanSupply(r.supply); supplyFor = r; }
+    return r.supply;
+  };
+  // Moves on with every draw, for the memos that read stocks (the trader's road, the planner).
+  let supplyVersion = 0;
+  /**
+   * The loading places in reach of a game hex, each { key, place, food, fuel, stock: { food, fuel } } with the Fall
+   * harvest on its rates; `at` the game-clock time the stock is read for (the planner's arrival), now by default.
+   * With local supply off, every stock is Infinity.
+   */
+  const sourcesAt = (hex, at) => {
+    const rec = hex === undefined ? undefined : recOf(hex);
+    if (rec === undefined || state.terrain === undefined || !usable()) return [];
+    const on = supplyOn();
+    const cap = capacity();
+    const sup = on ? supplyOf() : undefined;
+    const now = at ?? gameNow();
+    // On land with no easy ground a place never runs out (state.supplyIslands, set when the table loads).
+    const islands = state.supplyIslands;
+    return S.loadingList(rec, state.knownNeighbours(rec)).map((p) => ({ ...harvested(p),
+      stock: on && islands?.has(p.key) !== true ? SM.stockOf(sup[p.key], p.place, cap, now) : { food: Infinity, fuel: Infinity } }));
+  };
+  /**
+   * What the places in reach of `hex` hold now (4.4a), or undefined with local supply off or nowhere to load:
+   * { food, fuel } in stores units, `room` the stores' room, `short` each kind whose stock is less than the room,
+   * `back` the game-clock ms until a ration's worth of each is there again (0 when it is), `full` until every place in
+   * reach is full.
+   */
+  const supplyAt = (hex) => {
+    if (!supplyOn()) return undefined;
+    const src = sourcesAt(hex);
+    // Nowhere to load, or a place in reach that never runs out (an island with no easy ground): nothing to tell.
+    if (src.length === 0 || src.some((p) => p.stock.food === Infinity)) return undefined;
+    const have = stores();
+    const cap = capacity();
+    const sup = supplyOf();
+    const now = gameNow();
+    const out = { food: SM.totalStock(src, 'food'), fuel: SM.totalStock(src, 'fuel'), room: { food: Math.max(0, cap.food - have.food), fuel: Math.max(0, cap.fuel - have.fuel) } };
+    out.short = { food: out.food < out.room.food, fuel: out.fuel < out.room.fuel };
+    const want = { food: S.RATION_HP, fuel: 1 };
+    out.back = {};
+    for (const kind of ['food', 'fuel']) {
+      const ms = src.filter((p) => p[kind] > 0).map((p) => SM.msUntil(sup[p.key], p.place, cap, now, kind, want[kind]));
+      out.back[kind] = ms.length === 0 ? Infinity : Math.min(...ms);
+    }
+    out.full = Math.max(0, ...src.map((p) => SM.msUntilFull(sup[p.key], now)));
+    return out;
+  };
+  const supplyHere = () => supplyAt(state.position());
+  /** Draws a load's parts from the stocks they came from (4.4a). */
+  const draw = (kind, parts, now) => {
+    if (!supplyOn() || parts.length === 0) return;
+    const cap = capacity();
+    const sup = supplyOf();
+    for (const p of parts) if (state.supplyIslands?.has(p.key) !== true) sup[p.key] = SM.drawn(sup[p.key], p.place, cap, now, { [kind]: p.added });
+    skill().record.supply = SM.pruned(sup, now);
+    supplyFor = skill().record;
+    supplyVersion++;
+    rescueMemo = undefined;
+  };
+  /**
+   * How a load of `qty` items of `unit` of `kind` would go in where you stand (the page's preview and Load):
+   * supply-model planLoad's { n, added, parts } against the stores' room and the places' stocks.
+   */
+  const loadPlan = (unit, qty, kind) => {
+    const s = stores();
+    if (s === undefined) return { n: 0, added: 0, parts: [] };
+    return SM.planLoad(S, unit, qty, capacity()[kind] - s[kind], sourcesAt(state.position()), kind);
+  };
   let logIds;
   const logs = () => {
     if (logIds === undefined) {
@@ -464,17 +545,20 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
     const food = foodOf(item);
     const kind = food > 0 ? 'food' : 'fuel';
     const unit = food > 0 ? food : fuelOf(item);
-    const rate = rates[kind];
     const s = stores();
     const cap = capacity();
-    const n = S.loadCount(unit, rate, Math.min(Math.floor(qty), game.bank.getQty(item)), cap[kind] - s[kind]);
-    if (unit <= 0 || rate <= 0 || n <= 0) return undefined;
+    if (unit <= 0 || !(rates[kind] > 0)) return undefined;
+    // The best place in reach first, then the next at its own rate, each up to its stock (local supply, 4.4a).
+    const now = gameNow();
+    const plan = loadPlan(unit, Math.min(Math.floor(qty), game.bank.getQty(item)), kind);
+    const { n, added } = plan;
+    if (n <= 0) return undefined;
     game.bank.removeItemQuantity(item, n, true);
-    const added = S.loadAmount(unit, n, rate);
+    draw(kind, plan.parts, now);
     // up to the limit: the last item may spill over (loadCount)
     if (kind === 'food') set(Math.min(cap.food, s.food + added), s.fuel); else set(s.food, Math.min(cap.fuel, s.fuel + added));
-    log(`loaded ${n} ${item.id}: +${added} ${kind} at ${rates.place}`);
-    return { kind, added, n };
+    log(`loaded ${n} ${item.id}: +${added} ${kind} at ${plan.parts.map((p) => `${p.place} ${p.key} ${p.added}`).join(', ')}`);
+    return { kind, added, n, parts: plan.parts };
   };
 
   // ---- the starter kit -----------------------------------------------------------------------------------------
@@ -496,6 +580,7 @@ export function install(ctx, { state, model, storesModel, shipModel, terrainMod,
 
   const api = {
     enabled, stores, planFor, priceSteps, loadingAtHex, afterMove, refuse, rescue,
+    supplyOn, sourcesAt, supplyAt, supplyHere, loadPlan, supplyVersion: () => supplyVersion,
     /** Offers the trader's share when the stores can't reach safe ground (the panel's Stranded? button). */
     offer() {
       const help = rescue();

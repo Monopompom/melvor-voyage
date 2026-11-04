@@ -262,17 +262,27 @@ export const fold = (s) => String(s ?? '').toLowerCase().normalize('NFD').replac
  * ids in entry order.
  */
 export function search(entries, query) {
-  const words = fold(query).split(' ').filter((w) => w !== '');
-  if (words.length === 0) return entries.map((e) => e.id);
+  return searchIn(searchIndex(entries), query);
+}
+
+/**
+ * The entries' names folded once, for searchIn: [{ id, names: [[words of a name, then the skill's]] }]. A list kept
+ * while typing folds nothing per keystroke (build .519: the Places list folded some 1,500 names a key).
+ */
+export function searchIndex(entries) {
   // The skill's name counts with every name (build .114, the user's ask): "mining" lists every Mining entry, "mining
   // cop" finds Copper.
-  return entries.filter((e) => {
+  return (entries ?? []).map((e) => {
     const skill = e.skill === undefined ? [] : fold(e.skill).split(' ');
-    return e.names.some((n) => {
-      const parts = [...fold(n).split(' '), ...skill];
-      return words.every((w) => parts.some((p) => p.startsWith(w)));
-    });
-  }).map((e) => e.id);
+    return { id: e.id, names: e.names.map((n) => [...fold(n).split(' '), ...skill]) };
+  });
+}
+
+/** search() over a searchIndex: the ids whose one name has every query word starting one of its words, in order. */
+export function searchIn(index, query) {
+  const words = fold(query).split(' ').filter((w) => w !== '');
+  if (words.length === 0) return index.map((e) => e.id);
+  return index.filter((e) => e.names.some((parts) => words.every((w) => parts.some((x) => x.startsWith(w))))).map((e) => e.id);
 }
 
 // ---------------------------------------------------------------- charting (build .116)

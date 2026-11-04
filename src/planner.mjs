@@ -15,7 +15,7 @@ const CANDIDATES = 6;
 /** How long a computed plan is trusted without its inputs moving (the page reads it per render). */
 const PLAN_MEMO_MS = 1000;
 
-export function install(ctx, { state, model, planModel: P, storesModel: S, terrainMod, helpLayout, shortNumber, log }) {
+export function install(ctx, { state, model, planModel: P, storesModel: S, supplyModel, terrainMod, helpLayout, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const skill = () => state.voyageSkill?.();
@@ -60,6 +60,15 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
    * vessels, the terrain and knowledge versions, the stores and what the bank could load, the crew, the mount. The
    * route itself reads none of the GP or bank totals the page's signature watches.
    */
+  // Each target its own number in the key (build .519): the name and the hex count alone let two targets that share
+  // them share one plan within PLAN_MEMO_MS.
+  const targetIds = new WeakMap();
+  let targetSerial = 0;
+  const targetId = (t) => {
+    let id = targetIds.get(t);
+    if (id === undefined) { id = ++targetSerial; targetIds.set(t, id); }
+    return id;
+  };
   const planKey = () => {
     const map = live();
     const from = map?.playerPosition;
@@ -71,7 +80,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
     for (const h of target.hexes) if (liveHex(h.q, h.r)?.isFullySurveyed === true) surveyed++;
     const bank = st?.enabled?.() === true ? st.loadable().map((x) => `${x.item.id}:${x.qty}`).join(',') : '';
     const have = st?.stores?.();
-    return `${map?.id}|${from?.q},${from?.r}|${target.name}|${target.hexes.length}|${surveyed}|${b?.q},${b?.r},${b?.cond},${b?.aboard}|${g?.q},${g?.r},${g?.cond}|${state.terrain?.version}|${state.knowledge?.version}|${have?.food},${have?.fuel}|${bank}|${state.crew?.count?.()}|${state.land?.tier?.()}|${sh?.enabled?.()}`;
+    return `${map?.id}|${from?.q},${from?.r}|${targetId(target)}|${surveyed}|${b?.q},${b?.r},${b?.cond},${b?.aboard}|${g?.q},${g?.r},${g?.cond}|${state.terrain?.version}|${state.knowledge?.version}|${have?.food},${have?.fuel}|${bank}|${state.crew?.count?.()}|${state.land?.tier?.()}|${sh?.enabled?.()}|${st?.supplyVersion?.() ?? 0}`;
   };
   // The last plan, kept while its key stands and for PLAN_MEMO_MS (build .401): the page computed it per render, up to
   // six route searches each, and a GP tick redrew the page.
@@ -102,10 +111,22 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, terra
       const cap = st.capacity();
       const bank = st.loadable().map((x) => ({ id: x.item.id, kind: x.kind, unit: x.unit, qty: x.qty }));
       const price = (h, from, to) => st.priceSteps(h, steps.slice(from, to), walk[to]);
+      // Local supply (4.4a): each stop's stock as it will be on arrival, the route's own step times with Timed travel
+      // (now with it off: the trip is one move). Set off checks again when it is pressed.
+      let arrive;
+      if (st.supplyOn?.() === true && state.clock?.on?.() === true) {
+        try {
+          const ms = state.clock.routeInfo(r.path)?.stepMs;
+          if (Array.isArray(ms)) { arrive = [0]; for (const x of ms) arrive.push(arrive[arrive.length - 1] + x); }
+        } catch (e) { log('plan arrival times failed', e); }
+      }
+      const t0 = state.gameNow?.() ?? Date.now();
       const loadAt = (i, h, stock) => {
         const rates = st.loadingAtHex(walk[i]);
         if (rates === undefined) return undefined;
-        return { ...P.simulateLoad(S, h, cap, rates, stock), place: rates.place };
+        const sources = st.sourcesAt?.(walk[i], t0 + (arrive?.[i] ?? 0));
+        const from = sources !== undefined && sources.length > 0 && supplyModel !== undefined ? sources : rates;
+        return { ...P.simulateLoad(S, h, cap, from, stock, supplyModel?.planLoad), place: rates.place };
       };
       split = P.splitLegs(n, have, bank, price, loadAt);
     }

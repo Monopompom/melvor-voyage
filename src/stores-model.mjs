@@ -122,6 +122,20 @@ export function loadingAt(rec, neighbours = []) {
   return best;
 }
 
+/**
+ * Every loading place in reach (local supply, 4 Nov 2026): the hex itself first, then its neighbours, each
+ * { key: "q,r", place, food, fuel } at its own rates. Each has a stock of its own (supply-model.mjs).
+ */
+export function loadingList(rec, neighbours = []) {
+  const out = [];
+  for (const r of [rec, ...neighbours]) {
+    const p = placeOf(r);
+    if (p === undefined || !Number.isInteger(r.q) || !Number.isInteger(r.r)) continue;
+    out.push({ key: `${r.q},${r.r}`, place: p.id, food: p.food, fuel: p.fuel });
+  }
+  return out;
+}
+
 /** What `qty` items of `unit` HP (or fuel units) put in the stores at `rate`. */
 export const loadAmount = (unit, qty, rate) => unit * Math.max(0, Math.floor(qty)) * Math.max(0, rate);
 

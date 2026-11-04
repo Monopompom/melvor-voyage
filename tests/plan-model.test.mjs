@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../src/stores-model.mjs';
 import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs, legPath, worthLoading, travelHandover } from '../src/plan-model.mjs';
+import { planLoad } from '../src/supply-model.mjs';
 
 test('Navigator\'s Charts: owned, level, port, cost, then buyable', () => {
   const ok = { owned: false, level: NAVIGATOR.level, atPort: true, gp: NAVIGATOR.gp, items: Object.fromEntries(NAVIGATOR.items.map((x) => [x.id, x.quantity])) };
@@ -21,6 +22,21 @@ test('loading at a stop: best food first up to the limit, then fuel, at the plac
   assert.equal(r.bank[0].qty, 5);
   assert.equal(bank[0].qty, 10, 'the bank list handed in is not changed');
   assert.deepEqual(simulateLoad(S, { food: 0, fuel: 0 }, { food: 100, fuel: 10 }, { food: 0, fuel: 0 }, bank).used, []);
+});
+
+test('loading at a stop with local supply: the stocks in reach cap it, drawn item by item, best rate first', () => {
+  const bank = [{ id: 'shark', kind: 'food', unit: 200, qty: 10 }, { id: 'bread', kind: 'food', unit: 50, qty: 100 }, { id: 'logs', kind: 'fuel', unit: 1, qty: 100 }];
+  const places = [
+    { key: '1,1', place: 'farm', food: 0.5, fuel: 0.5, stock: { food: 100, fuel: 1 } },
+    { key: '1,2', place: 'market', food: 0.75, fuel: 0.5, stock: { food: 300, fuel: 2 } },
+  ];
+  const r = simulateLoad(S, { food: 0, fuel: 0 }, { food: 1000, fuel: 10 }, places, bank, planLoad);
+  // sharks: 2 at the market (300 HP, stock 300), then 1 at the farm (100 HP runs to 100 past nothing left); bread: none
+  assert.deepEqual(r.used.map((u) => [u.id, u.n, u.added]), [['shark', 3, 400], ['logs', 6, 3]]);
+  assert.deepEqual(r.stores, { food: 400, fuel: 3 });
+  assert.equal(places[1].stock.food, 300, 'the stocks handed in are not changed');
+  // without planLoad an array is no rates: nothing loads (the old callers hand in rates)
+  assert.deepEqual(simulateLoad(S, { food: 0, fuel: 0 }, { food: 1000, fuel: 10 }, places, bank).used, []);
 });
 
 // A toy route: each step costs 1 food; loading places refill to 5.
@@ -78,7 +94,7 @@ test('save v9: Navigator\'s Charts start unbought and stay bought', async () => 
   const old = { ...defaultSave(), v: 8 };
   delete old.navigator;
   const { save, report } = loadSave(JSON.stringify(old));
-  assert.deepEqual(report.applied, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]);
+  assert.deepEqual(report.applied, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]);
   assert.equal(save.navigator, false);
   const bought = loadSave(serializeSave({ ...save, navigator: true })).save;
   assert.equal(bought.navigator, true);

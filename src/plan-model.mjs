@@ -28,15 +28,27 @@ export function navigatorBlocker(have) {
  * [{ id, kind: 'food' | 'fuel', unit, qty }] in the order to load. Returns { stores, bank (with the quantities left),
  * used: [{ id, n, kind, added }] }; nothing changes at a rate of 0. `S`: stores-model.mjs.
  */
-export function simulateLoad(S, stores, cap, rates, bank) {
+export function simulateLoad(S, stores, cap, rates, bank, planLoad) {
   const out = { food: stores.food, fuel: stores.fuel };
   const left = bank.map((x) => ({ ...x }));
   const used = [];
+  // Local supply (4.4a): `rates` may be the places in reach, each with its stock ({ key, place, food, fuel, stock }),
+  // loaded through supply-model planLoad (best rate first, each up to its stock), the stocks drawn item by item.
+  const sources = Array.isArray(rates) && typeof planLoad === 'function' ? rates.map((s) => ({ ...s, stock: { ...s.stock } })) : undefined;
   for (const x of left) {
-    const rate = rates?.[x.kind] ?? 0;
-    const n = S.loadCount(x.unit, rate, x.qty, cap[x.kind] - out[x.kind]);
+    let n;
+    let added;
+    if (sources !== undefined) {
+      const p = planLoad(S, x.unit, x.qty, cap[x.kind] - out[x.kind], sources, x.kind);
+      n = p.n;
+      added = p.added;
+      for (const part of p.parts) { const s = sources.find((y) => y.key === part.key); if (s !== undefined) s.stock[x.kind] -= part.added; }
+    } else {
+      const rate = rates?.[x.kind] ?? 0;
+      n = S.loadCount(x.unit, rate, x.qty, cap[x.kind] - out[x.kind]);
+      added = n > 0 ? S.loadAmount(x.unit, n, rate) : 0;
+    }
     if (n <= 0) continue;
-    const added = S.loadAmount(x.unit, n, rate);
     out[x.kind] = x.kind === 'food' ? Math.min(cap.food, out.food + added) : S.roundFuel(Math.min(cap.fuel, out.fuel + added));
     x.qty -= n;
     used.push({ id: x.id, n, kind: x.kind, added });

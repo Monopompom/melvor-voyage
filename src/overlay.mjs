@@ -171,6 +171,22 @@ export function install(ctx, { state, terrainMod, log }) {
   /** Bumped when a Folk moves, joins or leaves (gate.mjs listens to Worker Folks); part of the redraw key. */
   let folkStamp = 0;
   // The map's own draw counts too: a first call before the map is drawn would otherwise never be redone.
+  // One text per count and sharpness, kept; each badge is a sprite over its texture (build .519). The badges are redrawn
+  // on every zoom frame, and a new PIXI.Text per badge each time drew its glyphs and sent a texture again: 11.5 ms a
+  // frame with 3 badges, up to 51. The texts stay out of the layer, so clearing it leaves them.
+  const FOLK_TEXTS_MAX = 64;
+  const folkTexts = new Map(); // `${n}|${sharp}` -> PIXI.Text
+  const folkTexture = (n, sharp) => {
+    const key = `${n}|${sharp}`;
+    let text = folkTexts.get(key);
+    if (text === undefined || text.destroyed) {
+      if (folkTexts.size >= FOLK_TEXTS_MAX) { for (const x of folkTexts.values()) x.destroy(true); folkTexts.clear(); }
+      text = new PIXI.Text(`${n}`, { fontFamily: 'Arial', fontSize: FOLK_FONT_PX * sharp, fontWeight: '700', fill: 0xffffff });
+      text.updateText(true);
+      folkTexts.set(key, text);
+    }
+    return text.texture;
+  };
   const folkKey = (vp, map) => `${folkStamp}|${vp?.scaled}|${map?.id}|${cartographyMap.lastDrawnMap === map}|${state.active?.()}|${state.folksGuarded === true}`;
   function drawFolks() {
     try {
@@ -228,7 +244,7 @@ export function install(ctx, { state, terrainMod, log }) {
         dots.endFill();
         // The count is drawn at (at least) its screen size and scaled down, so it stays sharp at any zoom.
         const sharp = Math.max(2, Math.ceil((vp.scaled || 1) * k * 2));
-        const text = new PIXI.Text(`${n}`, { fontFamily: 'Arial', fontSize: FOLK_FONT_PX * sharp, fontWeight: '700', fill: 0xffffff });
+        const text = new PIXI.Sprite(folkTexture(n, sharp));
         text.anchor.set(0.5, 0.5);
         text.scale.set(k / sharp);
         text.position.set(cx, cy);
