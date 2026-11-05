@@ -274,6 +274,8 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     e.calm = R.BREATHER;
     e.met += 1;
     log(`encounters: ${b} met (${p.where}, tier ${p.tier}, ${p.ground}), toll ${toll} GP`);
+    // The Guide's page on bands, the first time one stops you (1.5.0).
+    try { state.journal?.learn?.('bands'); } catch {}
     view = undefined;
     open();
     redraw();
@@ -332,6 +334,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     };
     e.away = [];
     log(`encounters: ${fold.n} band(s) met while away, led by ${lead.band}; claims ${fold.toll} GP, purses ${fold.purse} GP`);
+    try { state.journal?.learn?.('bands'); } catch {}
     try { state.clock?.holdForEncounter?.(); } catch (err) { log('encounters: voyage hold failed', err); }
     view = undefined;
     open();
@@ -357,6 +360,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     e.calm = R.BREATHER;
     e.met += 1;
     log(`encounters: ${b} met ${folk.name} (${p.where}, tier ${p.tier}, ${p.ground}), deck ${deck.length}, pack ${e.fight.folk.pack} food`);
+    try { state.journal?.learn?.('bands'); } catch {}
     view = undefined;
     open();
     redraw();

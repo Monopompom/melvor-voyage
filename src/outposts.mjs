@@ -381,7 +381,8 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   const askStrike = (key, done) => {
     const o = nearOne(key);
     if (o === undefined) return;
-    const lines = [t('MOD_VOY_OUTPOST_STRIKE_TEXT')];
+    // Without Worker Folks there are no Folks to stay behind (build .555).
+    const lines = [t(folksApi() === undefined ? 'MOD_VOY_OUTPOST_STRIKE_TEXT_NF' : 'MOD_VOY_OUTPOST_STRIKE_TEXT')];
     let lost;
     if (provisions() && (o.food > 0 || o.fuel > 0)) {
       const out = O.strike(state.stores.stores(), o, state.stores.capacity());

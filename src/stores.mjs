@@ -534,6 +534,8 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
     supplyFor = skill().record;
     supplyVersion++;
     rescueMemo = undefined;
+    // The Guide's page on local supply, the first time a place's day stock is drawn on (1.5.0).
+    try { state.journal?.learn?.('supply', offlineNow()); } catch {}
   };
   /**
    * How a load of `qty` items of `unit` of `kind` would go in where you stand (the page's preview and Load):
@@ -685,6 +687,8 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
         skill().record.stores = { food: r.have.food, fuel: r.have.fuel };
         if (offlineNow()) { spoiledAway.food += r.lost.food; spoiledAway.fuel = S.roundFuel(spoiledAway.fuel + r.lost.fuel); }
         else spoilShown();
+        // The Guide's page on spoilage, at the first loss (1.5.0); offline it waits as an unread page, no notice.
+        try { state.journal?.learn?.('spoil', offlineNow()); } catch {}
       }
     } else sp.cure = Math.max(0, sp.cure - ms);
     // The tents' stores (×½ wherever they stand), each with its own carried fraction.

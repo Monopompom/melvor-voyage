@@ -818,6 +818,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         ] },
         { head: t('MOD_VOY_HELP_HEAD_REPAIR'), body: [
           t('MOD_VOY_HELP_REPAIR', { step: `${R.step}`, logs: `${R.logs}`, pitch: `${R.pitch}` }),
+          t('MOD_VOY_HELP_REPAIR_WHERE'),
           t('MOD_VOY_HELP_CAREEN', { step: `${R.step}`, time: state.clock?.duration?.(shipModel.CAREEN_STEP_MS) ?? '' }),
           t('MOD_VOY_HELP_REPAIR_LOGS'),
           t('MOD_VOY_HELP_PITCH', { chance: `${shipModel.pitchChance(1)}` }),
@@ -948,7 +949,10 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       // Off by the settings, not by supplyOn(): that is also false for a moment while a save loads (the rules not yet
       // active), and the help once said "off" with the setting on (build .554).
       const setOff = (k) => state.settings.provisions?.() === false || state.settings[k]?.() === false;
-      if (st !== undefined) {
+      // Provisions off (scan .555): nothing loads, spoils or is foraged, so one line stands for all three sections.
+      const provOff = state.settings.provisions?.() === false;
+      if (provOff) out.push({ head: t('MOD_VOY_SETTING_PROVISIONS'), body: [t('MOD_VOY_HELP_PROVISIONS_OFF')] });
+      if (st !== undefined && !provOff) {
         if (setOff('supply')) out.push({ head: t('MOD_VOY_HELP_HEAD_SUPPLY'), body: [t('MOD_VOY_HELP_SUPPLY_OFF')] });
         else {
           const cap = st.capacity();
@@ -964,7 +968,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       }
       // Foraging (build .554): the odds and finds by level, on good ground; driftwood the same for all.
       const FM = st?.forageModel;
-      if (FM !== undefined) {
+      if (FM !== undefined && !provOff) {
         const wc = Object.keys(FM.FORAGE_SKILLS)[0];
         const at = (level) => FM.forageAt({ t: 'grasslands', f: [FM.FORAGE_SKILLS[wc][0]] }, { [wc]: level }).food;
         out.push({ head: t('MOD_VOY_HELP_HEAD_FORAGE'), body: [
@@ -978,7 +982,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       }
       // Spoilage (4.4b): the rates and every multiplier, in the Stores help and so in the Journal's Victuals chapter.
       const SP = st?.spoilModel;
-      if (SP !== undefined) {
+      if (SP !== undefined && !provOff) {
         if (setOff('spoilage')) out.push({ head: t('MOD_VOY_HELP_HEAD_SPOIL'), body: [t('MOD_VOY_HELP_SPOIL_OFF')] });
         else {
           const x = (n) => `×${n}`;
@@ -990,15 +994,16 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
             { table: { cols: [t('MOD_VOY_HELP_COL_SPOIL'), t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_HELP_COL_FUEL')], rows: [
               { cells: [t('MOD_VOY_HELP_SPOIL_PLACE'), x(SP.AT_FOOD_PLACE), x(SP.AT_FOOD_PLACE)] },
               { cells: [t('MOD_VOY_HELP_SPOIL_TENT'), x(SP.IN_TENT), x(SP.IN_TENT)] },
-              band('bitter'), band('cold'), band('warm'), band('scorching'),
-              { cells: [t('MOD_VOY_HELP_SPOIL_SEA'), one, x(SP.SEA_DAMP)] },
+              // The warmth and the sea's damp come from the weather: off, every hex is mild and dry (scan .555).
+              ...(state.settings.weather?.() === false ? [] : [band('bitter'), band('cold'), band('warm'), band('scorching'),
+                { cells: [t('MOD_VOY_HELP_SPOIL_SEA'), one, x(SP.SEA_DAMP)] }]),
               { cells: [t(casksOn ? 'MOD_VOY_HELP_SPOIL_CASKS_ON' : 'MOD_VOY_HELP_SPOIL_CASKS'), x(SP.PRESERVE), x(SP.PRESERVE)], ...(casksOn ? { cls: ['text-success', 'text-success'] } : {}) },
               { cells: [t('MOD_VOY_HELP_SPOIL_SALT', { h: `${SP.CURE_MS / SP.HOUR_MS}` }), x(SP.PRESERVE), x(SP.PRESERVE)] },
             ] } },
             t('MOD_VOY_HELP_SPOIL_STACK'),
             t('MOD_VOY_HELP_SPOIL_GET', { max: `${SP.CURE_MAX / SP.HOUR_MS}` }),
             t('MOD_VOY_HELP_SPOIL_FLOOR'),
-            t('MOD_VOY_HELP_SPOIL_PACK'),
+            ...(state.crew !== undefined && state.folksGuarded === true ? [t('MOD_VOY_HELP_SPOIL_PACK')] : []),
           ] });
         }
       }
@@ -1054,7 +1059,8 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     if (topic === 'compass') {
       return [
         { body: [t('MOD_VOY_HELP_COMPASS_BANK'), t('MOD_VOY_HELP_COMPASS_POINTS')] },
-        { head: t('MOD_VOY_HELP_HEAD_COMPASS_SEE'), body: [t('MOD_VOY_HELP_COMPASS_REFUSED'), t('MOD_VOY_HELP_COMPASS_PANEL')] },
+        { head: t('MOD_VOY_HELP_HEAD_COMPASS_SEE'), body: [t('MOD_VOY_HELP_COMPASS_REFUSED'), t('MOD_VOY_HELP_COMPASS_PANEL'),
+          t('MOD_VOY_HELP_COMPASS_LEVELS', { steps: `${model.COMPASS_LEVELS.steps}`, name: `${model.COMPASS_LEVELS.name}` })] },
       ];
     }
     return [];

@@ -876,6 +876,9 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       [t('MOD_VOY_SETTING_COMBAT'), onOff(s.combat())],
       [t('MOD_VOY_SETTING_TRADE'), onOff(s.trade())],
       [t('MOD_VOY_SETTING_PROVISIONS'), onOff(s.provisions())],
+      // Local supply and spoilage (1.3.0, 1.4.0; scan .555: the table left them out).
+      [t('MOD_VOY_SETTING_SUPPLY'), onOff(s.supply())],
+      [t('MOD_VOY_SETTING_SPOILAGE'), onOff(s.spoilage())],
       [t('MOD_VOY_SETTING_NIGHT'), onOff(s.night())],
       // The rest of the typed table's switches (build .423, scan: the live table left them out).
       [t('MOD_VOY_SETTING_WEATHER'), onOff(s.weather())],
