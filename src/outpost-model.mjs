@@ -1,5 +1,5 @@
-// Outposts (phase 6e): a Tent from the Voyage shop pitched on a land hex where one of your Folks stands. The hex then
-// counts as a camp, and the tent keeps a store of rations and fuel outside your carry limit. Pure: where a tent may go,
+// Outposts (phase 6e): a Tent from the Voyage shop pitched on a land hex, by one of your Folks there or by you. The hex
+// then counts as a camp, and the tent keeps a store of rations and fuel outside your carry limit. Pure: where a tent may go,
 // how many stand at a Voyage level, the store's sums and the save's outposts. The game side is src/outposts.mjs.
 
 /** The Tent: its item and shop purchase (local id) and the Voyage level that sells it. */
@@ -8,16 +8,22 @@ export const TENT = { id: 'Tent', level: 30 };
 export const OUTPOST_LEVELS = [30, 50, 70, 90];
 export const MAX_OUTPOSTS = OUTPOST_LEVELS.length;
 /** The skill milestones at those levels, by their English names (data/skill.json; setup.mjs finds them by these). */
-export const OUTPOST_MILESTONES = { first: 'Outposts: A Tent where a Folk works; a Merchant there sells for you', more: 'Outposts: One more tent at a time' };
+export const OUTPOST_MILESTONES = { first: 'Outposts: A Tent makes a camp; a Merchant there sells for you', more: 'Outposts: One more tent at a time' };
 /** Features that make a hex a place already: no tent goes there. */
 export const PLACE_FEATURES = ['city', 'capital', 'port', 'market', 'camp'];
 /** What a pitched tent adds to its hex's features. */
 export const OUTPOST_FEATURE = 'camp';
 /**
  * A tent is not up at once (build .367, the user): one Folk on the hex puts it up over this much time, online and
- * offline, its own skill set aside meanwhile. A balance value, open to change.
+ * offline, its own skill set aside meanwhile; with no Folk there, you do, over the same time. A balance value, open to
+ * change.
  */
 export const BUILD_MS = 60 * 60 * 1000;
+/**
+ * The builder's id when you put the tent up yourself (build .553, the user: "Pitch a tent yourself"). No Folk has it,
+ * so a Voyage from before reads the builder as gone and gives the Tent back.
+ */
+export const YOU = '@you';
 
 /** Tents that may stand at a Voyage level (0 to 4). */
 export function maxOutposts(level) {
@@ -42,18 +48,17 @@ export const isPlace = (rec) => Array.isArray(rec?.f) && rec.f.some((f) => PLACE
 
 /**
  * Whether a tent may be pitched here. `tents`: Tents in the bank; `outposts`: the save's map; `level`: Voyage level;
- * `rec`: the table's own record of the hex (under any weather layer: ice is still the land under it); `folkHere`: one
- * of your Folks is placed on the hex. Gives 'pitch' or why not: 'no-tent', 'pitched' (a tent stands here), 'unknown'
- * (not on the table, or under cloud), 'sea', 'place', 'full' (as many as the level allows), 'no-folk'.
+ * `rec`: the table's own record of the hex (under any weather layer: ice is still the land under it). Gives 'pitch' or
+ * why not: 'no-tent', 'pitched' (a tent stands here), 'unknown' (not on the table, or under cloud), 'sea', 'place',
+ * 'full' (as many as the level allows). No Folk is needed (build .553): with none on the hex, you put it up.
  */
-export function pitchAction({ tents, outposts, level, rec, folkHere }) {
+export function pitchAction({ tents, outposts, level, rec }) {
   if (!(tents > 0)) return 'no-tent';
   if (rec === undefined || rec === null || rec.cloud === true) return 'unknown';
   if (outposts[keyOf(rec.q, rec.r)] !== undefined) return 'pitched';
   if (SEA.includes(rec.t)) return 'sea';
   if (isPlace(rec)) return 'place';
   if (Object.keys(outposts).length >= maxOutposts(level)) return 'full';
-  if (!folkHere) return 'no-folk';
   return 'pitch';
 }
 
@@ -76,6 +81,8 @@ export const newOutpost = (now, folk, skill = null) => (folk === undefined
   : { food: 0, fuel: 0, at: whole(now), build: { folk: String(folk), until: whole(now) + BUILD_MS, skill: skill ?? null } });
 /** True while the tent is still going up. */
 export const isBuilding = (o) => o?.build !== undefined;
+/** True while you are putting it up yourself. */
+export const byYou = (o) => isBuilding(o) && o.build.folk === YOU;
 /** The builder's statuses (Worker Folks' view `status`) that pause the work (build .387, the user: a Folk on strike built on). */
 export const BUILD_PAUSE = ['strike', 'debt', 'cooldown'];
 /** Ms of work left on a tent going up at `now` (0 when it is up); a paused build keeps what it had when it paused. */
@@ -111,6 +118,16 @@ export function buildStep(o, key, folk, now) {
   if (folk === undefined || folk.travel !== 'idle' || folk.skillId !== null || folk.place == null || at === undefined
     || folk.place.q !== at.q || folk.place.r !== at.r) return 'stop';
   if (BUILD_PAUSE.includes(folk.status)) return 'paused';
+  return buildLeft(o, now) === 0 ? 'up' : 'going';
+}
+/**
+ * The same for a tent you put up yourself: 'stop' once `pos` (where you are, undefined when not known) is off its hex,
+ * else 'up' when the work is done or 'going'. You may work the hex meanwhile; nothing pauses it.
+ */
+export function yourStep(o, key, pos, now) {
+  if (!isBuilding(o)) return 'up';
+  const at = parseKey(key);
+  if (pos == null || at === undefined || pos.q !== at.q || pos.r !== at.r) return 'stop';
   return buildLeft(o, now) === 0 ? 'up' : 'going';
 }
 

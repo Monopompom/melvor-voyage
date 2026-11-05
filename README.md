@@ -65,6 +65,12 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   Seaweed and Coal Ore) halves your stores' loss for 6 hours each. It never takes the food you need to get ashore or
   what a voyage under way still needs, and a walking Folk's pack carries the extra. The Stores block, the planner,
   Set off, a tent's store and the Welcome Back box say how much.
+- **Tents.** A Tent from the Voyage shop (Voyage level 30) makes an outpost: pitch it from the Here panel on the land
+  hex you stand on (not on a town, port, market or camp). You put it up over about an hour, offline too, while you stay
+  on the hex, and you may work there meanwhile; leaving the hex, or Stop the build, puts it back in your bank. Then the
+  hex counts as a camp: Smithing, Crafting and Fletching work there, and Thieving at 80%. One tent may stand at Voyage
+  30, up to four at 90. The tent shows on the map and in the Journal's places, and its store keeps food and fuel
+  outside your carry limit. Strike camp puts the tent back in your bank.
 - **Hull wear.** Every sea hex wears your ship's hull a little. Repair it in the Voyage page's Stores block with logs
   and Pitch, which Firemaking now makes from time to time (more often from better logs): the small boat on a beach,
   the big ship at a port. Repairing is careening: the hull is hauled out 6 minutes for every 10% and can't sail
@@ -206,12 +212,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   the work when it arrives, offline too. The map shows it with a boot badge and its road dashed; Stop here halts it.
   On rough ground it can meet a band, as you do (see Bands on road and sea); the Send dialog lets you lend it one card
   from your deck for those fights.
-  A Tent from the Voyage shop (Voyage level 30) makes an outpost: pitch it from the Here panel on a land hex where one
-  of your Folks works (not on a town, port, market or camp). That Folk puts it up over about an hour, offline too,
-  its own skill set aside meanwhile; Cancel takes it down again. Then the hex counts as a camp for you and your Folks.
-  Smithing, Crafting and Fletching work there, and Thieving at 80%. One tent may stand at Voyage 30, up to four at 90.
-  The tent shows on the map and in the Journal's places, and its store keeps food and fuel outside your carry limit.
-  Strike camp puts the tent back in your bank. Your Folks stay there.
+  A Folk on the hex where you pitch a tent puts it up for you (see Tents), its own skill set aside meanwhile, so you
+  can go on; the camp works for your Folks as for you, and they stay when you strike it.
   Folks learn travel traits from the road, through Worker Folks' trait slots: time at sea in a berth, rough ground and
   long walks alone, the miles travelled, a week's work on one hex, work and sales near a market, nights on the road,
   storms and hungry hexes each teach one. Some help (walk faster alone, eat less at sea), some trade one thing for

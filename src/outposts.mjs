@@ -1,7 +1,7 @@
 // Outposts (phase 6e), the game side. Rules in outpost-model.mjs.
 //
-// A Tent is an item from the Voyage shop (Voyage 30). Pitched from the Here panel on the land hex you stand on, where
-// one of your Folks is placed, it leaves the bank and the hex becomes an outpost: the terrain reads it as a camp
+// A Tent is an item from the Voyage shop (Voyage 30). Pitched from the Here panel on the land hex you stand on, it
+// leaves the bank and the hex becomes an outpost: the terrain reads it as a camp
 // (state.terrain.setAdditions, over the table and the winter ice), so the rule table, grace, loading and every Folk on
 // it follow; a tent stands on the map at the hex's lower left; the Journal lists it with the places, and Send a Folk
 // can pick it. Its store holds food and fuel outside your carry limit, shared from within a hex. Striking camp (within
@@ -12,6 +12,10 @@
 // offline, its skill set aside meanwhile (a second Folk there keeps working) and given back when the tent is up. Until
 // then the hex is no camp and the tent stands faded on the map. Cancel gives the Tent back; the builder moved, sent
 // off, given a skill or fired stops the work and the Tent goes back to the bank too.
+//
+// With no Folk on the hex (or no Worker Folks at all), you put it up yourself (build .553, the user: "Pitch a tent
+// yourself"): the same time, counted while you stay on the hex, where you may work meanwhile; leaving it stops the work
+// and the Tent goes back to the bank, as a builder Folk leaving does.
 
 const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
 const SWAL_DANGER = { ...SWAL_CLASS, confirmButton: 'btn btn-danger m-1' };
@@ -88,7 +92,6 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
       return (folksApi()?.folks() ?? []).filter((f) => f.travel !== 'with' && f.travel !== 'walking' && f.status !== 'strike' && f.status !== 'cooldown' && same(f.place, pos));
     } catch { return []; }
   };
-  const folkOn = (pos) => folksOn(pos).length > 0;
   const duration = (ms) => {
     const m = Math.max(1, Math.ceil(ms / 60000));
     return m >= 60 ? t('MOD_VOY_CLOCK_H_M', { h: `${Math.floor(m / 60)}`, m: `${m % 60}` }) : t('MOD_VOY_CLOCK_M', { m: `${m}` });
@@ -97,17 +100,28 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   const pitchHere = () => {
     const pos = state.position();
     if (!usable() || pos === undefined) return 'unknown';
-    const act = O.pitchAction({ tents: tents(), outposts: outposts(), level: level(), rec: state.terrain.base(pos.q, pos.r), folkHere: folkOn(pos) });
+    const act = O.pitchAction({ tents: tents(), outposts: outposts(), level: level(), rec: state.terrain.base(pos.q, pos.r) });
     if (act === 'pitch' && state.crew?.busy?.() !== undefined) return 'busy';
     return act;
   };
-  /** Starts the tent going up: the builder sets its skill aside (the work stops) until the tent is up. */
+  /**
+   * Starts the tent going up: a Folk on the hex sets its skill aside (the work stops) until the tent is up; with none
+   * there, you put it up yourself.
+   */
   const pitch = () => {
     if (pitchHere() !== 'pitch') return false;
     const pos = state.position();
     const folk = O.pickBuilder(folksOn(pos));
     const item = tentItem();
-    if (folk === undefined || item === undefined) return false;
+    if (item === undefined) return false;
+    if (folk === undefined) {
+      game.bank.removeItemQuantity(item, 1, true);
+      setOutposts({ ...outposts(), [O.keyOf(pos.q, pos.r)]: O.newOutpost(now(), O.YOU) }, false);
+      refreshMarkers();
+      log(`tent going up at (${pos.q},${pos.r}) by you`);
+      notify(t('MOD_VOY_OUTPOST_BUILD_START_YOU', { time: duration(O.BUILD_MS) }));
+      return true;
+    }
     const skill = folk.skillId;
     if (skill !== null && folksApi()?.assign(folk.id, null) === false) return false;
     game.bank.removeItemQuantity(item, 1, true);
@@ -138,7 +152,8 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     game.bank.addItem(item, 1, false, true, true, true, 'Voyage');
     const name = nameOf(O.parseKey(key));
     log(`tent at ${key} not put up (${why})`);
-    if (why === 'cancel') { giveBack(o.build); notify(t('MOD_VOY_OUTPOST_BUILD_CANCELLED', { name })); }
+    if (O.byYou(o)) notify(t(why === 'cancel' ? 'MOD_VOY_OUTPOST_BUILD_CANCELLED' : 'MOD_VOY_OUTPOST_BUILD_STOPPED_YOU', { name }), why === 'cancel' ? 'success' : 'danger');
+    else if (why === 'cancel') { giveBack(o.build); notify(t('MOD_VOY_OUTPOST_BUILD_CANCELLED', { name })); }
     else {
       // The builder that stepped off the hex got the Tent back but never its set-aside skill (build .386): given
       // back while it is idle within a hex of the tent; from farther a skill would move it to your hex, so the
@@ -164,9 +179,9 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     log(`tent up at ${key}`);
     notify(t('MOD_VOY_OUTPOST_PITCHED', { name: nameOf(O.parseKey(key)) }));
   };
-  /** The tents going up: [{ key, q, r, name, left, folk, paused }]. */
+  /** The tents going up: [{ key, q, r, name, left, folk, you, paused }]; `you` when you put it up yourself. */
   const building = () => Object.entries(outposts()).filter(([, o]) => O.isBuilding(o))
-    .map(([key, o]) => ({ key, ...O.parseKey(key), name: nameOf(O.parseKey(key)), left: O.buildLeft(o, now()), folk: o.build.folk, paused: O.isPaused(o) }));
+    .map(([key, o]) => ({ key, ...O.parseKey(key), name: nameOf(O.parseKey(key)), left: O.buildLeft(o, now()), folk: o.build.folk, you: O.byYou(o), paused: O.isPaused(o) }));
   /** Why a paused build waits, from the builder's status: "on strike", "owed wages", "cooling down". */
   const PAUSE_WORD = { strike: 'MOD_VOY_OUTPOST_PAUSE_STRIKE', debt: 'MOD_VOY_OUTPOST_PAUSE_DEBT', cooldown: 'MOD_VOY_OUTPOST_PAUSE_COOLDOWN' };
   const pauseWord = (folkId) => t(PAUSE_WORD[folksApi()?.folkById(folkId)?.status] ?? 'MOD_VOY_OUTPOST_PAUSE_STRIKE');
@@ -176,6 +191,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
    * a tent whose work is done goes up, one whose builder left goes back to the bank, one whose builder is on strike,
    * owed wages or cooling down (build .387) pauses, and goes on when it is back, the pause's length added to the
    * time. Worker Folks strikes and settles at the replayed moment offline, so the pause lasts as long as the strike.
+   * One you put up yourself needs no Worker Folks: it goes up, or stops once you are off its hex.
    */
   const buildTick = () => {
     if (!usable()) return;
@@ -185,9 +201,15 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     for (const key in raw) { if (raw[key]?.build !== undefined) { going = true; break; } }
     if (!going) return;
     const api = folksApi();
-    if (api === undefined) return;
     for (const [key, o] of Object.entries(outposts())) {
       if (!O.isBuilding(o)) continue;
+      if (O.byYou(o)) {
+        const step = O.yourStep(o, key, state.position(), now());
+        if (step === 'up') finishBuild(key);
+        else if (step === 'stop') stopBuild(key, 'left');
+        continue;
+      }
+      if (api === undefined) continue;
       const step = O.buildStep(o, key, api.folkById(o.build.folk), now());
       if (step === 'up') finishBuild(key);
       else if (step === 'stop') stopBuild(key, 'left');
@@ -211,7 +233,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   let shown = '';
   const tick = () => {
     buildTick();
-    if (!usable() || folksApi() === undefined) return;
+    if (!usable()) return;
     const sig = building().map((b) => `${b.key}:${b.paused ? 'p' : ''}${duration(b.left)}`).join('|');
     if (sig !== shown) { shown = sig; try { state.herePanel?.render?.(); } catch {} try { folksApi()?.refresh(); } catch {} }
   };
@@ -402,9 +424,12 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     for (const b of building()) {
       if (hexDistance(pos, b) > 1) continue;
       const folk = folksApi()?.folkById(b.folk);
-      const text = b.paused ? t('MOD_VOY_OUTPOST_BUILD_PAUSED', { name: folk?.name ?? '', why: pauseWord(b.folk), time: duration(b.left) })
+      const text = b.you ? t('MOD_VOY_OUTPOST_BUILD_GOING_YOU', { time: duration(b.left) }) : b.paused ? t('MOD_VOY_OUTPOST_BUILD_PAUSED', { name: folk?.name ?? '', why: pauseWord(b.folk), time: duration(b.left) })
         : t(same(pos, b) ? 'MOD_VOY_OUTPOST_BUILD_GOING' : 'MOD_VOY_OUTPOST_BUILD_GOING_NEXT', { name: folk?.name ?? '', time: duration(b.left) });
-      html += `<div class="voyage-here-ship voyage-outpost-line"><span><span class="voyage-here-label">${esc(t('MOD_VOY_OUTPOST_TENT_LABEL'))}</span> ${esc(text)}</span>`
+      // Yours: kept short, so the panel's buttons stay on their rows (seen at .553: a longer line pushed every one under
+      // its text); the warning is the tooltip.
+      const tip = b.you ? ` title="${esc(t('MOD_VOY_OUTPOST_BUILD_GOING_YOU_TIP'))}"` : '';
+      html += `<div class="voyage-here-ship voyage-outpost-line"><span${tip}><span class="voyage-here-label">${esc(t('MOD_VOY_OUTPOST_TENT_LABEL'))}</span> ${esc(text)}</span>`
         + `<span class="voyage-outpost-btns">${btn('cancel', b.key, 'btn-outline-danger', t('MOD_VOY_OUTPOST_BUILD_STOP'))}</span></div>`;
     }
     const act = pitchHere();
@@ -412,9 +437,8 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     let text;
     let cls = 'text-muted';
     if (act === 'pitch') { text = t('MOD_VOY_OUTPOST_CAN_PITCH'); cls = ''; }
-    else if (act === 'no-folk') text = t('MOD_VOY_OUTPOST_NO_FOLK');
     else if (act === 'place') text = t('MOD_VOY_OUTPOST_PLACE');
-    else if (act === 'busy') text = state.crew?.busy?.() ?? '';
+    else if (act === 'busy') text = t('MOD_VOY_OUTPOST_BUSY');
     else if (act === 'full') {
       const max = O.maxOutposts(level());
       const next = O.nextOutpostLevel(level());

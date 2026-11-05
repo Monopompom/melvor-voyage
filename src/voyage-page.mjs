@@ -837,7 +837,8 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       ];
     }
     // Outposts (phase 6e): the crafts a camp gives, read from the rule table, and the levels from the outpost model.
-    const outpostHelp = () => {
+    // Without the crew (no Worker Folks) it sits in the Stores help, worded for a tent you put up yourself (build .553).
+    const outpostHelp = (alone = false) => {
       const O = state.outpostModel;
       if (O === undefined || rules === undefined) return [];
       const skillName = (id) => { try { return game.skills.getObjectByID(id)?.name ?? id; } catch { return id; } };
@@ -847,11 +848,11 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         .map(([id, r]) => t('MOD_VOY_HELP_CREW_OUTPOST_RATE', { skill: skillName(id), pct: `${Math.round(r.features[O.OUTPOST_FEATURE] * 100)}` })).join(', ');
       const [one, two, three, four] = O.OUTPOST_LEVELS.map((l) => `${l}`);
       return [{ head: t('MOD_VOY_HELP_HEAD_CREW_OUTPOST'), body: [
-        t('MOD_VOY_HELP_CREW_OUTPOST', { level: `${O.TENT.level}`, crafts, partial }),
-        t('MOD_VOY_HELP_CREW_OUTPOST_BUILD', { time: state.clock?.duration?.(O.BUILD_MS) ?? '' }),
+        t(alone ? 'MOD_VOY_HELP_OUTPOST_NF' : 'MOD_VOY_HELP_CREW_OUTPOST', { level: `${O.TENT.level}`, crafts, partial }),
+        t(alone ? 'MOD_VOY_HELP_OUTPOST_BUILD_NF' : 'MOD_VOY_HELP_CREW_OUTPOST_BUILD', { time: state.clock?.duration?.(O.BUILD_MS) ?? '' }),
         t('MOD_VOY_HELP_CREW_OUTPOST_COUNT', { one, two, three, four }),
         t('MOD_VOY_HELP_CREW_OUTPOST_STORE'),
-        t('MOD_VOY_HELP_CREW_OUTPOST_STRIKE'),
+        t(alone ? 'MOD_VOY_HELP_OUTPOST_STRIKE_NF' : 'MOD_VOY_HELP_CREW_OUTPOST_STRIKE'),
       ] }];
     };
     // Travel traits (phase 6f): what the road teaches a Folk. As with Worker Folks' own traits, one shows only once a
@@ -942,6 +943,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         t('MOD_VOY_HELP_LOAD_WHERE'),
         { table: { cols: [t('MOD_VOY_HELP_COL_PLACE'), t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_HELP_COL_FUEL')], rows: loadRows() } },
       ] });
+      if (!(state.crew !== undefined && state.folksGuarded === true)) out.push(...outpostHelp(true));
       // Local supply (4.4a): a day's worth by place at your level's carry limit, or a line saying it is off.
       if (st !== undefined) {
         if (st.supplyOn?.() !== true) out.push({ head: t('MOD_VOY_HELP_HEAD_SUPPLY'), body: [t('MOD_VOY_HELP_SUPPLY_OFF')] });
@@ -1095,7 +1097,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     const of = (n) => `<small class="text-muted">/ ${n}</small>`;
     // Food and fuel each never split; the fuel drops under the food where both don't fit (build .360, the user, an
     // iPhone SE: it ran past the band).
-    const carried = `<span class="voyage-stores-carried"><span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}" alt="" title="${esc(t('MOD_VOY_PAGE_STORES_FOOD_TIP', { ration: `${storesModel.RATION_HP} HP` }))}"><span class="${level('food')}">${api.hp(have.food)}${word('food')}</span> ${of(api.hp(cap.food))} ${esc(t('MOD_VOY_UNIT_FOOD', { n: '' })).trim()}</span>` +
+    const carried = `<span class="voyage-stores-carried"><span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}" alt="" title="${esc(t('MOD_VOY_PAGE_STORES_FOOD_TIP', { ration: `${storesModel.RATION_HP}\u00a0HP` }))}"><span class="${level('food')}">${api.hp(have.food)}${word('food')}</span> ${of(api.hp(cap.food))} ${esc(t('MOD_VOY_UNIT_FOOD', { n: '' })).trim()}</span>` +
       `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/fuel.webp')}" alt="" title="${esc(t('MOD_VOY_HELP_COL_FUEL'))}"><span class="${level('fuel')}">${api.fuelText(have.fuel)}${word('fuel')}</span> ${of(api.fuelText(cap.fuel))} ${esc(t('MOD_VOY_PAGE_STORES_FUEL_WORD'))}</span></span>`;
     let html = section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt=""><b>${carried}</b></div>` +
       spoilHtml(api) + (api.enabled() ? '' :`<div class="text-warning">${t(game.tutorial?.complete === false ? 'MOD_VOY_PAGE_TUTORIAL' : 'MOD_VOY_PAGE_STORES_OFF')}</div>`)); // (.308, C-01)

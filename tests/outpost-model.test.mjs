@@ -5,11 +5,12 @@ import { readFileSync } from 'node:fs';
 import {
   TENT, OUTPOST_LEVELS, MAX_OUTPOSTS, OUTPOST_MILESTONES, maxOutposts, nextOutpostLevel, keyOf, parseKey, isPlace, pitchAction, campRecord,
   newOutpost, share, strike, cleanOutposts, BUILD_MS, isBuilding, buildLeft, standing, pickBuilder, buildStep, BUILD_PAUSE, isPaused, pauseBuild, resumeBuild,
+  YOU, byYou, yourStep,
 } from '../src/outpost-model.mjs';
 import { allowedAt, rateAt } from '../src/rules.mjs';
 
 const land = { q: 5, r: 7, t: 'grasslands', f: [] };
-const ok = { tents: 1, outposts: {}, level: 30, rec: land, folkHere: true };
+const ok = { tents: 1, outposts: {}, level: 30, rec: land };
 
 test('one tent at Voyage 30, a second at 50, a third at 70, a fourth at 90', () => {
   assert.deepEqual(OUTPOST_LEVELS, [30, 50, 70, 90]);
@@ -28,14 +29,13 @@ test('keys round-trip and junk is no key', () => {
   assert.equal(parseKey('a,b'), undefined);
 });
 
-test('a tent goes on land where a Folk of yours stands, under the level\'s count', () => {
+test('a tent goes on land, a Folk of yours there or not, under the level\'s count', () => {
   assert.equal(pitchAction(ok), 'pitch');
   assert.equal(pitchAction({ ...ok, tents: 0 }), 'no-tent');
   assert.equal(pitchAction({ ...ok, rec: undefined }), 'unknown');
   assert.equal(pitchAction({ ...ok, rec: { ...land, cloud: true } }), 'unknown');
   assert.equal(pitchAction({ ...ok, rec: { ...land, t: 'water' } }), 'sea');
   assert.equal(pitchAction({ ...ok, rec: { ...land, t: 'shoal' } }), 'sea');
-  assert.equal(pitchAction({ ...ok, folkHere: false }), 'no-folk');
   assert.equal(pitchAction({ ...ok, level: 29 }), 'full');
   assert.equal(pitchAction({ ...ok, outposts: { '1,1': newOutpost(0) } }), 'full');
   assert.equal(pitchAction({ ...ok, level: 50, outposts: { '1,1': newOutpost(0) } }), 'pitch');
@@ -187,4 +187,21 @@ test('the save keeps a tent going up, and drops a broken build', () => {
   assert.deepEqual(cleanOutposts({ '1,1': o }), { '1,1': o });
   assert.deepEqual(cleanOutposts({ '1,1': { food: 0, fuel: 0, at: 5, build: { folk: '', until: 9 } } }), { '1,1': { food: 0, fuel: 0, at: 5 } });
   assert.deepEqual(cleanOutposts({ '1,1': { at: 5, build: { folk: 'f', until: 'x', skill: 3 } } }), { '1,1': { food: 0, fuel: 0, at: 5, build: { folk: 'f', until: 0, skill: null } } });
+});
+
+test('you put a tent up yourself: it goes on while you stay on its hex and stops when you leave', () => {
+  const o = newOutpost(0, YOU);
+  assert.equal(byYou(o), true);
+  assert.equal(byYou(newOutpost(0, 'f1')), false);
+  assert.equal(byYou(newOutpost(0)), false, 'a tent that is up has no builder');
+  assert.equal(buildLeft(o, 0), BUILD_MS, 'the same time a Folk takes');
+  assert.equal(yourStep(o, '5,7', { q: 5, r: 7 }, 10), 'going');
+  assert.equal(yourStep(o, '5,7', { q: 5, r: 7 }, BUILD_MS), 'up');
+  assert.equal(yourStep(o, '5,7', { q: 5, r: 8 }, 10), 'stop');
+  assert.equal(yourStep(o, '5,7', { q: 5, r: 8 }, BUILD_MS), 'stop', 'gone before it was seen up');
+  assert.equal(yourStep(o, '5,7', undefined, 10), 'stop');
+  assert.equal(yourStep(newOutpost(0), '5,7', undefined, 10), 'up');
+  assert.deepEqual(cleanOutposts({ '5,7': o }), { '5,7': o }, 'the save keeps it');
+  // A Voyage from before reads the builder as a Folk that is gone: the Tent goes back.
+  assert.equal(buildStep(o, '5,7', undefined, 10), 'stop');
 });

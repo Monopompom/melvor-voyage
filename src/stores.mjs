@@ -385,7 +385,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
       const fuelTip = n > 0 ? t(n === 1 ? 'MOD_VOY_STORES_PATH_FUEL_TIP_CREW_ONE' : 'MOD_VOY_STORES_PATH_FUEL_TIP_CREW', { count: `${n}` }) : t('MOD_VOY_STORES_PATH_FUEL_TIP');
       if (Math.floor(cost.food) > 0) {
         lines.push(row(`<img class="voyage-stores-lead-img" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt="">`, costTip,
-          `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}">${esc(hp(cost.food))} HP</span>`));
+          `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}">${esc(hp(cost.food))}&nbsp;HP</span>`));
       }
       if (cost.fuel >= 0.005) lines.push(row(fuelIcon, fuelTip, esc(fuelText(cost.fuel))));
       // Each vessel's own wear (two vessels, build .150: named in the tooltip when there are two).
@@ -782,11 +782,13 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
       try {
         const a = spoiledAway;
         spoiledAway = { food: 0, fuel: 0 };
-        if (!(a.food > 0 || a.fuel >= 0.005) || this.messageContainer == null) return;
+        // In the spoil lines' words, a part that rounds to 0 left out ("0 HP of food" when only fuel spoiled, the user).
+        const words = spoilText(a.food, a.fuel);
+        if (words === '' || this.messageContainer == null) return;
         const h = document.createElement('h5');
         h.className = 'font-w600 mb-1';
         const m = skill()?.media;
-        h.innerHTML = (m ? `<img class="skill-icon-xs mr-1" src="${esc(m)}" alt="">` : '') + t('MOD_VOY_SPOIL_OFFLINE', { amounts: `<span class="text-warning">${esc(amounts(a.food, a.fuel))}</span>` });
+        h.innerHTML = (m ? `<img class="skill-icon-xs mr-1" src="${esc(m)}" alt="">` : '') + t('MOD_VOY_SPOIL_OFFLINE', { amounts: `<span class="text-warning">${esc(words)}</span>` });
         this.messageContainer.append(h);
       } catch (e) { log('spoilage offline line failed', e); }
     });
