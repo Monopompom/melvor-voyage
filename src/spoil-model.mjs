@@ -94,6 +94,25 @@ export function settle(have, debt, ms, { fWith, fWithout, cure = 0, floor } = {}
 }
 
 /**
+ * The floor of a leg under way: what spoilage must leave so no step ahead is refused. Each step is its own move and
+ * must leave the food to get ashore from the hex it reaches, so the food floor is the most any step asks: what the
+ * steps to it cost plus its reserve; `here` is the reserve where you stand (asked even with no step ahead). `steps` in
+ * walking order, each { food, fuel, reserve } (its cost, and the reserve at the hex it reaches, 0 ashore). The fuel
+ * floor is the steps' fuel. Returns { food, fuel }.
+ */
+export function legFloor(steps, here = 0) {
+  let food = 0;
+  let fuel = 0;
+  let most = num(here);
+  for (const s of steps ?? []) {
+    food += num(s.food);
+    fuel += num(s.fuel);
+    most = Math.max(most, food + num(s.reserve));
+  }
+  return { food: most, fuel: clean3(fuel) };
+}
+
+/**
  * The planner's and Set off's forecast: what `have` ({ food, fuel }) loses over the legs ahead, each { ms, f, cost,
  * set? } (`cost` { food, fuel } paid at the leg's end, `f` the leg's multipliers, `set` the stores as a planned stop
  * loads them before the leg), as { food, fuel } lost on the way. The stores shrink by each cost as they go, so later

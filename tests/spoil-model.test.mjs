@@ -71,6 +71,19 @@ test('the floor: the food to get ashore is never spoiled, and what is under it k
   assert.equal(empty.debt.food, 0);
 });
 
+test('a leg under way: the floor is the most any step ahead asks, its reserve counted where it ends', () => {
+  // Four sea steps of 40 food from a hex 1 from the coast (reserve 40) out to one 2 away (reserve 80): the last step
+  // asks 160 + 80, more than the reserve here plus the leg (40 + 160 = 200), which let the last step be refused.
+  const out = [{ food: 40, fuel: 0, reserve: 40 }, { food: 40, fuel: 0, reserve: 80 }, { food: 40, fuel: 0.01, reserve: 80 }, { food: 40, fuel: 0, reserve: 80 }];
+  assert.deepEqual(P.legFloor(out, 40), { food: 240, fuel: 0.01 });
+  // Heading in to a port: no reserve at the end, so the floor is the reserve the first step asks plus its cost.
+  const home = [{ food: 40, fuel: 0, reserve: 80 }, { food: 40, fuel: 0, reserve: 40 }, { food: 40, fuel: 0, reserve: 0 }];
+  assert.deepEqual(P.legFloor(home, 120), { food: 120, fuel: 0 });
+  // No step ahead: the reserve where you stand.
+  assert.deepEqual(P.legFloor([], 80), { food: 80, fuel: 0 });
+  assert.deepEqual(P.legFloor(undefined), { food: 0, fuel: 0 });
+});
+
 test('curing splits the span where it ends: 2 h cured then 2 h plain', () => {
   const f = { food: 1, fuel: 1 };
   const half = { food: 0.5, fuel: 0.5 };

@@ -53,7 +53,7 @@ export const JOURNAL_WRITTEN = {
   lands: { sections: ['KINDS', 'FEATURES'] },
   tricks: { sections: ['STORES', 'BOAT', 'TRADE', 'NIGHT', 'WAY', 'PAGE'], points: true },
   settings: { sections: ['EASIER', 'KEYS', 'WHY'] },
-  leaving: { sections: ['WHAT', 'HOW'], warn: ['WHAT'] },
+  leaving: { sections: ['WHAT', 'KEEP', 'HOW'], warn: ['WHAT'] },
   adventure: { sections: ['FIRST', 'NEXT'] },
   road: { sections: ['MOUNTS', 'SIGN'] },
   // The ship's clock (phase 5a, build .219).

@@ -617,31 +617,45 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
     const foodPlace = where === 'stores' && (loadingAtHex(hex)?.food ?? 0) > 0;
     return P.factors({ where: where === 'tent' ? 'tent' : 'stores', band: wx?.band, sea: wx !== undefined && shipModel.isSea(rec), foodPlace, casks: casks(), cured: where === 'stores' && cured });
   };
-  // What a voyage under way still costs (the floor: never spoiled into a refusal mid-leg), memoised per step.
+  /**
+   * The food to get ashore from `hex` at sea with the crew's share (0 ashore), as a move ending there keeps it: in
+   * `kind`'s reach, or the farther of the two vessels' when no kind is given.
+   */
+  const reserveFood = (hex, kind) => {
+    try {
+      const kinds = kind !== undefined ? [kind] : state.ship?.big?.() != null ? ['boat', 'ship'] : ['boat'];
+      return Math.ceil(Math.max(...kinds.map((k) => reserveAt(hex, k))) * (1 + (crew().seaFood ?? crew().food)));
+    } catch { return 0; }
+  };
+  // The steps of a voyage under way still ahead, each its cost and the reserve where it ends (spoil-model legFloor),
+  // memoised per step: the floor that keeps spoilage from pushing a step into a refusal.
   let legMemo;
   const legAhead = () => {
     const v = state.clock?.running?.() === true ? skill().record.voyage : null;
-    if (v == null || !Array.isArray(v.walk)) return { food: 0, fuel: 0 };
+    if (v == null || !Array.isArray(v.walk)) return [];
     const key = `${v.walk.length}|${v.at}|${v.walk[v.walk.length - 1]?.q},${v.walk[v.walk.length - 1]?.r}`;
     if (legMemo?.key === key) return legMemo.value;
-    let value = { food: 0, fuel: 0 };
+    let value = [];
     try {
       const map = game.cartography.activeMap;
-      const path = v.walk.slice(Math.max(0, v.at)).map((h) => map.getHex(new HexCoords(h.q, h.r))).reverse();
-      if (path.length >= 2 && path.every((h) => h !== undefined)) value = S.pathCost(state.ship.stepsOf(path), fmLevel(), crew(), mods());
+      // Walking order, where you are first; the game path (destination first) carries each step's vessel, as the
+      // clock prices it (a hop or a reserve in the ship is not the boat's).
+      const rest = v.walk.slice(Math.max(0, v.at));
+      const hexes = rest.map((h) => map.getHex(new HexCoords(h.q, h.r)));
+      if (hexes.length >= 2 && hexes.every((h) => h !== undefined)) {
+        const path = [...hexes].reverse();
+        const modes = rest.slice(1).map((h) => h.m).reverse();
+        if (modes.some((m) => m !== undefined)) path.voyageModes = modes;
+        value = state.ship.stepsOf(path).map((s, k) => ({ ...S.stepCost(s, fmLevel(), crew(), mods()), reserve: reserveFood(hexes[k + 1], s.vessel ?? 'boat') }));
+      }
     } catch (e) { log('spoilage: leg ahead failed', e); }
     legMemo = { key, value };
     return value;
   };
-  /** Never below: the food to get ashore at sea (with the crew's share), plus what the rest of a leg under way costs. */
+  /** Never below: the food to get ashore from here at sea, or the most a step of the leg under way asks. */
   const spoilFloor = (pos) => {
-    let food = 0;
-    try {
-      const kinds = state.ship?.big?.() != null ? ['boat', 'ship'] : ['boat'];
-      food = Math.max(...kinds.map((k) => reserveAt(pos, k))) * (1 + (crew().seaFood ?? crew().food));
-    } catch { food = 0; }
-    const leg = legAhead();
-    return { food: Math.ceil(food + leg.food), fuel: leg.fuel };
+    const f = P.legFloor(legAhead(), reserveFood(pos));
+    return { food: Math.ceil(f.food), fuel: f.fuel };
   };
   /** What spoiled during this catch-up, for the Welcome Back box (not saved: the box comes in the same session). */
   let spoiledAway = { food: 0, fuel: 0 };

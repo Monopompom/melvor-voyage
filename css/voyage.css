@@ -1503,6 +1503,8 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-outpost-quick { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 6px; }
 .voyage-outpost-quick .btn { min-height: 36px; }
 @media (max-width: 575.98px) { .voyage-outpost-share { grid-template-columns: auto minmax(96px, 1fr); } .voyage-outpost-of { grid-column: 2; } }
+/* On a phone "You carry" and "The tent holds" each sit alone, their amounts (and the full stop) on the line under. */
+@media (max-width: 575.98px) { .voyage-outpost-break { display: block; } }
 
 /* A refusal reads lower case after a colon elsewhere; on its own line it starts with a capital (build .367). */
 

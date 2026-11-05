@@ -306,8 +306,9 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     };
     const html = helpLayout.msgHtml([
       // One sentence a line (build .367, the user): the tent's half no longer wraps in after yours.
-      t('MOD_VOY_OUTPOST_STORE_YOU', { have: state.stores.icons(have.food, have.fuel) }),
-      t('MOD_VOY_OUTPOST_STORE_TENT', { store: state.stores.icons(o.food, o.fuel) }),
+      // On a phone both amounts go under their words, so the two lines break alike (the user, 5 Nov 2026).
+      t('MOD_VOY_OUTPOST_STORE_YOU', { have: `<span class="voyage-outpost-break"></span>${state.stores.icons(have.food, have.fuel)}` }),
+      t('MOD_VOY_OUTPOST_STORE_TENT', { store: `<span class="voyage-outpost-break"></span>${state.stores.icons(o.food, o.fuel)}` }),
       // Spoilage (4.4b): the tent's store goes off at half the rate of yours, the casks halving it again.
       ...spoilLine(o),
     ]) + `<div class="voyage-outpost-share mt-3">${row('food')}${row('fuel')}</div>`
