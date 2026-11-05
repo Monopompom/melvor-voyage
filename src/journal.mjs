@@ -1348,8 +1348,14 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const hit = (name) => { const parts = wordsOf(name); return words.every((w) => parts.some((x) => x.startsWith(w))); };
     const monsters = monstersOf(p);
     if (hit(p.name) || hit(land(p.q, p.r)) || monsters.some((m) => hit(m?.name ?? ''))) return '';
+    // A dungeon or stronghold lists a monster once per wave (the Stronghold of the Undead ten Mummies a tier), so each
+    // name goes in once per drop (build .556): "Mummy drops Gold Topaz Ring", not ten Mummies.
     const byItem = new Map();
-    for (const m of monsters) for (const item of dropsOf(m)) if (hit(item.name)) { if (!byItem.has(item)) byItem.set(item, []); byItem.get(item).push(m.name); }
+    for (const m of monsters) for (const item of dropsOf(m)) if (hit(item.name)) {
+      if (!byItem.has(item)) byItem.set(item, []);
+      const who = byItem.get(item);
+      if (!who.includes(m.name)) who.push(m.name);
+    }
     if (byItem.size === 0) return '';
     return [...byItem].map(([item, who]) => t(who.length === 1 ? 'MOD_VOY_JOURNAL_PLACES_DROP_ONE' : 'MOD_VOY_JOURNAL_PLACES_DROP_MANY', { monsters: who.join(', '), item: item.name })).join(' · ');
   };
