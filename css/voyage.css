@@ -91,6 +91,9 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .nav-main-item.voyage-dim { opacity: .45; filter: grayscale(.6); }
 /* "Not here" on a tree, rock or fish the gate would refuse where it would run (build .554). */
 .voyage-not-here { font-size: .7rem; vertical-align: middle; white-space: nowrap; }
+/* A Thieving NPC's name is a flex row: centred there, not stretched to the row with its text on top. (Only there: in a
+   flex column a centred badge would move to the middle.) */
+thieving-npc-nav .voyage-not-here { align-self: center; }
 /* Worker Folks' box on a skill that is yours alone (Cartography) while the rules are on. */
 .voyage-folk-box-hidden { display: none !important; }
 .voyage-skillrow { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-top: 2px; }

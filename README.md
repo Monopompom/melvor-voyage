@@ -28,7 +28,7 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Combat on the map.** Fighting an area, dungeon or stronghold needs you on its hex or next to it. Walking away ends
   the fight.
 - **Dig sites on the map.** Archaeology digs a dig site only from its place on the map, or the hex next to it, under
-  Strict and Relaxed alike. Walking away ends the dig.
+  Strict and Relaxed alike. Walking away ends the dig. On the Archaeology page each dig site out of reach says "Not here".
 - **Trade near people.** Selling and buying work in a town, port or market, or next to one. Township, its trader
   included, works in a town or port.
   The bank is your cargo hold until you get there.
@@ -236,8 +236,9 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Voyage rules**: off, nothing is locked by location.
 - **Strictness**: Strict locks gathering and crafting; Relaxed locks gathering only, and keeps Firemaking and Cooking on dry land and Archaeology at its dig sites.
 - **Resource zones**: each ore, tree, fish, crop, thieving target and constellation is found only in its own places (iron and copper
-  are in different regions; the panel's skill icons list what is found on your hex, and on the Woodcutting, Mining and
-  Fishing pages each one that can't be started there says "Not here"). Off: the skill's terrain decides alone.
+  are in different regions; the panel's skill icons list what is found on your hex, and on the Woodcutting, Mining,
+  Fishing, Thieving and Astrology pages each one that can't be started there says "Not here"). Off: the skill's terrain
+  decides alone.
 - **Combat needs its area** and **Trade only near markets**: each can be switched off on its own.
 - **Provisions**: off, moves take nothing from your stores and sailing wears nothing.
 - **Local supply**: off, every place loads as much as your bank holds.

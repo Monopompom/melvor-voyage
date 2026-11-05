@@ -1332,7 +1332,13 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     const el = document.activeElement;
     const root = document.getElementById(CONTAINER_ID);
     if (!(el instanceof Element) || root === null || !root.contains(el)) return undefined;
-    const sel = `${el.tagName.toLowerCase()}${[...el.classList].map((c) => `.${CSS.escape(c)}`).join('')}`;
+    // A button that acts is found again by what it does and on what item, never by its classes: a picked chip turns
+    // from outlined to filled, and its old classes then matched another chip, which took the focus and opened its
+    // tooltip beside the clicked one's (the user, 5 Nov 2026).
+    const attr = (name) => (el.hasAttribute(name) ? `[${name}="${CSS.escape(el.getAttribute(name))}"]` : '');
+    const sel = el.hasAttribute('data-voyage-action')
+      ? `${el.tagName.toLowerCase()}${attr('data-voyage-action')}${attr('data-item')}`
+      : `${el.tagName.toLowerCase()}${[...el.classList].map((c) => `.${CSS.escape(c)}`).join('')}`;
     return { el, sel, idx: [...root.querySelectorAll(sel)].indexOf(el) };
   };
   const refocus = (k) => {

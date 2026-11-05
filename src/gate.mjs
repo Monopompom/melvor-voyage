@@ -622,10 +622,12 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     return bits.length > 0 ? bits.join(', ') : esc(getLangString('MOD_VOY_ZONE_ANYWHERE'));
   };
   /** The modal's first lines. A sky zone (Astrology: rows and a dark sky) is told term by term. */
+  /** A sky zone's places, term by term, as HTML: "Mountain or Highlands, between rows 6 and 24; or near Magic". */
+  const skyWhere = (zone) => [...new Set(zone.terms.map(termText))].join(esc(getLangString('MOD_VOY_ZONE_TERM_OR')));
   const zoneLines = (name, zone) => {
     const t = zones.zoneTerms(zone);
     if (t.lat === undefined && t.away.length === 0) return [line('MOD_VOY_ZONE_NEEDS', { name: esc(name), need: zoneNeed(zone).html })];
-    const where = [...new Set(zone.terms.map(termText))].join(esc(getLangString('MOD_VOY_ZONE_TERM_OR')));
+    const where = skyWhere(zone);
     const lines = [line('MOD_VOY_ZONE_SKY_NEEDS', { name: esc(name), where })];
     if (t.away.length > 0) lines.push(line('MOD_VOY_ZONE_SKY_DARK'));
     return lines;
@@ -1271,12 +1273,31 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   };
   // ---- "Not here" badges (build .554, the user) ------------------------------------------------------------------------
   // On the Woodcutting, Mining and Fishing pages, each tree, rock and fish that would be refused where it would run (your
-  // hex, or a Folk's for a start that goes to it) wears a small red badge; its tooltip says what it needs. The game's
-  // menus are kept by the game (woodcuttingMenu.treeMenus, rockMenus, fishingAreaMenus); a missing one is skipped.
+  // hex, or a Folk's for a start that goes to it) wears a small red badge; its tooltip says what it needs. Since build
+  // .558 (the user: "can we place 'Not here' marks on more skills?") the Thieving NPCs, the constellations and the dig
+  // sites too. The game's menus are kept by the game (woodcuttingMenu.treeMenus, rockMenus, fishingAreaMenus,
+  // thievingMenu.areaPanels, astrologyMenus.constellations, archaeologyMenus.digSites); a missing one is skipped.
+  // An entry may say what counts as reached (`reached`), how it is locked (`lock`, else its zone), its tooltip (`tip`),
+  // and `inside`: the badge goes at the end of the name instead of after it (a constellation's name is a heading, a fish's sits in a column).
   const BADGE_MENUS = [
     { skillId: 'melvorD:Woodcutting', each(fn) { if (typeof woodcuttingMenu !== 'undefined') woodcuttingMenu?.treeMenus?.forEach((menu, tree) => fn(tree, menu.treeName)); } },
     { skillId: 'melvorD:Mining', each(fn) { if (typeof rockMenus !== 'undefined') rockMenus.forEach((menu, rock) => fn(rock, menu.nameText)); } },
-    { skillId: 'melvorD:Fishing', each(fn) { if (typeof fishingAreaMenus !== 'undefined') fishingAreaMenus.forEach((menu, area) => area.fish?.forEach((fish, i) => fn(fish, menu.fishButtons?.[i]?.fishName))); } },
+    // A fish's lines are a flex column (name, unlock, rates): after the name the badge took a line of its own (the
+    // user, 6 Nov 2026: "why fishing have badges not near the name"), so it goes inside the name.
+    { skillId: 'melvorD:Fishing', inside: true, each(fn) { if (typeof fishingAreaMenus !== 'undefined') fishingAreaMenus.forEach((menu, area) => area.fish?.forEach((fish, i) => fn(fish, menu.fishButtons?.[i]?.fishName))); } },
+    { skillId: 'melvorD:Thieving', each(fn) { if (typeof thievingMenu !== 'undefined') thievingMenu?.areaPanels?.forEach((panel) => panel.npcNavs?.forEach((nav, npc) => fn(npc, nav.npcName))); } },
+    // A constellation's tip is its sky in words, as its refusal popup says it, and the dark-sky line when it asks one.
+    { skillId: ASTROLOGY, inside: true, each(fn) { if (typeof astrologyMenus !== 'undefined') astrologyMenus?.constellations?.forEach((menu, c) => fn(c, menu.name)); },
+      tip: (lock) => {
+        const where = skyWhere(lock.zone);
+        const first = lock.folk !== undefined ? line('MOD_VOY_NOT_HERE_SKY_FOLK', { name: esc(lock.folk.name), where }) : line('MOD_VOY_NOT_HERE_SKY', { where });
+        return [first.text, ...(zones.zoneTerms(lock.zone).away.length > 0 ? [getLangString('MOD_VOY_ZONE_SKY_DARK')] : [])].join('\n');
+      } },
+    // A dig site counts once the game lists it for you (discovered, at your level); it is locked by reach, not a zone.
+    { skillId: ARCHAEOLOGY, each(fn) { if (typeof archaeologyMenus !== 'undefined') archaeologyMenus?.digSites?.forEach((menu, site) => fn(site, menu.name)); },
+      reached: (site) => site.isDiscovered === true && (site.level ?? 1) <= (game.archaeology?.level ?? 1),
+      lock: (site) => digLockedFor(site),
+      tip: (lock) => (lock.folk !== undefined ? folkDigText(lock.site, lock) : getLangString('MOD_VOY_NOT_HERE_DIG')) },
   ];
   const badges = new WeakMap();
   const badgeTip = (lock, skillLocked) => {
@@ -1295,19 +1316,20 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
           if (!(anchor instanceof HTMLElement)) return;
           let lock;
           // Only what you could start: a tree, rock or fish above your level shows the game's "Unlocked at" instead.
-          const reached = (action.level ?? 1) <= (skill?.level ?? 1) && !((action.abyssalLevel ?? 0) > 0);
-          try { lock = reached ? skillLock ?? zoneLockedFor(action) : undefined; } catch { lock = undefined; }
+          const reached = m.reached !== undefined ? m.reached(action, skill) : (action.level ?? 1) <= (skill?.level ?? 1) && !((action.abyssalLevel ?? 0) > 0);
+          try { lock = reached ? skillLock ?? (m.lock ?? zoneLockedFor)(action) : undefined; } catch { lock = undefined; }
           let b = badges.get(anchor);
           if (lock === undefined) { b?.classList.add('d-none'); return; }
           if (b === undefined) {
             b = document.createElement('span');
             b.className = 'badge badge-danger voyage-not-here ml-1';
             b.textContent = getLangString('MOD_VOY_NOT_HERE');
-            anchor.after(b);
             badges.set(anchor, b);
           }
+          // Put (back) in place: a name the game writes again (its textContent) takes an inside badge with it.
+          if (m.inside ? b.parentElement !== anchor : b.previousElementSibling !== anchor) { if (m.inside) anchor.append(b); else anchor.after(b); }
           b.classList.remove('d-none');
-          const tip = badgeTip(skillLock === undefined ? lock : { ...lock, skillId: m.skillId }, skillLock !== undefined);
+          const tip = skillLock === undefined && m.tip !== undefined ? m.tip(lock) : badgeTip(skillLock === undefined ? lock : { ...lock, skillId: m.skillId }, skillLock !== undefined);
           if (b.dataset.voyTip !== tip) {
             b.dataset.voyTip = tip;
             if (state.tips !== undefined) state.tips.set(b, tip); else b.title = tip;
@@ -1333,6 +1355,12 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   // One deferred pass per burst of moves (build .401): a catch-up replays a voyage hex by hex inside one run of ticks, and
   // every hex used to queue its own stop check, sidebar pass and Folk refresh; they all saw the same final hex anyway.
   let movePending = false;
+  // A fish's badge sits inside its name, and the game writes the name again when the fish unlocks, a save's load
+  // included (after the first badge pass): the badges are put back after it.
+  let FishButtonCls;
+  try { FishButtonCls = FishingAreaMenuButtonElement; } catch { FishButtonCls = undefined; }
+  if (typeof FishButtonCls?.prototype?.setFishUnlocked === 'function') ctx.patch(FishButtonCls, 'setFishUnlocked').after(() => { dimSoon(); });
+  else log('FishingAreaMenuButtonElement.setFishUnlocked not found: fish badges come back on the next move');
   ctx.patch(WorldMap, 'setPlayerPosition').after(function () {
     try {
       if (game.cartography?.activeMap !== this || movePending) return;
