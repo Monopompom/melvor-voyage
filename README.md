@@ -112,7 +112,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   and the trophies bands drop. Owning one is enough.
 - **The hold.** Each vessel has a hold for bank items: one kind of item a slot, in any amount (dinghy 6, longboat 12,
   brig 18, galleon 24, and a row of six more at Voyage 35 and 55). Stow items from the bank's item panel and take them
-  back on the Voyage page, standing on the vessel or next to it. The hold is kept in the mod's save data: take everything out before you remove the mod.
+  back on the Voyage page, standing on the vessel or next to it. The hold is kept in the mod's save data: back up first
+  (see Backups) or take everything out before you remove the mod.
 - **Cargo runs.** Once a dungeon near a port is cleared, its harbour board (on the map's Here panel at the port)
   posts requests: goods from your bank, packed 50 to a Sack or Crate (made in Crafting), carried in your hold to a
   port you have found at least 12 hexes away by sea (so a board stays bare until you know a second port). Requests
@@ -239,6 +240,21 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Keys**: G centres the map on you, J opens and closes the journal, M opens the map. Each can be changed, or left
   empty to turn it off.
 
+## Backups
+
+The game drops a mod's skill, items and shop purchases the first time it saves without the mod: turned off, removed,
+or failing to load after a game update. **Back up Voyage**, at the foot of the Voyage page, gives you a code to copy or
+download as a text file. It holds your level, the map you have charted, the journal, your vessels with their holds
+and cargo, your Voyage items and shop purchases, and your settings. With Worker Folks loaded it also keeps where your
+Folks stand, how they travel and the travel traits they learned; Worker Folks' own data (its Folks, gear and wages)
+is not in it.
+
+**Restore Voyage** takes the code or the file, shows what it holds, what it replaces and what comes back, then saves
+and reloads the game. Items are topped up to the backup's count, never doubled, and nothing gathered since is taken
+away. Neither works while a voyage is under way or Adrift. A backup made with Worker Folks and restored without it
+leaves the Folks out: turn Worker Folks on first to bring them back too. Nothing is backed up by itself: make a fresh
+code before you turn the mod off, remove it or update the game.
+
 ## Themes
 
 The Voyage page, the map panel and the mod's popups follow the game's theme: Light, Dark or Super Dark (Settings).
@@ -254,7 +270,7 @@ picks the matching file when one exists.
 If the game's map ever differs from the mod's terrain table (an expansion update, for example) the mod says
 so once and turns the locks off until it is updated. The mod keeps its own data in your save under its own name:
 the Voyage skill, your vessels and their holds, cargo, tasks, the fog you have charted, the journal. The game's own data is left as it is. Removing
-the mod drops all of its data, so take your items out of the holds first (packed cargo can't come out).
+the mod drops all of its data: make a backup first (see Backups), or take your items out of the holds (packed cargo can't come out).
 
 ## Known issues
 
@@ -262,8 +278,8 @@ the mod drops all of its data, so take your items out of the holds first (packed
   the game drops everything of Voyage's from that save, as it does with any mod's data. The skill and its level, your
   vessels and their holds, the compass and the journal are gone. Put the mod back and the character begins as a new
   one: the level from the hexes you have surveyed, the starter kit, the start choice, the welcome and its 2,500 GP
-  once more. Take your goods out of the holds before you remove the mod, and don't save with it off if you mean to
-  come back to your voyage.
+  once more. Make a backup before you remove the mod (see Backups): Restore Voyage brings it all back. Without one,
+  take your goods out of the holds first, and don't save with the mod off if you mean to come back to your voyage.
 - **The route is the shortest, not the fastest.** The planner and Set off take the way with the fewest hexes; the
   wind is not weighed when the way is chosen. The time Set off shows does count the wind, so a long leg against it
   is told before you go.
