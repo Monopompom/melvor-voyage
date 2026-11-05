@@ -13,7 +13,7 @@ export const CASKS_ID = 'voyage:Dry_Casks';
 /** Curing Salt (data/package.json, a Cooking recipe): loaded beside fuel, each one keeps the stores cured 6 game-hours. */
 export const SALT_ID = 'voyage:Curing_Salt';
 
-export function install(ctx, { state, model, storesModel, supplyModel, spoilModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log }) {
+export function install(ctx, { state, model, storesModel, supplyModel, spoilModel, forageModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log }) {
   const S = storesModel;
   const SM = supplyModel;
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
@@ -357,8 +357,6 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
       // "replace first words with icons/tooltips, this will shorten each row").
       const row = (lead, tip, html) => ({ lead: `<span class="voyage-stores-lead" title="${esc(tip)}">${lead}</span>`, html });
       const fuelIcon = `<img class="voyage-stores-lead-img" src="${ctx.getResourceUrl('assets/fuel.webp')}" alt="">`;
-      const fill = (key, vars, html) => Object.entries(html).reduce((out, [k, v]) => out.replace(`\u0000${k}\u0000`, v),
-        esc(t(key, { ...vars, ...Object.fromEntries(Object.keys(html).map((k) => [k, `\u0000${k}\u0000`])) })));
       // Only what the trip takes (build .270, the user: "we will drop current stats altogether, show only what it
       // takes"): the stores and the hull now are in the Here panel.
       // Each in a row of its own behind its round icon (build .274, the user: "styled in circle GP icon and then price
@@ -384,10 +382,15 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
       const costTip = n > 0 ? t(n === 1 ? 'MOD_VOY_STORES_PATH_COST_TIP_CREW_ONE' : 'MOD_VOY_STORES_PATH_COST_TIP_CREW', { count: `${n}` }) : t('MOD_VOY_STORES_PATH_COST_TIP');
       const fuelTip = n > 0 ? t(n === 1 ? 'MOD_VOY_STORES_PATH_FUEL_TIP_CREW_ONE' : 'MOD_VOY_STORES_PATH_FUEL_TIP_CREW', { count: `${n}` }) : t('MOD_VOY_STORES_PATH_FUEL_TIP');
       if (Math.floor(cost.food) > 0) {
+        // The number beside the ration, no "HP" (build .554, the user: "it's kinda understandable").
         lines.push(row(`<img class="voyage-stores-lead-img" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt="">`, costTip,
-          `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}">${esc(hp(cost.food))}&nbsp;HP</span>`));
+          `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}">${esc(hp(cost.food))}</span>`));
       }
-      if (cost.fuel >= 0.005) lines.push(row(fuelIcon, fuelTip, esc(fuelText(cost.fuel))));
+      // The fuel row is the whole burn, the night's light in it, the light named in its tooltip (build .554, the user:
+      // "make fuel cost combined everywhere. add light cost to the tooltip"); it was a moon row of its own.
+      const light = p.ok && p.lit !== undefined ? p.light ?? 0 : 0;
+      const burn = S.roundFuel(cost.fuel + light);
+      if (burn >= 0.005) lines.push(row(fuelIcon, lightTip(fuelTip, light), esc(fuelText(burn))));
       // Each vessel's own wear (two vessels, build .150: named in the tooltip when there are two).
       const two = state.ship?.big?.() != null;
       for (const kind of ['boat', 'ship']) {
@@ -395,27 +398,31 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
         const hull = hullOf(path[0], kind, endKind(planned.steps));
         if (hull === undefined || wear <= 0) continue;
         const tip = two ? t('MOD_VOY_STORES_PATH_WEAR_OF', { hull: t(shipModel.hullNameKey(state.ship.vessel(kind).hull)) }) : t('MOD_VOY_STORES_PATH_WEAR_TIP');
-        lines.push(row('<i class="fa fa-ship" aria-hidden="true"></i>', tip, esc(t('MOD_VOY_STORES_PATH_WEAR', { wear: `${wear}` }))));
-      }
-      // Night (3e): what the light takes from the spare fuel, and how many hexes it covers.
-      if (p.ok && p.lit !== undefined) {
-        const could = S.lightable(planned.steps, p);
-        const bonus = `${Math.round(model.STAR_XP * 100)}`;
-        if (could > 0) {
-          lines.push(row('<i class="fa fa-moon" aria-hidden="true"></i>', t('MOD_VOY_STORES_PATH_LIGHT_TIP', { bonus }),
-            // Only the fuel the light takes (build .271, the user: "show only 0.74 lights, drop everything else"); the
-            // tooltip says what light gives.
-            fill('MOD_VOY_STORES_PATH_LIGHT', {}, { fuel: `${fuelIcon}${esc(fuelText(p.light))}` })));
-        }
+        lines.push(row(`<img class="voyage-stores-lead-img" src="${ctx.getResourceUrl('assets/hull_condition.webp')}" alt="">`, tip, esc(t('MOD_VOY_STORES_PATH_WEAR', { wear: `${wear}` }))));
       }
       // The weather on the way (phase 5c-1): the coldest or hottest hex where a band bites, and what it does.
       const wx = state.weather?.wayWords?.(planned.steps);
       if (wx !== undefined) {
-        lines.push(row('<i class="fa fa-thermometer-half" aria-hidden="true"></i>', t('MOD_VOY_STORES_PATH_WX_TIP', { season: wx.season }),
+        lines.push(row(`<i class="fa fa-thermometer-half ${wx.tone || 'voyage-lead-gold'}" aria-hidden="true"></i>`, t('MOD_VOY_STORES_PATH_WX_TIP', { season: wx.season }),
           // The degrees, a separator, the effects as icons (the user, build .290: "temperature then some fancy separator
           // then fuel icon x1.5, clock icon x1.25"); the band's name is the degrees' tooltip.
           `<b class="${wx.tone}"${wx.head === '' ? '' : ` title="${esc(wx.head)}"`}>${esc(wx.deg)}</b><span class="voyage-wx-sep" aria-hidden="true">◆</span>${wx.fx}`));
       }
+      // Spoilage (build .554, the user: "we need 'spoil' row here"): what the stores lose on a timed trip, as the Set off
+      // popup shows it: in red, the ration and fuel art with their numbers, the words in the tooltip.
+      if (p.ok && state.clock?.on?.() === true) {
+        try {
+          const rot = spoilAhead(path, state.clock.routeInfo(path)?.stepMs);
+          const lost = rot === undefined ? undefined : { food: Math.round(rot.food), fuel: Math.round(rot.fuel * 100) / 100 };
+          if (lost !== undefined && (lost.food > 0 || lost.fuel > 0)) {
+            lines.push(row('<i class="fa fa-hourglass-half text-danger" aria-hidden="true"></i>', t('MOD_VOY_CLOCK_COST_SPOIL_TIP', { amounts: spoilText(rot.food, rot.fuel) }),
+              `<span class="voyage-stores-icons text-danger">${forageIcons(lost)}</span>`));
+          }
+        } catch (e) { log('travel spoil row failed', e); }
+      }
+      // Foraging (build .554): the most the walk could find, never counted in the rows above.
+      const fa = p.ok ? forageAhead(path, planned.steps) : undefined;
+      if (fa !== undefined) lines.push(row('<i class="fa fa-leaf text-success" aria-hidden="true"></i>', forageTip(fa), `<span class="voyage-stores-icons text-success">${forageIcons(fa)}</span>`));
       // The verdict first, bold and in its colour; the numbers under it (UI review, build .86).
       let verdict;
       let cls = '';
@@ -827,8 +834,73 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
     if (state.whenNoModal) state.whenNoModal(notify); else notify();
   };
 
+  // ---- foraging on the road (build .554) ----------------------------------------------------------------------------
+  // Walking (never sailing, never a hop) into woods or fresh water may give back part of a ration, a shore a little
+  // driftwood (forage-model.mjs). Found after the move is paid, so a plan never counts on it; the stores' limit holds.
+  // A timed voyage gathers it into one notice at its end (the clock calls forageFlush); offline it goes to Welcome Back.
+  const FM = forageModel;
+  const skillLevel = (id) => { try { return game.skills.getObjectByID(id)?.level ?? 1; } catch { return 1; } };
+  const forageLevels = () => Object.fromEntries(Object.keys(FM?.FORAGE_SKILLS ?? {}).map((id) => [id, skillLevel(id)]));
+  const onFoot = (step) => step != null && step.sea !== true && step.water !== true && step.fastTravel !== true && !(step.hop > 0);
+  /** What each step (walking order) of the game path `path` (destination first) may give: forageAt, or undefined. */
+  const forageList = (path, steps) => {
+    if (FM === undefined || !enabled() || !Array.isArray(path) || !Array.isArray(steps)) return [];
+    const lv = forageLevels();
+    // Step k enters path[path.length - 2 - k] (ship.mjs stepsOf).
+    return steps.map((step, k) => (onFoot(step) ? FM.forageAt(recOf(path[path.length - 2 - k]), lv, S.isEasy) : undefined));
+  };
+  /** The most a route could give ({ food, fuel }), never counted on; undefined when it gives nothing. */
+  const forageAhead = (path, steps) => {
+    try {
+      const r = FM === undefined ? undefined : FM.forageRange(forageList(path, steps ?? state.ship?.stepsOf?.(path)));
+      return r !== undefined && (r.food > 0 || r.fuel > 0) ? r : undefined;
+    } catch (e) { log('forage forecast failed', e); return undefined; }
+  };
+  /** "10 food, 0.25 fuel", the parts that are there. */
+  const foundWords = (food, fuel) => [food > 0 ? t('MOD_VOY_UNIT_FOOD', { n: hp(food) }) : '', fuel > 0 ? t('MOD_VOY_UNIT_FUEL', { n: fuelText(fuel) }) : ''].filter((x) => x !== '').join(', ');
+  /**
+   * The range as the cost rows show amounts (the user, build .554: "just icons with a tooltip"): the ration and fuel
+   * art, each with its number, the parts that are there; the words go in `forageTip`. `cls` is the images' class,
+   * `pair` each pair's (Set off builds them as its cost line is built: the icon, a gap, the number).
+   */
+  const forageIcons = (fa, cls = '', pair = 'voyage-stores-pair') => [
+    fa.food > 0 ? `<span class="${pair}"><img${cls ? ` class="${cls}"` : ''} src="${ctx.getResourceUrl('assets/ration.webp')}" alt="">${esc(hp(fa.food))}</span>` : '',
+    fa.fuel > 0 ? `<span class="${pair}"><img${cls ? ` class="${cls}"` : ''} src="${ctx.getResourceUrl('assets/fuel.webp')}" alt="">${esc(fuelText(fa.fuel))}</span>` : '',
+  ].filter((x) => x !== '').join(' ');
+  const forageTip = (fa) => t('MOD_VOY_STORES_PATH_FORAGE_TIP', { amounts: foundWords(fa.food, fa.fuel) });
+  let foraged = { food: 0, fuel: 0 };
+  let forageN = 0;
+  /** Tells what was found since the last notice (one per move, one per timed voyage). */
+  const forageFlush = () => {
+    const f = foraged;
+    foraged = { food: 0, fuel: 0 };
+    if (!(f.food > 0 || f.fuel > 0)) return;
+    const text = t('MOD_VOY_FORAGE_FOUND', { amounts: foundWords(f.food, f.fuel) });
+    const media = ctx.getResourceUrl('assets/ration.webp');
+    if (offlineNow()) { try { state.weather?.tellAway?.(`<img class="skill-icon-xs mr-1" src="${esc(media)}" alt="">${esc(text)}`); } catch {} return; }
+    try { game.notifications.createSuccessNotification(`voyage:forage:${forageN++}`, text, media); } catch {}
+  };
+  /** After a landed move (setup.mjs movePlayer): rolls each step on foot and adds what it finds, up to the limit. */
+  const forage = (path, steps) => {
+    const list = forageList(path, steps);
+    let food = 0;
+    let fuel = 0;
+    for (const at of list) { const r = FM.rollForage(at); food += r.food; fuel += r.fuel; }
+    const s = stores();
+    if (s === undefined || !(food > 0 || fuel > 0)) return;
+    const cap = capacity();
+    const add = { food: Math.max(0, Math.min(food, cap.food - s.food)), fuel: S.roundFuel(Math.max(0, Math.min(fuel, cap.fuel - s.fuel))) };
+    if (!(add.food > 0 || add.fuel > 0)) return;
+    set(s.food + add.food, s.fuel + add.fuel);
+    foraged = { food: foraged.food + add.food, fuel: S.roundFuel(foraged.fuel + add.fuel) };
+    log(`foraged ${add.food} food, ${add.fuel} fuel`);
+    if (state.clock?.running?.() !== true) forageFlush();
+  };
+
+  /** A fuel tooltip with the night's light named in it: `tip` alone when nothing is lit. */
+  const lightTip = (tip, light) => (light >= 0.005 ? t('MOD_VOY_STORES_PATH_FUEL_LIGHT', { tip, fuel: fuelText(light), bonus: `${Math.round(model.STAR_XP * 100)}` }) : tip);
   const api = {
-    enabled, stores, planFor, priceSteps, loadingAtHex, afterMove, refuse, rescue,
+    enabled, stores, planFor, forage, forageAhead, forageFlush, foundWords, forageIcons, amountIcons: forageIcons, forageTip, forageModel: FM, lightTip, priceSteps, loadingAtHex, afterMove, refuse, rescue,
     supplyOn, sourcesAt, supplyAt, supplyHere, placeSupply, loadPlan, supplyVersion: () => supplyVersion,
     spoilOn, spoilTick, settleSpoil, spoilRate, spoilFactors, spoilAhead, tentRate, spoilText, packWith, casks, cureLeft, spoilModel: P,
     /** Offers the trader's share when the stores can't reach safe ground (the panel's Stranded? button). */

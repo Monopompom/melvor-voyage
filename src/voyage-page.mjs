@@ -945,8 +945,11 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       ] });
       if (!(state.crew !== undefined && state.folksGuarded === true)) out.push(...outpostHelp(true));
       // Local supply (4.4a): a day's worth by place at your level's carry limit, or a line saying it is off.
+      // Off by the settings, not by supplyOn(): that is also false for a moment while a save loads (the rules not yet
+      // active), and the help once said "off" with the setting on (build .554).
+      const setOff = (k) => state.settings.provisions?.() === false || state.settings[k]?.() === false;
       if (st !== undefined) {
-        if (st.supplyOn?.() !== true) out.push({ head: t('MOD_VOY_HELP_HEAD_SUPPLY'), body: [t('MOD_VOY_HELP_SUPPLY_OFF')] });
+        if (setOff('supply')) out.push({ head: t('MOD_VOY_HELP_HEAD_SUPPLY'), body: [t('MOD_VOY_HELP_SUPPLY_OFF')] });
         else {
           const cap = st.capacity();
           out.push({ head: t('MOD_VOY_HELP_HEAD_SUPPLY'), body: [
@@ -959,10 +962,24 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
           ] });
         }
       }
+      // Foraging (build .554): the odds and finds by level, on good ground; driftwood the same for all.
+      const FM = st?.forageModel;
+      if (FM !== undefined) {
+        const wc = Object.keys(FM.FORAGE_SKILLS)[0];
+        const at = (level) => FM.forageAt({ t: 'grasslands', f: [FM.FORAGE_SKILLS[wc][0]] }, { [wc]: level }).food;
+        out.push({ head: t('MOD_VOY_HELP_HEAD_FORAGE'), body: [
+          t('MOD_VOY_HELP_FORAGE_WHAT'),
+          { table: { cols: [t('MOD_VOY_HELP_COL_LEVEL'), t('MOD_VOY_HELP_COL_CHANCE'), t('MOD_VOY_HELP_COL_FOOD')], rows: [1, 25, 50, 75, 99].map((l) => {
+            const f = at(l);
+            return { cells: [`${l}`, `${Math.round(f.chance * 100)}%`, t('MOD_VOY_UNIT_FOOD', { n: st.hp(f.amount) })] };
+          }) } },
+          t('MOD_VOY_HELP_FORAGE_MORE', { fuel: st.fuelText(FM.FORAGE.driftFuel), pct: `${Math.round(FM.FORAGE.driftChance * 100)}` }),
+        ] });
+      }
       // Spoilage (4.4b): the rates and every multiplier, in the Stores help and so in the Journal's Victuals chapter.
       const SP = st?.spoilModel;
       if (SP !== undefined) {
-        if (st.spoilOn?.() !== true) out.push({ head: t('MOD_VOY_HELP_HEAD_SPOIL'), body: [t('MOD_VOY_HELP_SPOIL_OFF')] });
+        if (setOff('spoilage')) out.push({ head: t('MOD_VOY_HELP_HEAD_SPOIL'), body: [t('MOD_VOY_HELP_SPOIL_OFF')] });
         else {
           const x = (n) => `×${n}`;
           const one = x(1);

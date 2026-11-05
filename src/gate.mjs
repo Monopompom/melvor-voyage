@@ -200,6 +200,15 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     if (!state.folksGuarded) return undefined;
     try { return state.folksApi?.()?.workerOf?.(skillId); } catch (e) { log('folk actor failed', e); return undefined; }
   };
+  // The same Folk for the rate on every action: Worker Folks' light lookup ({ id, place, travel }, API 9) skips the
+  // full view workerOf copies; older Folks fall back to workerOf.
+  const folkPlace = (skillId) => {
+    if (!state.folksGuarded) return undefined;
+    try {
+      const api = state.folksApi?.();
+      return typeof api?.actorOf === 'function' ? api.actorOf(skillId) : api?.workerOf?.(skillId);
+    } catch (e) { log('folk place failed', e); return undefined; }
+  };
   /** lockedHere, or, for a start that goes to a Folk, locked where it stands ({ pos, rec, folk }); no place is free. */
   const lockedFor = (skillId) => {
     const folk = folkActor(skillId);
@@ -361,7 +370,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     try {
       if (!on() || !rules.isGated(skillId)) return 1;
       // A Folk's skill runs at the rate of the Folk's hex (6b); one with no place yet at full rate.
-      const folk = folkActor(skillId);
+      const folk = folkPlace(skillId);
       if (folk !== undefined && folk.place === null) return 1;
       return rules.rateAt(skillId, state.recordAt(folk === undefined ? state.position() : folk.place), state.ruleOpts());
     } catch { return 1; }
@@ -1260,13 +1269,60 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       } catch (e) { console.error(`[Voyage] stop check for ${f?.name} failed open`, e); }
     }
   };
+  // ---- "Not here" badges (build .554, the user) ------------------------------------------------------------------------
+  // On the Woodcutting, Mining and Fishing pages, each tree, rock and fish that would be refused where it would run (your
+  // hex, or a Folk's for a start that goes to it) wears a small red badge; its tooltip says what it needs. The game's
+  // menus are kept by the game (woodcuttingMenu.treeMenus, rockMenus, fishingAreaMenus); a missing one is skipped.
+  const BADGE_MENUS = [
+    { skillId: 'melvorD:Woodcutting', each(fn) { if (typeof woodcuttingMenu !== 'undefined') woodcuttingMenu?.treeMenus?.forEach((menu, tree) => fn(tree, menu.treeName)); } },
+    { skillId: 'melvorD:Mining', each(fn) { if (typeof rockMenus !== 'undefined') rockMenus.forEach((menu, rock) => fn(rock, menu.nameText)); } },
+    { skillId: 'melvorD:Fishing', each(fn) { if (typeof fishingAreaMenus !== 'undefined') fishingAreaMenus.forEach((menu, area) => area.fish?.forEach((fish, i) => fn(fish, menu.fishButtons?.[i]?.fishName))); } },
+  ];
+  const badges = new WeakMap();
+  const badgeTip = (lock, skillLocked) => {
+    if (skillLocked) return templateLangString('MOD_VOY_GATE_SIDEBAR_LOCKED', { need: need(lock.skillId ?? '').text });
+    const needs = zoneNeed(lock.zone).text;
+    if (needs === '') return getLangString('MOD_VOY_NOT_HERE_ANY');
+    return lock.folk !== undefined ? templateLangString('MOD_VOY_NOT_HERE_FOLK', { name: lock.folk.name, need: needs }) : templateLangString('MOD_VOY_NOT_HERE_ZONE', { need: needs });
+  };
+  const badgePages = () => {
+    for (const m of BADGE_MENUS) {
+      const skill = game.skills.getObjectByID(m.skillId);
+      let skillLock;
+      try { skillLock = rules.isGated(m.skillId) ? lockedFor(m.skillId) : undefined; } catch { skillLock = undefined; }
+      try {
+        m.each((action, anchor) => {
+          if (!(anchor instanceof HTMLElement)) return;
+          let lock;
+          // Only what you could start: a tree, rock or fish above your level shows the game's "Unlocked at" instead.
+          const reached = (action.level ?? 1) <= (skill?.level ?? 1) && !((action.abyssalLevel ?? 0) > 0);
+          try { lock = reached ? skillLock ?? zoneLockedFor(action) : undefined; } catch { lock = undefined; }
+          let b = badges.get(anchor);
+          if (lock === undefined) { b?.classList.add('d-none'); return; }
+          if (b === undefined) {
+            b = document.createElement('span');
+            b.className = 'badge badge-danger voyage-not-here ml-1';
+            b.textContent = getLangString('MOD_VOY_NOT_HERE');
+            anchor.after(b);
+            badges.set(anchor, b);
+          }
+          b.classList.remove('d-none');
+          const tip = badgeTip(skillLock === undefined ? lock : { ...lock, skillId: m.skillId }, skillLock !== undefined);
+          if (b.dataset.voyTip !== tip) {
+            b.dataset.voyTip = tip;
+            if (state.tips !== undefined) state.tips.set(b, tip); else b.title = tip;
+          }
+        });
+      } catch (e) { log(`not-here badges for ${m.skillId} failed`, e); }
+    }
+  };
   // One sidebar pass per burst (build .481): a hex sailed ran it from each listener call and again after the move, 10 ms
   // each, inside the tick.
   let dimQueued = false;
   const dimSoon = () => {
     if (dimQueued) return;
     dimQueued = true;
-    setTimeout(() => { dimQueued = false; dimSidebar(); }, 0);
+    setTimeout(() => { dimQueued = false; dimSidebar(); badgePages(); }, 0);
   };
   const onMoved = () => {
     stopWhatDoesNotFit('move');

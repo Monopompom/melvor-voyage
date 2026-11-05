@@ -89,6 +89,8 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 
 /* phase 2: sidebar dimming, panel skill rows, compass */
 .nav-main-item.voyage-dim { opacity: .45; filter: grayscale(.6); }
+/* "Not here" on a tree, rock or fish the gate would refuse where it would run (build .554). */
+.voyage-not-here { font-size: .7rem; vertical-align: middle; white-space: nowrap; }
 /* Worker Folks' box on a skill that is yours alone (Cartography) while the rules are on. */
 .voyage-folk-box-hidden { display: none !important; }
 .voyage-skillrow { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-top: 2px; }
@@ -250,13 +252,15 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-stores-note { flex: 0 0 100%; }
 /* The rows (build .264, the user: "weird spacing after provisioning icon. need distinction for the 'title' icons"): one
    block (left since phase 5c-1, the user: "rows read left"), the leads in a column and each text left-aligned beside its lead, so a wrapped line stays under its
-   own text. A lead is the row's label, not one of its figures: a round grey badge in the label ink. */
+   own text. A lead is the row's label, not one of its figures: a round grey badge, its icon in colour. */
 .voyage-stores-rows { display: inline-grid; grid-template-columns: auto auto; column-gap: 8px; row-gap: 4px;
   align-items: center; text-align: left; max-width: 100%; margin-top: 2px; }
 .voyage-stores-row { display: contents; }
 .voyage-stores-lead { display: inline-flex; align-items: center; justify-content: center; width: 1.7em; height: 1.7em;
   border-radius: 50%; background: var(--voyage-tile); box-shadow: inset 0 0 0 1px var(--voyage-rule-soft);
   color: var(--voyage-label); font-size: .85rem; cursor: help; }
+/* A lead's icon in its row's colour (build .554, the user: "make all of them in color"); gold where the row has none. */
+.voyage-stores-lead .voyage-lead-gold { color: var(--voyage-gold); }
 .voyage-stores-lead .voyage-stores-lead-img { width: 1.15em; height: 1.15em; vertical-align: 0; margin: 0; }
 .voyage-stores-lead-img, .voyage-stores-row .voyage-stores-icons img { width: 1.1em; height: 1.1em; vertical-align: -0.2em; margin-right: 2px; }
 .voyage-stores-icons { white-space: nowrap; }
@@ -271,6 +275,8 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 /* Each icon with its amount, never parted; the fuel's icon keeps its gap after the food. */
 .voyage-stores-pair { white-space: nowrap; }
 .voyage-stores-pair + .voyage-stores-pair img:first-child { margin-left: 4px; }
+/* The forage row in the Travel Cost box (build .554): its numbers a little off their icons, as the cost rows' are. */
+.voyage-stores-row .voyage-stores-pair img { margin-right: 4px; }
 /* What the stores carry (build .360): food, then fuel, each on one line; the fuel wraps under the food on a phone. */
 .voyage-stores-carried { display: inline-flex; flex-wrap: wrap; column-gap: 10px; row-gap: 2px; }
 /* The Voyage page's notes (<small>, 80% by default) read too small (user feedback, build .67): close to body size. */
@@ -1337,13 +1343,13 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-clock-icon { width: 18px; height: 18px; object-fit: contain; flex: none; }
 .voyage-clock-tile-value { font-weight: 600; font-size: 1.1rem; }
 .voyage-clock-tile-sub { font-size: .9rem; }
-.voyage-clock-gp { color: var(--voyage-gold); }
 .voyage-clock-time-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; }
 .voyage-clock-time { font-size: 1.5rem; font-weight: 700; line-height: 1.2; color: var(--voyage-gold); }
 .voyage-clock-sun { color: var(--voyage-gold); }
 .voyage-clock-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .voyage-clock-costs { display: flex; flex-wrap: wrap; column-gap: 12px; row-gap: 2px; margin-top: 4px; font-size: .9rem; }
-.voyage-clock-cost { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+/* Set off's Costs rows (build .554, the user: "unify these two"): the Travel Cost box's rows, a round lead each. */
+.voyage-clock-rows { display: grid; justify-content: start; font-size: .9rem; margin-top: 6px; }
 /* The route strip: a dot where you stand, the legs as long as they take (land brown, sea blue), the pin at the end. */
 .voyage-clock-strip { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
 .voyage-clock-strip-start { font-size: .8rem; color: var(--voyage-label); } /* .386: nothing under .8rem */

@@ -65,6 +65,11 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   Seaweed and Coal Ore) halves your stores' loss for 6 hours each. It never takes the food you need to get ashore or
   what a voyage under way still needs, and a walking Folk's pack carries the extra. The Stores block, the planner,
   Set off, a tent's store and the Welcome Back box say how much.
+- **Foraging.** Walking (never sailing or fast travel) into woods or fresh water may find food on the way: the woods
+  by your Woodcutting level, rivers, lakes and waterfalls by your Fishing level, from a quarter of a chance and 1 food at
+  level 1 to three in four and half a ration at 99, half as much on hard ground. A shore, a beach or a lake may wash up
+  a little driftwood for the fire. The snow, the lava, the wastes and the sea give nothing. The Travel Cost box and
+  Set off show the most a walk could find, but a plan never counts on it.
 - **Tents.** A Tent from the Voyage shop (Voyage level 30) makes an outpost: pitch it from the Here panel on the land
   hex you stand on (not on a town, port, market or camp). You put it up over about an hour, offline too, while you stay
   on the hex, and you may work there meanwhile; leaving the hex, or Stop the build, puts it back in your bank. Then the
@@ -231,7 +236,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Voyage rules**: off, nothing is locked by location.
 - **Strictness**: Strict locks gathering and crafting; Relaxed locks gathering only, and keeps Firemaking and Cooking on dry land and Archaeology at its dig sites.
 - **Resource zones**: each ore, tree, fish, crop, thieving target and constellation is found only in its own places (iron and copper
-  are in different regions; the panel's skill icons list what is found on your hex). Off: the skill's terrain decides alone.
+  are in different regions; the panel's skill icons list what is found on your hex, and on the Woodcutting, Mining and
+  Fishing pages each one that can't be started there says "Not here"). Off: the skill's terrain decides alone.
 - **Combat needs its area** and **Trade only near markets**: each can be switched off on its own.
 - **Provisions**: off, moves take nothing from your stores and sailing wears nothing.
 - **Local supply**: off, every place loads as much as your bank holds.

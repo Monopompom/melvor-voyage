@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-05.553';
+export const BUILD = '2026-11-05.554';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -386,6 +386,9 @@ export async function setup(ctx) {
   // Spoilage (4.4b). A failure: nothing spoils, the rest of provisions runs.
   let spoilModel;
   try { spoilModel = await ctx.loadModule('src/spoil-model.mjs'); } catch (e) { console.error('[Voyage] spoilage failed to load; nothing spoils', e); }
+  // Foraging on the road (build .554). A failure: walking finds nothing, the rest runs.
+  let forageModel;
+  try { forageModel = await ctx.loadModule('src/forage-model.mjs'); } catch (e) { console.error('[Voyage] foraging failed to load; walking finds nothing', e); }
   const storesMod = await ctx.loadModule('src/stores.mjs');
   const holdMod = await ctx.loadModule('src/hold.mjs');
   // Pitch from Firemaking (3d). A failure leaves repairs short of Pitch, nothing else.
@@ -413,7 +416,7 @@ export async function setup(ctx) {
     state.landModel = landModel;
   } catch (e) { console.error('[Voyage] land upgrades failed to load; the rest runs', e); state.land = undefined; }
   // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
-  const stores = storesMod.install(ctx, { state, model, storesModel, supplyModel, spoilModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log });
+  const stores = storesMod.install(ctx, { state, model, storesModel, supplyModel, spoilModel, forageModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log });
   // Spoilage settles once a game-minute on the skill's passive tick, online and offline (4.4b).
   { const s = voyageSkill(); if (s !== undefined) s.spoilTick = () => stores.spoilTick(); }
   // Gear, relics and the Albatross (4.31): the effects the stores, the clock, cargo and the bands' tolls read, and the rolls
@@ -617,6 +620,8 @@ export async function setup(ctx) {
         const dest = path?.[0];
         if (dest !== undefined && from !== dest && this.activeMap?.playerPosition === dest) {
           stores.afterMove(planned);
+          // Foraging (build .554): what the walk turned up, after the move is paid.
+          try { if (!ignoreCosts) stores.forage(path, steps); } catch (e) { log('foraging failed', e); }
           // A hungry hex costs more of the game's GP (the flat mechanics): its own share of what the move just took, by
           // each step's price (an instant move of many steps), as the Set off popup counts it.
           try {

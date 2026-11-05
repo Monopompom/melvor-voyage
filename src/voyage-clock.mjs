@@ -688,20 +688,58 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     for (const [kind, c] of Object.entries(pl?.conds ?? {})) wear += Math.max(0, (state.ship?.cond?.(kind) ?? c) - c);
     const img = (src, cls = 'voyage-clock-icon') => `<img class="${cls}" src="${esc(src)}" alt="">`;
     const res = (file) => ctx.getResourceUrl(`assets/${file}`);
-    const costBits = [];
+    // The costs as the Travel Cost box draws them (the user, build .554: "I like the right design, and the left seems
+    // unfinished"): one row each, a round lead icon (its words the tooltip), then the amount.
+    const costRows = [];
+    const lead = (inner, tip) => `<span class="voyage-stores-lead" title="${esc(tip)}">${inner}</span>`;
+    const leadImg = (file) => `<img class="voyage-stores-lead-img" src="${esc(res(file))}" alt="">`;
+    // Every lead in colour (the user, build .554: "make all of them in color"): an icon in its row's colour.
+    const leadFa = (fa, cls = 'voyage-lead-gold') => `<i class="fa ${fa} ${cls}" aria-hidden="true"></i>`;
+    const costRow = (leadHtml, tip, html, cls = '') => costRows.push(`<div class="voyage-stores-row ${cls}">${lead(leadHtml, tip)}<span>${html}</span></div>`);
+    // The GP first, green when you have it and red when not, as the box's first row (the user, build .554: the big
+    // figure "does not look the same").
+    {
+      const hungryGpNow = fog === undefined ? info.hungryGp ?? 0 : 0;
+      const gpAll = info.gp + hungryGpNow;
+      const gpHtml = fog === undefined ? esc(shortNumber(gpAll)) : esc(t('MOD_VOY_FOG_GP', { gp: shortNumber(info.gp) }));
+      costRow(`<img class="voyage-stores-lead-img" src="${esc(game.gp.media)}" alt="">`, t('MOD_VOY_STORES_PATH_GP_TIP', { have: shortNumber(game.gp.amount) }),
+        `<span class="${game.gp.amount >= gpAll ? 'text-success' : 'text-danger'}">${gpHtml}</span>`);
+    }
     if (pl?.spent !== undefined && fog === undefined) {
-      // The page's units: food in HP, fuel as the Stores block writes it (.309, scan C-18/A2-26).
-      costBits.push(`<span class="voyage-clock-cost">${img(res('ration.webp'))}${esc(t('MOD_VOY_UNIT_FOOD', { n: num(pl.spent.food) }))}</span>`);
-      costBits.push(`<span class="voyage-clock-cost">${img(res('fuel.webp'))}${esc(t('MOD_VOY_UNIT_FUEL', { n: state.stores?.fuelText?.(pl.spent.fuel) ?? `${Math.round(pl.spent.fuel * 10) / 10}` }))}</span>`);
+      // As the box writes them (the user, build .554): the food's number beside the ration (no "HP": "it's kinda
+      // understandable"), fuel the number alone.
+      if (Math.floor(pl.spent.food) > 0) costRow(leadImg('ship_stores.webp'), t('MOD_VOY_STORES_PATH_COST_TIP'), `<span class="voyage-stores-icons"><img src="${esc(res('ration.webp'))}" alt="">${esc(num(pl.spent.food))}</span>`);
+      if (pl.spent.fuel >= 0.005) costRow(leadImg('fuel.webp'), state.stores?.lightTip?.(t('MOD_VOY_STORES_PATH_FUEL_TIP'), pl.light ?? 0) ?? t('MOD_VOY_STORES_PATH_FUEL_TIP'), esc(state.stores?.fuelText?.(pl.spent.fuel) ?? `${Math.round(pl.spent.fuel * 10) / 10}`));
     }
     // The Folks with you (phase 6c): the food and fuel above feed them too.
     const crewN = state.crew?.count?.() ?? 0;
-    if (crewN > 0) costBits.push(`<span class="voyage-clock-cost" title="${esc(t('MOD_VOY_CLOCK_COST_CREW_TIP'))}"><i class="fa fa-users voyage-clock-icon" aria-hidden="true"></i>${esc(t(crewN === 1 ? 'MOD_VOY_CLOCK_COST_CREW_ONE' : 'MOD_VOY_CLOCK_COST_CREW', { count: `${crewN}` }))}</span>`);
-    if (wear > 0 && fog === undefined) costBits.push(`<span class="voyage-clock-cost">${img(res('hull_condition.webp'))}${esc(t('MOD_VOY_CLOCK_COST_WEAR', { pct: `${Math.round(wear)}` }))}</span>`);
+    if (crewN > 0) costRow(leadFa('fa-users'), t('MOD_VOY_CLOCK_COST_CREW_TIP'), esc(t(crewN === 1 ? 'MOD_VOY_CLOCK_COST_CREW_ONE' : 'MOD_VOY_CLOCK_COST_CREW', { count: `${crewN}` })));
+    if (wear > 0 && fog === undefined) costRow(leadImg('hull_condition.webp'), t('MOD_VOY_STORES_PATH_WEAR_TIP'), esc(t('MOD_VOY_CLOCK_COST_WEAR', { pct: `${Math.round(wear)}` })));
+    // The weather on the way, as the Travel Cost box shows it (the user, build .554: "temperature missing on the
+    // right"): the fuel and time above already carry it, the row says why they are high.
+    if (fog === undefined) {
+      try {
+        const wx = state.weather?.wayWords?.(stepsOf(path));
+        if (wx !== undefined) {
+          costRow(leadFa('fa-thermometer-half', wx.tone || 'voyage-lead-gold'), t('MOD_VOY_STORES_PATH_WX_TIP', { season: wx.season }),
+            `<b class="${wx.tone}"${wx.head === '' ? '' : ` title="${esc(wx.head)}"`}>${esc(wx.deg)}</b><span class="voyage-wx-sep" aria-hidden="true">◆</span>${wx.fx}`);
+        }
+      } catch (e) { log('set off weather row failed', e); }
+    }
     // Spoilage (4.4b): what the stores lose on the way, the planner's stops counted when it sent the trip.
     let rot;
     try { if (fog === undefined) rot = state.stores?.spoilAhead?.(path, info.stepMs, extra.split); } catch (e) { log('spoil forecast failed', e); }
-    if (rot !== undefined) costBits.push(`<span class="voyage-clock-cost text-warning"><i class="fa fa-hourglass-half voyage-clock-icon" aria-hidden="true"></i>${esc(t('MOD_VOY_CLOCK_COST_SPOIL', { amounts: state.stores.spoilText(rot.food, rot.fuel) }))}</span>`);
+    // In red, the ration and fuel art with their numbers (rounded as the words are), the words in the tooltip (the user,
+    // build .554: "maybe in red, icons and tooltip").
+    if (rot !== undefined) {
+      const lost = { food: Math.round(rot.food), fuel: Math.round(rot.fuel * 100) / 100 };
+      if (lost.food > 0 || lost.fuel > 0) costRow(leadFa('fa-hourglass-half', 'text-danger'), t('MOD_VOY_CLOCK_COST_SPOIL_TIP', { amounts: state.stores.spoilText(rot.food, rot.fuel) }), `<span class="voyage-stores-icons text-danger">${state.stores.amountIcons(lost)}</span>`);
+    }
+    // Foraging (build .554): the most the walk could find, never counted in the costs; icons and numbers, green, the
+    // words in the tooltip (the user).
+    let fa;
+    try { if (fog === undefined && pl?.ok !== false) fa = state.stores?.forageAhead?.(path); } catch (e) { log('forage forecast failed', e); }
+    if (fa !== undefined) costRow(leadFa('fa-leaf', 'text-success'), state.stores.forageTip(fa), `<span class="voyage-stores-icons text-success">${state.stores.forageIcons(fa)}</span>`);
     // The route as a strip: land and sea legs in their colours, as long as they take (the user, 18 Oct 2026: "spice it up").
     const o = timeOpts();
     const legs = [];
@@ -768,7 +806,6 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     const fogChip = fog !== undefined && fog.fog > 0 ? `<span class="voyage-travel-chip voyage-fog-chip"><i class="fa fa-cloud mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_FOG_N_FOG', { n: `${fog.fog}` }))}</span>` : '';
     // Hexes walked hungry cost 30% more GP (the flat mechanics): in the cost, and a line saying why.
     const hungryGp = fog === undefined ? info.hungryGp ?? 0 : 0;
-    const gpText = fog === undefined ? shortNumber(info.gp + hungryGp) : t('MOD_VOY_FOG_GP', { gp: shortNumber(info.gp) }); // the coin is the tile's icon, as the planner's (.309, scan A2-26)
     const fogCostNote = fog === undefined ? '' : `<div class="voyage-clock-costs text-muted">${esc(t('MOD_VOY_FOG_COST_NOTE'))}</div>`;
     const hungryNote = hungryGp > 0 ? `<div class="voyage-clock-costs text-warning">${esc(t('MOD_VOY_CLOCK_HUNGRY_GP', { gp: shortNumber(hungryGp), hexes: hexes(info.plan?.plan?.hungry?.length ?? 0), pct: `${Math.round(S.HUNGRY_GP * 100)}` }))}</div>` : '';
     const html = '<div class="voyage-clock-setoff text-left">'
@@ -780,8 +817,9 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
       + `<div class="voyage-clock-time-row"><span class="voyage-clock-time" data-voyage-fog="time">${esc(duration(totalFor(0)))}</span>${windHtml}<span class="voyage-clock-tile-sub" data-voyage-fog="arrive">${arriveHtml(0)}</span></div>${fogSplit}${strip}</div>`
       + `<div class="voyage-clock-tile">${head('<i class="fa fa-route voyage-clock-fa" aria-hidden="true"></i>', 'MOD_VOY_CLOCK_HEXES')}`
       + `<div class="voyage-clock-tile-value">${esc(hexes(info.hexes))}</div><div class="voyage-clock-chips">${chip('land', info.land, 'MOD_VOY_CLOCK_N_LAND')}${chip('sea', info.sea, 'MOD_VOY_CLOCK_N_SEA')}${fogChip}</div></div>`
-      + `<div class="voyage-clock-tile">${head(img(game.gp.media, 'voyage-clock-icon voyage-clock-head-icon'), 'MOD_VOY_CLOCK_COSTS')}`
-      + `<div class="voyage-clock-tile-value voyage-clock-gp">${esc(gpText)}</div>${costBits.length > 0 ? `<div class="voyage-clock-costs">${costBits.join('')}</div>` : ''}${hungryNote}${fogCostNote}</div>`
+      // The coin leads the GP row now, so the tile's label has the coins glyph (build .554).
+      + `<div class="voyage-clock-tile">${head('<i class="fa fa-coins voyage-clock-fa" aria-hidden="true"></i>', 'MOD_VOY_CLOCK_COSTS')}`
+      + `${costRows.length > 0 ? `<div class="voyage-stores-rows voyage-clock-rows text-info">${costRows.join('')}</div>` : ''}${hungryNote}${fogCostNote}</div>`
       + '</div>'
       + stormHtml(info)
       + waitHtml
@@ -1103,6 +1141,8 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     setVoyage(null);
     setEnding(e);
     clearAction();
+    // What the walk foraged (build .554), told once the voyage is over.
+    try { state.stores?.forageFlush?.(); } catch {}
     if (how !== 'arrived' && how !== 'adrift' && !offlineNow() && !quiet) {
       const pos = map()?.playerPosition;
       notify(t(how === 'refused' ? 'MOD_VOY_CLOCK_REFUSED_AT' : 'MOD_VOY_CLOCK_STOPPED_AT', { at: pos === undefined ? '' : nameOfHex(pos) }), how === 'refused' ? 'danger' : 'success');
