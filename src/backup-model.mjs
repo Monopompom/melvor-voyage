@@ -104,13 +104,25 @@ export function folksPlan(backup, now, walks) {
   return plan;
 }
 
+// ---- all of Worker Folks ---------------------------------------------------------------------------------------
+// One backup for both mods (the user, 5 Nov 2026: "one ... button backup all"): with a Worker Folks that makes its own
+// backups (its API 8), Voyage's code carries Folks' whole code as it is, versioned by Folks, and a restore hands it back
+// to Folks first. An older Voyage reading such a code drops the part and restores the rest.
+
+/** Worker Folks' own backup code's first word. */
+export const FOLKS_PREFIX = 'FOLKS-BACKUP';
+const WHOLE_MAX = 4 * 1024 * 1024;
+/** Folks' whole code when it looks like one (its own checks run when Folks reads it), else null. */
+export const cleanWhole = (code) => (typeof code === 'string' && code.length <= WHOLE_MAX && code.startsWith(`${FOLKS_PREFIX}:`) ? code : null);
+
 /**
  * The backup: `record` the Voyage save as its JSON text (so the save's own migrations read it back), `xp` the skill's,
  * `items` and `buys` Voyage's bank items and shop purchases ({ id: count }), `settings` the mod's settings by name,
- * `storage` its characterStorage by key, `folks` Worker Folks' side (cleanFolks; null without it); `name` and `mode`
- * the character, `mod` and `build` who wrote it, `save` the record's version, `at` when (ms).
+ * `storage` its characterStorage by key, `folks` Worker Folks' side (cleanFolks; null without it), `whole` all of
+ * Worker Folks as its own code (cleanWhole; null without it); `name` and `mode` the character, `mod` and `build` who
+ * wrote it, `save` the record's version, `at` when (ms).
  */
-export function make({ record, xp, items, buys, settings, storage, folks, name, mode, mod, build, save, at }) {
+export function make({ record, xp, items, buys, settings, storage, folks, whole, name, mode, mod, build, save, at }) {
   return {
     f: FORMAT,
     mod: String(mod ?? ''),
@@ -126,6 +138,7 @@ export function make({ record, xp, items, buys, settings, storage, folks, name, 
     settings: isObj(settings) ? { ...settings } : {},
     storage: isObj(storage) ? { ...storage } : {},
     folks: cleanFolks(folks),
+    whole: cleanWhole(whole),
   };
 }
 
@@ -200,12 +213,14 @@ export async function encode(backup) {
 }
 
 /**
- * A pasted or loaded code back to { backup } or { why }: 'empty', 'notCode' (not a Voyage backup), 'cantUnzip' (a
- * deflated code where the browser can't inflate), or open()'s reasons. Spaces and line breaks in it are ignored.
+ * A pasted or loaded code back to { backup } or { why }: 'empty', 'notCode' (not a Voyage backup), 'folks' (Worker
+ * Folks' own code: restored on its Hiring page), 'cantUnzip' (a deflated code where the browser can't inflate), or
+ * open()'s reasons. Spaces and line breaks in it are ignored.
  */
 export async function decode(text, saveVersion) {
   const s = String(text ?? '').replace(/\s+/g, '');
   if (s === '') return { why: 'empty' };
+  if (s.startsWith(`${FOLKS_PREFIX}:`)) return { why: 'folks' };
   const m = /^VOYAGE-BACKUP:([zj]):([A-Za-z0-9+/=]+)$/.exec(s);
   if (m === null) return { why: 'notCode' };
   let bytes;

@@ -1123,7 +1123,7 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-help-rows { max-width: 22rem; margin: 0 auto; column-gap: 0; }
 .voyage-help-rows > .voyage-help-td { display: flex; align-items: center; gap: 6px; }
 .voyage-help-rows > .voyage-help-td:nth-child(even) { padding-left: 12px; justify-content: flex-end; }
-.voyage-help-rows > .voyage-help-td img { width: 20px; height: 20px; margin: 0 !important; }
+.voyage-help-rows > .voyage-help-td > img { width: 20px; height: 20px; margin: 0 !important; } /* a row's own icon; a skill name's icon in a label keeps its gap */
 .voyage-help-rows > .voyage-help-td:nth-child(odd) { color: var(--voyage-label); font-weight: 600; }
 .voyage-help-rows > .voyage-help-td:nth-last-child(-n+2) { border-bottom: 0; }
 .voyage-help-body .voyage-help-rows + .voyage-help-p, .voyage-help-body .voyage-help-p + .voyage-help-rows { margin-top: 8px; }

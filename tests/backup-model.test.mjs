@@ -129,3 +129,21 @@ test('the Folks part goes through the code and back', async () => {
   const { folks, ...old } = b;
   assert.equal(B.open(B.seal(old), 27).backup.folks, null);
 });
+
+test('with a Worker Folks that backs itself up, its whole code rides along unchanged; junk is dropped', async () => {
+  const whole = 'FOLKS-BACKUP:z:AbCd+/==';
+  const b = B.make({ ...sample(), whole });
+  assert.equal(b.whole, whole);
+  assert.equal((await B.decode(await B.encode(b), 27)).backup.whole, whole);
+  assert.equal(B.make({ ...sample(), whole: 'VOYAGE-BACKUP:z:AA==' }).whole, null);
+  assert.equal(B.make({ ...sample(), whole: 42 }).whole, null);
+  assert.equal(sample().whole, null);
+  // a code from before the whole part reads as made without it
+  const { whole: _w, ...old } = b;
+  assert.equal(B.open(B.seal(old), 27).backup.whole, null);
+});
+
+test('Worker Folks\' own code pasted here is told apart: it is restored on the Hiring page', async () => {
+  assert.deepEqual(await B.decode('FOLKS-BACKUP:z:AbCd', 27), { why: 'folks' });
+  assert.deepEqual(await B.decode(' FOLKS-BACKUP:j:\nAbCd ', 27), { why: 'folks' });
+});

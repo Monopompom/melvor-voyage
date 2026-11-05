@@ -245,15 +245,18 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 The game drops a mod's skill, items and shop purchases the first time it saves without the mod: turned off, removed,
 or failing to load after a game update. **Back up Voyage**, at the foot of the Voyage page, gives you a code to copy or
 download as a text file. It holds your level, the map you have charted, the journal, your vessels with their holds
-and cargo, your Voyage items and shop purchases, and your settings. With Worker Folks loaded it also keeps where your
-Folks stand, how they travel and the travel traits they learned; Worker Folks' own data (its Folks, gear and wages)
-is not in it.
+and cargo, your Voyage items and shop purchases, and your settings. With Worker Folks loaded, the same code holds all
+of Worker Folks too: its Folks, gear, wages and purchases, where they stand, how they travel and the travel traits
+they learned. One code brings both mods back. (A Worker Folks too old to back itself up gives only where its Folks
+stand, how they travel and their travel traits.)
 
 **Restore Voyage** takes the code or the file, shows what it holds, what it replaces and what comes back, then saves
-and reloads the game. Items are topped up to the backup's count, never doubled, and nothing gathered since is taken
-away. Neither works while a voyage is under way or Adrift. A backup made with Worker Folks and restored without it
-leaves the Folks out: turn Worker Folks on first to bring them back too. Nothing is backed up by itself: make a fresh
-code before you turn the mod off, remove it or update the game.
+and reloads the game. Worker Folks comes back first, with its own summary in the same window, then Voyage. Items are
+topped up to the backup's count, never doubled, and nothing gathered since is taken away. Neither works while a voyage
+is under way or Adrift. A backup made with Worker Folks and restored without it leaves the Folks out: turn Worker
+Folks on first to bring them back too. A Worker Folks backup code goes to Worker Folks' own Restore, at the foot of
+its Hiring page. Nothing is backed up by itself: make a fresh code before you turn the mod off, remove it or update the
+game.
 
 ## Themes
 

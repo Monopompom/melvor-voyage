@@ -16,8 +16,10 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
   const WHY = {
     empty: 'MOD_VOY_RESTORE_WHY_EMPTY', notCode: 'MOD_VOY_RESTORE_WHY_NOTCODE', broken: 'MOD_VOY_RESTORE_WHY_BROKEN',
     checksum: 'MOD_VOY_RESTORE_WHY_CHECKSUM', format: 'MOD_VOY_RESTORE_WHY_FORMAT', newer: 'MOD_VOY_RESTORE_WHY_NEWER',
-    record: 'MOD_VOY_RESTORE_WHY_RECORD', cantUnzip: 'MOD_VOY_RESTORE_WHY_CANTUNZIP',
+    record: 'MOD_VOY_RESTORE_WHY_RECORD', cantUnzip: 'MOD_VOY_RESTORE_WHY_CANTUNZIP', folks: 'MOD_VOY_RESTORE_WHY_FOLKS',
   };
+  /** Why all of Worker Folks in a backup can't come back here (its restorePlan's reasons, and an older Worker Folks). */
+  const WHOLE_WHY = { newer: 'MOD_VOY_RESTORE_WHOLE_WHY_NEWER', old: 'MOD_VOY_RESTORE_WHOLE_WHY_OLD', unavailable: 'MOD_VOY_RESTORE_WHOLE_WHY_UNAVAILABLE' };
   const when = (at) => { try { return new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch { return new Date(at).toISOString(); } };
   const level = (xp) => { try { return exp.xpToLevel(xp); } catch { return 1; } };
   const nameOf = (id, list) => { try { return list.getObjectByID(id)?.name ?? id; } catch { return id; } };
@@ -37,7 +39,11 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
       { cells: [t('MOD_VOY_BACKUP_ROW_ITEMS'), count(Object.keys(b.items).length, 'MOD_VOY_BACKUP_KIND', 'MOD_VOY_BACKUP_KINDS')] },
       { cells: [t('MOD_VOY_BACKUP_ROW_BUYS'), num(Object.keys(b.buys).length)] },
     ];
-    if (b.folks !== null && b.folks.length > 0) rows.push({ cells: [t('MOD_VOY_BACKUP_ROW_FOLKS'), count(b.folks.length, 'MOD_VOY_BACKUP_FOLK', 'MOD_VOY_BACKUP_FOLKS_N')] });
+    const n = b.folks?.length ?? 0;
+    // All of Worker Folks when it backed itself up (its API 8), else only where its Folks stand and travel. "All of it"
+    // alone: a longer value squeezes the labels onto two lines at phone width; Folks' own band gives the count.
+    if (b.whole !== null) rows.push({ cells: [t('MOD_VOY_BACKUP_ROW_FOLKS'), t('MOD_VOY_BACKUP_FOLKS_WHOLE')] });
+    else if (n > 0) rows.push({ cells: [t('MOD_VOY_BACKUP_ROW_FOLKS'), count(n, 'MOD_VOY_BACKUP_FOLK', 'MOD_VOY_BACKUP_FOLKS_N')] });
     return { table: { rows } };
   };
   /** The body around the bands, a closing line under them, and the popup's width (the help popups'). */
@@ -57,6 +63,22 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
   };
   /** Worker Folks when it is loaded and new enough, else undefined. */
   const folksApi = () => { try { return state.folksApi?.(); } catch { return undefined; } };
+  /** Worker Folks when it makes and restores its own backups (API 8: backup, restorePlan, restore), else undefined. */
+  const wholeApi = () => {
+    const api = folksApi();
+    return api !== undefined && api.version >= 8 && ['backup', 'restorePlan', 'restore'].every((k) => typeof api[k] === 'function') ? api : undefined;
+  };
+  /** One of Worker Folks' confirm bands in the mod's band shape, its heading named for Folks. */
+  const folksSection = (sec) => ({
+    head: t('MOD_VOY_RESTORE_FOLKS_PART', { head: String(sec?.head ?? '') }),
+    warn: sec?.warn === true,
+    body: (Array.isArray(sec?.body) ? sec.body : []).map((line) => {
+      if (typeof line === 'string') return line;
+      if (Array.isArray(line?.rows)) return { table: { rows: line.rows.map(([label, value, media]) => ({ cells: [String(label ?? ''), String(value ?? '')], icon: media })) } };
+      if (typeof line?.html === 'string') return { html: line.html };
+      return String(line ?? '');
+    }),
+  });
   /** Each Folk now as the backup keeps it: hex, travel and its traits held and waiting (backup-model cleanFolks). */
   const folksNow = (api) => {
     try {
@@ -81,9 +103,15 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     if (s.futureRaw !== undefined) { tell(t('MOD_VOY_BACKUP_TITLE'), t('MOD_VOY_BACKUP_FUTURE'), 'warning'); return; }
     const why = B.blockedBy(s.record);
     if (why === 'voyage' || why === 'adrift') { tell(t('MOD_VOY_BACKUP_TITLE'), t(why === 'voyage' ? 'MOD_VOY_BACKUP_NOT_AT_SEA' : 'MOD_VOY_BACKUP_NOT_ADRIFT'), 'warning'); return; }
+    // All of Worker Folks too when it backs itself up; if it can't now, Voyage's backup goes on with its Folks half.
+    let whole = null;
+    const wa = wholeApi();
+    if (wa !== undefined) {
+      try { const r = await wa.backup(); if (r?.ok === true) whole = r.code; else log(`backup: Worker Folks' backup refused (${r?.why})`); } catch (e) { log('backup: Worker Folks\' backup failed', e); }
+    }
     const backup = B.make({
       record: model.serializeSave(s.record), xp: s.xp, items: bankItems(), buys: shopBuys(),
-      settings: settingsIO?.read?.() ?? {}, storage: storage(),
+      settings: settingsIO?.read?.() ?? {}, storage: storage(), whole,
       folks: (() => { const api = folksApi(); return api === undefined ? null : folksNow(api) ?? null; })(),
       name: game.characterName, mode: game.currentGamemode?.id, mod: ctx.version, build: BUILD, save: model.SAVE_VERSION, at: Date.now(),
     });
@@ -92,7 +120,7 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     const file = B.fileName(backup.name, backup.at);
     const html = body([
       { head: t('MOD_VOY_BACKUP_IN_HEAD'), body: [holdsRows(backup), t('MOD_VOY_BACKUP_ALSO')] },
-      { head: t('MOD_VOY_BACKUP_KEEP_HEAD'), warn: true, body: [t('MOD_VOY_BACKUP_KEEP')] },
+      { head: t('MOD_VOY_BACKUP_KEEP_HEAD'), warn: true, body: [t('MOD_VOY_BACKUP_KEEP'), ...(backup.whole === null ? [] : [t('MOD_VOY_BACKUP_KEEP_WHOLE')])] },
       { head: t('MOD_VOY_BACKUP_CODE_HEAD'), body: [{ raw: `${codeBox('readonly')}>${esc(code)}</textarea>`
         + `<div class="voyage-backup-acts"><button type="button" class="btn btn-outline-info" data-voyage-backup="copy">${esc(t('MOD_VOY_BACKUP_COPY'))}</button>`
         + `<button type="button" class="btn btn-outline-info" data-voyage-backup="download">${esc(t('MOD_VOY_BACKUP_DOWNLOAD'))}</button></div>`
@@ -164,7 +192,23 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     log(`backup: Folks ${plan.moves.length} moved, ${plan.halt.length} stopped, ${plan.earn.length} traits learned, ${plan.drop.length} dropped, ${plan.gone.length} not hired now`);
   };
 
-  const apply = (b) => {
+  /**
+   * The restore: all of Worker Folks first when the confirm planned it (its restore writes it back and leaves the game
+   * loop stopped, no save), then Voyage's record and its Folks half, then one save and one reload. Throws `folksDone`
+   * when Folks was restored and Voyage's part broke: nothing is saved, the game must reload without saving.
+   */
+  const apply = async (b, whole) => {
+    if (whole?.plan !== undefined) {
+      const r = await whole.api.restore(b.whole);
+      if (r?.ok !== true) {
+        log(`backup: Worker Folks' restore refused (${r?.why})`);
+        // 'failed': broken part way, nothing saved; reload without saving. Any other refusal changed nothing.
+        throw Object.assign(new Error('Worker Folks restore'), { folksDone: r?.why === 'failed' });
+      }
+    }
+    try { applyVoyage(b); } catch (e) { throw Object.assign(e, { folksDone: whole?.plan !== undefined }); }
+  };
+  const applyVoyage = (b) => {
     const s = skill();
     applyFolks(b);
     const { save } = model.loadSave(b.record);
@@ -183,9 +227,19 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     setTimeout(() => location.reload(), 300);
   };
 
-  const confirmRestore = (b) => {
+  const confirmRestore = async (b) => {
     const s = skill();
     const sections = [];
+    // All of Worker Folks: planned by Folks itself, or why it can't come back here; undefined with no such part or
+    // with Worker Folks not loaded (the Folks-off band below).
+    let whole;
+    if (b.whole !== null && folksApi() !== undefined) {
+      const wa = wholeApi();
+      if (wa === undefined) whole = { why: 'old' };
+      else {
+        try { const r = await wa.restorePlan(b.whole); whole = r?.ok === true ? { api: wa, plan: r } : { why: r?.why ?? 'failed' }; } catch (e) { log('backup: Worker Folks\' plan failed', e); whole = { why: 'failed' }; }
+      }
+    }
     // A Creator Toolkit zip has no version: the line leaves it out.
     const from = H.marked(t, b.mod !== '' ? 'MOD_VOY_RESTORE_FROM' : 'MOD_VOY_RESTORE_FROM_DEV', { mod: b.mod }, { name: H.mark.name(b.name || '?'), when: H.mark.name(when(b.at)) });
     sections.push({ head: t('MOD_VOY_BACKUP_IN_HEAD'), body: [{ html: from }, holdsRows(b), t('MOD_VOY_BACKUP_ALSO')] });
@@ -209,10 +263,16 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     const fp = planFolks(b);
     let goKey = 'MOD_VOY_RESTORE_GO';
     if (fp === undefined) {
-      if (b.folks !== null && b.folks.length > 0) {
+      if (b.whole !== null) {
+        sections.push({ head: t('MOD_VOY_BACKUP_ROW_FOLKS'), warn: true, body: [t('MOD_VOY_RESTORE_WHOLE_OFF'), t('MOD_VOY_RESTORE_WHOLE_OFF_FIX')] });
+        goKey = 'MOD_VOY_RESTORE_GO_NO_FOLKS';
+      } else if (b.folks !== null && b.folks.length > 0) {
         sections.push({ head: t('MOD_VOY_BACKUP_ROW_FOLKS'), warn: true, body: [t('MOD_VOY_RESTORE_FOLKS_OFF', { n: count(b.folks.length, 'MOD_VOY_BACKUP_FOLK', 'MOD_VOY_BACKUP_FOLKS_N') }), t('MOD_VOY_RESTORE_FOLKS_OFF_FIX')] });
         goKey = 'MOD_VOY_RESTORE_GO_NO_FOLKS';
       }
+    } else if (whole?.plan !== undefined) {
+      // Folks restores itself whole, places and traits included: its own bands say what comes back and what goes.
+      for (const sec of Array.isArray(whole.plan.sections) ? whole.plan.sections : []) sections.push(folksSection(sec));
     } else {
       const f = fp.plan;
       const lines = [];
@@ -227,7 +287,9 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
       }
       if (f.halt.length > 0) lines.push(t('MOD_VOY_RESTORE_HALT', { names: names(f.halt) }));
       if (f.gone.length > 0) lines.push({ text: t('MOD_VOY_RESTORE_GONE', { names: names(f.gone) }), cls: 'text-warning' });
-      if (lines.length > 0) sections.push({ head: t('MOD_VOY_BACKUP_ROW_FOLKS'), warn: f.gone.length > 0, body: lines });
+      // All of Worker Folks is in the code but can't come back here: said first, the half above still applies.
+      if (whole?.why !== undefined) lines.unshift({ text: t('MOD_VOY_RESTORE_WHOLE_NO', { why: t(WHOLE_WHY[whole.why] ?? 'MOD_VOY_RESTORE_WHOLE_WHY_BAD') }), cls: 'text-warning' });
+      if (lines.length > 0) sections.push({ head: t('MOD_VOY_BACKUP_ROW_FOLKS'), warn: f.gone.length > 0 || whole?.why !== undefined, body: lines });
     }
     SwalLocale.fire({
       customClass: swalClass(SWAL_WARN),
@@ -238,7 +300,15 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
       confirmButtonText: t(goKey),
       cancelButtonText: t('MOD_VOY_RESTORE_CANCEL'),
       didRender: (el) => { try { state.popupDidRender?.(el); } catch {} },
-    }).then((res) => { if (res.isConfirmed) { try { apply(b); } catch (e) { log('backup: restore failed', e); tell(t('MOD_VOY_RESTORE_TITLE'), t('MOD_VOY_RESTORE_FAILED'), 'error'); } } });
+    }).then(async (res) => {
+      if (!res.isConfirmed) return;
+      try { await apply(b, whole); } catch (e) {
+        log('backup: restore failed', e);
+        // With Worker Folks restored in memory and Voyage's part broken, the game reloads unsaved: nothing is half done.
+        const told = tell(t('MOD_VOY_RESTORE_TITLE'), t(e?.folksDone === true ? 'MOD_VOY_RESTORE_FAILED_RELOAD' : 'MOD_VOY_RESTORE_FAILED'), 'error');
+        if (e?.folksDone === true) told.then(() => location.reload());
+      }
+    });
   };
 
   const restore = () => {
@@ -288,7 +358,7 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
         Swal.showValidationMessage(t(WHY[r.why] ?? WHY.broken));
         return false;
       },
-    }).then((res) => { if (res.isConfirmed && res.value) confirmRestore(res.value); });
+    }).then((res) => { if (res.isConfirmed && res.value) confirmRestore(res.value).catch((e) => log('backup: confirm failed', e)); });
   };
 
   // ---- the page's foot --------------------------------------------------------------------------------------------
