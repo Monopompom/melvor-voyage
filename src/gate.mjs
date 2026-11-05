@@ -1059,6 +1059,17 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       const api = state.folksGuarded ? state.folksApi?.() : undefined;
       const pos = state.position();
       if (api === undefined || pos === undefined || state.terrain === undefined) return;
+      // Walking, as Worker Folks keeps it, with no walk in Voyage's save (Voyage was reset or restored while Worker
+      // Folks kept its own): it would take no orders for good. It stops where it stands.
+      const s = state.voyageSkill?.();
+      const roads = s !== undefined && s.futureRaw === undefined && s.record != null ? state.walks?.walks?.() : undefined;
+      if (roads !== undefined) {
+        for (const f of api.folks()) {
+          if (f.travel !== 'walking' || roads[f.id] !== undefined) continue;
+          api.setTravel(f.id, 'idle');
+          console.warn(`[Voyage] ${f.name} was walking with no walk in the save: stopped where it stands`);
+        }
+      }
       for (const f of api.folks()) {
         if (f.place === null || state.recordAt(f.place) !== undefined) continue;
         api.setPlace(f.id, { q: pos.q, r: pos.r });

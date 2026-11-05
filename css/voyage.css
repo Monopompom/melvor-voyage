@@ -1109,6 +1109,24 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 }
 .voyage-block-ghost { opacity: .4; }
 .voyage-layout-foot { text-align: center; margin: 0 0 12px; }
+/* Back up and Restore (the user, 5 Nov 2026), under everything; the code's box in their popups. */
+.voyage-backup-foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 0 12px; }
+.voyage-backup-foot .btn { min-height: 36px; }
+/* The backup popups: the code in a field the band's width, at the secondary size (never under .9rem); the buttons under
+   it centred, 40px high and one width; the note under them says what the last button did. */
+.voyage-backup-code { font-family: monospace; font-size: .9rem; line-height: 1.35; word-break: break-all; resize: vertical; margin-top: 8px; min-height: 40px; }
+.voyage-backup-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
+.voyage-backup-acts .btn { min-height: 40px; min-width: 120px; display: inline-flex; align-items: center; justify-content: center; }
+.voyage-help-body .voyage-backup-note { font-size: .9rem; margin-top: 8px; min-height: 1.35em; }
+.voyage-backup-foot-line { margin: 12px 0 0; text-align: center; }
+/* Label and value rows (a help table without a header): the label in the label grey at 600, no rule under the last. */
+.voyage-help-rows { max-width: 22rem; margin: 0 auto; column-gap: 0; }
+.voyage-help-rows > .voyage-help-td { display: flex; align-items: center; gap: 6px; }
+.voyage-help-rows > .voyage-help-td:nth-child(even) { padding-left: 12px; justify-content: flex-end; }
+.voyage-help-rows > .voyage-help-td img { width: 20px; height: 20px; margin: 0 !important; }
+.voyage-help-rows > .voyage-help-td:nth-child(odd) { color: var(--voyage-label); font-weight: 600; }
+.voyage-help-rows > .voyage-help-td:nth-last-child(-n+2) { border-bottom: 0; }
+.voyage-help-body .voyage-help-rows + .voyage-help-p, .voyage-help-body .voyage-help-p + .voyage-help-rows { margin-top: 8px; }
 @media (max-width: 767.98px) { .voyage-block-fold, .voyage-block-grip { min-width: 44px; min-height: 44px; } } /* 44px to the touch (.367) */
 /* Build .156 (UI audit): blocks 12px apart both ways (the game's .block keeps 30px under it, rows a 28px gutter). */
 #voyage-container > .voyage-status-block, #voyage-container > .row .block { margin-bottom: 12px; }

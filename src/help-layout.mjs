@@ -2,8 +2,9 @@
 // a paragraph, numbers in small tables. Used by the Voyage page's "?" popups, the welcome and the dinghy notice.
 //
 // A section is { head?, warn?, body: [...] }. A body item is a plain string (escaped), { text, cls } (escaped, with a
-// colour class), { html, cls } (trusted markup from en.json: bold names, coloured words) or { table: { cols, rows } },
-// where a row is { cells: [label, ...values], cls?: [one class per value], icon? }.
+// colour class), { html, cls } (trusted markup from en.json: bold names, coloured words), { raw } (trusted block markup
+// as it is: a field, a row of buttons) or { table: { cols, rows } }, where a row is { cells: [label, ...values], cls?:
+// [one class per value], icon? }; a table without `cols` has no header row (label and value rows).
 
 export const HELP_WIDTH = 'min(38rem, 96vw)'; // on a phone the same 96vw as every message popup (.308, C2-23)
 
@@ -89,17 +90,19 @@ export const marked = (tf, key, vars, marks = {}) => {
 };
 
 const table = ({ cols, rows }) => {
-  const head = cols.map((c, i) => `<div class="voyage-help-th${i > 0 ? ' text-right' : ''}">${esc(c)}</div>`).join('');
+  const n = cols?.length ?? rows[0]?.cells.length ?? 2;
+  const head = cols === undefined ? '' : cols.map((c, i) => `<div class="voyage-help-th${i > 0 ? ' text-right' : ''}">${esc(c)}</div>`).join('');
   const body = rows.map((r) => r.cells.map((c, i) => {
     if (i === 0) return `<div class="voyage-help-td">${r.icon ? `<img class="skill-icon-xs mr-1" src="${r.icon}" alt="">` : ''}${esc(c)}</div>`;
     return `<div class="voyage-help-td text-right font-w600 ${r.cls?.[i - 1] ?? ''}">${esc(c)}</div>`;
   }).join('')).join('');
-  return `<div class="voyage-help-table" style="--voyage-help-cols:${cols.length - 1}">${head}${body}</div>`;
+  return `<div class="voyage-help-table${cols === undefined ? ' voyage-help-rows' : ''}" style="--voyage-help-cols:${n - 1}">${head}${body}</div>`;
 };
 
 const item = (it) => {
   if (typeof it === 'string') return `<p class="voyage-help-p">${esc(it)}</p>`;
   if (it.table !== undefined) return table(it.table);
+  if (it.raw !== undefined) return it.raw;
   if (it.html !== undefined) return `<p class="voyage-help-p ${it.cls ?? ''}">${it.html}</p>`;
   return `<p class="voyage-help-p ${it.cls ?? ''}">${esc(it.text)}</p>`;
 };

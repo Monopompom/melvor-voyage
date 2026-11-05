@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-05.536';
+export const BUILD = '2026-11-05.542';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -481,6 +481,16 @@ export async function setup(ctx) {
     // The Deck block on the Voyage page (slice 3): the deck, presets, charms and the trick book.
     state.deck = (await ctx.loadModule('src/deck.mjs')).install(ctx, { state, F, log });
   } catch (e) { console.error('[Voyage] encounters failed to load', e); state.encounters = undefined; state.deck = undefined; }
+  // Backups (the user, 5 Nov 2026): Back up and Restore at the Voyage page's foot, by hand only. A failure: no buttons.
+  if (voyageSkillOk) {
+    try {
+      const settingsIO = {
+        read: () => Object.fromEntries(Object.keys(SECTION_OF).map((n) => [n, sectionOf(n).get(n)]).filter(([, v]) => v !== undefined)),
+        write: (o) => { for (const [n, v] of Object.entries(o ?? {})) if (SECTION_OF[n] !== undefined && v !== undefined && sectionOf(n).get(n) !== v) sectionOf(n).set(n, v); },
+      };
+      state.backup = (await ctx.loadModule('src/backup.mjs')).install(ctx, { state, model, B: await ctx.loadModule('src/backup-model.mjs'), helpLayout, BUILD, settingsIO, log });
+    } catch (e) { console.error('[Voyage] backups failed to load; the rest runs', e); state.backup = undefined; }
+  }
   const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, supplyModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, shortNumber, decimal, log }) : undefined;
   // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
   // popups and everything else as they were.

@@ -74,6 +74,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       try {
         if (container !== null && pageLayout !== undefined) state.pageLayout = pageLayout.mod.install(ctx, { container, L: pageLayout.L, t, tips: state.tips, log });
       } catch (e) { log('page layout failed', e); }
+      try { state.backup?.mount(container); } catch (e) { log('backup buttons failed', e); }
       // Delegated listeners: the blocks are re-rendered as innerHTML.
       part('ship')?.addEventListener('click', (e) => {
         state.planner?.onClick(e); // Navigator's Charts, in the Shipwright row (build .205)
