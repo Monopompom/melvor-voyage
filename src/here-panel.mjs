@@ -348,6 +348,11 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     if (!state.active() || !state.folksGuarded) return '';
     const folks = (state.folksApi?.()?.folks() ?? []).filter((f) => f.travel !== 'with' && f.place !== null && f.place.q === pos.q && f.place.r === pos.r);
     if (folks.length === 0) return '';
+    // Every Folk here already in the haul's rows (in the wild, each works from its room within reach): the row would
+    // only repeat them, and their rank and work are in those rows' tooltips (the user, 6 Nov 2026). At a bank place,
+    // or with one working from the bank, the row stays.
+    const listed = new Set(state.haul?.listed?.() ?? []);
+    if (folks.every((f) => listed.has(f.id))) return '';
     return folkList('MOD_VOY_PANEL_FOLKS_LABEL', folks, (f) => templateLangString('MOD_VOY_PANEL_FOLK_WHAT', { tier: state.rankName(f.tier), what: state.folkDoing(f) }));
   };
   /** The Folks with you (6c): in the vessel group, under the stores they eat from. */
@@ -562,7 +567,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return parts.join(' · ');
   };
   const placeBox = (status, pos) => {
-    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + folksLine(pos) + signLine() + (state.outposts?.panelHtml?.() ?? '');
+    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + folksLine(pos) + (state.haul?.panelHtml?.() ?? '') + signLine() + (state.outposts?.panelHtml?.() ?? '');
     if (inner === '') return '';
     const toggle = `<button type="button" class="voyage-legend-toggle voyage-place-toggle" aria-expanded="${placeOpen}">` +
       `<i class="fa fa-caret-${placeOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_PLACE_TITLE'))}</button>`;
@@ -1046,6 +1051,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       // Outposts (6e): pitch, the store and Strike camp.
       const outpostBtn = e.target instanceof Element ? e.target.closest('.voyage-outpost-btn') : null;
       if (outpostBtn !== null) { e.preventDefault(); state.outposts?.click(outpostBtn); return; }
+      // The haul: Restock a Folk's room.
+      const haulBtn = e.target instanceof Element ? e.target.closest('.voyage-haul-btn') : null;
+      if (haulBtn !== null) { e.preventDefault(); state.haul?.click(haulBtn); return; }
       if (e.target instanceof Element && e.target.closest('.voyage-locked-toggle')) {
         lockedOpen = !lockedOpen;
         try { localStorage.setItem(LOCKED_KEY, lockedOpen ? '1' : '0'); } catch {}
@@ -1357,5 +1365,6 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     try { game.cartography?.on('travel', renderSoon); } catch (e) { log('travel hook failed', e); }
   });
   state.listeners.push(renderSoon);
-  return { render };
+  // runLines: the haul's popup runs its long names as the panel does.
+  return { render, runLines };
 }

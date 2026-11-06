@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-06.563';
+export const BUILD = '2026-11-06.570';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -162,7 +162,7 @@ export async function setup(ctx) {
   // Four sections (build .387, the user; the alpha report: 17 entries in one 1,929 px list): Rules, Travel, Display,
   // Keys. The game stores a value under its section's name, so the split set the test saves back to the defaults
   // once (Voyage had no release). The names stay English: they key the save.
-  const SECTION_OF = { rules: 'Rules', strictness: 'Rules', zones: 'Rules', combat: 'Rules', trade: 'Rules', provisions: 'Rules', supply: 'Rules', spoilage: 'Rules',
+  const SECTION_OF = { rules: 'Rules', strictness: 'Rules', zones: 'Rules', combat: 'Rules', trade: 'Rules', provisions: 'Rules', supply: 'Rules', spoilage: 'Rules', haul: 'Rules',
     timedTravel: 'Travel', weather: 'Travel', night: 'Travel', nightShift: 'Travel',
     overlay: 'Display', mapMotion: 'Display', bookOpening: 'Display', journalKey: 'Keys', centreKey: 'Keys', mapKey: 'Keys' };
   const sections = Object.fromEntries(['Rules', 'Travel', 'Display', 'Keys'].map((n) => [n, ctx.settings.section(n)]));
@@ -204,6 +204,7 @@ export async function setup(ctx) {
     { type: 'switch', name: 'provisions', label: getLangString('MOD_VOY_SETTING_PROVISIONS'), hint: getLangString('MOD_VOY_SETTING_PROVISIONS_HINT'), default: true, onChange: onChange('provisions') },
     { type: 'switch', name: 'supply', label: getLangString('MOD_VOY_SETTING_SUPPLY'), hint: getLangString('MOD_VOY_SETTING_SUPPLY_HINT'), default: true, onChange: onChange('supply') },
     { type: 'switch', name: 'spoilage', label: getLangString('MOD_VOY_SETTING_SPOILAGE'), hint: getLangString('MOD_VOY_SETTING_SPOILAGE_HINT'), default: true, onChange: onChange('spoilage') },
+    { type: 'switch', name: 'haul', label: getLangString('MOD_VOY_SETTING_HAUL'), hint: getLangString('MOD_VOY_SETTING_HAUL_HINT'), default: true, onChange: onChange('haul') },
     { type: 'switch', name: 'timedTravel', label: getLangString('MOD_VOY_SETTING_TIMED'), hint: getLangString('MOD_VOY_SETTING_TIMED_HINT'), default: true, onChange: onChange('timedTravel') },
     { type: 'switch', name: 'weather', label: getLangString('MOD_VOY_SETTING_WEATHER'), hint: getLangString('MOD_VOY_SETTING_WEATHER_HINT'), default: true, onChange: onChange('weather') },
     { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
@@ -255,6 +256,7 @@ export async function setup(ctx) {
       provisions: () => flag('provisions'),
       supply: () => flag('supply'),
       spoilage: () => flag('spoilage'),
+      haul: () => flag('haul'),
       night: () => flag('night'),
       weather: () => flag('weather'),
       timedTravel: () => flag('timedTravel'),
@@ -460,6 +462,11 @@ export async function setup(ctx) {
       return original(p, ...rest);
     });
   } catch (e) { console.error('[Voyage] Folks-only shop buys not refused', e); }
+  // Folks hold what they make (the haul, Worker Folks API 10): a Folk away from a bank place keeps its output in its room
+  // until you collect it within a hex. A failure: every Folk works from the bank, as without it.
+  try {
+    (await ctx.loadModule('src/haul.mjs')).install(ctx, { state, H: await ctx.loadModule('src/haul-model.mjs'), rules, terrainMod, shortNumber, decimal, log });
+  } catch (e) { console.error('[Voyage] the haul failed to load; Folks work from the bank', e); state.haul = undefined; }
   // Travel traits (phase 6f): Voyage's ten traits in Worker Folks' slots (its API 5). A failure: no travel traits.
   try {
     const traits = (await ctx.loadModule('src/folk-traits.mjs')).install(ctx, { state, FT: await ctx.loadModule('src/folk-traits-model.mjs'), S: storesModel, log });
@@ -655,6 +662,8 @@ export async function setup(ctx) {
             try { if (state.clock?.stepping?.() !== true) state.encounters?.moved?.(steps, path, Math.max(0, gpBefore - game.gp.amount)); } catch (e) { log('encounter roll failed', e); }
           }
           ship.afterMove(path);
+          // The haul: collect the Folks within a hex of where the move landed.
+          try { state.haul?.afterMove?.(); } catch (e) { log('haul collect failed', e); }
         }
       } catch (e) { log('travel XP, stores or ship move failed', e); }
       return result;

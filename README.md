@@ -225,6 +225,13 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   another, and two only hurt until they fade. You see a
   trait once it is learned; the Crew help lists the ones your Folks have. A Folk with Merchant on an outpost lets you
   sell there at half price, and a Haggler near a market adds to your sales. The card names the outpost a Folk is on.
+  **Folks hold what they make** (needs Worker Folks with its haul, API 10 or later). A Folk away from a city, capital,
+  port or market, and the hex next to one, keeps what it makes and the GP it earns in its own room, and works only from
+  the inputs in that room: it stops "Haul full" or "Out of inputs" until you come. Stand within a hex of it (arriving
+  or standing) and its haul goes to your bank on its own; Restock in the map's panel fills its room with its recipe's
+  inputs from your bank. A new kind of item with no bank slot stays with the Folk until you have room. A Folk that
+  comes aboard or reaches a bank place empties its room to your bank. The map rings the badge of a Folk that stopped.
+  Bags (Worker Folks' Satchel, Pack and Frame Pack) make the room bigger.
   Now and then on a long crossing a stowaway climbs out of the hold, when there is a berth for one more: hire it as a
   Trainee at half the Shop's price while it is aboard, if you have the licence and a free crew slot (it still counts as
   a hire, so the Shop's next one costs more), or it goes ashore at the next port or land you stop at. Until then it
@@ -243,6 +250,7 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Provisions**: off, moves take nothing from your stores and sailing wears nothing.
 - **Local supply**: off, every place loads as much as your bank holds.
 - **Spoilage**: off, nothing in the stores goes off.
+- **Folks hold what they make**: off, every Folk works from your bank wherever it stands (with Worker Folks).
 - **Night** and **Move the night (hours)**: night on or off, and when it falls (−12 to 12 hours from 21:00 to 05:00).
 - **Motion on the map**: while a voyage is under way the traveller walks and the vessel rolls; off, they stand still.
 - **Open the journal by its cover**: the cover and a few turning pages on every open, not only the first time.

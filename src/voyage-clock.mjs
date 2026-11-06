@@ -708,7 +708,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     if (pl?.spent !== undefined && fog === undefined) {
       // As the box writes them (the user, build .554): the food's number beside the ration (no "HP": "it's kinda
       // understandable"), fuel the number alone.
-      if (Math.floor(pl.spent.food) > 0) costRow(leadImg('ship_stores.webp'), t('MOD_VOY_STORES_PATH_COST_TIP'), `<span class="voyage-stores-icons"><img src="${esc(res('ration.webp'))}" alt="">${esc(num(pl.spent.food))}</span>`);
+      if (Math.floor(pl.spent.food) > 0) costRow(leadImg('ration.webp'), t('MOD_VOY_STORES_PATH_COST_TIP'), esc(num(pl.spent.food))); // the ration in the circle, as fuel
       if (pl.spent.fuel >= 0.005) costRow(leadImg('fuel.webp'), state.stores?.lightTip?.(t('MOD_VOY_STORES_PATH_FUEL_TIP'), pl.light ?? 0) ?? t('MOD_VOY_STORES_PATH_FUEL_TIP'), esc(state.stores?.fuelText?.(pl.spent.fuel) ?? `${Math.round(pl.spent.fuel * 10) / 10}`));
     }
     // The Folks with you (phase 6c): the food and fuel above feed them too.

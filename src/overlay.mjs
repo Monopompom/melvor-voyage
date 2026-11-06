@@ -158,6 +158,7 @@ export function install(ctx, { state, terrainMod, log }) {
   // Dark with a light green ring: it reads on grass, sand and sea alike.
   const FOLK_FILL = 0x14171b;
   const FOLK_EDGE = 0x74d394;
+  const FOLK_STOP_EDGE = 0xf0a63a;
   /** The badge's smallest radius and count size in screen pixels; zoomed in it grows to FOLK_SHARE of the hex, never past FOLK_MAX_SHARE. */
   const FOLK_RADIUS_PX = 11;
   const FOLK_FONT_PX = 13;
@@ -217,7 +218,7 @@ export function install(ctx, { state, terrainMod, log }) {
       for (const f of state.folksApi?.()?.folks() ?? []) {
         if (f.place === null || f.travel !== 'idle') continue;
         const key = `${f.place.q},${f.place.r}`;
-        counts.set(key, { q: f.place.q, r: f.place.r, n: (counts.get(key)?.n ?? 0) + 1 });
+        counts.set(key, { q: f.place.q, r: f.place.r, n: (counts.get(key)?.n ?? 0) + 1, stop: counts.get(key)?.stop ?? state.haul?.markAt?.(f.place.q, f.place.r) });
       }
       if (counts.size === 0) return;
       const points = cartographyMap.hexPolygon?.points;
@@ -231,13 +232,14 @@ export function install(ctx, { state, terrainMod, log }) {
       const k = radius / FOLK_RADIUS_PX;
       const dots = new PIXI.Graphics();
       folkLayer.addChild(dots);
-      for (const { q, r, n } of counts.values()) {
+      for (const { q, r, n, stop } of counts.values()) {
         const hex = map.getHex(new HexCoords(q, r));
         if (hex === undefined) continue;
         const o = map.getHexOrigin(hex);
         const cx = o.x + mid.x + wide * 0.22;
         const cy = o.y + mid.y + tall * 0.22;
-        dots.lineStyle({ width: 2.5 * k, color: FOLK_EDGE, alpha: 1, alignment: 1 });
+        // A room that stopped (the haul: full or out of inputs) rings its badge amber.
+        dots.lineStyle({ width: 2.5 * k, color: stop === undefined ? FOLK_EDGE : FOLK_STOP_EDGE, alpha: 1, alignment: 1 });
         dots.beginFill(FOLK_FILL, 1);
         dots.drawCircle(cx, cy, FOLK_RADIUS_PX * k);
         folkSpots.push({ x: cx, y: cy, r: FOLK_RADIUS_PX * k, q, hr: r });
@@ -295,7 +297,7 @@ export function install(ctx, { state, terrainMod, log }) {
     const b = canvas.getBoundingClientRect();
     const top = vp.toScreen(spot.x, spot.y - spot.r);
     const lines = folks.map((f) => ({
-      text: templateLangString('MOD_VOY_MAP_FOLK_TIP', { name: f.name, rank: state.rankName?.(f.tier) ?? f.tier, what: state.folkDoing?.(f) ?? '' }),
+      text: templateLangString('MOD_VOY_MAP_FOLK_TIP', { name: f.name, rank: state.rankName?.(f.tier) ?? f.tier, what: [state.folkDoing?.(f) ?? '', state.haul?.folkWord?.(f) ?? ''].filter((x) => x !== '').join(' · ') }),
       media: f.portrait,
     }));
     tipKey = key;

@@ -382,9 +382,9 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
       const costTip = n > 0 ? t(n === 1 ? 'MOD_VOY_STORES_PATH_COST_TIP_CREW_ONE' : 'MOD_VOY_STORES_PATH_COST_TIP_CREW', { count: `${n}` }) : t('MOD_VOY_STORES_PATH_COST_TIP');
       const fuelTip = n > 0 ? t(n === 1 ? 'MOD_VOY_STORES_PATH_FUEL_TIP_CREW_ONE' : 'MOD_VOY_STORES_PATH_FUEL_TIP_CREW', { count: `${n}` }) : t('MOD_VOY_STORES_PATH_FUEL_TIP');
       if (Math.floor(cost.food) > 0) {
-        // The number beside the ration, no "HP" (build .554, the user: "it's kinda understandable").
-        lines.push(row(`<img class="voyage-stores-lead-img" src="${ctx.getResourceUrl('assets/ship_stores.webp')}" alt="">`, costTip,
-          `<span class="voyage-stores-icons"><img src="${ctx.getResourceUrl('assets/ration.webp')}">${esc(hp(cost.food))}</span>`));
+        // The ration in the round icon and its number, no "HP", as the fuel row (the user, build .554: "it's kinda
+        // understandable"; 6 Nov 2026: the cracker sits inside the circle, the crate goes).
+        lines.push(row(`<img class="voyage-stores-lead-img" src="${ctx.getResourceUrl('assets/ration.webp')}" alt="">`, costTip, esc(hp(cost.food))));
       }
       // The fuel row is the whole burn, the night's light in it, the light named in its tooltip (build .554, the user:
       // "make fuel cost combined everywhere. add light cost to the tooltip"); it was a moon row of its own.

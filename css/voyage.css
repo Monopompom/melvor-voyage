@@ -111,6 +111,9 @@ body.darkMode.superDark .voyage-skill-locked { opacity: .6; filter: grayscale(.6
    whole-name fit are in skill-names.mjs fitTitle). */
 .voyage-ui .swal2-title { text-wrap: balance; }
 .voyage-here-place { margin-top: 1px; }
+/* Two text rows as far apart as a text row and a button row (the user, 6 Nov 2026: Folks here sat close under Combat):
+   a line's middle 33-34px under the last one's, as Trade over Owed. */
+.voyage-here-place + .voyage-here-place { margin-top: 10px; }
 /* row labels in the panel (Trade, Combat, Works, Locked): muted but full size (user feedback, build .44) */
 #voyage-here { font-size: 1rem; line-height: 1.45; }
 /* Light: the game's text-muted (#6c757d) is 4.3:1 on our bands; the label ink is 6:1 (.308, A2-06/B-13/B-64). */
@@ -1887,3 +1890,51 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-deck-buy-btn[aria-disabled="true"] { cursor: not-allowed; opacity: .65; }
 .voyage-deck-count-ok { color: var(--voyage-good); border-color: currentColor; }
 .voyage-deck-count-bad { color: var(--voyage-hot); border-color: currentColor; }
+
+/* The haul (Worker Folks' rooms): a Folk's room in the Here panel, a thin bar with the hours held. */
+.voyage-haul-bar { display: inline-block; vertical-align: middle; width: 3.5em; height: 6px; border-radius: 3px; background: var(--voyage-track); overflow: hidden; }
+.voyage-haul-bar-in { display: block; height: 100%; border-radius: 3px; background: var(--voyage-good-fill); }
+.voyage-haul-bar-in.voyage-haul-bar-stop { background: var(--voyage-warn-dot); }
+/* Every Folk's row in one grid (the user, 6 Nov 2026): the name runs in what is left, then the bar, the hours and the
+   stop word in columns as wide as their widest, and Restock in the row-button column on the right. Restock drops under
+   its row, full width, when the panel's other row buttons drop (voyage-stacked). Without subgrid the rows stay plain
+   lines. */
+.voyage-haul-rows { margin: 2px 0; }
+.voyage-here-ship + .voyage-haul-rows, .voyage-here-place + .voyage-haul-rows, .voyage-haul-rows + .voyage-here-ship, .voyage-haul-rows + .voyage-here-place { margin-top: 6px; }
+.voyage-haul-fill, .voyage-haul-word { white-space: nowrap; }
+.voyage-haul-piece { white-space: nowrap; } /* "661 [logs] Normal Logs" on a Welcome Back line, never split */
+.voyage-haul-fill { text-align: right; font-variant-numeric: tabular-nums; }
+.voyage-haul-num { display: inline-block; text-align: right; } /* each number as wide as its column's widest */
+@supports (grid-template-columns: subgrid) {
+  .voyage-haul-rows { display: grid; grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto; column-gap: 8px; row-gap: 6px; align-items: center; }
+  .voyage-haul-rows.voyage-haul-w { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto auto; }
+  .voyage-haul-rows.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto auto; }
+  .voyage-haul-rows.voyage-haul-w.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto auto auto; }
+  .voyage-haul-rows > .voyage-here-ship.voyage-haul-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; row-gap: 4px; margin: 0; }
+  .voyage-haul-row > .voyage-run { grid-column: 1; }
+  .voyage-haul-row > .voyage-haul-bar { grid-column: 2; width: 100%; } /* the bar takes its column: two fifths of what the name and bar share */
+  .voyage-haul-row > .voyage-haul-fill { grid-column: 3; }
+  .voyage-haul-row > .voyage-haul-word { grid-column: 4; }
+  .voyage-haul-row > .btn { grid-column: -2 / -1; }
+  .voyage-stacked .voyage-haul-rows.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto; }
+  .voyage-stacked .voyage-haul-rows.voyage-haul-w.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto auto; }
+  .voyage-stacked .voyage-haul-row > .btn { grid-column: 1 / -1; width: 100%; }
+}
+@supports not (grid-template-columns: subgrid) {
+  .voyage-haul-row > .voyage-run { flex: 1000 1 0; min-width: 7em; }
+}
+/* More than three Folks: the panel says how many and the rows open in a popup, the stopped first, Restock all under
+   them. In a narrow popup Restock drops under its row, as in a stacked panel. */
+.voyage-haul-modal { text-align: left; container-type: inline-size; }
+.voyage-haul-modal .voyage-row-btn { min-width: 5.5rem; min-height: 32px; font-size: .9rem; padding: .2rem .6rem; }
+/* Restock all is the grid's last row, in the Restock column: every button in it one width (the user, 6 Nov 2026). */
+.voyage-haul-modal .voyage-haul-row > .btn { width: 100%; }
+.voyage-haul-rows > .voyage-here-ship.voyage-haul-all { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--voyage-rule); }
+@supports not (grid-template-columns: subgrid) { .voyage-haul-all { justify-content: flex-end; } }
+@supports (grid-template-columns: subgrid) {
+  @container (max-width: 400px) {
+    .voyage-haul-modal .voyage-haul-rows.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto; }
+    .voyage-haul-modal .voyage-haul-rows.voyage-haul-w.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto auto; }
+    .voyage-haul-modal .voyage-haul-row > .btn { grid-column: 1 / -1; width: 100%; }
+  }
+}
