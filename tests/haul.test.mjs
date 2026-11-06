@@ -174,6 +174,7 @@ test('up to three Folks within reach get their rows in the panel; more, one row 
   const { out } = setup(fake);
   fake.api.restockPlan = () => ({ items: [{ itemId: 'Raw_Shrimp', qty: 10 }], freeMs: 1, actions: 10 });
   const rowsOf = (html) => (html.match(/voyage-haul-row"/g) ?? []).length;
+  assert.equal(out.rows, 3);
   assert.equal(rowsOf(out.panelHtml()), 1);
   assert.match(out.panelHtml(), /voyage-haul-rows voyage-haul-b"/, 'a Restock column; no stop word, no column for it');
   for (const id of ['c', 'd']) {

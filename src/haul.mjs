@@ -372,7 +372,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
 
   // listed: the ids of the Folks the haul's rows show (the Folks here row leaves out those it would repeat).
   const listed = () => nearRooms().map((r) => r.f.id);
-  const out = { on, afterMove: () => { collectHere(); redrawModalSoon(); }, panelHtml, click, markAt, folkWord, accessOf, listed };
+  const out = { on, rows: PANEL_ROWS, afterMove: () => { collectHere(); redrawModalSoon(); }, panelHtml, click, markAt, folkWord, accessOf, listed };
   state.haul = out;
   return out;
 }

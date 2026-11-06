@@ -900,6 +900,9 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         { head: t('MOD_VOY_HELP_HEAD_CREW_WALK'), body: [t('MOD_VOY_HELP_CREW_WALK'), t('MOD_VOY_HELP_CREW_WALK_PACK'), t('MOD_VOY_HELP_CREW_WALK_ARRIVE'),
           // Bands on its road (6c): only with the encounters module.
           ...(state.encounters === undefined ? [] : [t('MOD_VOY_HELP_CREW_WALK_BANDS', { wound: `${Math.round(state.encounters.R.FOLK_WOUND * 100)}` })])] },
+        // The haul (Worker Folks API 10, setting on): what a Folk in the wild keeps, and how it reaches your bank.
+        ...(state.haul?.on?.() === true ? [{ head: t('MOD_VOY_HELP_HEAD_CREW_HAUL'), body: [t('MOD_VOY_HELP_CREW_HAUL'),
+          t('MOD_VOY_HELP_CREW_HAUL_COLLECT', { rows: `${state.haul.rows}` }), t('MOD_VOY_HELP_CREW_HAUL_EMPTY'), t('MOD_VOY_HELP_CREW_HAUL_OFF')] }] : []),
         ...outpostHelp(),
         ...traitsHelp(),
         // A stowaway (the flat mechanics): with Worker Folks' hire.

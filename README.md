@@ -225,7 +225,7 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   another, and two only hurt until they fade. You see a
   trait once it is learned; the Crew help lists the ones your Folks have. A Folk with Merchant on an outpost lets you
   sell there at half price, and a Haggler near a market adds to your sales. The card names the outpost a Folk is on.
-  **Folks hold what they make** (needs Worker Folks with its haul, API 10 or later). A Folk away from a city, capital,
+  **Folks hold what they make** (needs Worker Folks 1.9.0 or later). A Folk away from a city, capital,
   port or market, and the hex next to one, keeps what it makes and the GP it earns in its own room, and works only from
   the inputs in that room: it stops "Haul full" or "Out of inputs" until you come. Stand within a hex of it (arriving
   or standing) and its haul goes to your bank on its own; Restock in the map's panel fills its room with its recipe's
