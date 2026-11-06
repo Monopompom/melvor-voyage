@@ -67,6 +67,8 @@ function setup(fake, { haulSetting = true } = {}) {
     recordAt: (p) => recs.get(`${p.q},${p.r}`),
     terrain: { neighbours: (q, r) => [recs.get(`${q - 1},${r}`), recs.get(`${q + 1},${r}`)].filter(Boolean) },
     overlay: { folksChanged: () => {} },
+    settingAdds: 0,
+    addHaulSetting() { this.settingAdds += 1; },
   };
   const afters = [];
   const ctx = { patch: () => ({ after: (fn) => afters.push(fn) }), onModsLoaded: (fn) => loaded.push(fn), onCharacterLoaded: (fn) => charLoaded.push(fn), getResourceUrl: (p) => p };
@@ -75,10 +77,11 @@ function setup(fake, { haulSetting = true } = {}) {
   return { out, state, settings, afters };
 }
 
-test('Voyage registers the bank-access hook; a Folk in the wild uses its room, one next to a port the bank', () => {
+test('Voyage registers the bank-access hook and its switch; a Folk in the wild uses its room, one next to a port the bank', () => {
   const fake = fakeFolks();
-  setup(fake);
+  const { state } = setup(fake);
   assert.ok(fake.calls.includes('register'));
+  assert.equal(state.settingAdds, 1, 'its switch shows in Mod Settings');
   assert.equal(fake.api.hook({ id: 'a', travel: 'idle', place: { q: 1, r: 0 } }), 'room');
   assert.equal(fake.api.hook({ id: 'b', travel: 'idle', place: { q: 6, r: 0 } }), 'bank', 'next to the port');
   assert.equal(fake.api.hook({ id: 'a', travel: 'with', place: null }), 'bank');
@@ -120,10 +123,11 @@ test('turning the setting off refreshes the access and empties every room; the h
   assert.match(notes.at(-1)[1], /MOD_VOY_HAUL_EMPTIED_ONE [^,]*Ada/, 'one Folk gave something: named');
 });
 
-test('a Worker Folks older than 10 is left alone: no hook, nothing collected, no panel rows', () => {
+test('a Worker Folks older than 10 is left alone: no hook, no switch, nothing collected, no panel rows', () => {
   const fake = fakeFolks(9);
-  const { out } = setup(fake);
+  const { out, state } = setup(fake);
   assert.equal(fake.api.hook, undefined);
+  assert.equal(state.settingAdds, 0, 'no switch that would do nothing');
   out.afterMove();
   assert.ok(!fake.calls.some((c) => c.startsWith('collect')));
   assert.equal(out.panelHtml(), '');

@@ -250,7 +250,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Provisions**: off, moves take nothing from your stores and sailing wears nothing.
 - **Local supply**: off, every place loads as much as your bank holds.
 - **Spoilage**: off, nothing in the stores goes off.
-- **Folks hold what they make**: off, every Folk works from your bank wherever it stands (with Worker Folks).
+- **Folks hold what they make** (shown with Worker Folks 1.9.0 or later): off, every Folk works from your bank wherever
+  it stands.
 - **Night** and **Move the night (hours)**: night on or off, and when it falls (−12 to 12 hours from 21:00 to 05:00).
 - **Motion on the map**: while a voyage is under way the traveller walks and the vessel rolls; off, they stand still.
 - **Open the journal by its cover**: the cover and a few turning pages on every open, not only the first time.

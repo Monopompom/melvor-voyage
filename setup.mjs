@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-06.571';
+export const BUILD = '2026-11-06.572';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -187,7 +187,10 @@ export async function setup(ctx) {
     },
   };
   const onChange = (name) => (newValue) => { live[name] = newValue; devSettings.write(name, newValue); state.onSettingsChange(); };
-  const value = (name) => live[name] ?? sectionOf(name).get(name);
+  // A setting not registered (the haul's, without a Worker Folks that has it) reads as unset, and is never written.
+  const stored = (name) => { try { return sectionOf(name).get(name); } catch { return undefined; } };
+  const store = (name, v) => { try { sectionOf(name).set(name, v); } catch {} };
+  const value = (name) => live[name] ?? stored(name);
   const flag = (name) => value(name) !== false;
   // A hint may be a DOM node (the loader appends it): the Strictness hint puts each mode on its own line, and its
   // class lets css/voyage.css space the dropdown below it.
@@ -216,7 +219,17 @@ export async function setup(ctx) {
     { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
     { type: 'text', name: 'mapKey', label: getLangString('MOD_VOY_SETTING_MAP_KEY'), hint: getLangString('MOD_VOY_SETTING_MAP_KEY_HINT'), default: 'M', maxLength: 1, onChange: onChange('mapKey') },
   ];
-  for (const name of Object.keys(sections)) sections[name].add(entries.filter((e) => SECTION_OF[e.name] === name));
+  // "Folks hold what they make" is added only once a Worker Folks with the haul is found (haul.mjs, on mods loaded), so
+  // a player without one never sees a switch that does nothing. It is the last of Rules, so it keeps its place. The
+  // game reads saved values on character load, after every mod has loaded, so its value comes back.
+  const LATE = ['haul'];
+  for (const name of Object.keys(sections)) sections[name].add(entries.filter((e) => SECTION_OF[e.name] === name && !LATE.includes(e.name)));
+  let haulSettingAdded = false;
+  const addHaulSetting = () => {
+    if (haulSettingAdded) return;
+    haulSettingAdded = true;
+    sectionOf('haul').add(entries.find((e) => e.name === 'haul'));
+  };
 
   /** The game's offline loop (tab in the background, or back after a while): see state.onSettingsChange. */
   const offline = {
@@ -243,6 +256,7 @@ export async function setup(ctx) {
   /** Shared runtime state. mode: 'dormant' until the save is checked, then 'strict' or 'relaxed' (table mismatch). */
   const state = {
     mode: 'dormant',
+    addHaulSetting,
     terrain: undefined,
     reasons: [],
     listeners: [],
@@ -494,8 +508,8 @@ export async function setup(ctx) {
   if (voyageSkillOk) {
     try {
       const settingsIO = {
-        read: () => Object.fromEntries(Object.keys(SECTION_OF).map((n) => [n, sectionOf(n).get(n)]).filter(([, v]) => v !== undefined)),
-        write: (o) => { for (const [n, v] of Object.entries(o ?? {})) if (SECTION_OF[n] !== undefined && v !== undefined && sectionOf(n).get(n) !== v) sectionOf(n).set(n, v); },
+        read: () => Object.fromEntries(Object.keys(SECTION_OF).map((n) => [n, stored(n)]).filter(([, v]) => v !== undefined)),
+        write: (o) => { for (const [n, v] of Object.entries(o ?? {})) if (SECTION_OF[n] !== undefined && v !== undefined && stored(n) !== undefined && stored(n) !== v) store(n, v); },
       };
       state.backup = (await ctx.loadModule('src/backup.mjs')).install(ctx, { state, model, B: await ctx.loadModule('src/backup-model.mjs'), helpLayout, BUILD, settingsIO, log });
     } catch (e) { console.error('[Voyage] backups failed to load; the rest runs', e); state.backup = undefined; }
@@ -675,7 +689,7 @@ export async function setup(ctx) {
   ctx.onCharacterLoaded(() => {
     if (DEV) {
       for (const [name, v] of Object.entries(devSettings.read())) {
-        try { if (sectionOf(name).get(name) !== v) { sectionOf(name).set(name, v); log(`dev setting restored for ${devSettingsKey()}: ${name} = ${v}`); } } catch (e) { log(`dev setting ${name} not restored`, e); }
+        try { if (stored(name) !== undefined && stored(name) !== v) { store(name, v); log(`dev setting restored for ${devSettingsKey()}: ${name} = ${v}`); } } catch (e) { log(`dev setting ${name} not restored`, e); }
       }
     }
     try {

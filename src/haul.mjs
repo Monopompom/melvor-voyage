@@ -196,6 +196,8 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   ctx.onModsLoaded(() => {
     const a = api();
     if (a === undefined) { log('haul: Worker Folks API older than 10 or not loaded: Folks work from the bank'); return; }
+    // Its switch in Mod Settings, Rules: only with a Worker Folks that has the haul.
+    try { state.addHaulSetting?.(); } catch (e) { console.error('[Voyage] the haul setting was not added', e); }
     try {
       a.registerBankAccess((folk) => { try { return accessOf(folk); } catch (e) { console.error('[Voyage] bank access failed open', e); return 'bank'; } });
       a.on('folkMoved', ({ folk }) => moved(folk));
