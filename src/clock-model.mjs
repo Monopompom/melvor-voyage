@@ -158,6 +158,8 @@ const cleanMode = (m) => (m != null && typeof m === 'object' ? JSON.parse(JSON.s
  * sv (the hexes still to survey before the next step, in turn; the timer is a survey's while it has any). A tow
  * (5b part two, adrift-model.mjs) adds tow: { kind (TOW_KINDS), port (the port's poi id), find (the port is found on
  * docking: the message in a bottle), gp (what was paid) }: free steps, no Stop here, nothing found on the way.
+ * `cx` is the Cartography XP at departure (-1: set off before receipts were kept) and `rc` the running tally of what the voyage has cost and earned so far
+ * (TALLY_FIELDS), filed as its receipt when it ends.
  */
 export function cleanVoyage(v) {
   if (v == null || typeof v !== 'object' || !Array.isArray(v.walk) || v.walk.length < 2) return null;
@@ -180,6 +182,8 @@ export function cleanVoyage(v) {
     began: Number.isFinite(v.began) ? v.began : 0,
     xp: Number.isFinite(v.xp) ? v.xp : 0,
     gp: Number.isFinite(v.gp) ? v.gp : 0,
+    cx: Number.isFinite(v.cx) && v.cx >= 0 ? v.cx : -1,
+    rc: cleanTally(v.rc),
     spent: isInt(v.spent) && v.spent >= 0 ? v.spent : 0,
     of: isInt(v.of) && v.of > 0 ? v.of : (isInt(v.left) && v.left > 0 ? v.left : 1),
     ...(v.fog === true ? { fog: true, side: isInt(v.side) && v.side >= 0 && v.side <= 3 ? v.side : 0, sv: cleanQueue(v.sv) } : {}),
@@ -193,6 +197,26 @@ export function cleanVoyage(v) {
     // The walk index where a stowaway climbs out (events-model stowawayAt), until it does.
     ...(isInt(v.stw) && v.stw > at && v.stw < walk.length ? { stw: v.stw } : {}),
   };
+}
+
+/**
+ * A voyage's running tally (voyage-model.mjs RECEIPT_FIELDS, the same names; modules here can't import each other):
+ * the fares, stores eaten and burned, spoilage, hull wear and encounter tolls it cost, the XP, foraging, encounter
+ * purses and loot it earned. Every figure 0 or more, to three decimals as the stores keep fuel (a step's few
+ * hundredths summed without drift).
+ */
+export const TALLY_FIELDS = ['gp', 'food', 'fuel', 'rotFood', 'rotFuel', 'wear', 'toll', 'xp', 'cx', 'foundFood', 'foundFuel', 'purse', 'loot', 'pay'];
+const tallyFigure = (n) => (Number.isFinite(n) && n > 0 ? Math.round(n * 1000) / 1000 : 0);
+export function cleanTally(raw) {
+  const out = {};
+  for (const k of TALLY_FIELDS) out[k] = tallyFigure(raw?.[k]);
+  return out;
+}
+/** The tally with `part`'s figures added (unknown names and figures under 0 left out). */
+export function addTally(tally, part) {
+  const out = cleanTally(tally);
+  for (const k of TALLY_FIELDS) { const n = tallyFigure(part?.[k]); if (n > 0) out[k] = tallyFigure(out[k] + n); }
+  return out;
 }
 
 /** What may tow you (adrift-model.mjs TOW_KINDS; modules here can't import each other). */

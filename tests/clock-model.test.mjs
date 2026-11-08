@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { TOW_KINDS as ADRIFT_TOWS } from '../src/adrift-model.mjs';
 import {
   TICK_MS, LAND_MS, SEA_MS, groundFactor, seaMs, stepMs, ticksOf, routeMs, durationParts, clockText, clockNow, gameClockSeed,
-  cleanChoice, sameChoice, cleanChain, cleanVoyage, cleanEnding, ticksLeft, TOW_KINDS, STORM_WAIT_STEP_MS, STORM_WAIT_MAX_MS, stormWaitMs,
+  cleanChoice, sameChoice, cleanChain, cleanVoyage, cleanEnding, ticksLeft, TOW_KINDS, TALLY_FIELDS, cleanTally, addTally, STORM_WAIT_STEP_MS, STORM_WAIT_MAX_MS, stormWaitMs,
 } from '../src/clock-model.mjs';
 
 const MIN = 60000;
@@ -183,4 +183,34 @@ test('waiting out a storm: the first set-off whose route meets no storm, only wh
   const tried = [];
   stormWaitMs(1, (w) => { tried.push(w); return 1; });
   assert.equal(tried.length, STORM_WAIT_MAX_MS / STORM_WAIT_STEP_MS);
+});
+
+test('a voyage tally: zeros to start, adds only figures above 0, kept on the voyage record', async () => {
+  const { RECEIPT_FIELDS } = await import('../src/voyage-model.mjs');
+  assert.deepEqual(TALLY_FIELDS, RECEIPT_FIELDS, 'the tally files as a receipt');
+  const zero = cleanTally(undefined);
+  for (const k of TALLY_FIELDS) assert.equal(zero[k], 0);
+  let t = addTally(zero, { gp: 10, fuel: 0.1, food: -5, junk: 3 });
+  t = addTally(t, { fuel: 0.2, wear: 2 });
+  assert.equal(addTally(zero, { fuel: 0.0004 }).fuel, 0, 'below a thousandth: nothing');
+  assert.equal(addTally(zero, { fuel: 0.6315 }).fuel, 0.632);
+  assert.equal(t.gp, 10);
+  assert.equal(t.fuel, 0.3, 'hundredths kept without float drift');
+  assert.equal(t.food, 0);
+  assert.equal(t.junk, undefined);
+  const walk = [{ q: 0, r: 0 }, { q: 1, r: 0 }];
+  const v = cleanVoyage({ walk, cx: 120, rc: { ...t, bad: 1 } });
+  assert.equal(v.cx, 120);
+  assert.deepEqual(v.rc, t);
+  assert.deepEqual(cleanVoyage({ walk }).rc, zero, 'an older voyage starts its tally at none');
+});
+
+test('a voyage tally from an older or damaged record: zeros, never NaN', () => {
+  const walk = [{ q: 0, r: 0 }, { q: 1, r: 0 }];
+  const v = cleanVoyage({ walk, cx: NaN, rc: { gp: NaN, food: Infinity, fuel: '2', wear: -3 } });
+  assert.equal(v.cx, -1, 'no departure figure: no Cartography XP claimed');
+  assert.equal(cleanVoyage({ walk, cx: 0 }).cx, 0, 'a character at 0 Cartography XP still counts its surveys');
+  for (const k of TALLY_FIELDS) assert.equal(v.rc[k], 0, k);
+  assert.deepEqual(addTally(null, null), cleanTally({}));
+  assert.equal(addTally({ gp: 5 }, { gp: NaN }).gp, 5);
 });

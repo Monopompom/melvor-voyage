@@ -711,6 +711,8 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
       sp.cure = r.cure;
       if (r.lost.food > 0 || r.lost.fuel > 0) {
         skill().record.stores = { food: r.have.food, fuel: r.have.fuel };
+        // A voyage under way counts it on its receipt.
+        try { state.clock?.tally?.({ rotFood: r.lost.food, rotFuel: r.lost.fuel }); } catch {}
         if (offlineNow()) { spoiledAway.food += r.lost.food; spoiledAway.fuel = S.roundFuel(spoiledAway.fuel + r.lost.fuel); }
         else spoilShown();
         // The Guide's page on spoilage, at the first loss (1.5.0); offline it waits as an unread page, no notice.
@@ -923,6 +925,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
     if (!(add.food > 0 || add.fuel > 0)) return;
     set(s.food + add.food, s.fuel + add.fuel);
     foraged = { food: foraged.food + add.food, fuel: S.roundFuel(foraged.fuel + add.fuel) };
+    try { state.clock?.tally?.({ foundFood: add.food, foundFuel: add.fuel }); } catch {}
     log(`foraged ${add.food} food, ${add.fuel} fuel`);
     if (state.clock?.running?.() !== true) forageFlush();
   };

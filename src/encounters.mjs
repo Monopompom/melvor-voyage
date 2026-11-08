@@ -434,10 +434,29 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
   // ---- settling ------------------------------------------------------------------------------------------------------
   const gpNow = () => Math.max(0, game.gp.amount);
   /** Moves GP by `n` (never below none). */
-  const gpBy = (n) => {
+  const gpBy = (n, f) => {
     const d = Math.round(n);
-    if (d > 0) game.gp.add(d);
-    else if (d < 0) game.gp.remove(Math.min(gpNow(), -d));
+    const counted = f !== undefined && mineFight(f);
+    if (d > 0) { game.gp.add(d); if (counted) onReceipt(f, { purse: d }); }
+    else if (d < 0) { const paid = Math.min(gpNow(), -d); game.gp.remove(paid); if (counted) onReceipt(f, { toll: paid }); }
+  };
+  /** A band that met you (not a walking Folk's own, nor a fold only your Folks met): its GP goes on the voyage's receipt. */
+  const mineFight = (f) => f != null && f.folk === undefined && (f.away === undefined || R.foldMine(f.away.parts));
+  /**
+   * On the voyage under way's receipt; a fold (bands met on a voyage sailed while you were away) goes on the newest
+   * receipt when that voyage has ended. Card buys and debts paid off are no part of a voyage.
+   */
+  const onReceipt = (f, part) => { try { state.clock?.tally?.(part, { orLast: f.away !== undefined }); } catch {} };
+  /** What a haul's items fetch at the game's sale price, for the receipt. */
+  const lootGp = (id, qty) => {
+    try {
+      const item = game.items.getObjectByID(id);
+      if (item === undefined) return 0;
+      // GP only: an item sold for another currency (Abyssal Pieces) has no GP price.
+      if (item.sellsFor?.currency !== undefined && item.sellsFor.currency !== game.gp) return 0;
+      const p = typeof game.bank.getItemSalePrice === 'function' ? game.bank.getItemSalePrice(item, qty) : (item.sellsFor?.quantity ?? 0) * qty;
+      return Number.isFinite(p) ? p : 0;
+    } catch { return 0; }
   };
   /**
    * What your GP couldn't cover is owed to the band, on the ground it was met (a folded encounter shares it out by the
@@ -562,7 +581,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     const keeps = E.BANDS[f.opt.band].keepGrabs === true;
     if (s.grabbed > 0) lines.push(k(s.over === 'win' ? 'MOD_VOY_ENC_RES_GRABBED_BACK' : s.over === 'fled' && !keeps ? 'MOD_VOY_ENC_RES_GRABBED_DROPPED' : 'MOD_VOY_ENC_RES_GRABBED', {}, -s.grabbed));
     for (const id of s.found) lines.push(trickLine(id));
-    gpBy(st.now);
+    gpBy(st.now, f);
     const res = { tone: 'mid', lines, purse: 0, loot: [], press: false, banked: false, auto, done: 'fight', end: endOf(s), owed: 0 };
     if (s.over === 'win') {
       res.head = k(s.chaseFrom ? 'MOD_VOY_ENC_RES_WIN_CHASE' : 'MOD_VOY_ENC_RES_WIN');
@@ -626,12 +645,12 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     const r = e.fight?.res;
     if (r === undefined || r.banked) return;
     const got = Math.round(r.purse * mult);
-    gpBy(got);
+    gpBy(got, e.fight);
     r.lines.push(k(mult > 1 ? 'MOD_VOY_ENC_RES_PURSE_DOUBLED' : mult < 1 ? 'MOD_VOY_ENC_RES_PURSE_HALF' : 'MOD_VOY_ENC_RES_PURSE', {}, got));
     if (mult < 1) r.loot = L.halveHaul(r.loot);
     for (const x of r.loot) {
       if (x.trophy !== undefined) { e.trophies[x.trophy] = true; continue; }
-      try { game.bank.addItemByID(x.id, x.qty, true, true); } catch (err) { log(`encounters: loot ${x.id} not banked`, err); }
+      try { game.bank.addItemByID(x.id, x.qty, true, true); if (mineFight(e.fight)) onReceipt(e.fight, { loot: lootGp(x.id, x.qty) }); } catch (err) { log(`encounters: loot ${x.id} not banked`, err); }
     }
     r.banked = true;
     r.press = false;
@@ -672,7 +691,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     }
     const mine = f.away === undefined || R.foldMine(f.away.parts);
     const paid = mine ? Math.min(f.opt.toll, Math.floor(gpNow())) : 0;
-    gpBy(-paid);
+    gpBy(-paid, f);
     const lines = mine ? [k('MOD_VOY_ENC_RES_TOLL', {}, -paid)] : [];
     // A toll you can't cover in full isn't refused: the rest is owed.
     const owed = mine ? oweFor(f, f.opt.toll - paid, lines) : 0;
@@ -704,8 +723,9 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     }
     if (f.opt.where === 'sea') {
       const wear = EM.seaRunWear(S.WEAR.deep);
-      const to = EM.condAfterRun(state.ship?.cond?.('ship') ?? 0, wear);
-      try { state.ship?.setCond?.(to, 'ship'); } catch (e) { log('encounters: hull wear failed', e); }
+      const was = state.ship?.cond?.('ship') ?? 0;
+      const to = EM.condAfterRun(was, wear);
+      try { state.ship?.setCond?.(to, 'ship'); onReceipt(f, { wear: was - (state.ship?.cond?.('ship') ?? was) }); } catch (e) { log('encounters: hull wear failed', e); }
       let gone = [];
       try { gone = state.hold?.jettison?.(EM.seaRunLoss(state.hold?.hold?.('ship')?.length ?? 0), 'ship') ?? []; } catch (e) { log('encounters: jettison failed', e); }
       lines.push(k('MOD_VOY_ENC_RES_RUN_HULL', { wear: `${wear}`, cond: `${to}` }));
@@ -716,6 +736,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
         const food = Math.floor(st.food * R.RUN_LAND_DROP);
         const fuel = st.fuel * R.RUN_LAND_DROP;
         state.stores.set(st.food - food, st.fuel - fuel);
+        onReceipt(f, { food, fuel });
         lines.push(k('MOD_VOY_ENC_RES_RUN_STORES', { pct: `${Math.round(R.RUN_LAND_DROP * 100)}` }));
       }
     }

@@ -942,7 +942,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const tab = t(jm.JOURNAL_CREW.includes(id) ? 'MOD_VOY_JOURNAL_TAB_CREW' : 'MOD_VOY_JOURNAL_TAB_HOW');
     return `<div class="vj-page-body${scrawl ? ' vj-has-scrawl' : ''}">` + scrawl + (left ? runningHead(t('MOD_VOY_JOURNAL_TITLE'), tab) : runningHead(tab, t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`)))
       + `<h2 class="vj-h1">${esc(t(`MOD_VOY_JOURNAL_CH_${key}_TITLE`))}</h2>`
-      + dropCap(t(`MOD_VOY_JOURNAL_CH_${key}_INTRO`)) + withNote(id, body + (id === 'travels' ? levelsLedger() : '') + (id === 'ship' ? shipBill() : '') + aside(id), noteHtml) + '</div>'
+      + dropCap(t(`MOD_VOY_JOURNAL_CH_${key}_INTRO`)) + withNote(id, body + (id === 'travels' ? receiptsLedger() + levelsLedger() : '') + (id === 'ship' ? shipBill() : '') + aside(id), noteHtml) + '</div>'
       + chapterFoot(turn, folio, left, one);
   };
   // The Manifest button (build .179): in the foot of every left chapter page, right
@@ -1001,6 +1001,55 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       + ledger([t('MOD_VOY_JOURNAL_COL_VOYAGE_LEVEL'), t('MOD_VOY_JOURNAL_COL_GIVES'), t('MOD_VOY_JOURNAL_COL_YOURS')], rows)
       // The balance pass: the reward every level gives (model.travelDiscount).
       + `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_DISCOUNT', { per: `${model.TRAVEL_DISCOUNT_PER_LEVEL}`, pct: `${model.travelDiscount(sk.level)}` }))}</p></div>`;
+  };
+  /**
+   * The last voyages' receipts (save v30, the clock's tally filed when a voyage ends, online or offline): the newest in
+   * full, what it spent against what it earned and the GP balance, then the earlier ones a line each.
+   */
+  const receiptsLedger = () => {
+    const list = state.clock?.receipts?.() ?? [];
+    const head = `<div class="vj-section"><h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_RECEIPTS_HEAD'))}</h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_RECEIPTS_BODY', { n: `${model.RECEIPTS_MAX}` }))}</p>`;
+    if (list.length === 0) return `${head}<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_RECEIPTS_NONE'))}</p></div>`;
+    const hexWord = (n) => t(n === 1 ? 'MOD_VOY_JOURNAL_RECEIPT_HEX_ONE' : 'MOD_VOY_JOURNAL_RECEIPT_HEX_MANY', { n: numberWithCommas(n) });
+    const gp = (n) => `${shortNumber(n)} GP`;
+    const food = (n) => t('MOD_VOY_UNIT_FOOD', { n: numberWithCommas(Math.floor(n)) });
+    const fuel = (n) => t('MOD_VOY_UNIT_FUEL', { n: state.stores?.fuelText?.(n) ?? `${n}` });
+    const xp = (n) => (n < 1 ? '<1' : shortNumber(Math.floor(n)));
+    const some = (n, f) => (n > 0 ? f(n) : '');
+    const r = list[0];
+    const rows = [];
+    // `keep`: a name led by a skill icon stays on one line ("Cartography XP" broke after its icon on a phone). A spent
+    // figure given as a cell (Spoiled) may break between its parts.
+    const row = (key, spent, earned, keep = false) => {
+      if (spent !== '' || earned !== '') rows.push([{ text: t(key), cls: keep ? 'vj-keep' : '' }, typeof spent === 'object' ? spent : { text: spent, cls: 'vj-num' }, { text: earned, cls: 'vj-num' }]);
+    };
+    row('MOD_VOY_JOURNAL_RECEIPT_FARES', some(r.gp, gp), '');
+    row('MOD_VOY_JOURNAL_RECEIPT_ENCOUNTERS', some(r.toll, gp), some(r.purse, gp));
+    row('MOD_VOY_JOURNAL_RECEIPT_LOOT', '', some(r.loot, gp));
+    row('MOD_VOY_JOURNAL_RECEIPT_PAY', '', some(r.pay, gp));
+    row('MOD_VOY_JOURNAL_RECEIPT_FOOD', some(r.food, food), some(r.foundFood, food));
+    row('MOD_VOY_JOURNAL_RECEIPT_FUEL', some(r.fuel, fuel), some(r.foundFuel, fuel));
+    const rot = [some(r.rotFood, food), some(r.rotFuel, fuel)].filter((x) => x !== '');
+    row('MOD_VOY_JOURNAL_RECEIPT_SPOILED', rot.length === 0 ? '' : { html: rot.map((x) => `<span class="vj-nobr">${esc(x)}</span>`).join(', '), cls: 'vj-num vj-wraps' }, '');
+    row('MOD_VOY_JOURNAL_RECEIPT_WEAR', some(r.wear, (n) => t('MOD_VOY_JOURNAL_RECEIPT_WEAR_N', { n: n < 1 ? '<1' : `${Math.round(n)}` })), '');
+    row('MOD_VOY_JOURNAL_RECEIPT_VOYAGE_XP', '', some(r.xp, xp), true);
+    row('MOD_VOY_JOURNAL_RECEIPT_CARTO_XP', '', some(r.cx, xp), true);
+    const g = model.receiptGp(r);
+    rows.push([{ html: `<b>${esc(t('MOD_VOY_JOURNAL_RECEIPT_GP'))}</b>` }, { html: `<b>${esc(gp(g.spent))}</b>`, cls: 'vj-num' }, { html: `<b>${esc(gp(g.earned))}</b>`, cls: 'vj-num' }]);
+    rows.numeric = [false, true, true];
+    const net = g.net > 0 ? t('MOD_VOY_JOURNAL_RECEIPT_NET_UP', { gp: shortNumber(g.net) }) : g.net < 0 ? t('MOD_VOY_JOURNAL_RECEIPT_NET_DOWN', { gp: shortNumber(-g.net) }) : t('MOD_VOY_JOURNAL_RECEIPT_NET_EVEN');
+    const line = (x) => t('MOD_VOY_JOURNAL_RECEIPT_LINE', { name: x.name, how: t(`MOD_VOY_JOURNAL_RECEIPT_HOW_${x.how.toUpperCase()}`), hexes: hexWord(x.hexes), took: state.clock?.duration?.(x.ms) ?? '' });
+    let html = head + `<p class="vj-p"><b>${esc(line(r))}</b></p>`
+      + ledger([t('MOD_VOY_JOURNAL_COL_RECEIPT_WHAT'), t('MOD_VOY_JOURNAL_COL_RECEIPT_SPENT'), t('MOD_VOY_JOURNAL_COL_RECEIPT_EARNED')], rows)
+      + `<p class="vj-p ${g.net > 0 ? 'text-success' : g.net < 0 ? 'text-danger' : ''}">${esc(net)}</p>`;
+    if (list.length > 1) {
+      const signed = (n) => `${n > 0 ? '+' : n < 0 ? '\u2212' : ''}${shortNumber(Math.abs(n))}`;
+      const older = list.slice(1).map((x) => { const n = model.receiptGp(x).net; return [{ text: x.name }, { text: numberWithCommas(x.hexes), cls: 'vj-num' }, { text: signed(n), cls: `vj-num ${n > 0 ? 'text-success' : n < 0 ? 'text-danger' : ''}` }, { text: xp(x.xp), cls: 'vj-num' }]; });
+      older.numeric = [false, true, true, true];
+      html += `<p class="vj-p"><b>${esc(t('MOD_VOY_JOURNAL_RECEIPTS_EARLIER'))}</b></p>`
+        + ledger([t('MOD_VOY_JOURNAL_COL_RECEIPT_VOYAGE'), t('MOD_VOY_JOURNAL_COL_RECEIPT_HEXES'), t('MOD_VOY_JOURNAL_COL_RECEIPT_GP'), t('MOD_VOY_JOURNAL_COL_RECEIPT_XP')], older);
+    }
+    return `${html}</div>`;
   };
   const roman = jm.roman;
   /** Chapters two to a spread: How it works (`view.spread`) and the Old Man's Crew (`view.crewSpread`). */

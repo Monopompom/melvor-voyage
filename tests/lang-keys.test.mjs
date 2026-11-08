@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import * as terrain from '../src/terrain.mjs';
 import * as rules from '../src/rules.mjs';
-import { JOURNAL_GUIDES } from '../src/voyage-model.mjs';
+import { JOURNAL_GUIDES, RECEIPT_HOW } from '../src/voyage-model.mjs';
 import { RESCUES, TOW_KINDS } from '../src/adrift-model.mjs';
 import { SEASONS, BANDS } from '../src/weather-model.mjs';
 import { TRAITS as TRAVEL_TRAITS } from '../src/folk-traits-model.mjs';
@@ -26,6 +26,8 @@ export const FAMILIES = {
   // the travel traits (phase 6f, src/folk-traits.mjs): name, effect, and how a bad one fades
   MOD_VOY_TRAIT_: TRAVEL_TRAITS.flatMap((tr) => [tr.id, `${tr.id}_DESC`, ...(tr.fade === undefined ? [] : [`${tr.id}_FADES`])]),
   MOD_VOY_DIR_: DIRS,
+  // how a voyage on a receipt ended (src/journal.mjs receiptsLedger)
+  MOD_VOY_JOURNAL_RECEIPT_HOW_: RECEIPT_HOW.map((h) => h.toUpperCase()),
   MOD_VOY_DIR_SHORT_: DIRS,
   MOD_VOY_TERRAIN_: [...Object.keys(terrain.CLASS_INFO), 'CLOUD', 'ICE'],
   MOD_VOY_WX_SEASON_: SEASONS.map((s) => s.toUpperCase()),

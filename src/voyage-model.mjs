@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 29;
+export const SAVE_VERSION = 30;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -125,10 +125,12 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * `neverLoad` (save v28) is the foods marked Never load on the Voyage page: item ids that Load, the planner's stops and
  * the stranding checks leave in the bank (a Shark kept for combat), at most NEVER_LOAD_MAX.
  * `home` (save v29) is the place set as home, { q, r } or null; `recent` the planner's last destinations set off for,
- * newest first. plan-model.mjs cleanHome and cleanRecent check them.
+ * newest first. cleanHome and cleanRecent below check them.
+ * `receipts` (save v30) is the last RECEIPTS_MAX finished voyages' receipts, newest first: what each cost and earned
+ * (cleanReceipt).
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [] };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [], receipts: [] };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -230,6 +232,7 @@ export const MIGRATIONS = {
   27: (rec) => ({ ...rec, v: 28, neverLoad: [] }),
   // Home port: no home set and no recent destination yet.
   28: (rec) => ({ ...rec, v: 29, home: null, recent: [] }),
+  29: (rec) => ({ ...rec, v: 30, receipts: [] }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -403,6 +406,7 @@ function clean(rec) {
     neverLoad: cleanNeverLoad(rec.neverLoad),
     home: cleanHome(rec.home),
     recent: cleanRecent(rec.recent),
+    receipts: cleanReceipts(rec.receipts),
   };
 }
 /** Foods a save keeps marked Never load at most: far more than the game has foods. */
@@ -481,6 +485,82 @@ export function addRecent(list, entry) {
   if (e === undefined) return prev;
   return [e, ...prev.filter((x) => recentKey(x) !== recentKey(e))].slice(0, RECENT_MAX);
 }
+// ---- receipts (save v30) -----------------------------------------------------------------------------------------
+/** Finished voyages a save keeps the receipts of. */
+export const RECEIPTS_MAX = 5;
+/**
+ * A receipt's figures, all 0 or more: what the voyage cost, then what it earned. Costs: `gp` the fares (a hungry hex's
+ * surcharge in them), `food` and `fuel` the stores eaten and burned on the way, `rotFood` and `rotFuel` what spoiled
+ * under way, `wear` the hulls' condition lost (% points, boat and ship together), `toll` GP paid in encounters. Earned:
+ * `xp` Voyage XP, `cx` Cartography XP, `foundFood` and `foundFuel` what the walk foraged, `purse` GP won in
+ * encounters, `loot` their items' sale value in GP, `pay` cargo pay collected where the voyage ended, before the next
+ * one set off. The clock's running tally (clock-model.mjs TALLY_FIELDS) has the same names.
+ */
+export const RECEIPT_FIELDS = ['gp', 'food', 'fuel', 'rotFood', 'rotFuel', 'wear', 'toll', 'xp', 'cx', 'foundFood', 'foundFuel', 'purse', 'loot', 'pay'];
+export const RECEIPT_HOW = ['arrived', 'stopped', 'refused', 'adrift'];
+const figure = (n) => (Number.isFinite(n) && n > 0 ? Math.round(n * 1000) / 1000 : 0);
+/**
+ * One receipt, or undefined: { name, how (RECEIPT_HOW), hexes, ms (time under way), at (ms it ended), q, r (where it
+ * ended: cargo pay there joins it), shut (you have moved on since: no more pay joins it), ...RECEIPT_FIELDS }.
+ */
+export function cleanReceipt(raw) {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  if (typeof raw.name !== 'string' || !RECEIPT_HOW.includes(raw.how) || !Number.isInteger(raw.hexes) || raw.hexes < 1) return undefined;
+  if (!Number.isInteger(raw.q) || !Number.isInteger(raw.r)) return undefined;
+  const out = { name: raw.name.slice(0, 200), how: raw.how, hexes: raw.hexes, ms: figure(raw.ms), at: figure(raw.at), q: raw.q, r: raw.r, shut: raw.shut === true };
+  for (const k of RECEIPT_FIELDS) out[k] = figure(raw[k]);
+  return out;
+}
+export function cleanReceipts(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const x of raw) {
+    const r = cleanReceipt(x);
+    if (r !== undefined) out.push(r);
+    if (out.length === RECEIPTS_MAX) break;
+  }
+  return out;
+}
+/** The list with `receipt` put first, at most RECEIPTS_MAX. An unusable receipt changes nothing. */
+export function addReceipt(list, receipt) {
+  const prev = cleanReceipts(list);
+  const r = cleanReceipt(receipt);
+  return r === undefined ? prev : [r, ...prev].slice(0, RECEIPTS_MAX);
+}
+/**
+ * Cargo pay collected at { q, r }: it joins the newest receipt when that voyage ended there (the list unchanged
+ * otherwise). `xp` is the delivery's Voyage XP.
+ */
+export function payReceipt(list, at, gp, xp = 0) {
+  const prev = cleanReceipts(list);
+  const r = prev[0];
+  if (r === undefined || r.shut || at == null || at.q !== r.q || at.r !== r.r || !(figure(gp) > 0 || figure(xp) > 0)) return prev;
+  return [{ ...r, pay: figure(r.pay + figure(gp)), xp: figure(r.xp + figure(xp)) }, ...prev.slice(1)];
+}
+/** You moved on (set off again, or travelled without a voyage): the newest receipt takes no more pay. */
+export function shutReceipt(list) {
+  const prev = cleanReceipts(list);
+  return prev.length === 0 || prev[0].shut ? prev : [{ ...prev[0], shut: true }, ...prev.slice(1)];
+}
+/**
+ * `part`'s figures added to the newest receipt: what was settled after its voyage ended (bands met on a voyage sailed
+ * while you were away, answered on your return).
+ */
+export function addToReceipt(list, part) {
+  const prev = cleanReceipts(list);
+  if (prev.length === 0) return prev;
+  const r = { ...prev[0] };
+  let changed = false;
+  for (const k of RECEIPT_FIELDS) { const n = figure(part?.[k]); if (n > 0) { r[k] = figure(r[k] + n); changed = true; } }
+  return changed ? [r, ...prev.slice(1)] : prev;
+}
+/** GP in and out on a receipt: { spent, earned, net } (the food, fuel, wear and XP are not GP). */
+export function receiptGp(r) {
+  const spent = figure(r?.gp) + figure(r?.toll);
+  const earned = figure(r?.purse) + figure(r?.loot) + figure(r?.pay);
+  return { spent, earned, net: Math.round((earned - spent) * 1000) / 1000 };
+}
+
 /** Folks the most a save keeps jobs for: Worker Folks never hires more than there are skills to hold. */
 export const JOBS_MAX = 64;
 /** The jobs Folks keep at their own hex (crew-model.mjs): { folkId: skillId }, junk dropped. */

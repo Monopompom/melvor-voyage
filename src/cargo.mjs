@@ -374,6 +374,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
     try { gp = state.gear?.payOf?.(gp) ?? gp; } catch {}
     game.gp.add(gp);
     if (xp > 0) try { skill().addXP(xp); } catch (e) { log('cargo XP failed', e); }
+    // On the receipt of the voyage that ended here.
+    try { state.clock?.paid?.(gp, xp); } catch {}
     if (M.finished(run)) c.runs = c.runs.filter((r) => r !== run);
     // Now and then the port's sea chart comes with the pay.
     try { state.charts?.rollDelivery?.(run.to); } catch (e) { log('delivery chart failed', e); }

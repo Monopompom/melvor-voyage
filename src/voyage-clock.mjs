@@ -18,7 +18,7 @@ const STARTABLE = ['melvorD:Woodcutting', 'melvorD:Mining', 'melvorD:Fishing', '
 const ARCHAEOLOGY_ID = 'melvorAoD:Archaeology';
 const CARTOGRAPHY_ID = 'melvorAoD:Cartography';
 
-export function install(ctx, { state, C, storesModel: S, shipModel, rules, terrainMod, helpLayout, shortNumber, log }) {
+export function install(ctx, { state, C, model, storesModel: S, shipModel, rules, terrainMod, helpLayout, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const num = (n) => numberWithCommas(Math.floor(n));
@@ -552,7 +552,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
       walk.push(m === undefined ? { q: h.q, r: h.r } : { q: h.q, r: h.r, m: JSON.parse(JSON.stringify(m)) });
     }
     const fogged = fog !== undefined && state.fog !== undefined;
-    const v = C.cleanVoyage({ walk, at: 0, left: 1, total: 1, name, chain, loads, began: state.gameNow(), xp: s.xp, gp: game.gp.amount, worn: wornNow(),
+    const v = C.cleanVoyage({ walk, at: 0, left: 1, total: 1, name, chain, loads, began: state.gameNow(), xp: s.xp, gp: game.gp.amount, cx: cartXp(), worn: wornNow(),
       ...(fogged ? { fog: true, side: fog.side ?? 0, sv: [] } : {}), ...(tow !== undefined ? { tow } : {}) });
     if (v === null) return false;
     // A stowaway may be hiding aboard for a long crossing (events.mjs): the hex where it climbs out.
@@ -572,6 +572,11 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
       // The game's own check stops what is running (refused only in Golbin Raid).
       if (game.idleChecker(s)) return false;
     }
+    // Changing course ends the voyage under way where it stands (the hexes reached are kept): its receipt as a stop.
+    const old = cur();
+    if (old !== null) fileReceipt(old, { name: old.name, how: 'stopped', ms: sailedMs(old), at: state.clockNow(), xp: Math.max(0, s.xp - old.xp) });
+    // Leaving: the last receipt takes no more cargo pay.
+    shutPay();
     setVoyage(v);
     setEnding(null);
     game.activeAction = s;
@@ -948,6 +953,76 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     confirmSetOff(path, () => {}, fog);
   };
 
+  // ---- the receipt (save v30) --------------------------------------------------------------------------------------
+  // The voyage tallies what it costs and earns as it goes (clock-model TALLY_FIELDS), the same online and in an
+  // offline catch-up, and files it as a receipt when it ends. A tow keeps none: it is a rescue, not a voyage.
+  const cartXp = () => { try { return Number.isFinite(cart()?.xp) ? cart().xp : 0; } catch { return 0; } };
+  const condNow = () => ({ boat: state.ship?.cond?.('boat') ?? 100, ship: state.ship?.cond?.('ship') ?? 100 });
+  /**
+   * Adds to the voyage under way's tally (stores.mjs foraging and spoilage, encounters.mjs your own fights). `orLast`:
+   * with no voyage under way it goes on the newest receipt instead (bands met on a voyage sailed while you were away,
+   * answered on your return).
+   */
+  const tally = (part, { orLast = false } = {}) => {
+    const v = cur();
+    if (v === null) {
+      const s = skill();
+      if (orLast && s !== undefined) { try { s.record.receipts = model.addToReceipt(s.record.receipts, part); } catch (e) { log('receipt add failed', e); } }
+      return;
+    }
+    if (v.tow !== undefined) return;
+    v.rc = C.addTally(v.rc, part);
+  };
+  /** Before a step's move: what it can change (undefined if it can't be read: the step goes on uncounted). */
+  const beforeStep = (v) => {
+    try { state.moveGp = undefined; return { gp: game.gp.amount, st: { ...(state.stores?.stores?.() ?? { food: 0, fuel: 0 }) }, cond: condNow(), rc: { ...C.cleanTally(v.rc) } }; } catch (e) { log('receipt step failed', e); return undefined; }
+  };
+  /**
+   * After it: the GP the move took (fares, a hungry hex's surcharge: setup.mjs movePlayer keeps it in state.moveGp before
+   * the haul and the rest can bring GP in), the stores eaten and burned (what was foraged and what spoiled in the move
+   * told apart), the hulls' wear.
+   */
+  const afterStep = (v, b) => {
+    try {
+      const st = state.stores?.stores?.() ?? b.st;
+      const rc = C.cleanTally(v.rc);
+      const c = condNow();
+      tally({
+        gp: Number.isFinite(state.moveGp) ? state.moveGp : b.gp - game.gp.amount,
+        food: b.st.food - st.food + (rc.foundFood - b.rc.foundFood) - (rc.rotFood - b.rc.rotFood),
+        fuel: b.st.fuel - st.fuel + (rc.foundFuel - b.rc.foundFuel) - (rc.rotFuel - b.rc.rotFuel),
+        wear: Math.max(0, b.cond.boat - c.boat) + Math.max(0, b.cond.ship - c.ship),
+      });
+    } catch (e) { log('receipt step failed', e); }
+  };
+  /** The ended voyage's receipt, first in the save's list (a voyage stopped before its first hex leaves none). */
+  const fileReceipt = (v, e) => {
+    const s = skill();
+    if (s === undefined || v.tow !== undefined || v.at < 1) return;
+    try {
+      const pos = v.walk[v.at];
+      const rec = { ...C.cleanTally(v.rc), name: e.name, how: e.how, hexes: v.at, ms: e.ms, at: e.at, q: pos.q, r: pos.r, xp: e.xp, cx: v.cx >= 0 ? Math.max(0, cartXp() - v.cx) : 0 };
+      s.record.receipts = model.addReceipt(s.record.receipts, rec);
+    } catch (err) { log('receipt failed', err); }
+  };
+  /**
+   * Cargo pay (cargo.mjs deliver): at a port on the way it counts on the voyage under way (its XP is in the voyage's
+   * XP already); after one, where it ended, until you move on.
+   */
+  const paid = (gp, xp = 0) => {
+    const s = skill();
+    if (s === undefined) return;
+    if (cur() !== null) { tally({ pay: gp }); return; }
+    try { s.record.receipts = model.payReceipt(s.record.receipts, map()?.playerPosition, gp, xp); } catch (e) { log('receipt pay failed', e); }
+  };
+  /** You moved on: the newest receipt takes no more pay (a set off; setup.mjs movePlayer for travel without a voyage). */
+  const shutPay = () => {
+    const s = skill();
+    if (s === undefined || !(s.record.receipts?.length > 0) || s.record.receipts[0]?.shut === true) return;
+    try { s.record.receipts = model.shutReceipt(s.record.receipts); } catch (e) { log('receipt shut failed', e); }
+  };
+  const receipts = () => model.cleanReceipts(skill()?.record.receipts);
+
   // ---- the voyage under way ----------------------------------------------------------------------------------------
   /** Loads the stores at the player's place from the bank, best food then fuel (the planner's stops). */
   const loadHere = () => {
@@ -1023,8 +1098,10 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     try { met = towed ? undefined : stepsOf(path)[0]; } catch {}
     // Encounters (encounters.mjs): rolled for the hex entered, never the last; the toll's floor is this hex's GP.
     const hexGp = towed || finalStep ? 0 : gpOf(path);
+    const before = towed ? undefined : beforeStep(v);
     try { cart().movePlayer(path, towed); } catch (e) { log('voyage step failed', e); } finally { stepping = false; finalStep = false; state.lightHold = 0; }
     putBack();
+    if (before !== undefined) afterStep(v, before);
     const now = map()?.playerPosition;
     if (now !== path[0]) {
       log(`voyage refused at step ${i + 1}`);
@@ -1123,21 +1200,25 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     try { if (game.activeAction === s) game.clearActiveAction(false); } catch {}
     try { game.renderQueue.activeSkills = true; game.scheduleSave(); } catch {}
   };
-  /** Ends the voyage where it stands: 'arrived', 'stopped' (Stop here, another start) or 'refused' (a hex refused). */
-  const end = (how, extra = {}) => {
-    const v = cur();
-    const s = skill();
-    if (v === null || s === undefined) return;
-    // The time sailed, from the ticks run (the clock can jump: a catch-up replays from the last tick it saw).
+  /** The time a voyage has sailed, from the ticks run (the clock can jump: a catch-up replays from the last tick it saw). */
+  const sailedMs = (v) => {
     const ticks = stepTicks(v);
     let sailed = 0;
     for (let k = 0; k < v.at; k++) sailed += ticks[k] ?? 0;
     if (v.at < ticks.length) sailed += Math.max(0, (ticks[v.at] ?? 0) - v.left);
     // The ticks run when counted (build .224: a fog voyage's surveys take time of their own).
-    const ms = (v.spent > 0 ? v.spent : sailed) * C.TICK_MS;
+    return (v.spent > 0 ? v.spent : sailed) * C.TICK_MS;
+  };
+  /** Ends the voyage where it stands: 'arrived', 'stopped' (Stop here, another start) or 'refused' (a hex refused). */
+  const end = (how, extra = {}) => {
+    const v = cur();
+    const s = skill();
+    if (v === null || s === undefined) return;
+    const ms = sailedMs(v);
     const quiet = extra.quiet === true;
     delete extra.quiet;
     const e = C.cleanEnding({ name: v.name, hexes: v.at, ms, xp: Math.max(0, s.xp - v.xp), at: state.clockNow(), how, started: '', failed: [], ...extra });
+    fileReceipt(v, e);
     setVoyage(null);
     setEnding(e);
     clearAction();
@@ -1164,6 +1245,8 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     }
     // The name as the hex is known on arrival (build .386: a point of interest discovered that second kept its "Hex (q, r)").
     try { const last = v.walk[v.walk.length - 1]; const g = hexAt(last.q, last.r); const nm = g === undefined ? '' : nameOfHex(g); if (nm) e.name = nm; } catch {}
+    // The receipt under the same name.
+    try { const s = skill(); const r0 = s?.record.receipts?.[0]; if (r0 !== undefined && r0.at === e.at && r0.name !== e.name) r0.name = e.name.slice(0, 200); } catch {}
     const r = chain.length > 0 ? runChain(chain) : { started: '', failed: [] };
     e.started = r.started;
     e.failed = r.failed.slice(0, 3);
@@ -1540,7 +1623,7 @@ export function install(ctx, { state, C, storesModel: S, shipModel, rules, terra
     } catch (e) { log('voyage load check failed', e); }
   });
 
-  const api = { on, setOff, changeCourse, tick, stop, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog, confirmSetOff, encDone, holdForEncounter,
+  const api = { on, setOff, changeCourse, tick, stop, tally, paid, shutPay, receipts, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog, confirmSetOff, encDone, holdForEncounter,
     /** A tow is under way (5b part two). */
     towing: () => cur()?.tow !== undefined,
     msLeft: () => { const v = cur(); return v === null ? 0 : msLeft(v); },

@@ -20,9 +20,9 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-08.577';
+export const BUILD = '2026-11-08.582';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
-const DEV = false;
+const DEV = true;
 
 export async function setup(ctx) {
   const log = DEV ? (...args) => console.log('[Voyage]', ...args) : () => {};
@@ -533,7 +533,7 @@ export async function setup(ctx) {
     // The ship's clock (phase 5a): travel takes time. A failure leaves phase 4's instant travel.
     try {
       const clockModel = await ctx.loadModule('src/clock-model.mjs');
-      const clock = (await ctx.loadModule('src/voyage-clock.mjs')).install(ctx, { state, C: clockModel, storesModel, shipModel, rules, terrainMod, helpLayout, shortNumber, log });
+      const clock = (await ctx.loadModule('src/voyage-clock.mjs')).install(ctx, { state, C: clockModel, model, storesModel, shipModel, rules, terrainMod, helpLayout, shortNumber, log });
       const s = voyageSkill();
       if (s !== undefined) s.clock = clock;
       // The route line on the map (build .272): what is left to sail, a light running along it, the walked part dim.
@@ -658,6 +658,10 @@ export async function setup(ctx) {
             const extra = n > 0 ? Math.min(game.gp.amount, storesModel.hungryRouteGp(stepGp, hungry)) : 0;
             if (extra > 0) { game.gp.remove(extra); log(`${hungry.length} hungry hex(es): ${extra} GP more`); }
           } catch (e) { log('hungry surcharge failed', e); }
+          // What the move cost in GP, for a voyage's receipt (voyage-clock.mjs afterStep): read before the haul below
+          // can bring a Folk's GP in. Travel that is no voyage step leaves the last receipt's port.
+          state.moveGp = Math.max(0, gpBefore - game.gp.amount);
+          try { if (state.clock?.stepping?.() !== true) state.clock?.shutPay?.(); } catch (e) { log('receipt shut failed', e); }
           // Hunger on the road (phase 6c): the hungry steps the stores just marked hurt the crew too.
           try { if (!ignoreCosts) crew?.afterMove(steps); } catch (e) { log('crew hunger failed', e); }
           // Travel traits (phase 6f): what the move teaches the Folks with you (a drift or a tow teaches nothing).

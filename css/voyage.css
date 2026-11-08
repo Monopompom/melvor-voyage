@@ -611,6 +611,10 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 /* A column of figures is centred under its head; the last column's stays right against the edge (the user, 29 Oct 2026). */
 .vj-ledger .vj-num:not(:last-child) { text-align: center; }
 .vj-ledger .vj-end { text-align: right; }
+/* A receipt's XP rows stay on one line: "Cartography XP" broke after its skill icon on a phone (the user, 8 Nov 2026).
+   The Spoiled figures may break after their comma instead, so the table still fits a phone's page. */
+.vj-ledger .vj-keep { white-space: nowrap; }
+.vj-ledger .vj-num.vj-wraps { white-space: normal; }
 /* The bands chapter (the user, 30 Oct 2026: "bolding, decorations, icons"): the suits in their colours on the paper,
    the game's words bold, a badge per tier, the trophies as the bands' emblems, a round as three steps. */
 .vj-suit { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
@@ -827,12 +831,14 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .vj-tab.vj-tab-on { background: var(--vj-paper); color: var(--vj-red); width: 52px; margin-left: -4px; }
 .vj-tab-icon { flex: none; transform: rotate(90deg); } /* turned with the side tab's text (the user, 17 Oct 2026) */
 .vj-tab-name { white-space: nowrap; }
-/* Bootstrap's colour classes are for the dark game; on paper they need ink-dark versions (4.5:1). */
-#voyage-journal .vj-page .text-success { color: #2f6b34 !important; }
-#voyage-journal .vj-page .text-warning { color: #7a5000 !important; }
-#voyage-journal .vj-page .text-danger { color: #9a2a1c !important; }
-#voyage-journal .vj-page .text-info { color: #2c3e5c !important; }
-#voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
+/* Bootstrap's colour classes are for the dark game; on paper they need ink-dark versions (4.5:1). `body` makes them as
+   specific as the Light theme's inks for white blocks above, which come earlier and so lose here: those read 4.2:1
+   on the paper. */
+body #voyage-journal .vj-page .text-success { color: #2f6b34 !important; }
+body #voyage-journal .vj-page .text-warning { color: #7a5000 !important; }
+body #voyage-journal .vj-page .text-danger { color: #9a2a1c !important; }
+body #voyage-journal .vj-page .text-info { color: #2c3e5c !important; }
+body #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 .vj-page b, .vj-page strong { font-weight: 600; }
 /* A short window (under 768px high) cannot fit five named side tabs: icons only, the name as the tooltip (.308, C2-04). */
 @media (min-width: 992px) and (max-height: 767.98px) {
