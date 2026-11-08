@@ -163,6 +163,11 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         if (target.dataset.voyagePreset !== undefined) { preset(target, 'load'); return; }
         const action = target.dataset.voyageAction;
         if (action === 'pick') { picked = target.dataset.item; render(); return; }
+        if (action === 'never') {
+          const item = game.items.getObjectByID(target.dataset.item ?? '');
+          if (item !== undefined && target instanceof HTMLInputElement && state.stores?.setNever?.(item, target.checked)) render();
+          return;
+        }
         if (action === 'repair') { if (state.ship?.repair(target.dataset.kind ?? 'boat')) render(); return; }
         if (action === 'careen-stop') { if (state.ship?.stopCareen?.(target.dataset.kind ?? 'boat')) render(); return; }
         if (action === 'load') {
@@ -256,10 +261,14 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         `<button type="button" class="btn btn-success voyage-hold-go" data-voyage-action="${action}">${esc(main)}</button></div>`) +
     '</div></div>';
   /** Item chips (bank-style), the picked one filled blue; the name is in a line under them for touch. */
+  // A food marked Never load (food priority) is dimmed with a badge, its title saying so.
   const chips = (items, pickedId, action, title) =>
-    `<div class="voyage-store-items">${items.map((x) => `<button type="button" class="btn btn-sm voyage-store-item ${x.item.id === pickedId ? 'btn-info' : 'btn-outline-info'}" ` +
-      `data-voyage-action="${action}" data-item="${esc(x.item.id)}" data-tip-item="${esc(x.item.id)}" title="${esc(title(x))}" aria-label="${esc(title(x))}" aria-pressed="${x.item.id === pickedId}">` +
-      `<img src="${x.item.media}" alt=""><small>${shortNumber(x.qty)}</small></button>`).join('')}</div>`;
+    `<div class="voyage-store-items">${items.map((x) => {
+      const name = x.never === true ? t('MOD_VOY_PAGE_STORES_NEVER_TIP', { item: title(x) }) : title(x);
+      return `<button type="button" class="btn btn-sm voyage-store-item ${x.item.id === pickedId ? 'btn-info' : 'btn-outline-info'}${x.never === true ? ' voyage-store-never' : ''}" ` +
+        `data-voyage-action="${action}" data-item="${esc(x.item.id)}" data-tip-item="${esc(x.item.id)}" title="${esc(name)}" aria-label="${esc(name)}" aria-pressed="${x.item.id === pickedId}">` +
+        `<img src="${x.item.media}" alt=""><small>${shortNumber(x.qty)}</small>${x.never === true ? '<i class="fa fa-ban voyage-store-never-badge" aria-hidden="true"></i>' : ''}</button>`;
+    }).join('')}</div>`;
 
   const shipHtml = () => {
     const api = state.ship;
@@ -946,6 +955,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       out.push({ head: t('MOD_VOY_HELP_HEAD_LOADING'), body: [
         t('MOD_VOY_HELP_LOAD_WHERE'),
         { table: { cols: [t('MOD_VOY_HELP_COL_PLACE'), t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_HELP_COL_FUEL')], rows: loadRows() } },
+        t('MOD_VOY_HELP_LOAD_NEVER'),
       ] });
       if (!(state.crew !== undefined && state.folksGuarded === true)) out.push(...outpostHelp(true));
       // Local supply (4.4a): a day's worth by place at your level's carry limit, or a line saying it is off.
@@ -1144,9 +1154,10 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     }
     // Curing Salt (4.4b) loads at any loading place, in its own strip under the wells (the user, 4 Nov 2026: "Salt in
     // fuel slots? Where are the kegs, then?"), beside the Dry Casks.
-    const items = api.loadable().filter((x) => x.kind === 'cure' || rates[x.kind] > 0);
+    const items = api.loadable({ all: true }).filter((x) => x.kind === 'cure' || rates[x.kind] > 0);
     const unit = (x) => `${x.item.name}, ${x.kind === 'food' ? t('MOD_VOY_PAGE_STORES_UNIT_FOOD', { hp: `${x.unit}` }) : x.kind === 'cure' ? t('MOD_VOY_PAGE_STORES_UNIT_CURE', { h: `${x.unit}` }) : t('MOD_VOY_PAGE_STORES_UNIT_FUEL', { fuel: `${x.unit}` })}`;
-    if (items.length > 0 && !items.some((x) => x.item.id === picked)) picked = items[0].item.id;
+    // The first pick is the best food not marked Never load (food priority).
+    if (items.length > 0 && !items.some((x) => x.item.id === picked)) picked = (items.find((x) => x.never !== true) ?? items[0]).item.id;
     // Two wells, food | fuel, four chip rows tall, scrolling past that (build .149, the user; DESIGN "The Stores
     // picker"). An empty well says why in its middle.
     const well = (kind) => {
@@ -1192,6 +1203,13 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     const plan = (n) => api.loadPlan?.(sel.unit, n, sel.kind) ?? { n: storesModel.loadCount(sel.unit, rate, n, room), parts: [] };
     const most = plan(sel.qty).n;
     load += `<div class="mt-2">${esc(t('MOD_VOY_PAGE_SELECTED', { item: unit(sel), count: numberWithCommas(sel.qty) }))}</div>`;
+    // Food priority: a food can be marked Never load, so Load and the planner's stops leave it in the bank.
+    if (sel.kind === 'food' && typeof api.setNever === 'function') {
+      load += '<div class="custom-control custom-checkbox voyage-store-never-row mt-1">' +
+        `<input type="checkbox" class="custom-control-input" id="voyage-never-load" data-voyage-action="never" data-item="${esc(sel.item.id)}"${sel.never === true ? ' checked' : ''}>` +
+        `<label class="custom-control-label" for="voyage-never-load">${esc(t('MOD_VOY_PAGE_STORES_NEVER'))}</label></div>`;
+      if (sel.never === true) return html + section(`${load}<div class="mt-1 text-muted">${esc(t('MOD_VOY_PAGE_STORES_NEVER_KEPT'))}</div>`);
+    }
     if (most <= 0 && cure) return html + section(`${load}<div class="mt-2 text-warning">${esc(t('MOD_VOY_PAGE_STORES_CURE_FULL'))}</div>`);
     if (most <= 0 && room > 0 && sup !== undefined) {
       return html + section(`${load}<div class="mt-2 text-warning">${esc(t(sel.kind === 'food' ? 'MOD_VOY_PAGE_STORES_SOLD_OUT_FOOD' : 'MOD_VOY_PAGE_STORES_SOLD_OUT_FUEL', { time: at(sup.back[sel.kind]) }))}</div>`);
@@ -1280,11 +1298,14 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     return chips.join('');
   };
 
-  /** True while you type in one of this part's amount boxes: its redraw waits for the box to lose focus. */
+  /**
+   * True while you type in one of this part's amount boxes: its redraw waits for the box to lose focus. A checkbox
+   * (Never load) is not typed in: its click redraws at once.
+   */
   let deferred = false;
   const typing = (el) => {
     const a = document.activeElement;
-    if (el === null || !(a instanceof HTMLInputElement) || !el.contains(a)) return false;
+    if (el === null || !(a instanceof HTMLInputElement) || a.type === 'checkbox' || !el.contains(a)) return false;
     deferred = true;
     return true;
   };

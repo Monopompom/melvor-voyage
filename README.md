@@ -53,7 +53,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Provisions.** Every hex costs food from your stores, and fuel for the campfire on land: a little on easy ground,
   more on hills, mountains and wastes, most in snow and lava (Firemaking levels make the fuel go further). Load food
   and fuel from the bank on the Voyage page at a port (everything at full measure), a town or market, or a farm or camp
-  (less), standing on it or next to it. The stores hold only so much, and every Voyage level adds room. You start with
+  (less), standing on it or next to it. Mark a food Never load and it stays in the bank, at the planner's stops too
+  (a Shark kept for combat). The stores hold only so much, and every Voyage level adds room. You start with
   a kit. A place packs only so much a day, a share of your carry limit (a farm or camp an eighth of a load, a market
   half and a third of its fuel, a town one load, a port two), and what you take comes back over a game day, offline
   too; next to two places the better one is drawn first, then the other. The page, the Here panel, the planner and

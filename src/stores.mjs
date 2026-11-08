@@ -559,16 +559,41 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
   /** Fuel units per item, 0 for anything that is not fuel. */
   const fuelOf = (item) => S.FUEL_ITEMS[item.id] ?? (logs().has(item.id) ? S.LOG_FUEL : 0);
   const foodOf = (item) => S.foodHP(item.healsFor);
-  /** What the bank holds that can be loaded: [{ item, kind: 'food' | 'fuel', unit, qty }], better first. */
-  const loadable = () => {
+  /** Food priority: the foods marked Never load (item ids). */
+  const neverList = () => {
+    const r = skill().record;
+    if (!Array.isArray(r.neverLoad)) r.neverLoad = [];
+    return r.neverLoad;
+  };
+  /** Is this food marked Never load? */
+  const never = (item) => { try { return neverList().includes(item.id); } catch { return false; } };
+  /** Marks a food Never load (`on`) or loadable again. */
+  const setNever = (item, on) => {
+    if (!usable() || !(foodOf(item) > 0)) return false;
+    skill().record.neverLoad = S.markNeverLoad(neverList(), item.id, on === true);
+    log(`${item.id} ${on ? 'never loaded' : 'loadable again'}`);
+    try { state.onSettingsChange?.(); } catch {}
+    return true;
+  };
+  /**
+   * What the bank holds that can be loaded: [{ item, kind: 'food' | 'fuel' | 'cure', unit, qty, never }], better
+   * first. A food marked Never load is left out (Load at the stops, the planner, the stranding checks), unless `all`
+   * (the page's wells, which show it marked).
+   */
+  const loadable = ({ all = false } = {}) => {
     const out = [];
+    const skip = new Set(usable() ? neverList() : []);
     try {
       for (const bankItem of game.bank.items.values()) {
         const item = bankItem.item;
         const qty = bankItem.quantity;
         if (qty <= 0) continue;
         const food = foodOf(item);
-        if (food > 0) { out.push({ item, kind: 'food', unit: food, qty }); continue; }
+        if (food > 0) {
+          const no = skip.has(item.id);
+          if (all || !no) out.push({ item, kind: 'food', unit: food, qty, never: no });
+          continue;
+        }
         const fuel = fuelOf(item);
         if (fuel > 0) { out.push({ item, kind: 'fuel', unit: fuel, qty }); continue; }
         // Curing Salt with spoilage on: `unit` its game-hours of curing.
@@ -586,6 +611,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
     const food = foodOf(item);
     const kind = food > 0 ? 'food' : 'fuel';
     const unit = food > 0 ? food : fuelOf(item);
+    if (kind === 'food' && never(item)) return undefined; // food priority: kept in the bank
     const s = stores();
     const cap = capacity();
     if (unit <= 0 || !(rates[kind] > 0)) return undefined;
@@ -913,7 +939,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
       if (help === undefined) return false;
       offerRescue(help, []);
       return true;
-    }, loadingHere, loadable, load, amounts, icons, hp, fuelText, fmLevel, capacity, astroLevel, night, nightAt, sightOf, timeOfDay, shift,
+    }, loadingHere, loadable, load, never, setNever, amounts, icons, hp, fuelText, fmLevel, capacity, astroLevel, night, nightAt, sightOf, timeOfDay, shift,
     loaded() { try { state.afterTutorial?.(giveKit); } catch (e) { log('starter kit failed', e); } },
     /** For the dev console: set the stores outright. */
     set,

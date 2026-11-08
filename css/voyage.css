@@ -230,6 +230,17 @@ div.form-inline:has(> .dropdown > [id="voyage:strictness"]) > .dropdown { width:
 .voyage-store-item { display: inline-flex; align-items: center; gap: 4px; padding: .2rem .45rem; min-height: 40px; }
 .voyage-store-item img { width: 32px; height: 32px; } /* 32px icons on item chips */
 .voyage-store-item small { font-size: .8rem; }
+/* Food priority: a food marked Never load, dimmed with a ban badge (the words are its title). */
+.voyage-store-item.voyage-store-never { position: relative; }
+.voyage-store-item.voyage-store-never img { opacity: .45; filter: grayscale(1); }
+#voyage-container .voyage-store-never-badge { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; background: var(--voyage-label); color: #fff; pointer-events: none; }
+.darkMode #voyage-container .voyage-store-never-badge { color: #1b1f24; }
+.voyage-store-never-row { padding-left: 0; }
+/* The whole row is the target, the box inside it: 32px tall with a mouse, 40px on touch (a toggle's floor). */
+.voyage-store-never-row .custom-control-label { cursor: pointer; display: flex; align-items: center; min-height: 32px; padding-left: 1.5rem; }
+.voyage-store-never-row .custom-control-label::before,
+.voyage-store-never-row .custom-control-label::after { top: calc(50% - .5rem); left: 0; }
+@media (pointer: coarse) { .voyage-store-never-row .custom-control-label { min-height: 40px; } }
 /* the ship and stores lines share a band: a slightly lighter background between thin rules (user feedback, build .58) */
 /* The weather block of the Here panel (phase 5c-1): its own fold, under the terrain line. */
 .voyage-wx { border-top: 1px solid var(--voyage-rule); margin-top: 4px; padding-top: 2px; }

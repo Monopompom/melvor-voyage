@@ -4,7 +4,7 @@ import {
   RATION_HP, HEX_COST, isEasy, fuelFactor, foodHP, loadingAt, loadAmount, stepCost, pathCost, planMove, ashoreReserve, STARTER_KIT,
   capacity, loadCount, wearOf, pathWear, hullReserve, WORN, crewMul, roundFuel,
   isNight, nextTurn, nightHours, lightCost, planLight, lightFactor, lightable,
-  HUNGRY_GP, hungrySurcharge, hungryRouteGp, hungryMoveGp, NIGHT_SIGHT, nightSight,
+  HUNGRY_GP, hungrySurcharge, hungryRouteGp, hungryMoveGp, NIGHT_SIGHT, nightSight, markNeverLoad,
 } from '../src/stores-model.mjs';
 import * as terrainMod from '../src/terrain.mjs';
 
@@ -305,4 +305,14 @@ test('an instant move of many steps: the hungry steps pay their own price, not a
   assert.equal(hungryMoveGp(0, gp, [0]), 0, 'a free move');
   assert.equal(hungryMoveGp(900, [0, 0, 0], [0]), hungrySurcharge(900, 3, 1), 'no step priced: an even share');
   assert.equal(hungryMoveGp(900, [], [0]), 0, 'no steps');
+});
+
+test('food priority: marking a food Never load adds it once, at the end; clearing takes it off; the list is never changed in place', () => {
+  const list = ['melvorD:Lobster'];
+  assert.deepEqual(markNeverLoad(list, 'melvorD:Shark', true), ['melvorD:Lobster', 'melvorD:Shark']);
+  assert.deepEqual(list, ['melvorD:Lobster']);
+  assert.deepEqual(markNeverLoad(['melvorD:Shark', 'melvorD:Lobster'], 'melvorD:Shark', true), ['melvorD:Lobster', 'melvorD:Shark']);
+  assert.deepEqual(markNeverLoad(['melvorD:Shark', 'melvorD:Lobster'], 'melvorD:Shark', false), ['melvorD:Lobster']);
+  assert.deepEqual(markNeverLoad(['melvorD:Lobster'], 'melvorD:Shark', false), ['melvorD:Lobster']);
+  assert.deepEqual(markNeverLoad(undefined, 'melvorD:Shark', true), ['melvorD:Shark']);
 });

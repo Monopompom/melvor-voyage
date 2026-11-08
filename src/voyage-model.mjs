@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 27;
+export const SAVE_VERSION = 28;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -122,9 +122,11 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * end for the page and the offline summary, or null. clock-model.mjs cleanVoyage and cleanEnding check them in depth.
  * `adrift` (save v16, phase 5b part two) is the spell adrift at sea, or null; `adriftEnd` how the last
  * one ended, for the page's note, or null. adrift-model.mjs cleanAdrift and cleanAdriftEnd check them in depth.
+ * `neverLoad` (save v28) is the foods marked Never load on the Voyage page: item ids that Load, the planner's stops and
+ * the stranding checks leave in the bank (a Shark kept for combat), at most NEVER_LOAD_MAX.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {} };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [] };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -222,6 +224,8 @@ export const MIGRATIONS = {
   25: (rec) => ({ ...rec, v: 26, supply: {} }),
   // Spoilage (4.4b): nothing settled yet, so a 1.3.0 save starts spoiling from its first settle, with no back charge.
   26: (rec) => ({ ...rec, v: 27, spoil: {} }),
+  // Food priority: no food marked Never load yet, so Load and the stops take every food as before.
+  27: (rec) => ({ ...rec, v: 28, neverLoad: [] }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -392,7 +396,15 @@ function clean(rec) {
     supply: plainObject(rec.supply) ?? {},
     // Spoilage (save v27): { at, cure, debt, tents, away }, checked by spoil-model.mjs cleanSpoil where it is read.
     spoil: plainObject(rec.spoil) ?? {},
+    neverLoad: cleanNeverLoad(rec.neverLoad),
   };
+}
+/** Foods a save keeps marked Never load at most: far more than the game has foods. */
+export const NEVER_LOAD_MAX = 200;
+/** The Never load list as saved: item ids, each once, in the order marked; junk dropped. */
+export function cleanNeverLoad(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((id, i, all) => typeof id === 'string' && /^[\w]+:[\w]+$/.test(id) && all.indexOf(id) === i).slice(0, NEVER_LOAD_MAX);
 }
 /** Folks the most a save keeps jobs for: Worker Folks never hires more than there are skills to hold. */
 export const JOBS_MAX = 64;

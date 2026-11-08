@@ -140,6 +140,15 @@ export function loadingList(rec, neighbours = []) {
 export const loadAmount = (unit, qty, rate) => unit * Math.max(0, Math.floor(qty)) * Math.max(0, rate);
 
 /**
+ * Food priority: the Never load list with `id` marked (`on`) or cleared, a new array in the order marked. A food on it
+ * stays in the bank through Load, the planner's stops and the stranding checks.
+ */
+export function markNeverLoad(list, id, on) {
+  const rest = (Array.isArray(list) ? list : []).filter((x) => x !== id);
+  return on ? [...rest, id] : rest;
+}
+
+/**
  * The multipliers on a step's food and fuel for you and the crew. `crew` is a count (each Folk eats as you do) or
  * crew-model crewLoad's { count, food, foodRough, seaFood }: fuel one share a Folk, food by rank on easy land, on
  * rough ground and at sea, each with the Folks' travel traits in (phase 6f); a load without the rough and sea sums
