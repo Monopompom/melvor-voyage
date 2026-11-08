@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 28;
+export const SAVE_VERSION = 29;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -124,9 +124,11 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * one ended, for the page's note, or null. adrift-model.mjs cleanAdrift and cleanAdriftEnd check them in depth.
  * `neverLoad` (save v28) is the foods marked Never load on the Voyage page: item ids that Load, the planner's stops and
  * the stranding checks leave in the bank (a Shark kept for combat), at most NEVER_LOAD_MAX.
+ * `home` (save v29) is the place set as home, { q, r } or null; `recent` the planner's last destinations set off for,
+ * newest first. plan-model.mjs cleanHome and cleanRecent check them.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [] };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [] };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -226,6 +228,8 @@ export const MIGRATIONS = {
   26: (rec) => ({ ...rec, v: 27, spoil: {} }),
   // Food priority: no food marked Never load yet, so Load and the stops take every food as before.
   27: (rec) => ({ ...rec, v: 28, neverLoad: [] }),
+  // Home port: no home set and no recent destination yet.
+  28: (rec) => ({ ...rec, v: 29, home: null, recent: [] }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -397,6 +401,8 @@ function clean(rec) {
     // Spoilage (save v27): { at, cure, debt, tents, away }, checked by spoil-model.mjs cleanSpoil where it is read.
     spoil: plainObject(rec.spoil) ?? {},
     neverLoad: cleanNeverLoad(rec.neverLoad),
+    home: cleanHome(rec.home),
+    recent: cleanRecent(rec.recent),
   };
 }
 /** Foods a save keeps marked Never load at most: far more than the game has foods. */
@@ -405,6 +411,75 @@ export const NEVER_LOAD_MAX = 200;
 export function cleanNeverLoad(raw) {
   if (!Array.isArray(raw)) return [];
   return raw.filter((id, i, all) => typeof id === 'string' && /^[\w]+:[\w]+$/.test(id) && all.indexOf(id) === i).slice(0, NEVER_LOAD_MAX);
+}
+// ---- home port and recent places (save v29): the planner reads them ----------------------------------------------------------------------
+/** Recent destinations the planner keeps, newest first. */
+export const RECENT_MAX = 5;
+/** Hexes a recent destination keeps: an area's known places, more than the planner prices (it takes the nearest). */
+export const RECENT_HEXES = 24;
+const ID = /^[\w]+:[\w]+$/;
+const PICK = /^(none|go|m:[\w]+:[\w]+)$/;
+const hexOk = (h) => h !== null && typeof h === 'object' && Number.isInteger(h.q) && Number.isInteger(h.r) && Math.abs(h.q) < 10000 && Math.abs(h.r) < 10000;
+
+/** The home as saved: { q, r } of the place set as home, or null. */
+export function cleanHome(raw) {
+  return hexOk(raw) ? { q: raw.q, r: raw.r } : null;
+}
+
+/**
+ * A planned destination as the recent list keeps it, from a planner target: { name, hexes, arrival?, pick? }, with
+ * `arrival` the ids to find its action or area again ({ kind: 'action', skillId, actionId } or { kind: 'area', areaId }).
+ * Undefined for a target that can't be kept (no name or no hex) and for the home, which has its own button.
+ */
+export function recentEntry(target) {
+  if (target === null || typeof target !== 'object' || target.home === true) return undefined;
+  const e = cleanRecentEntry({
+    name: target.name,
+    hexes: Array.isArray(target.hexes) ? target.hexes.map((h) => ({ q: h?.q, r: h?.r })) : [],
+    arrival: target.arrival?.kind === 'action' ? { kind: 'action', skillId: target.arrival.skillId, actionId: target.arrival.action?.id }
+      : target.arrival?.kind === 'area' ? { kind: 'area', areaId: target.arrival.area?.id } : undefined,
+    pick: target.pick,
+  });
+  return e;
+}
+
+/** One recent destination checked, or undefined. Hexes past RECENT_HEXES and a broken arrival or pick are dropped. */
+export function cleanRecentEntry(raw) {
+  if (raw === null || typeof raw !== 'object' || typeof raw.name !== 'string') return undefined;
+  const name = raw.name.trim().slice(0, 120);
+  const hexes = (Array.isArray(raw.hexes) ? raw.hexes : []).filter(hexOk).map((h) => ({ q: h.q, r: h.r }))
+    .filter((h, i, all) => all.findIndex((x) => x.q === h.q && x.r === h.r) === i).slice(0, RECENT_HEXES);
+  if (name === '' || hexes.length === 0) return undefined;
+  const a = raw.arrival;
+  const arrival = a?.kind === 'action' && ID.test(a.skillId ?? '') && ID.test(a.actionId ?? '') ? { kind: 'action', skillId: a.skillId, actionId: a.actionId }
+    : a?.kind === 'area' && ID.test(a.areaId ?? '') ? { kind: 'area', areaId: a.areaId } : undefined;
+  const out = { name, hexes };
+  if (arrival !== undefined) out.arrival = arrival;
+  if (typeof raw.pick === 'string' && PICK.test(raw.pick)) out.pick = raw.pick;
+  return out;
+}
+
+/** Two destinations are one when they have the same name and the same action or area. */
+export const recentKey = (e) => `${e.name}|${e.arrival?.actionId ?? e.arrival?.areaId ?? ''}`;
+
+/** The recent list as saved: checked entries, each destination once (the newest kept), at most RECENT_MAX. */
+export function cleanRecent(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const x of raw) {
+    const e = cleanRecentEntry(x);
+    if (e !== undefined && !out.some((o) => recentKey(o) === recentKey(e))) out.push(e);
+    if (out.length === RECENT_MAX) break;
+  }
+  return out;
+}
+
+/** The list with `entry` put first (an older copy of it taken out), at most RECENT_MAX. An unusable entry changes nothing. */
+export function addRecent(list, entry) {
+  const prev = cleanRecent(list);
+  const e = cleanRecentEntry(entry);
+  if (e === undefined) return prev;
+  return [e, ...prev.filter((x) => recentKey(x) !== recentKey(e))].slice(0, RECENT_MAX);
 }
 /** Folks the most a save keeps jobs for: Worker Folks never hires more than there are skills to hold. */
 export const JOBS_MAX = 64;

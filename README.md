@@ -164,6 +164,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Plan a voyage.** From Voyage 15, Plan voyage (on a journal page, a cargo run or a popup that sends you elsewhere)
   shows the route, the stops to stock up and the cost. With Navigator's Charts (Voyage 50, bought once at a port for
   10,000,000 GP and 100 Pitch) Set off makes the whole trip in one go (in time, with Timed travel on), and On arrival starts the work you planned.
+  Make a place your home from the map's panel and Plan home is one click away; the last places you set off for wait
+  under Recent places.
 - **On land.** The shop's Voyage tab sells Sturdy Boots, a Pack Yak, a Riding Horse and a Unicorn, each making land
   hexes quicker to cross (cheaper instead with Timed travel off), and from Voyage 35 a Crossroads sign that carries a place's gifts with you.
 - **The Seafarer's Outfit.** Hat, Coat, Breeches and Boots in the Shop's Township tab, right before the Skilling

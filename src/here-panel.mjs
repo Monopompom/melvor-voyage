@@ -287,10 +287,27 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   /** The planned voyage as a row: the strip's chip had it, the open panel did not (.309, scan B-30). */
   const planLine = () => {
     const plan = state.planner?.summary?.();
-    if (plan === undefined) return '';
+    if (plan === undefined) return homePlanLine();
     const hexes = plan.distance === undefined ? '?' : templateLangString(plan.distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${plan.distance}` });
     return `<div class="voyage-here-place voyage-harbour-line"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_PLAN_LABEL'))}</span> ${esc(templateLangString('MOD_VOY_PANEL_PLAN_AWAY', { name: plan.name, hexes }))}</span>` +
       `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-mini-plan">${esc(getLangString('MOD_VOY_PANEL_PLAN_BUTTON'))}</button></div>`;
+  };
+  /** No voyage planned and a home away from here: the home and Plan home (save v29), where the plan would stand. */
+  const homePlanLine = () => {
+    const h = state.planner?.home?.();
+    if (h === undefined || h.here) return '';
+    const hexes = h.distance === undefined ? '?' : templateLangString(h.distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${h.distance}` });
+    return `<div class="voyage-here-place voyage-harbour-line"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_HOME_LABEL'))}</span> ${esc(templateLangString('MOD_VOY_PANEL_PLAN_AWAY', { name: h.name, hexes }))}</span>` +
+      `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-home-plan">${esc(getLangString('MOD_VOY_PLAN_HOME_BUTTON'))}</button></div>`;
+  };
+  /** On a place: it is home, or Make home (save v29). Nothing off a place or below the planner's level. */
+  const homeLine = () => {
+    const can = state.planner?.homeHere?.();
+    if (can !== true && can !== 'home') return '';
+    const label = `<span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_HOME_LABEL'))}</span> `;
+    if (can === 'home') return `<div class="voyage-here-ship"><span>${label}${esc(getLangString('MOD_VOY_PANEL_HOME_HERE'))}</span></div>`;
+    return `<div class="voyage-here-ship"><span>${label}${esc(getLangString('MOD_VOY_PANEL_HOME_CAN'))}</span>` +
+      `<button type="button" class="btn btn-sm btn-info voyage-row-btn voyage-home-set">${esc(getLangString('MOD_VOY_PANEL_HOME_SET'))}</button></div>`;
   };
   /** Trade status on its own line under the terrain line; empty while trade is not gated. */
   const tradeLine = (status) => {
@@ -564,10 +581,11 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       ? (state.folksApi?.()?.folks() ?? []).filter((f) => f.travel !== 'with' && f.place !== null && f.place.q === pos.q && f.place.r === pos.r).length : 0;
     if (n > 0) parts.push(n === 1 ? getLangString('MOD_VOY_PANEL_PLACE_SUM_FOLK') : templateLangString('MOD_VOY_PANEL_PLACE_SUM_FOLKS', { count: `${n}` }));
     if ((state.outposts?.list?.() ?? []).some((o) => o.q === pos.q && o.r === pos.r)) parts.push(getLangString('MOD_VOY_PANEL_PLACE_SUM_OUTPOST'));
+    if (state.planner?.homeHere?.() === 'home') parts.push(getLangString('MOD_VOY_PANEL_PLACE_SUM_HOME'));
     return parts.join(' · ');
   };
   const placeBox = (status, pos) => {
-    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + folksLine(pos) + (state.haul?.panelHtml?.() ?? '') + signLine() + (state.outposts?.panelHtml?.() ?? '');
+    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + folksLine(pos) + (state.haul?.panelHtml?.() ?? '') + signLine() + homeLine() + (state.outposts?.panelHtml?.() ?? '');
     if (inner === '') return '';
     const toggle = `<button type="button" class="voyage-legend-toggle voyage-place-toggle" aria-expanded="${placeOpen}">` +
       `<i class="fa fa-caret-${placeOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_PLACE_TITLE'))}</button>`;
@@ -1148,6 +1166,8 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         try { openArea(fight.dataset.area); } catch (err) { log('Combat link failed', err); }
       }
       if (e.target instanceof Element && e.target.closest('.voyage-mini-plan')) { e.preventDefault(); state.planner?.reopen?.(); return; }
+      if (e.target instanceof Element && e.target.closest('.voyage-home-plan')) { e.preventDefault(); state.planner?.planHome?.(); return; }
+      if (e.target instanceof Element && e.target.closest('.voyage-home-set')) { e.preventDefault(); state.planner?.setHome?.(); return; }
       const tipChip = e.target instanceof Element ? e.target.closest('.voyage-chip-tip') : null;
       // tips.apply moves `title` to `data-tip-text` (.308: the chip opened an empty popup, scan B-01).
       if (tipChip !== null) { showTip(tipChip.dataset.tipText ?? tipChip.getAttribute('title') ?? ''); return; }

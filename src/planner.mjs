@@ -6,7 +6,11 @@
 //
 // Ways in: state.planner.planTo(target) from the journal's entries and places and from the lock popups (gate.mjs).
 // A target is { name, media?, hexes: [{ q, r }], arrival? } with `arrival` one of { kind: 'action', skillId, action }
-// or { kind: 'area', area }; the planner heads for the nearest of `hexes` by route.
+// or { kind: 'area', area }; the planner heads for the nearest of `hexes` by route. `home: true` marks the trip home.
+//
+// Home port (save v29 `home`, `recent`): a place on the map set as home from the map's panel, one click from a plan on
+// the page and in the panel; and the last places set off for, kept as ids (voyage-model.mjs recentEntry) and planned
+// again from the empty block.
 
 const VOYAGE_PAGE = 'voyage:Voyage';
 const CARTOGRAPHY_PAGE = 'melvorAoD:Cartography';
@@ -318,6 +322,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
         split: plan.split,
         prefer: pickChoice(),
         started: () => {
+          remember(target);
           if (plan.split.depart !== undefined) loadHere();
           target = undefined;
           try { game.cartography.render(); } catch {}
@@ -346,6 +351,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
       ...(stops ? { loads: plan.split.legs.filter((leg) => leg.load !== undefined).map((leg) => leg.to), split: plan.split } : {}),
       prefer: pickChoice(),
       started: () => {
+        remember(target);
         if (stops && plan.split.depart !== undefined) loadHere();
         target = undefined;
         try { game.cartography.render(); } catch {}
@@ -371,6 +377,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     }
     const dest = path[0];
     const name = target.name;
+    remember(target);
     travel();
     // Refused or stopped short (the stores, the purse, a berth): the plan stays for another try.
     if (live()?.playerPosition !== dest) return true;
@@ -384,6 +391,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   /** The instant way (Timed travel off): leg by leg through movePlayer, loading here first and at the planned stops. */
   const sailLegs = (plan, name) => {
     const cart = game.cartography;
+    remember(target);
     if (plan.split.depart !== undefined) loadHere();
     for (const leg of plan.split.legs) {
       const path = P.legPath(plan.walk, leg.from, leg.to, plan.path.voyageModes);
@@ -476,7 +484,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   const html = () => {
     if (!open()) return '';
     // The empty block gives a way to a plan: the journal's pages have Plan voyage (.308, scan A-06/A2-09).
-    if (target === undefined) return section(`<div class="voyage-empty text-muted">${esc(t('MOD_VOY_PLAN_EMPTY'))}</div><div class="voyage-hold-main"><button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="journal">${esc(t('MOD_VOY_PLAN_OPEN_JOURNAL'))}</button></div>`); // the one empty-state form (.309, scan A-21)
+    if (target === undefined) return homeSection() + recentSection() + section(`<div class="voyage-empty text-muted">${esc(t('MOD_VOY_PLAN_EMPTY'))}</div><div class="voyage-hold-main"><button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="journal">${esc(t('MOD_VOY_PLAN_OPEN_JOURNAL'))}</button></div>`); // the one empty-state form (.309, scan A-21)
     const plan = compute();
     const media = target.media ? `<img class="voyage-plan-icon mr-2" src="${esc(target.media)}" alt="">` : '';
     // Not after a bare hex: its name already is the coordinates (.308, scan A2-17).
@@ -614,6 +622,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     else if (what === 'sail') sail();
     else if (what === 'map') showMap();
     else if (what === 'buy') buy();
+    else if (what === 'home') planHome();
+    else if (what === 'recent') fromRecent(Number(b.dataset.i));
     else if (what === 'journal') { try { state.journal?.open({ tab: 'places' }); } catch (err) { log('journal open failed', err); } }
   };
 
@@ -652,8 +662,94 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
       pick: monster === undefined ? undefined : `m:${monster.id}` };
   };
 
+  // ---- home port and recent places (save v29) -------------------------------------------------------------------
+  const record = () => (usable() ? skill().record : undefined);
+  /** A discovered place on the map: what can be home. */
+  const placeOf = (hex) => { const poi = hex?.pointOfInterest; return poi !== undefined && poi.isDiscovered === true ? poi : undefined; };
+  /** The home: { q, r, name, media, here, distance } (distance in hexes as the crow flies), or undefined. */
+  const home = () => {
+    if (!open()) return undefined;
+    const h = model.cleanHome(record()?.home);
+    if (h === null) return undefined;
+    const hex = liveHex(h.q, h.r);
+    const poi = placeOf(hex);
+    const from = live()?.playerPosition;
+    const d = from === undefined ? undefined : terrainMod.hexDistance(from, h);
+    return { q: h.q, r: h.r, name: poi?.name ?? (hex === undefined ? `(${h.q}, ${h.r})` : at(hex)), media: poi?.media,
+      here: from !== undefined && from.q === h.q && from.r === h.r, distance: Number.isFinite(d) ? d : undefined };
+  };
+  /** Whether the place you stand on can be made home now: 'home' (it is), true, or false (no place here). */
+  const homeHere = () => {
+    if (!open()) return false;
+    const pos = live()?.playerPosition;
+    if (placeOf(pos) === undefined) return false;
+    const h = model.cleanHome(record()?.home);
+    return h !== null && h.q === pos.q && h.r === pos.r ? 'home' : true;
+  };
+  /** Makes the place you stand on home (the map panel's Make home). */
+  const setHome = () => {
+    if (homeHere() !== true) return false;
+    const pos = live().playerPosition;
+    record().home = { q: pos.q, r: pos.r };
+    notify(t('MOD_VOY_HOME_SET', { name: placeOf(pos).name }));
+    log(`home set at ${at(pos)}`);
+    refresh();
+    try { state.onSettingsChange?.(); } catch {}
+    return true;
+  };
+  /** Plans the way home and opens the planner. */
+  const planHome = () => {
+    const h = home();
+    if (h === undefined || h.here) return false;
+    return planTo({ name: h.name, media: h.media, hexes: [{ q: h.q, r: h.r }], home: true });
+  };
+  const recent = () => (open() ? model.cleanRecent(record()?.recent) : []);
+  /** Puts the target set off for at the top of the recent list (the trip home is not listed). */
+  const remember = (tg) => {
+    const r = record();
+    if (r === undefined || tg === undefined) return;
+    try { r.recent = model.addRecent(r.recent, model.recentEntry(tg)); } catch (e) { log('recent place failed', e); }
+  };
+  /** Plans a recent place again: its action or area found by id; gone (a mod off), the place is planned without it. */
+  const fromRecent = (i) => {
+    const e = recent()[i];
+    if (e === undefined) return false;
+    let arrival;
+    let media;
+    try {
+      if (e.arrival?.kind === 'action') {
+        const action = game.skills.getObjectByID(e.arrival.skillId)?.actions?.getObjectByID(e.arrival.actionId);
+        if (action !== undefined) { arrival = { kind: 'action', skillId: e.arrival.skillId, action }; media = action.media; }
+      } else if (e.arrival?.kind === 'area') {
+        const id = e.arrival.areaId;
+        const area = game.combatAreas.getObjectByID(id) ?? game.slayerAreas.getObjectByID(id) ?? game.dungeons.getObjectByID(id);
+        if (area !== undefined) { arrival = { kind: 'area', area }; media = area.media; }
+      }
+    } catch (err) { log('recent place lookup failed', err); }
+    if (media === undefined && e.hexes.length === 1) media = placeOf(liveHex(e.hexes[0].q, e.hexes[0].r))?.media;
+    return planTo({ name: e.name, media, hexes: e.hexes, arrival, pick: arrival === undefined ? undefined : e.pick });
+  };
+  const awayText = (n) => (n === undefined ? '?' : hexesText(n));
+  /** The empty block's home row: the home and Plan home, or how to set one. */
+  const homeSection = () => {
+    const h = home();
+    const label = `<span class="voyage-plan-home-label">${esc(t('MOD_VOY_PLAN_HOME_LABEL'))}</span> `;
+    if (h === undefined) return section(`<div>${label}<span class="text-muted">${esc(t('MOD_VOY_PLAN_HOME_NONE'))}</span></div>`);
+    const icon = h.media ? `<img class="voyage-plan-icon mr-2" src="${esc(h.media)}" alt="">` : '';
+    const where = `<div class="d-flex align-items-center">${icon}<div>${label}<b>${esc(h.name)}</b> <span class="text-muted">· ${esc(h.here ? t('MOD_VOY_PLAN_HOME_HERE') : t('MOD_VOY_PLAN_HOME_AWAY', { hexes: awayText(h.distance) }))}</span></div></div>`;
+    if (h.here) return section(where);
+    return section(`<div class="voyage-row">${where}<button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="home">${esc(t('MOD_VOY_PLAN_HOME_BUTTON'))}</button></div>`);
+  };
+  /** The empty block's recent places: one button each, newest first. */
+  const recentSection = () => {
+    const list = recent();
+    if (list.length === 0) return '';
+    const btns = list.map((e, i) => `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="recent" data-i="${i}">${esc(e.name)}</button>`).join('');
+    return section(`<div class="font-w600 mb-2">${esc(t('MOD_VOY_PLAN_RECENT'))}</div><div class="voyage-plan-recent">${btns}</div>`);
+  };
+
   // The refusals are in it, so gear or a damage type change redraws the block.
-  const signature = () => `${target?.name}|${target?.hexes?.length}|${arrivalPick}|${owned()}|${target === undefined ? '' : arrivalOptions().map((o) => o.why === undefined ? 1 : 0).join('')}`;
+  const signature = () => `${target?.name}|${target?.hexes?.length}|${arrivalPick}|${owned()}|${JSON.stringify(record()?.home ?? null)}|${recent().map((e) => e.name).join(',')}|${target === undefined ? '' : arrivalOptions().map((o) => o.why === undefined ? 1 : 0).join('')}`;
   /** For the mini panel: the target and its straight distance from you, or undefined. */
   const summary = () => {
     if (!open() || target === undefined) return undefined;
@@ -664,7 +760,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   };
   const reopen = () => { if (target === undefined) return false; showBlock(); return true; };
   // startAction and startable: a Folk arriving from a walk (6d) starts its resource the same way.
-  const api = { planTo, forAction, forArea, forTravel, travelInstant, html, onClick, signature, open, owned, summary, reopen, navHtml, startAction, startable, isRunning, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
+  const api = { planTo, forAction, forArea, home, homeHere, setHome, planHome, recent, fromRecent, forTravel, travelInstant, html, onClick, signature, open, owned, summary, reopen, navHtml, startAction, startable, isRunning, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
   state.planner = api;
   return api;
 }

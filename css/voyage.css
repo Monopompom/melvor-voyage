@@ -1037,6 +1037,9 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .voyage-plan-refused-why { font-size: .9rem; padding-left: 34px; }
 .voyage-plan-refused-why img { width: 18px; height: 18px; }
 .voyage-plan-pick-ico { width: 24px; height: 24px; margin-right: 10px; flex: none; object-fit: contain; text-align: center; line-height: 24px; }
+/* Home port: the recent places as a row of buttons that wraps. */
+.voyage-plan-recent { display: flex; flex-wrap: wrap; gap: 8px; }
+.voyage-plan-home-label { color: var(--voyage-label); font-weight: 600; }
 .voyage-plan-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 12px; padding-top: 12px; } /* centred (the user, 21 Oct 2026; build .386) */
 .voyage-plan-buttons .btn { min-height: 40px; min-width: 140px; }
 .vj-foot-end { gap: 12px; flex-wrap: wrap; }

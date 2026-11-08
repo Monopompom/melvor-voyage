@@ -476,7 +476,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const em = state.events?.model;
     const num = (x) => (Number.isFinite(x) ? `${Math.round(x)}` : '');
     return { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
-      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, gp: nav === undefined ? '' : shortNumber(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
+      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, recent: `${model.RECENT_MAX}`, gp: nav === undefined ? '' : shortNumber(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
       signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '',
       stowShare: num(em?.STOWAWAY_PRICE_SHARE * 100), hungryPct: num(storesModel?.HUNGRY_GP * 100),
       stormWaitH: num((state.clock?.stormWaitMax ?? NaN) / 3600000), ...gearVars(), ...crewVars(), ...encVars() };
