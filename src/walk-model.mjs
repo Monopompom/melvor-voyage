@@ -192,7 +192,8 @@ const cleanStep = (s) => {
  * picked from the Journal, `holder` the Folk that held that skill when it was sent (it takes the skill over from that
  * one, and only that one). `held` the moment a band stopped it (6c), `hungry` how many hexes at the road's end it
  * walks unfed, `seen` the hexes it has entered and been through (hunger paid, the dice rolled), so a reload neither
- * skips nor repeats one, `lent` the card of yours it carries for the road's bands. Undefined when it can't be read.
+ * skips nor repeats one, `lent` the card of yours it carries for the road's bands, `found` the food it foraged on the
+ * way and has not eaten yet (it feeds a hungry hex). Undefined when it can't be read.
  */
 export function cleanWalk(w) {
   if (w === null || typeof w !== 'object') return undefined;
@@ -212,7 +213,21 @@ export function cleanWalk(w) {
   if (Number.isInteger(w.hungry) && w.hungry > 0) out.hungry = Math.min(w.hungry, road.length);
   if (Number.isInteger(w.seen) && w.seen >= 0) out.seen = Math.min(w.seen, road.length);
   if (typeof w.lent === 'string' && /^\w{1,40}$/.test(w.lent)) out.lent = w.lent;
+  if (Number.isFinite(w.found) && w.found >= 1) out.found = Math.min(FOUND_MAX, Math.floor(w.found));
   return out;
+}
+
+/** The most foraged food a walk keeps: a 400-hex road of the best woods at level 99 finds 4,000. */
+export const FOUND_MAX = 100000;
+
+/**
+ * A hungry hex entered: the food the Folk foraged feeds it when there is enough for the hex's meal (`cost`), so it
+ * loses no HP. { found, fed }: what is left, and whether it ate.
+ */
+export function eatFound(found, cost) {
+  const have = Number.isFinite(found) && found > 0 ? Math.floor(found) : 0;
+  const need = Number.isFinite(cost) && cost > 0 ? Math.round(cost) : 0;
+  return need > 0 && have >= need ? { found: have - need, fed: true } : { found: have, fed: false };
 }
 
 /** The walks a save keeps: { folkId: walk }, junk dropped. */

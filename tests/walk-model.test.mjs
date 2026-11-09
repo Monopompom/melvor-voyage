@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WALK_MS, hexMs, findRoad, roadMs, roadPack, walkAt, nextAt, folkStepCost, sortPlaces, cleanWalk, cleanWalks, WALKS_MAX, ROAD_MAX, repaceRest, holdWalk, resumeWalk, hungryAt, enteredAt } from '../src/walk-model.mjs';
+import { WALK_MS, hexMs, findRoad, roadMs, roadPack, walkAt, nextAt, folkStepCost, sortPlaces, cleanWalk, cleanWalks, WALKS_MAX, ROAD_MAX, repaceRest, holdWalk, resumeWalk, hungryAt, enteredAt, eatFound, FOUND_MAX } from '../src/walk-model.mjs';
 import { stepCost } from '../src/stores-model.mjs';
 import { foodShare } from '../src/crew-model.mjs';
 import { stepMs } from '../src/clock-model.mjs';
@@ -189,4 +189,18 @@ test('walk: the card lent for the road is kept on the walk as it set off', () =>
   assert.equal(cleanWalk({ ...w, lent: 'drive' }).lent, 'drive');
   assert.equal(cleanWalk(w).lent, undefined);
   for (const junk of ['', 'a b', 5, 'x'.repeat(41), '<b>']) assert.equal(cleanWalk({ ...w, lent: junk }).lent, undefined, String(junk));
+});
+
+test('a walk keeps the food it foraged, a whole number, and a hungry hex eats it only when there is enough', () => {
+  const w = { from: { q: 0, r: 0 }, start: 5, road: [{ q: 1, r: 0, cls: 'grasslands', ms: 360000 }], skillId: null };
+  assert.equal(cleanWalk({ ...w, found: 12.7 }).found, 12);
+  assert.equal('found' in cleanWalk({ ...w, found: 0 }), false, 'none kept: nothing saved');
+  assert.equal('found' in cleanWalk({ ...w, found: -3 }), false);
+  assert.equal('found' in cleanWalk({ ...w, found: 'lots' }), false);
+  assert.equal(cleanWalk({ ...w, found: 1e9 }).found, FOUND_MAX);
+  assert.deepEqual(eatFound(30, 20), { found: 10, fed: true });
+  assert.deepEqual(eatFound(20, 20), { found: 0, fed: true });
+  assert.deepEqual(eatFound(19, 20), { found: 19, fed: false }, 'too little: hungry, and it keeps what it has');
+  assert.deepEqual(eatFound(undefined, 20), { found: 0, fed: false });
+  assert.deepEqual(eatFound(50, 0), { found: 50, fed: false }, 'a meal of nothing feeds nothing');
 });

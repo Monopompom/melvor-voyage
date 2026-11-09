@@ -56,3 +56,14 @@ test('a route\'s range is what every hex could give, never counted on', () => {
   assert.deepEqual(forageRange([a, undefined, b]), { food: 15, fuel: 0.25 });
   assert.deepEqual(forageRange([]), { food: 0, fuel: 0 });
 });
+
+test('a walking Folk forages only with the skills it may work, by your levels', () => {
+  const both = { t: 'grasslands', f: ['forest', 'river'] };
+  const lv = { [WC]: 99, [FI]: 40 };
+  assert.equal(forageAt(both, lv).food.skill, WC);
+  assert.equal(forageAt(both, lv, isEasy, (s) => s === FI).food.skill, FI, 'not qualified for Woodcutting: Fishing counts');
+  assert.equal(forageAt(both, lv, isEasy, (s) => s === FI).food.amount, 4);
+  assert.equal(forageAt({ t: 'grasslands', f: ['forest'] }, lv, isEasy, () => false), undefined, 'qualified for neither: nothing');
+  assert.equal(forageAt({ t: 'grasslands', f: ['forest'], coast: true }, lv, isEasy, () => false).food, undefined, 'driftwood is not a skill');
+  assert.equal(forageAt(both, lv, isEasy, () => 1), undefined, 'only a true answer allows a skill');
+});

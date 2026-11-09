@@ -881,6 +881,11 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
     // Step k enters path[path.length - 2 - k] (ship.mjs stepsOf).
     return steps.map((step, k) => (onFoot(step) ? FM.forageAt(recOf(path[path.length - 2 - k]), lv, S.isEasy) : undefined));
   };
+  /**
+   * What a walking Folk may find on `hex` ({ q, r }): food only, its pack carrying no driftwood (the user, round 2:
+   * "only feeds the walker"), by your levels, with the skills `may(skillId)` allows. Undefined for nothing.
+   */
+  const forageFood = (hex, may) => (FM === undefined || !enabled() || hex == null ? undefined : FM.forageAt(recOf(hex), forageLevels(), S.isEasy, may)?.food);
   /** The most a route could give ({ food, fuel }), never counted on; undefined when it gives nothing. */
   const forageAhead = (path, steps) => {
     try {
@@ -933,7 +938,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
   /** A fuel tooltip with the night's light named in it: `tip` alone when nothing is lit. */
   const lightTip = (tip, light) => (light >= 0.005 ? t('MOD_VOY_STORES_PATH_FUEL_LIGHT', { tip, fuel: fuelText(light), bonus: `${Math.round(model.STAR_XP * 100)}` }) : tip);
   const api = {
-    enabled, stores, planFor, forage, forageAhead, forageFlush, foundWords, forageIcons, amountIcons: forageIcons, forageTip, forageModel: FM, lightTip, priceSteps, loadingAtHex, afterMove, refuse, rescue,
+    enabled, stores, planFor, forage, forageAhead, forageFood, forageFlush, foundWords, forageIcons, amountIcons: forageIcons, forageTip, forageModel: FM, lightTip, priceSteps, loadingAtHex, afterMove, refuse, rescue,
     supplyOn, sourcesAt, supplyAt, supplyHere, placeSupply, loadPlan, supplyVersion: () => supplyVersion,
     spoilOn, spoilTick, settleSpoil, spoilRate, spoilFactors, spoilAhead, tentRate, spoilText, packWith, casks, cureLeft, spoilModel: P,
     /** Offers the trader's share when the stores can't reach safe ground (the panel's Stranded? button). */

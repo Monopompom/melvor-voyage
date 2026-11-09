@@ -70,7 +70,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   by your Woodcutting level, rivers, lakes and waterfalls by your Fishing level, from a quarter of a chance and 1 food at
   level 1 to three in four and half a ration at 99, half as much on hard ground. A shore, a beach or a lake may wash up
   a little driftwood for the fire. The snow, the lava, the wastes and the sea give nothing. The Travel Cost box and
-  Set off show the most a walk could find, but a plan never counts on it.
+  Set off show the most a walk could find, but a plan never counts on it. A Folk walking alone forages too, by your
+  levels in the skills it is qualified for, and eats what it finds only on the hexes a band leaves it hungry.
 - **Tents.** A Tent from the Voyage shop (Voyage level 30) makes an outpost: pitch it from the Here panel on the land
   hex you stand on (not on a town, port, market or camp). You put it up over about an hour, offline too, while you stay
   on the hex, and you may work there meanwhile; leaving the hex, or Stop the build, puts it back in your bank. Then the

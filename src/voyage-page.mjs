@@ -394,7 +394,9 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     if (walking.length > 0) {
       html += `<div class="voyage-big-head">${esc(t('MOD_VOY_WALK_HEAD'))}</div>${walking.map(({ folk, walk }) => row(folk, '',
         `<button type="button" class="btn btn-sm btn-outline-danger" data-voyage-action="walk-stop" data-folk="${esc(folk.id)}">${esc(t('MOD_VOY_WALK_STOP_BUTTON'))}</button>`,
-        false, '', `<small class="d-block text-muted voyage-walk-line">${esc(t('MOD_VOY_WALK_CARD', { to: walk.to, left: walk.leftText }))}</small>`)).join('')}`;
+        false, '', `<small class="d-block text-muted voyage-walk-line">${esc(t('MOD_VOY_WALK_CARD', { to: walk.to, left: walk.leftText }))}</small>`
+          // What it foraged on the way (round 2), kept for a hungry hex.
+          + (walk.found > 0 && state.stores?.hp ? `<small class="d-block text-muted voyage-walk-line">${esc(t('MOD_VOY_WALK_CARD_FOUND', { amount: t('MOD_VOY_UNIT_FOOD', { n: state.stores.hp(walk.found) }) }))}</small>` : ''))).join('')}`;
     }
     return section(html) + section(`<div class="text-muted">${esc(t('MOD_VOY_CREW_HINT'))}</div>`); // its own band (build .386)
   };

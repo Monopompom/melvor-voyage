@@ -295,9 +295,23 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     if (pos.at !== undefined && !same(f.place, pos.at)) a.setPlace(id, pos.at);
   };
   /**
-   * The hexes `from` to `to` (0-based, `to` not included) entered: each hungry one costs a tenth of max HP, then the
-   * dice roll for a band; a band met holds the walk there and the rest wait. The walk as saved now, or undefined when
-   * the Folk died on the road.
+   * Foraging on the road (round 2; the user: "only feeds the walker"): with Worker Folks' qualification (API 10) a
+   * walking Folk forages by your Woodcutting and Fishing levels, with only the skills it may work. What it finds is
+   * kept in the walk and eaten on a hungry hex (a band took its pack); it never goes back to your stores, and a walker
+   * gathers no driftwood. The food found on `hex` now: 0 for nothing.
+   */
+  const walkerForage = (f, hex) => {
+    const a = api();
+    if ((a?.version ?? 0) < 10 || typeof a.qualifies !== 'function') return 0;
+    try {
+      const at = state.stores?.forageFood?.(hex, (skillId) => a.qualifies(f.id, skillId)?.ok === true);
+      return at === undefined ? 0 : state.stores.forageModel.rollForage({ food: at }).food;
+    } catch (e) { log('walk forage failed', e); return 0; }
+  };
+  /**
+   * The hexes `from` to `to` (0-based, `to` not included) entered: each hungry one costs a tenth of max HP unless the
+   * food foraged so far feeds it, then the hex may be foraged and the dice roll for a band; a band met holds the walk
+   * there and the rest wait. The walk as saved now, or undefined when the Folk died on the road.
    */
   const enter = (id, f, w, from, to) => {
     const a = api();
@@ -305,14 +319,21 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     let hp = 0;
     let dead = false;
     let held = false;
+    let found = w.found ?? 0;
+    let fed = 0;
+    let gathered = 0;
     for (; i < to && !dead; i++) {
-      if (W.hungryAt(w, i)) {
+      const meal = W.hungryAt(w, i) ? W.eatFound(found, stepCost(w.road[i], f).food) : undefined;
+      if (meal !== undefined) { found = meal.found; if (meal.fed) fed += 1; }
+      if (meal !== undefined && !meal.fed) {
         const each = state.crewModel?.hungerDamage?.(f.maxHp) ?? 1;
         const r = a.hurt(id, each, { cause: 'hunger' });
         hp += each;
         dead = r?.dead === true;
         if (dead) break;
       }
+      const got = walkerForage(f, w.road[i]);
+      if (got > 0) { found += got; gathered += got; }
       let met = false;
       try { met = state.encounters?.rollFolk?.(w.road[i], { id, name: f.name, tier: f.tier, traits: f.traits ?? [], lent: w.lent, pack: packCosts(id, { ...w, seen: i + 1 }, i + 1).reduce((x, y) => x + y, 0) }) === true; } catch (e) { log('walk band roll failed', e); }
       if (met) { w = W.holdWalk(w, W.enteredAt(w, i)); i += 1; held = true; break; }
@@ -321,8 +342,10 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
       log(`${f.name} walks hungry: -${hp} HP${dead ? ', died' : ''}`);
       if (!dead) notify(t('MOD_VOY_CREW_HUNGRY', { name: f.name, hp: `${hp}` }));
     }
+    if (gathered > 0) log(`${f.name} foraged ${gathered} food on the road (${found} kept)`);
+    if (fed > 0 && !dead) notify(t(fed === 1 ? 'MOD_VOY_WALK_FED_ONE' : 'MOD_VOY_WALK_FED', { name: f.name, n: `${fed}` }), 'success');
     if (dead) { ending(id); changed(); return undefined; }
-    const next = W.cleanWalk({ ...w, seen: Math.min(i, to) });
+    const next = W.cleanWalk({ ...w, seen: Math.min(i, to), found });
     setWalks({ ...walks(), [id]: next });
     if (held) log(`${f.name}'s walk held by a band on hex ${i} of ${w.road.length}`);
     return next;
@@ -404,13 +427,13 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     changed();
   };
 
-  /** A walk for the card and the Crew block: { to, leftText, left, at, reached, hexes }, or undefined. */
+  /** A walk for the card and the Crew block: { to, leftText, left, at, reached, hexes, found }, or undefined. */
   const describe = (id) => {
     const w = walks()[id];
     if (w === undefined) return undefined;
     const pos = W.walkAt(w, now());
     const dest = w.road[w.road.length - 1];
-    return { to: placeText(dest, w.skillId, w.actionId), leftText: duration(pos.left), left: pos.left, at: pos.at, reached: pos.reached, hexes: w.road.length };
+    return { to: placeText(dest, w.skillId, w.actionId), leftText: duration(pos.left), left: pos.left, at: pos.at, reached: pos.reached, hexes: w.road.length, found: w.found ?? 0 };
   };
   /** For the map: each walk's hex reached and the road still ahead, [{ id, at, ahead: [{ q, r }] }]. */
   const routes = () => Object.entries(walks()).map(([id, w]) => {

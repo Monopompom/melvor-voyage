@@ -33,13 +33,15 @@ export const chanceAt = (level) => FORAGE.chanceMin + (FORAGE.chanceMax - FORAGE
  * What a hex may give a walker: { food: { chance, amount, skill } | undefined, fuel: { chance, amount } | undefined }.
  * `rec` is the table's record ({ t, f, coast? }); `levels` maps a skill id to your level in it; `isEasy(cls)` is the
  * stores' easy ground (stores-model isEasy). The better of the hex's skills counts. Undefined when it gives nothing.
+ * `may(skill)` leaves a skill out when false: a walking Folk forages only with the skills it may work (Worker Folks'
+ * qualification), by your levels.
  */
-export function forageAt(rec, levels, isEasy = () => true) {
+export function forageAt(rec, levels, isEasy = () => true, may = () => true) {
   if (rec == null || rec.cloud === true || BARREN.includes(rec.t)) return undefined;
   const f = Array.isArray(rec.f) ? rec.f : [];
   let best;
   for (const [skill, grounds] of Object.entries(FORAGE_SKILLS)) {
-    if (!grounds.some((g) => f.includes(g))) continue;
+    if (!grounds.some((g) => f.includes(g)) || may(skill) !== true) continue;
     const level = Math.floor(Number(levels?.[skill]) || 1);
     if (best === undefined || level > best.level) best = { skill, level };
   }
