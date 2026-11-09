@@ -818,6 +818,68 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
     return original(area);
   });
 
+  // The Slayer task (round 2): Plan voyage beside the game's jump-to-enemy button while the task's area can't be fought
+  // from here, so the area is one click from a planned voyage. The jump itself still opens the lock popup, which has
+  // Plan voyage too; the combat area and dungeon menus reach the planner through that popup.
+  const slayerTask = () => {
+    const task = game.combat?.slayerTask;
+    const monster = task?.active === true ? task.monster : undefined;
+    const area = monster === undefined ? undefined : game.getMonsterArea(monster);
+    return area === undefined || area === game.unknownCombatArea ? undefined : { monster, area };
+  };
+  const slayerTarget = () => {
+    const st = slayerTask();
+    if (st === undefined || state.planner === undefined || combatLocked(st.area) === undefined) return undefined;
+    const target = state.planner.forArea(st.area, st.monster);
+    return target !== undefined && target.hexes.length > 0 ? target : undefined;
+  };
+  const slayerPlan = () => {
+    try {
+      const menu = document.getElementById('combat-slayer-task-menu');
+      const jump = menu?.jumpToEnemyButton;
+      if (!(jump instanceof HTMLElement)) return;
+      // Its own row under the jump button: beside it, the narrow task box wrapped it a margin off the left edge.
+      let row = menu.querySelector('[data-voyage-slayer-plan]');
+      const target = slayerTarget();
+      if (target === undefined) { row?.classList.add('d-none'); return; }
+      let b = row?.firstElementChild;
+      if (row === null) {
+        row = document.createElement('div');
+        row.className = 'mt-1';
+        row.dataset.voyageSlayerPlan = '1';
+        b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn btn-sm btn-outline-info';
+        b.textContent = getLangString('MOD_VOY_PLAN_BUTTON');
+        b.onclick = () => { try { const tg = slayerTarget(); if (tg !== undefined) state.planner.planTo(tg); else slayerPlan(); } catch (e) { log('slayer plan failed', e); } };
+        row.append(b);
+        jump.after(row);
+        // As wide as Jump to Enemy (the user, 8 Nov 2026), in any language: followed as it resizes, and when the phone
+        // layout's hidden combat tab (width 0) is opened. Never narrower than its own text.
+        const fit = () => { const w = jump.getBoundingClientRect().width; if (w > 0) b.style.minWidth = `${Math.round(w)}px`; };
+        if (typeof ResizeObserver === 'function') new ResizeObserver(fit).observe(jump);
+        fit();
+      }
+      row.classList.remove('d-none');
+      const tip = templateLangString('MOD_VOY_SLAYER_PLAN_TIP', { name: target.name });
+      if (b.dataset.voyTip !== tip) {
+        b.dataset.voyTip = tip;
+        if (state.tips !== undefined) state.tips.set(b, tip); else b.title = tip;
+      }
+    } catch (e) { log('slayer plan button failed', e); }
+  };
+  let slayerQueued = false;
+  const slayerPlanSoon = () => {
+    if (slayerQueued) return;
+    slayerQueued = true;
+    setTimeout(() => { slayerQueued = false; slayerPlan(); }, 0);
+  };
+  try {
+    const Menu = SlayerTaskMenuElement;
+    ctx.patch(Menu, 'setTaskMonster').after(slayerPlanSoon);
+    ctx.patch(Menu, 'setNoTask').after(slayerPlanSoon);
+  } catch (e) { log('Slayer task menu not found: no Plan voyage there', e); }
+
   // ---------------------------------------------------------------------------------------------------- dig sites
   // Archaeology (the user, 23 Oct 2026): a dig site is dug only at its own POI or one hex away once that hex is known,
   // as a combat area is fought (rules.digAllowedAt). The game links the two (digSite.poi, the dig site's POI); the POI
@@ -1344,7 +1406,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const dimSoon = () => {
     if (dimQueued) return;
     dimQueued = true;
-    setTimeout(() => { dimQueued = false; dimSidebar(); badgePages(); }, 0);
+    setTimeout(() => { dimQueued = false; dimSidebar(); badgePages(); slayerPlan(); }, 0);
   };
   const onMoved = () => {
     stopWhatDoesNotFit('move');

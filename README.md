@@ -163,7 +163,7 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   instant as in the base game. The journal's Miles behind me keeps a receipt for each of the last five voyages: the
   fares, food, fuel, spoilage, hull wear and encounter tolls against the XP, foraging, encounter purses and loot, and
   the cargo pay collected where it ended.
-- **Plan a voyage.** From Voyage 15, Plan voyage (on a journal page, a cargo run or a popup that sends you elsewhere)
+- **Plan a voyage.** From Voyage 15, Plan voyage (on a journal page, a cargo run, your Slayer task or a popup that sends you elsewhere)
   shows the route, the stops to stock up and the cost. With Navigator's Charts (Voyage 50, bought once at a port for
   10,000,000 GP and 100 Pitch) Set off makes the whole trip in one go (in time, with Timed travel on), and On arrival starts the work you planned.
   Make a place your home from the map's panel and Plan home is one click away; the last places you set off for wait
