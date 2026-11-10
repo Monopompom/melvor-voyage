@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import * as S from '../src/ship-model.mjs';
 import {
   HULLS, PLANNED_HULLS, DINGHY_BUILD, ISLANDS, canStep, isFreeStep, shipAfterPath, launchSpot, dockSpot, freeBoatSpot, isAboard, seaIndex, isSea, beyondReach, isPlace,
   canHop, shipAfterHops, laneTier, hexDist, condOf, repairPlan, canRepair, pitchChance, REPAIR,
@@ -537,4 +538,25 @@ test('the save keeps a careen, and drops a broken one', () => {
   const boat = { hull: 'dinghy', q: 3, r: -2, cond: 30, hold: [], aboard: false, careen };
   assert.deepEqual(loadSave(JSON.stringify({ ...defaultSave(), boat })).save.boat, boat);
   assert.equal(loadSave(JSON.stringify({ ...defaultSave(), boat: { ...boat, careen: { at: 'x' } } })).save.boat.careen, undefined);
+});
+
+test('modesStartFirst: a voyage step\'s modes (one per step) line up with its hexes, as a whole route\'s do', () => {
+  const ship = { m: 'ship' };
+  // A whole route (routeSearch): one entry per hex, destination first.
+  assert.deepEqual(S.modesStartFirst(3, [ship, { m: 'boat' }, { m: 'land' }]), [{ m: 'land' }, { m: 'boat' }, ship]);
+  // A voyage step (the clock's pathOf): [destination, start] with one entry, the step into the destination.
+  assert.deepEqual(S.modesStartFirst(2, [ship]), [undefined, ship]);
+  assert.deepEqual(S.modesStartFirst(2, undefined), [undefined, undefined]);
+});
+
+test('vesselsAfterRoute: one voyage step in the ship moves the ship, never the boat left elsewhere', () => {
+  const ship = { hull: 'brig', q: 19, r: 8 };
+  const boat = { hull: 'dinghy', q: 28, r: 7, aboard: false };
+  const recs = [{ q: 19, r: 8 }, { q: 19, r: 9 }];
+  const after = S.vesselsAfterRoute(recs, S.modesStartFirst(2, [{ m: 'ship' }]), boat, ship, () => undefined);
+  assert.deepEqual([after.ship.q, after.ship.r], [19, 9]);
+  assert.equal(after.boat, boat, 'the dinghy stays where it was left');
+  // With the boat aboard, it goes along.
+  const carried = S.vesselsAfterRoute(recs, S.modesStartFirst(2, [{ m: 'ship' }]), { ...boat, q: 19, r: 8, aboard: true }, ship, () => undefined);
+  assert.deepEqual([carried.boat.q, carried.boat.r, carried.boat.aboard], [19, 9, true]);
 });

@@ -217,7 +217,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     // Two vessels: replay the route's modes (build .150).
     if (Array.isArray(path.voyageModes) && big() != null) {
       const recs = path.map((hex) => ({ ...recOf(hex), hex })).reverse();
-      const modes = [...path.voyageModes].reverse();
+      const modes = shipModel.modesStartFirst(path.length, path.voyageModes);
       const after = shipModel.vesselsAfterRoute(recs, modes, ship(), big(), (rec) => dockOf(rec.hex));
       if (after.ship !== big()) setVessel('ship', after.ship, 'moved');
       if (after.boat !== ship()) setVessel('boat', after.boat, 'moved');

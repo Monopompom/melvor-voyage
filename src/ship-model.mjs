@@ -736,6 +736,18 @@ export function routeSearch(o) {
 }
 
 /**
+ * A game path's `voyageModes` (destination first, `modes[k]` the step into `path[k]`) as vesselsAfterRoute reads
+ * them: start first, one per hex, the start's own entry undefined when the list has none. A whole route
+ * (routeSearch) carries an entry for every hex; a voyage step's path (the clock's pathOf) one per step, one short:
+ * reversed as it was, that list fell one hex off and a step in the ship read as land.
+ */
+export function modesStartFirst(pathLength, modes) {
+  const out = [];
+  for (let k = pathLength - 1; k >= 0; k--) out.push(modes?.[k]);
+  return out;
+}
+
+/**
  * Where both vessels are after a route of routeSearch (records start to destination, `modes` alongside). A vessel
  * moves while you are in it; the boat aboard moves with the ship; a hop docks the vessel that sailed it at
  * `dockOf(rec)`. Returns { boat, ship } (the same objects when they did not move).
