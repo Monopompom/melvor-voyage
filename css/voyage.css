@@ -1958,3 +1958,10 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
     .voyage-haul-modal .voyage-haul-row > .btn { grid-column: 1 / -1; width: 100%; }
   }
 }
+
+/* "Near you" on the Slayer task menu (4.35): the game's settings-checkbox, centred under the task like the
+   menu's other lines. No !important, so the game's d-none still hides it. */
+.voyage-slayer-near { display: flex; justify-content: center; width: 100%; }
+.voyage-slayer-near .form-check, .voyage-slayer-near .custom-control { margin: 0; }
+/* A port Slayer contract taken this season stays listed, dimmed. */
+.voyage-contract-taken { opacity: .6; }

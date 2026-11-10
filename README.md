@@ -26,7 +26,10 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   temple, magic site or monolith depending on the skill. Firemaking and Cooking work on any land. Astrology,
   Cartography, Agility and Prayer work anywhere. Penalised hexes run slower, never faster.
 - **Combat on the map.** Fighting an area, dungeon or stronghold needs you on its hex or next to it. Walking away ends
-  the fight.
+  the fight. Tick **Near you** on the Slayer task menu and new tasks come only from monsters fought within 8 hexes
+  of you, in places you know (at least the three nearest), at the game's own prices and rewards. At a port, the
+  harbour board's **Slayer** tab posts one contract a tier each season, a monster fought near that port: taking one costs
+  the tier's new-task price and makes it your Slayer task (it replaces a running one, after asking).
 - **Dig sites on the map.** Archaeology digs a dig site only from its place on the map, or the hex next to it, under
   Strict and Relaxed alike. Walking away ends the dig. On the Archaeology page each dig site out of reach says "Not here".
 - **Trade near people.** Selling and buying work in a town, port or market, or next to one. Township, its trader

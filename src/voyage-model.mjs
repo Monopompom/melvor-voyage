@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 30;
+export const SAVE_VERSION = 31;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -128,9 +128,11 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * newest first. cleanHome and cleanRecent below check them.
  * `receipts` (save v30) is the last RECEIPTS_MAX finished voyages' receipts, newest first: what each cost and earned
  * (cleanReceipt).
+ * `slayer` (save v31) is the Slayer task choices: { near, taken }, "Near you" on the Slayer menu and the port
+ * contracts taken, checked by slayer-model.mjs cleanSlayer where it is read.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [], receipts: [] };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [], receipts: [], slayer: { near: false, taken: {} } };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -233,6 +235,8 @@ export const MIGRATIONS = {
   // Home port: no home set and no recent destination yet.
   28: (rec) => ({ ...rec, v: 29, home: null, recent: [] }),
   29: (rec) => ({ ...rec, v: 30, receipts: [] }),
+  // Slayer tasks near you: off, no contract taken.
+  30: (rec) => ({ ...rec, v: 31, slayer: { near: false, taken: {} } }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -407,6 +411,7 @@ function clean(rec) {
     home: cleanHome(rec.home),
     recent: cleanRecent(rec.recent),
     receipts: cleanReceipts(rec.receipts),
+    slayer: plainObject(rec.slayer) ?? { near: false, taken: {} },
   };
 }
 /** Foods a save keeps marked Never load at most: far more than the game has foods. */

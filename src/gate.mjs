@@ -59,7 +59,7 @@ const HIRE_PURCHASE_PREFIX = 'worker_folks:Hire_';
 /** The trade refusal sentence per trade kind (languages/en.json). */
 const TRADE_ONLY_KEYS = { sell: 'MOD_VOY_GATE_TRADE_ONLY_SELL', buy: 'MOD_VOY_GATE_TRADE_ONLY_BUY' };
 
-export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log }) {
+export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slayerModel: SM, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   /** Map colours are picked for tinting hexes; for text on the dark modal, lift dark ones towards white. On the
@@ -239,6 +239,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
    * Cartography is yours alone (rules.FOLK_NEVER): { reason } for a Folk given it, else undefined. With Voyage loaded,
    * the rules on or off (the user, 23 Oct 2026); Worker Folks alone hands it out as any other skill.
    */
+  /** Worker Folks' Quartermaster job (API v11): it sails with you or it is not the Quartermaster. */
+  const QUARTERMASTER = 'worker_folks:Quartermaster';
   const yoursAlone = (folk, skillId) => {
     if (folk === undefined || !rules.folkNever(skillId)) return undefined;
     return { reason: line('MOD_VOY_FOLK_YOURS_ALONE', { name: esc(folk.name), skill: esc(skillLabel(skillId, game.skills.getObjectByID(skillId)?.name ?? skillId)) }).text };
@@ -872,13 +874,106 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
   const slayerPlanSoon = () => {
     if (slayerQueued) return;
     slayerQueued = true;
-    setTimeout(() => { slayerQueued = false; slayerPlan(); }, 0);
+    setTimeout(() => { slayerQueued = false; slayerPlan(); nearBox(); }, 0);
   };
   try {
     const Menu = SlayerTaskMenuElement;
     ctx.patch(Menu, 'setTaskMonster').after(slayerPlanSoon);
     ctx.patch(Menu, 'setNoTask').after(slayerPlanSoon);
   } catch (e) { log('Slayer task menu not found: no Plan voyage there', e); }
+
+  // Slayer tasks near you (4.35, from player feedback): with the switch on, a new task, a reroll and the next task
+  // after one is done pick only monsters fought near you, from the game's own list, so the game's requirements, prices
+  // and rewards are untouched. "Near": the area has a hex you know within SM.NEAR hexes, widened to the SM.NEAR_MIN
+  // nearest; none known in the tier keeps the game's pick, with a line saying so. Off, Voyage dormant or the combat
+  // gate off: the game's list.
+  const slayerRec = () => {
+    const s = state.voyageSkill?.();
+    if (s === undefined || s.futureRaw !== undefined || s.record == null) return undefined;
+    // Cleaned in place: callers hold the object across calls (a contract is marked after the game picked the task).
+    const cur = s.record.slayer;
+    const clean = SM.cleanSlayer(cur);
+    if (cur === null || typeof cur !== 'object' || Array.isArray(cur)) { s.record.slayer = clean; return clean; }
+    for (const k of Object.keys(cur)) if (!(k in clean)) delete cur[k];
+    return Object.assign(cur, clean);
+  };
+  const nearShown = () => on() && state.settings.combat();
+  const nearOn = () => nearShown() && slayerRec()?.near === true;
+  // A port contract (contracts.mjs) takes its monster through the game's own selectTask: `forced` makes the next pick
+  // that one monster, so the game charges the tier's roll and sets the task as for a reroll. `raw` reads the game's own
+  // list, unnarrowed, for the contracts to choose from.
+  let forced;
+  let raw = false;
+  try {
+    ctx.patch(SlayerTask, 'getMonsterSelection').after(function (list) {
+      try {
+        if (forced !== undefined) return [forced];
+        if (raw || !Array.isArray(list) || list.length === 0 || !nearOn()) return undefined;
+        const pos = state.position();
+        if (pos === undefined) return undefined;
+        const entries = list.map((monster, id) => {
+          const area = game.getMonsterArea(monster);
+          const places = area !== undefined && typeof area.id === 'string' ? state.terrain.placesFor(area.id) : [];
+          return { id, d: places.length === 0 ? 0 : SM.placeDistance(pos, places.filter(knownPlace)) };
+        });
+        const pick = SM.nearbyPick(entries);
+        if (pick.fallback) {
+          try { notifyPlayer(game.slayer, getLangString('MOD_VOY_SLAYER_NEAR_NONE'), 'info'); } catch {}
+          log('Near you: no known area in this tier, the game picks');
+          return undefined;
+        }
+        log(`Near you: ${pick.ids.length} of ${list.length} monsters`);
+        return pick.ids.map((i) => list[i]);
+      } catch (e) { log('near pick failed open', e); return undefined; }
+    });
+  } catch (e) { log('Slayer task pick not found: no Near you', e); }
+  /** The "Near you" checkbox, the game's own settings-checkbox, after Auto Slayer on the Slayer task menu. */
+  const nearBox = () => {
+    try {
+      const menu = document.getElementById('combat-slayer-task-menu');
+      const auto = menu?.autoSlayerCheckBox;
+      if (!(auto instanceof HTMLElement)) return;
+      let box = menu.querySelector('[data-voyage-slayer-near]');
+      if (box === null) {
+        box = document.createElement('settings-checkbox');
+        box.dataset.voyageSlayerNear = '1';
+        // The menu is a flex row: col-12 gives the box the whole width, as the game's Auto Slayer box has it.
+        box.className = 'col-12 font-w400 font-size-sm voyage-slayer-near';
+        auto.after(box);
+        box.initialize({ currentValue: slayerRec()?.near === true, name: getLangString('MOD_VOY_SLAYER_NEAR') }, () => {
+          try {
+            const rec = slayerRec();
+            if (rec === undefined) { box.setChecked(false); return; }
+            rec.near = box.input.checked === true;
+            log(`Near you ${rec.near ? 'on' : 'off'}`);
+          } catch (e) { log('near switch failed', e); }
+        });
+        const tip = templateLangString('MOD_VOY_SLAYER_NEAR_TIP', { near: `${SM.NEAR}`, min: `${SM.NEAR_MIN}` });
+        if (state.tips !== undefined) state.tips.set(box, tip); else box.title = tip;
+      }
+      const show = nearShown() && slayerRec() !== undefined;
+      box.classList.toggle('d-none', !show);
+      if (show) box.setChecked(slayerRec().near === true);
+    } catch (e) { log('near switch failed', e); }
+  };
+  state.slayerNearBox = nearBox;
+  /** Slayer is on the map: Voyage on with its combat gate, and the Slayer skill unlocked. */
+  state.slayerShown = () => { try { return nearShown() && game.slayer.isUnlocked === true && slayerRec() !== undefined; } catch { return false; } };
+  state.slayerRec = slayerRec;
+  /** The game's own pick list for a tier, without Near you. */
+  state.slayerList = (category) => {
+    raw = true;
+    try { return game.combat.slayerTask.getMonsterSelection(category); } finally { raw = false; }
+  };
+  /** Makes `monster` the Slayer task of `category` at the tier's roll cost; false when it can't be paid. */
+  state.slayerTake = (category, monster) => {
+    const task = game.combat.slayerTask;
+    if (!task.getRollCosts(category).checkIfOwned()) return false;
+    forced = monster;
+    try { task.selectTask(category, true, false, true); } finally { forced = undefined; }
+    log(`contract: ${monster.id} is the Slayer task`);
+    return task.monster === monster;
+  };
 
   // ---------------------------------------------------------------------------------------------------- dig sites
   // Archaeology (the user, 23 Oct 2026): a dig site is dug only at its own POI or one hex away once that hex is known,
@@ -1064,8 +1159,13 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       } catch (e) { console.error(`[Voyage] ${what} guard failed open`, e); return undefined; }
     };
     const yoursOnAssign = ({ action, folk, skillId }) => (action === 'assign' ? yoursAlone(folk, skillId) : undefined);
-    api.registerGuard('staff', guard('staff', ({ action, folk, skillId }) => {
+    // The Quartermaster (Worker Folks' job, API v11) fills your combat slots from your bank: it has to come along with
+    // you to do it (the user, 10 Nov 2026). Other jobs follow the 1-hex rule of promote, gear and fire.
+    const notAlong = (folk) => (folk !== undefined && folk.travel !== 'with'
+      ? { reason: line('MOD_VOY_FOLK_QM_ALONG', { name: esc(folk.name) }).text } : undefined);
+    api.registerGuard('staff', guard('staff', ({ action, folk, skillId, jobId }) => {
       if (action === 'hire') return hireRefusal();
+      if (action === 'job' && jobId === QUARTERMASTER) return walkingRefusal(folk) ?? notAlong(folk);
       // A Folk arriving from a walk (6d) is given the work it was sent for: only the hex it reached has to allow it.
       if (action === 'assign' && arriving(folk)) {
         const locked = lockedAt(skillId, folk.place);
@@ -1085,7 +1185,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       return locked === undefined ? undefined : { reason: describe(game.skills.getObjectByID(skillId), skillId, locked).lines[0].text };
     }, yoursOnAssign));
     api.registerGuard('gear', guard('gear', ({ folk }) => walkingRefusal(folk) ?? farRefusal(folk)));
-    api.registerGuard('work', guard('work', ({ folk, skillId, skill }) => walkingRefusal(folk) ?? workRefusal(folk, skillId, skill),
+    api.registerGuard('work', guard('work', ({ folk, skillId, skill, jobId }) => (jobId === QUARTERMASTER ? notAlong(folk)
+      : walkingRefusal(folk) ?? workRefusal(folk, skillId, skill)),
       ({ folk, skillId }) => yoursAlone(folk, skillId)));
     // A new Folk stands where it was hired; a Folk picked for a skill moves to your hex.
     const placeHere = (folk, why) => {
@@ -1105,6 +1206,16 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, log 
       if (back) { log(`${folk.name} back on ${skillId} at (${folk.place.q},${folk.place.r})`); return; }
       if (folk.travel === 'with') api.setTravel(folk.id, 'idle');
       placeHere(folk, `picked for ${skillId}`);
+    });
+    // A Quartermaster that leaves your crew (put ashore, sent walking) is no longer the Quartermaster.
+    api.on('folkMoved', ({ folk }) => {
+      try {
+        if (!on() || folk?.job !== QUARTERMASTER || folk.travel === 'with' || typeof api.setJob !== 'function') return;
+        if (api.setJob(folk.id, null)) {
+          notifyPlayer(game.skills.getObjectByID('worker_folks:Hiring') ?? game.attack, line('MOD_VOY_FOLK_QM_LEFT', { name: esc(folk.name) }).text, 'info');
+          log(`${folk.name} left the crew: no longer the Quartermaster`);
+        }
+      } catch (e) { log('quartermaster leave failed', e); }
     });
     // A Folk that moves, comes aboard, is fired or dies no longer keeps a job.
     for (const name of ['folkMoved', 'folkFired', 'folkDied']) api.on(name, ({ folk }) => { if (folk?.id !== undefined) updateJobs((CM, jobs) => CM.jobsWithout(jobs, folk.id)); });

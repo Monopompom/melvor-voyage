@@ -20,9 +20,9 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-10.589';
+export const BUILD = '2026-11-10.596';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
-const DEV = false;
+const DEV = true;
 
 export async function setup(ctx) {
   const log = DEV ? (...args) => console.log('[Voyage]', ...args) : () => {};
@@ -368,6 +368,7 @@ export async function setup(ctx) {
   ctx.loadStylesheet('css/voyage.css');
   const overlay = await ctx.loadModule('src/overlay.mjs');
   const gate = await ctx.loadModule('src/gate.mjs');
+  const slayerModel = await ctx.loadModule('src/slayer-model.mjs');
   const herePanel = await ctx.loadModule('src/here-panel.mjs');
   const knowledgeMod = await ctx.loadModule('src/knowledge.mjs');
   // Not a rule: restarts the game loop when the game's own focus event is missed (src/focus-fix.mjs).
@@ -412,7 +413,7 @@ export async function setup(ctx) {
   knowledgeMod.install(ctx, { state, terrainMod, log });
   state.overlay = overlay.install(ctx, { state, terrainMod, log });
   state.zoneTable = zoneTable;
-  gate.install(ctx, { state, rules, terrainMod, zones: zonesMod, helpLayout, log });
+  gate.install(ctx, { state, rules, terrainMod, zones: zonesMod, helpLayout, slayerModel, log });
   compassMod.install(ctx, { state, rules, terrainMod, model, helpLayout, log });
   traderMod.install(ctx, { state, rules, terrainMod, stranded, helpLayout, log });
   state.herePanel = herePanel.install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, shortNumber, log });
@@ -582,6 +583,9 @@ export async function setup(ctx) {
         const tasksModel = await ctx.loadModule('src/tasks-model.mjs');
         (await ctx.loadModule('src/tasks.mjs')).install(ctx, { state, TM: tasksModel, CM: chartsModel, M: cargoModel, shipModel, terrainMod, stranded, hexes: table.hexes, shortNumber, log });
       } catch (e) { console.error('[Voyage] Voyage tasks failed to load; the rest runs', e); state.tasks = undefined; }
+      try {
+        (await ctx.loadModule('src/contracts.mjs')).install(ctx, { state, SM: slayerModel, M: cargoModel, terrainMod, hexes: table.hexes, log });
+      } catch (e) { console.error('[Voyage] Slayer contracts failed to load; the rest runs', e); state.contracts = undefined; }
       try {
         const startModel = await ctx.loadModule('src/start-model.mjs');
         (await ctx.loadModule('src/start.mjs')).install(ctx, { state, SM: startModel, M: cargoModel, rules, shipModel, hexes: table.hexes, log });

@@ -538,6 +538,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
     { id: 'cargo', key: 'MOD_VOY_BOARD_TAB_CARGO', html: (poi) => boardHtml(poi) },
     { id: 'notices', key: 'MOD_VOY_BOARD_TAB_NOTICES', html: (poi) => state.tasks?.html(poi), on: () => state.tasks !== undefined },
     { id: 'charts', key: 'MOD_VOY_BOARD_TAB_CHARTS', html: (poi) => state.charts?.html(poi), on: () => state.charts !== undefined },
+    // Port Slayer contracts (4.35, src/contracts.mjs): while Slayer is unlocked and the combat gate is on.
+    { id: 'slayer', key: 'MOD_VOY_BOARD_TAB_SLAYER', html: (poi) => state.contracts?.html(poi), on: () => state.contracts?.shown?.() === true },
   ];
   let tab = 'cargo';
   const bodyHtml = (poi) => {
@@ -558,10 +560,11 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
     try { state.tips?.apply(box); } catch {}
   };
   const onBoardClick = (e) => {
-    const el = e.target instanceof Element ? e.target.closest('[data-board-tab], [data-task], [data-chart]') : null;
+    const el = e.target instanceof Element ? e.target.closest('[data-board-tab], [data-task], [data-chart], [data-contract]') : null;
     if (el !== null && !el.disabled) {
-      if (el.dataset.boardTab !== undefined) { tab = el.dataset.boardTab; dropAsk = undefined; state.tasks?.resetAsk?.(); }
+      if (el.dataset.boardTab !== undefined) { tab = el.dataset.boardTab; dropAsk = undefined; state.tasks?.resetAsk?.(); state.contracts?.resetAsk?.(); }
       else if (el.dataset.task !== undefined) state.tasks?.onClick(el, openPoi);
+      else if (el.dataset.contract !== undefined) state.contracts?.onClick(el, openPoi);
       else state.charts?.onClick(el, openPoi);
       redraw();
       return;
@@ -585,7 +588,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
     openPoi = port.poi;
     dropAsk = undefined;
     tab = typeof startTab === 'string' ? startTab : 'cargo';
-    try { state.tasks?.resetAsk?.(); } catch {}
+    try { state.tasks?.resetAsk?.(); state.contracts?.resetAsk?.(); } catch {}
     // The guide page the first time a board is opened (journal.learn is quiet when it is known already).
     try { state.journal?.learn('cargo'); state.journal?.learn('board', true); } catch {}
     try {
