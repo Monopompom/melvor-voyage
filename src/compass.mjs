@@ -138,7 +138,7 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
       if (road === undefined || road.area === undefined) return trade;
       const steps = road.path.length - 1;
       const dir = dirWord(terrainMod.directionLabel(pos, road.path[0]));
-      const at = (() => { try { const o = road.path[0].to_oddq(); return `${o.col}, ${o.row}`; } catch { return `${road.path[0].q}, ${road.path[0].r}`; } })();
+      const at = (() => { try { const o = road.path[0].to_oddq(); return `${o.col},\u00a0${o.row}`; } catch { return `${road.path[0].q},\u00a0${road.path[0].r}`; } })();
       return { head: getLangString('MOD_VOY_WELCOME_HEAD_FIRST'), body: [
         { html: getLangString('MOD_VOY_WELCOME_COMBAT') },
         { table: { cols: [getLangString('MOD_VOY_WELCOME_COL_FIGHT'), ''], rows: [

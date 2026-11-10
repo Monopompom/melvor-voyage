@@ -78,7 +78,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
   /** The food and fuel a road takes from the stores for this Folk; nothing with provisions off. */
   // With spoilage on (4.4b) the pack carries the extra its road spoils, so the walk arrives as it would without it.
   const packFor = (r, f) => (provisions() ? state.stores?.packWith?.(r, (s) => stepCost(s, f)) ?? W.roadPack(r, (s) => stepCost(s, f)) : { food: 0, fuel: 0 });
-  const hexText = (h) => { try { const o = new HexCoords(h.q, h.r).to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${h.q}, ${h.r})`; } };
+  const hexText = (h) => { try { const o = new HexCoords(h.q, h.r).to_oddq(); return `(${o.col},\u00a0${o.row})`; } catch { return `(${h.q},\u00a0${h.r})`; } };
   const duration = (ms) => { const p = C.durationParts(ms); return p.h > 0 ? t('MOD_VOY_CLOCK_H_M', { h: `${p.h}`, m: `${p.m}` }) : t('MOD_VOY_CLOCK_M', { m: `${p.m}` }); };
   const hexesText = (n) => t(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });
   const actionOf = (skillId, actionId) => { try { return game.skills.getObjectByID(skillId)?.actions?.getObjectByID(actionId); } catch { return undefined; } };

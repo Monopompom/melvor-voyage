@@ -43,7 +43,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   const tents = () => { const it = tentItem(); try { return it === undefined ? 0 : game.bank.getQty(it); } catch { return 0; } };
 
   // ---- words ---------------------------------------------------------------------------------------------------------
-  const hexText = (h) => { try { const o = new HexCoords(h.q, h.r).to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${h.q}, ${h.r})`; } };
+  const hexText = (h) => { try { const o = new HexCoords(h.q, h.r).to_oddq(); return `(${o.col},\u00a0${o.row})`; } catch { return `(${h.q},\u00a0${h.r})`; } };
   /** "Outpost, Grasslands (13, 15)": the land under the camp, as the table has it. */
   const nameOf = (h) => {
     const rec = state.terrain?.base(h.q, h.r);

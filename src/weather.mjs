@@ -229,7 +229,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, deci
       const poi = hex?.pointOfInterest;
       if (poi !== undefined && poi.isDiscovered) return poi.name;
       const o = hex.to_oddq();
-      return `(${o.col}, ${o.row})`;
+      return `(${o.col},\u00a0${o.row})`;
     } catch { return ''; }
   };
   const tell = (o, text) => {

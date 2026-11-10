@@ -224,7 +224,7 @@ export function install(ctx, { state, F, C, log }) {
     });
   } catch (e) { log('fog button not patched', e); }
 
-  const at = (hex) => { try { const o = hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${hex?.q}, ${hex?.r})`; } };
+  const at = (hex) => { try { const o = hex.to_oddq(); return `(${o.col},\u00a0${o.row})`; } catch { return `(${hex?.q},\u00a0${hex?.r})`; } };
   /** "Explore there": a route through the fog, then the Set off popup (or why there is none). */
   const explore = (hex) => {
     try {

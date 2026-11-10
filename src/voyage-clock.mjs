@@ -53,7 +53,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
   const cart = () => game.cartography;
   const map = () => cart()?.activeMap;
   const hexAt = (q, r) => { try { return map()?.getHex(new HexCoords(q, r)); } catch { return undefined; } };
-  const at = (hex) => { try { const o = hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${hex?.q}, ${hex?.r})`; } };
+  const at = (hex) => { try { const o = hex.to_oddq(); return `(${o.col},\u00a0${o.row})`; } catch { return `(${hex?.q},\u00a0${hex?.r})`; } };
   const notify = (text, kind = 'success') => {
     try {
       if (kind === 'danger') game.notifications.createErrorNotification('voyage:clock', text);
@@ -224,6 +224,8 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       return `${chainIco(mediaOf(c))}${esc(labelOf(c))}`;
     } catch { return esc(labelOf(c)); }
   };
+  /** The Folk a start of this skill would go to (Worker Folks), or undefined: then it is yours. */
+  const folkOn = (skillId) => { if (!state.folksGuarded || skillId === undefined) return undefined; try { return state.folksApi?.()?.workerOf?.(skillId); } catch { return undefined; } };
   /** Why a choice can't start where you stand now, in words, or undefined (asked quietly: no popup, no toast). */
   const whyNot = (c) => {
     try {
@@ -317,6 +319,9 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
   const runChain = (chain) => {
     const failed = [];
     for (const c of chain) {
+      // A start would go to the Folk holding the skill and switch its work: skipped, with no line of its own; when
+      // nothing starts, "nothing could start" stands for it (build .587, the user).
+      if (folkOn(c.skill) !== undefined) continue;
       const name = labelOf(c);
       const why = whyNot(c);
       // A reason borrowed from the planner may start lower case ("the area's entry requirements aren't met.").
@@ -686,7 +691,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     const isNow = (o) => nowChoice !== undefined && C.sameChoice(o.choice, nowChoice);
     // The planner's own arrival pick goes first (its block's dropdown).
     const preferred = extra.prefer === undefined ? -1 : ([...opts.keys()].find((i) => C.sameChoice(opts[i].choice, extra.prefer)) ?? -1);
-    const defaults = [...(preferred >= 0 ? [preferred] : []), ...[...opts.keys()].filter((i) => i !== preferred && ((opts[i].choice.k !== 'fight' && opts[i].choice.k !== 'dungeon') || isNow(opts[i])))].slice(0, 2);
+    const defaults = [...(preferred >= 0 ? [preferred] : []), ...[...opts.keys()].filter((i) => i !== preferred && folkOn(opts[i].choice.skill) === undefined && ((opts[i].choice.k !== 'fight' && opts[i].choice.k !== 'dungeon') || isNow(opts[i])))].slice(0, 2);
     // Hull wear: the condition now less the condition the plan leaves, per vessel.
     let wear = 0;
     if (pl?.cond !== undefined) wear += Math.max(0, (state.ship?.cond?.('boat') ?? pl.cond) - pl.cond);

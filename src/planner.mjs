@@ -29,7 +29,9 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   const owned = () => usable() && skill().record.navigator === true;
   const live = () => game.cartography?.activeMap;
   const liveHex = (q, r) => { try { return live()?.getHex(new HexCoords(q, r)); } catch { return undefined; } };
-  const at = (hex) => { try { const o = hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${hex.q}, ${hex.r})`; } };
+  /** Coordinates in a name saved before build .587 keep a plain space: made unbreakable where shown. */
+  const nb = (s) => String(s).replace(/\((-?\d+), (-?\d+)\)/g, '($1,\u00a0$2)');
+  const at = (hex) => { try { const o = hex.to_oddq(); return `(${o.col},\u00a0${o.row})`; } catch { return `(${hex.q},\u00a0${hex.r})`; } };
 
   /** The planned voyage: the target and the chosen arrival ('none', 'go', or 'm:<monster id>'). */
   let target;
@@ -208,7 +210,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   // location gate is left out (game.checkRequirement, not checkAreaEntryRequirements): you will be there. Each returns
   // the reason as HTML, or undefined when the game would start it.
   const reqHtml = (r) => {
-    try { const span = document.createElement('span'); span.append(...r.getNodes('skill-icon-xs mx-1')); return span.innerHTML; } catch { return esc(t('MOD_VOY_PLAN_REFUSE_AREA')); }
+    // The icon, Level and number on one line (build .587, the user).
+    try { const span = document.createElement('span'); span.append(...r.getNodes('skill-icon-xs mx-1')); return `<span class="text-nowrap">${span.innerHTML}</span>`; } catch { return esc(t('MOD_VOY_PLAN_REFUSE_AREA')); }
   };
   const areaRefusal = (area) => {
     const c = game.combat;
@@ -223,9 +226,14 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     if (!game.tutorial.complete && !game.tutorial.allowedMonsters.has(m)) return esc(t('MOD_VOY_PLAN_REFUSE_TUTORIAL'));
     return areaRefusal(area) ?? (c.isDamageTypeBlockedFromMonster(c.player.damageType, m) ? esc(t('MOD_VOY_PLAN_REFUSE_IMMUNE', { type: c.player.damageType.name })) : undefined);
   };
+  /** The Folk a start of this skill would go to (Worker Folks), or undefined: then it is yours. */
+  const folkOn = (skillId) => { if (!state.folksGuarded) return undefined; try { return state.folksApi?.()?.workerOf?.(skillId); } catch { return undefined; } };
   const actionRefusal = (sk, action) => {
     if (sk === undefined) return undefined;
     if (!sk.isUnlocked) return esc(t('MOD_VOY_PLAN_REFUSE_LEVEL', { skill: sk.name, level: action.level ?? 1 }));
+    // A Folk holding the skill gets the start, not you (build .587).
+    const folk = folkOn(sk.id);
+    if (folk !== undefined) return esc(t('MOD_VOY_CLOCK_WHY_FOLK', { folk: folk.name, skill: sk.name }));
     if ((action.level ?? 0) > sk.level) return esc(t('MOD_VOY_PLAN_REFUSE_LEVEL', { skill: sk.name, level: action.level }));
     if ((action.abyssalLevel ?? 0) > (sk.abyssalLevel ?? 0)) return esc(t('MOD_VOY_PLAN_REFUSE_ABYSSAL', { skill: sk.name, level: action.abyssalLevel }));
     // A dig site digs only with a map that has charges and a tool picked (Archaeology.canExcavate).
@@ -489,7 +497,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     const media = target.media ? `<img class="voyage-plan-icon mr-2" src="${esc(target.media)}" alt="">` : '';
     // Not after a bare hex: its name already is the coordinates (.308, scan A2-17).
     const destAt = plan.dest !== undefined && !target.name.endsWith(at(plan.dest)) ? ` <span class="text-muted">${at(plan.dest)}</span>` : '';
-    let out = section(`<div class="voyage-row"><div class="d-flex align-items-center">${media}<div><small class="text-muted d-block">${esc(t('MOD_VOY_PLAN_TO'))}</small><b>${esc(target.name)}</b>${destAt}</div></div>` +
+    let out = section(`<div class="voyage-row"><div class="d-flex align-items-center">${media}<div><small class="text-muted d-block">${esc(t('MOD_VOY_PLAN_TO'))}</small><b>${esc(nb(target.name))}</b>${destAt}</div></div>` +
       `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="clear">${esc(t('MOD_VOY_PLAN_CLEAR'))}</button></div>`);
     if (plan.path === undefined) {
       // Uncharted: where to survey, with the map; a target with no hex on this map says so (.309, scan A2-27).
@@ -576,7 +584,14 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     const opts = arrivalOptions();
     const pick = arrivalNow(opts);
     const warn = arrivalWarning(opts);
-    const warnHtml = warn === undefined ? '' : `<div class="text-warning mb-2">${esc(t('MOD_VOY_PLAN_REFUSE_WARN', { name: warn.label }))} ${warn.why}</div>`;
+    // A refused pick you asked for is named; with every choice refused and none asked for, the line says nothing can
+    // start rather than naming one the select doesn't show (build .587, the user).
+    let warnHtml = '';
+    if (warn !== undefined) {
+      const asked = warn.value === arrivalPick;
+      const lead = t(asked ? 'MOD_VOY_PLAN_REFUSE_WARN' : 'MOD_VOY_PLAN_REFUSE_WARN_ALL', { name: warn.label });
+      warnHtml = `<div class="text-warning mb-2">${esc(lead)} ${warn.why}</div>`;
+    }
     out += section(`<div class="font-w600 mb-2 ${good ? 'text-success' : 'text-danger'}">${esc(verdict)}</div>${warnHtml}` +
       `<div class="voyage-plan-ledger">${rows}</div>`);
     // Then the buttons: Set off green, the rest blue outline (confirm green, navigation blue).
@@ -675,7 +690,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     const poi = placeOf(hex);
     const from = live()?.playerPosition;
     const d = from === undefined ? undefined : terrainMod.hexDistance(from, h);
-    return { q: h.q, r: h.r, name: poi?.name ?? (hex === undefined ? `(${h.q}, ${h.r})` : at(hex)), media: poi?.media,
+    return { q: h.q, r: h.r, name: poi?.name ?? (hex === undefined ? `(${h.q},\u00a0${h.r})` : at(hex)), media: poi?.media,
       here: from !== undefined && from.q === h.q && from.r === h.r, distance: Number.isFinite(d) ? d : undefined };
   };
   /** Whether the place you stand on can be made home now: 'home' (it is), true, or false (no place here). */
@@ -736,7 +751,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     const label = `<span class="voyage-plan-home-label">${esc(t('MOD_VOY_PLAN_HOME_LABEL'))}</span> `;
     if (h === undefined) return section(`<div>${label}<span class="text-muted">${esc(t('MOD_VOY_PLAN_HOME_NONE'))}</span></div>`);
     const icon = h.media ? `<img class="voyage-plan-icon mr-2" src="${esc(h.media)}" alt="">` : '';
-    const where = `<div class="d-flex align-items-center">${icon}<div>${label}<b>${esc(h.name)}</b> <span class="text-muted">· ${esc(h.here ? t('MOD_VOY_PLAN_HOME_HERE') : t('MOD_VOY_PLAN_HOME_AWAY', { hexes: awayText(h.distance) }))}</span></div></div>`;
+    const where = `<div class="d-flex align-items-center">${icon}<div>${label}<b>${esc(nb(h.name))}</b> <span class="text-muted">· ${esc(h.here ? t('MOD_VOY_PLAN_HOME_HERE') : t('MOD_VOY_PLAN_HOME_AWAY', { hexes: awayText(h.distance) }))}</span></div></div>`;
     if (h.here) return section(where);
     return section(`<div class="voyage-row">${where}<button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="home">${esc(t('MOD_VOY_PLAN_HOME_BUTTON'))}</button></div>`);
   };
@@ -744,7 +759,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   const recentSection = () => {
     const list = recent();
     if (list.length === 0) return '';
-    const btns = list.map((e, i) => `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="recent" data-i="${i}">${esc(e.name)}</button>`).join('');
+    const btns = list.map((e, i) => `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="recent" data-i="${i}">${esc(nb(e.name))}</button>`).join('');
     return section(`<div class="font-w600 mb-2">${esc(t('MOD_VOY_PLAN_RECENT'))}</div><div class="voyage-plan-recent">${btns}</div>`);
   };
 

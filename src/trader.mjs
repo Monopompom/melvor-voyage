@@ -188,7 +188,7 @@ export function install(ctx, { state, rules, terrainMod, stranded, helpLayout, l
     if (v.combat !== undefined && v.combat.itemsOwned !== false) {
       const need = v.combat.gp - game.gp.amount;
       const dest = v.combat.path[0];
-      const at = (() => { try { const o = dest.to_oddq(); return `${o.col}, ${o.row}`; } catch { return `${dest.q}, ${dest.r}`; } })();
+      const at = (() => { try { const o = dest.to_oddq(); return `${o.col},\u00a0${o.row}`; } catch { return `${dest.q},\u00a0${dest.r}`; } })();
       if (need > 0) return { gp: need, to: v.combat.area?.name ?? getLangString('MOD_VOY_TRADER_SOME_AREA'), at, dir: terrainMod.directionLabel(pos, dest), steps: v.combat.path.length - 1, combat: true };
     }
     try {

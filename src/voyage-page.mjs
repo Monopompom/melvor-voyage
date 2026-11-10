@@ -734,7 +734,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     }
     // The game's display coords, as the hex tooltip and the Here panel show them, centred (the user, build .168); the
     // buffs under it in the game's colours.
-    const at = (() => { try { const o = poi.hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${poi.hex.q}, ${poi.hex.r})`; } })();
+    const at = (() => { try { const o = poi.hex.to_oddq(); return `(${o.col},\u00a0${o.row})`; } catch { return `(${poi.hex.q},\u00a0${poi.hex.r})`; } })();
     const lines = [{ text: `${poi.name} ${at}`, cls: 'text-center' }, ...L.signBuffSpans().map((b) => ({ text: b.textContent, cls: b.className || 'text-success' }))];
     // No Pick up here (the user, build .166): it is picked up from the Here panel on its hex.
     return `<div class="voyage-land-body" role="group" aria-label="${esc(`${L.signName()}. ${plain(lines)}`)}">` +

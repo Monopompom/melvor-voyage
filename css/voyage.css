@@ -471,7 +471,7 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 }
 
 /* Buttons at the right end of a panel row (Show, Load) share one width. */
-#voyage-here .voyage-row-btn { min-width: 5.5rem; min-height: 32px; text-align: center; font-size: .9rem; padding: .2rem .6rem; }
+#voyage-here .voyage-row-btn { min-width: 6.25rem; min-height: 32px; text-align: center; font-size: .9rem; padding: .2rem .6rem; }
 /* Every button in the panel meets the 32px mouse minimum (build .306 after the scenario run of .305):
    the head's Manage voyage and journal link, the Harbour board link, the trade "OK" link, the fight links. Inline-flex keeps
    the text centred in the taller box; 40px under a coarse pointer below. */

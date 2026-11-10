@@ -100,7 +100,7 @@
             "scopes": {},
             "descriptions": [
               {
-                "text": "+${value} hex of sight on a lit sea hex at night",
+                "text": "+${value} hex of sight on a lit sea hex at night",
                 "includeSign": false,
                 "lang": "MOD_VOY_MODIFIER_nightSight"
               }

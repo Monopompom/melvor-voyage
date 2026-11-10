@@ -272,7 +272,9 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   const live = () => game.cartography?.activeMap;
   const liveHex = (q, r) => { try { return live()?.getHex(new HexCoords(q, r)); } catch { return undefined; } };
   /** The game's display coordinates (the ones its map shows), else axial. */
-  const at = (q, r) => { try { const o = liveHex(q, r)?.to_oddq(); if (o !== undefined) return `(${o.col}, ${o.row})`; } catch {} return `(${q}, ${r})`; };
+  /** Coordinates in a name saved before build .587 keep a plain space: made unbreakable where shown. */
+  const nb = (s) => String(s).replace(/\((-?\d+), (-?\d+)\)/g, '($1,\u00a0$2)');
+  const at = (q, r) => { try { const o = liveHex(q, r)?.to_oddq(); if (o !== undefined) return `(${o.col},\u00a0${o.row})`; } catch {} return `(${q},\u00a0${r})`; };
   const land = (q, r) => {
     const rec = state.terrain?.get(q, r);
     if (rec === undefined) return '';
@@ -299,8 +301,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   const view = { open: false, tab: 'how', spread: 0, crewSpread: 0, entry: undefined, place: undefined, guide: undefined, query: '', placeQuery: '', back: null, pick: undefined, side: 'left' };
   let root;
 
-  const ledger = (cols, rows) => `<table class="vj-ledger"><thead><tr>${cols.map((c, i) => `<th class="${i > 0 && rows.numeric?.[i] ? 'vj-num' : ''}">${esc(c)}</th>`).join('')}</tr></thead>`
-    + `<tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${i === 0 ? 'vj-first' : ''} ${c.cls ?? ''}"${c.plain ? ' data-no-skill-names' : ''}>${c.html ?? esc(c.text ?? c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const ledger = (cols, rows) => `<table class="vj-ledger"><thead><tr>${cols.map((c, i) => `<th class="${i > 0 && rows.numeric?.[i] ? 'vj-num' : ''}" data-no-skill-names>${esc(c)}</th>`).join('')}</tr></thead>`
+    + `<tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${i === 0 ? 'vj-first' : ''} ${c.cls ?? ''}"${c.plain ? ' data-no-skill-names' : ''}>${c.html === undefined ? esc(nb(c.text ?? c)) : nb(c.html)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   /**
    * Book text with its crosslinks (journal-model.mjs splitLinks) as buttons. A link whose target isn't in the book
    * (an Adventure-only chapter, a guide page not written yet) stays plain text.
@@ -736,7 +738,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       + ledger([t('MOD_VOY_JOURNAL_BILL_COL_VESSEL'), t('MOD_VOY_JOURNAL_ROAD_COL_LEVEL'), t('MOD_VOY_JOURNAL_ROAD_COL_PRICE')], rows)
       + note(t('MOD_VOY_JOURNAL_BILL_BONES')) + '</div>';
   };
-  const atHex = (hex) => { try { const o = hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${hex.q}, ${hex.r})`; } };
+  const atHex = (hex) => { try { const o = hex.to_oddq(); return `(${o.col},\u00a0${o.row})`; } catch { return `(${hex.q},\u00a0${hex.r})`; } };
   /** Where the sign is now, and the places with buffs found so far (their buffs as the game writes them). */
   const signLedger = () => {
     const L = state.land;

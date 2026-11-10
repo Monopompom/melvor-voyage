@@ -30,7 +30,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
 
   const coordsOf = (hex) => {
-    try { const o = hex.to_oddq(); return `(${o.col}, ${o.row})`; } catch { return `(${hex.q}, ${hex.r})`; }
+    try { const o = hex.to_oddq(); return `(${o.col},\u00a0${o.row})`; } catch { return `(${hex.q},\u00a0${hex.r})`; }
   };
 
   /**
@@ -297,7 +297,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const h = state.planner?.home?.();
     if (h === undefined || h.here) return '';
     const hexes = h.distance === undefined ? '?' : templateLangString(h.distance === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${h.distance}` });
-    return `<div class="voyage-here-place voyage-harbour-line"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_HOME_LABEL'))}</span> ${esc(templateLangString('MOD_VOY_PANEL_PLAN_AWAY', { name: h.name, hexes }))}</span>` +
+    // Plan home sits beside its line, as Show and Pay off do (build .587, the user).
+    const name = String(h.name).replace(/\((-?\d+), (-?\d+)\)/g, '($1,\u00a0$2)');
+    return `<div class="voyage-here-ship"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_HOME_LABEL'))}</span> ${esc(templateLangString('MOD_VOY_PANEL_PLAN_AWAY', { name, hexes }))}</span>` +
       `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-home-plan">${esc(getLangString('MOD_VOY_PLAN_HOME_BUTTON'))}</button></div>`;
   };
   /** On a place: it is home, or Make home (save v29). Nothing off a place or below the planner's level. */

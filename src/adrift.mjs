@@ -194,7 +194,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, s
       if (poi !== undefined && poi.isDiscovered) return poi.name;
       const rec = recOf(hex);
       const o = hex.to_oddq();
-      return t('MOD_VOY_ADRIFT_HEX_WORDS', { at: `(${o.col}, ${o.row})` }); // "hex (9, 21)", not the terrain standing in for a name (.309, scan A2-29)
+      return t('MOD_VOY_ADRIFT_HEX_WORDS', { at: `(${o.col},\u00a0${o.row})` }); // "hex (9, 21)", not the terrain standing in for a name (.309, scan A2-29)
     } catch { return ''; }
   };
   /** Hexes still to drift from where you are. */
