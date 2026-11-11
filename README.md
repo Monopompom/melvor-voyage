@@ -87,7 +87,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   warns you first). Then the
   hex counts as a camp: Smithing, Crafting and Fletching work there, and Thieving at 80%. One tent may stand at Voyage
   30, up to four at 90. The tent shows on the map and in the Journal's places, and its store keeps food and fuel
-  outside your carry limit. Strike camp puts the tent back in your bank.
+  outside your carry limit. Strike camp puts the tent back in your bank. With Worker Folks, a tent is also a depot for
+  the Folks around it (see Worker Folks).
 - **Hull wear.** Every sea hex wears your ship's hull a little. Repair it in the Voyage page's Stores block with logs
   and Pitch, which Firemaking now makes from time to time (more often from better logs): the small boat on a beach,
   the big ship at a port. Repairing is careening: the hull is hauled out 6 minutes for every 10% and can't sail
@@ -248,6 +249,17 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   inputs from your bank. A new kind of item with no bank slot stays with the Folk until you have room. A Folk that
   comes aboard or reaches a bank place empties its room to your bank. The map rings the badge of a Folk that stopped.
   Bags (Worker Folks' Satchel, Pack and Frame Pack) make the room bigger.
+  **Tent depots** (needs Worker Folks 1.11.0 or later). A tent you pitch away from a bank place (not within a hex of a
+  city, capital, port or market) holds a depot of 48 h of work for the Folks within a hex of it: what they make fills
+  their own room first, then the depot, and their inputs come from their own stock first, then from it. A Folk near
+  two tents uses the nearer. The Here panel's Tent depot row shows how full it is, and its Restock all fills it from
+  your bank with the inputs of every Folk near the tent, the same number of hours for each. Standing within a hex of
+  the tent collects the depot with its Folks' rooms; striking the tent sends what the depot holds to your bank.
+  **Supply lines** (Worker Folks 1.11.0, from Hiring 60): one Folk can supply another only while the two stand within
+  a hex of each other, or both within a hex of the same tent, and you set the line from within a hex of the supplier.
+  A move or a strike that takes them apart cuts the line, with a notice.
+  **The Quartermaster** (Worker Folks 1.11.0) has to come along with you: give the job to a Folk in your crew (Come
+  with me first). Put it ashore or send it walking and it is no longer the Quartermaster.
   Now and then on a long crossing a stowaway climbs out of the hold, when there is a berth for one more: hire it as a
   Trainee at half the Shop's price while it is aboard, if you have the licence and a free crew slot (it still counts as
   a hire, so the Shop's next one costs more), or it goes ashore at the next port or land you stop at. Until then it
@@ -267,7 +279,7 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Local supply**: off, every place loads as much as your bank holds.
 - **Spoilage**: off, nothing in the stores goes off.
 - **Folks hold what they make** (shown with Worker Folks 1.9.0 or later): off, every Folk works from your bank wherever
-  it stands.
+  it stands, and the tent depots go to your bank (as they do with Voyage rules off).
 - **Night** and **Move the night (hours)**: night on or off, and when it falls (−12 to 12 hours from 21:00 to 05:00).
 - **Motion on the map**: while a voyage is under way the traveller walks and the vessel rolls; off, they stand still.
 - **Open the journal by its cover**: the cover and a few turning pages on every open, not only the first time.
