@@ -1253,7 +1253,9 @@ body #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 .voyage-board-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding-top: 4px; margin-bottom: 2px; }
 .voyage-board-tabs > .btn { min-width: 7rem; min-height: 32px; } /* (.308, B-19) */
 /* A phone: the three tabs share one row instead of wrapping one under. */
-@media (max-width: 575.98px) { .voyage-board-tabs { flex-wrap: nowrap; } .voyage-board-tabs > .btn { min-width: 0; flex: 1 1 0; max-width: 8rem; padding-left: .4rem; padding-right: .4rem; white-space: nowrap; } }
+/* On a phone the tabs share one row, each as wide as its label needs (equal widths cut "Sea charts" once the Slayer
+   tab came, pre-release pass 11 Nov 2026); a screen too narrow for the four wraps them. */
+@media (max-width: 575.98px) { .voyage-board-tabs > .btn { min-width: 0; flex: 1 1 auto; padding-left: .4rem; padding-right: .4rem; white-space: nowrap; } }
 /* Notices: your task's place pin and its progress. */
 .voyage-task-pin { display: inline-flex; align-items: center; justify-content: center; color: var(--voyage-pin); }
 .voyage-task-pin > svg { width: 80%; height: 80%; }
@@ -1455,6 +1457,11 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-strike-warn b { color: var(--voyage-hot); }
 .voyage-strike-warn ul { margin: 4px 0 0; padding-left: 1.1em; }
 .voyage-strike-warn li + li { margin-top: 2px; }
+/* On a phone a smaller triangle keeps Strike camp and Cancel on a 667 px screen. */
+@media (max-width: 575.98px) {
+  .voyage-strike-popup .swal2-icon { width: 3.5em; height: 3.5em; margin: .75em auto 0; }
+  .voyage-strike-popup .swal2-icon .swal2-icon-content { font-size: 2.5em; }
+}
 .voyage-storm-wait { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 4px; background: var(--voyage-ok-tint); }
 .voyage-storm-wait > .fa { color: var(--voyage-ok); margin-top: 3px; }
 .voyage-storm-row .fa-bolt, .voyage-storm-sum, .voyage-storm-chip .fa-bolt { color: var(--voyage-storm); }
