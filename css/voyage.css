@@ -598,6 +598,7 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .vj-dear { color: #2f6b34; font-weight: 600; }
 .vj-cheap { color: #8a4b12; font-weight: 600; }
 .vj-strong { font-weight: 600; }
+.vj-gold { color: #8a6410; }
 .vj-section { display: flex; flex-direction: column; gap: 8px; }
 .vj-warn { border-left: 3px solid #8a5a00; padding-left: 12px; }
 .vj-ledger { width: 100%; border-collapse: collapse; font-size: 16px; line-height: 1.3; color: var(--vj-ink); }
@@ -1441,6 +1442,10 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 /* Storms (phase 5c-3): the bolt in the storm's amber; Set off's "Storm ahead" band in a faint wash of it. */
 .voyage-storm-ahead { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 4px; background: var(--voyage-storm-bg); }
 .voyage-storm-ahead > .fa-bolt { color: var(--voyage-storm); margin-top: 3px; }
+.voyage-pilot-bands > .fa-skull-crossbones { color: var(--voyage-storm); margin-top: 3px; }
+/* A tent you would leave half up: the tiles' side bar in red, as it costs the work so far. */
+.voyage-tent-left { border-left: 3px solid var(--voyage-bad-dot); padding-left: 12px; }
+.voyage-tent-left > .fa-campground { color: var(--voyage-bad-dot); margin-top: 3px; }
 .voyage-storm-wait { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 4px; background: var(--voyage-ok-tint); }
 .voyage-storm-wait > .fa { color: var(--voyage-ok); margin-top: 3px; }
 .voyage-storm-row .fa-bolt, .voyage-storm-sum, .voyage-storm-chip .fa-bolt { color: var(--voyage-storm); }

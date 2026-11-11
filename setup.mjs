@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-10.596';
+export const BUILD = '2026-11-11.602';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -587,6 +587,10 @@ export async function setup(ctx) {
         (await ctx.loadModule('src/contracts.mjs')).install(ctx, { state, SM: slayerModel, M: cargoModel, terrainMod, hexes: table.hexes, log });
       } catch (e) { console.error('[Voyage] Slayer contracts failed to load; the rest runs', e); state.contracts = undefined; }
       try {
+        const pilotageModel = await ctx.loadModule('src/pilotage-model.mjs');
+        (await ctx.loadModule('src/pilotage.mjs')).install(ctx, { state, P: pilotageModel, CM: chartsModel, hexes: table.hexes, terrainMod, log });
+      } catch (e) { console.error('[Voyage] Pilotage failed to load; the rest runs', e); state.pilotage = undefined; }
+      try {
         const startModel = await ctx.loadModule('src/start-model.mjs');
         (await ctx.loadModule('src/start.mjs')).install(ctx, { state, SM: startModel, M: cargoModel, rules, shipModel, hexes: table.hexes, log });
       } catch (e) { console.error('[Voyage] Random start failed to load; the rest runs', e); state.startChoice = undefined; }
@@ -676,6 +680,8 @@ export async function setup(ctx) {
             const xpBefore = voyageSkill()?.xp ?? 0;
             const paid = voyageSkill()?.onTravelled(steps, entered);
             if (paid !== undefined) state.pace?.({ ...paid, gp: Math.max(0, gpBefore - game.gp.amount), xpBefore });
+            // Pilotage (4.36): each hex entered counts in its sea or land region.
+            try { state.pilotage?.moved?.(steps, entered); } catch (e) { log('pilotage count failed', e); }
             state.weather?.stepped?.(steps);
             // Gear, relics and the Albatross (4.31): the relic and Lesser Relic rolls, the tablet charges and the mark rolls, one each per hex entered.
             try { state.gear?.afterMove?.(steps); } catch (e) { log('gear after move failed', e); }
@@ -727,6 +733,8 @@ export async function setup(ctx) {
       state.mode = check.ok ? 'strict' : 'relaxed';
       state.reasons = check.reasons;
       log(`table ${table.meta.builtAt} (${table.meta.hexCount} hexes, hash ${table.meta.waterHash}): ${state.mode}`, check.reasons);
+      // The haul's answers and the tents' depots, before offline progress (the settings change below may wait for it).
+      try { state.haul?.loaded?.(); } catch (e) { log('haul load failed', e); }
       if (!check.ok) {
         ctx.onInterfaceReady(() => {
           try { game.notifications.createErrorNotification('voyage:mismatch', getLangString('MOD_VOY_NOTICE_TABLE_MISMATCH')); } catch {}

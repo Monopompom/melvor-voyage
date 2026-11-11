@@ -214,3 +214,11 @@ test('a voyage tally from an older or damaged record: zeros, never NaN', () => {
   assert.deepEqual(addTally(null, null), cleanTally({}));
   assert.equal(addTally({ gp: 5 }, { gp: NaN }).gp, 5);
 });
+
+test('Pilotage cuts a land or sea step by its own factor, never a hop', () => {
+  assert.equal(stepMs({ cls: 'grasslands', pilot: 0.9 }), Math.round(LAND_MS * 0.9));
+  assert.equal(stepMs({ sea: true, pilot: 0.98 }), Math.round(seaMs(undefined) * 0.98));
+  assert.equal(stepMs({ fastTravel: true, hop: 3, pilot: 0.9 }), 3 * seaMs(undefined));
+  assert.equal(stepMs({ cls: 'grasslands', pilot: 1.5 }), LAND_MS, 'never slower');
+  assert.equal(stepMs({ cls: 'grasslands', pilot: 0 }), LAND_MS);
+});

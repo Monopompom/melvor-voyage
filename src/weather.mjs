@@ -516,6 +516,8 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, deci
     /** This season's chance of a storm each wind turn (the journal's weather page), or undefined with no storms. */
     stormOdds: () => (stormsOn() ? W.stormChance(rawOrder()) : undefined),
     stormsAt,
+    /** A storm moves one step every this many ms (the map's Pilotage tracks). */
+    stepMs: () => W.STORM_STEP_MS,
     stormAt,
     stepStorm,
     stormStep,

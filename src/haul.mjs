@@ -129,12 +129,18 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     if (a === undefined || !on() || collecting) return;
     const pos = state.position();
     const folks = H.collectFrom(a.folks(), pos, { distance, rooms: roomOf });
-    if (folks.length === 0) return;
+    const depots = depotsNear(pos).filter((d) => H.hasHaul(d.view));
+    if (folks.length === 0 && depots.length === 0) return;
     collecting = true;
     try {
       const results = [];
       for (const f of folks) { try { results.push(a.collect(f.id)); } catch (e) { log(`collect ${f.name} failed`, e); } }
-      tell(results, { one: 'MOD_VOY_HAUL_FROM_ONE', many: 'MOD_VOY_HAUL_FROM_MANY', names: folks.map((f) => f.name) }, { quiet });
+      for (const d of depots) { try { results.push(a.collectDepot(d.key)); } catch (e) { log(`collect depot ${d.key} failed`, e); } }
+      // The tent depot is named beside the Folks ("Collected from Rolf and the tent depot"), never counted as a Folk.
+      const who = depots.length === 0 ? { one: 'MOD_VOY_HAUL_FROM_ONE', many: 'MOD_VOY_HAUL_FROM_MANY', names: folks.map((f) => f.name) }
+        : folks.length === 0 ? { one: 'MOD_VOY_HAUL_FROM_ONE', many: 'MOD_VOY_HAUL_FROM_ONE', names: [t('MOD_VOY_DEPOT_NAME')] }
+        : { one: 'MOD_VOY_DEPOT_FROM_ONE', many: 'MOD_VOY_DEPOT_FROM_MANY', names: folks.map((f) => f.name) };
+      tell(results, who, { quiet });
     } finally { collecting = false; }
   };
   // A room that changes while you stand by it is collected once the event is done (never inside Worker Folks' check).
@@ -175,6 +181,9 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   const settingsChanged = () => {
     const a = api();
     if (a === undefined) return;
+    // The depots first, every time: on a load this is where the rules first apply (the table checked), before offline
+    // progress; registering again is a no-op.
+    try { syncDepots(); } catch (e) { log('depots sync failed', e); }
     const now = on();
     if (now === wasOn) return;
     wasOn = now;
@@ -199,20 +208,49 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     // Its switch in Mod Settings, Rules: only with a Worker Folks that has the haul.
     try { state.addHaulSetting?.(); } catch (e) { console.error('[Voyage] the haul setting was not added', e); }
     try {
-      a.registerBankAccess((folk) => { try { return accessOf(folk); } catch (e) { console.error('[Voyage] bank access failed open', e); return 'bank'; } });
+      a.registerBankAccess((folk) => { try { return hookAnswer(folk); } catch (e) { console.error('[Voyage] bank access failed open', e); return 'bank'; } });
       a.on('folkMoved', ({ folk }) => moved(folk));
       for (const name of ['folkHired', 'folkAssigned']) a.on(name, ({ folk }) => remember(folk));
       for (const name of ['roomFull', 'roomDry']) a.on(name, ({ folk }) => { refreshMarks(); if (nearYou(folk)) { collectSoon(true); redrawModalSoon(); } });
       a.on('roomChanged', ({ folk }) => { refreshMarks(); if (nearYou(folk)) { if (H.hasHaul(roomOf(folk.id))) collectSoon(true); redrawModalSoon(); } });
+      if (typeof a.registerDepot === 'function') {
+        for (const name of ['depotChanged', 'depotFull']) {
+          a.on(name, ({ depotId }) => {
+            if (!depotIds.has(depotId)) return;
+            const pos = state.position();
+            const tent = tentsUp().find((x) => x.key === depotId);
+            if (pos === undefined || tent === undefined || distance(pos, tent) > H.REACH) return;
+            if (H.hasHaul(depotView(depotId))) collectSoon(true);
+            panelSoon();
+          });
+        }
+      }
       state.listeners.push(settingsChanged);
       log(`haul: bank access registered (Worker Folks API ${a.version})`);
     } catch (e) { console.error('[Voyage] the haul failed to hook Worker Folks; Folks work from the bank', e); }
   });
+  // Every standing tent's depot is registered again on each load (Worker Folks empties one not registered to the bank
+  // once the game is up): here the list starts afresh; loaded() below registers them once the table is checked.
+  ctx.onCharacterLoaded(() => { depotIds.clear(); try { syncDepots(); } catch (e) { log('depots failed to register', e); } });
+  /**
+   * Voyage's own load is done (the table checked, the mode set), still before offline progress: the depots registered
+   * and every Folk's answer asked again, now. Worker Folks keeps the first answer per Folk until a refresh, and the
+   * hook says 'bank' while Voyage is still loading; the load's settings change waits while the game counts as
+   * offline, so without this the first catch-up after a reload ran on those answers (a supplier's goods went to the
+   * bank, not its receiver's stock).
+   */
+  const loaded = () => {
+    const a = api();
+    if (a === undefined) return;
+    try { syncDepots(); } catch (e) { log('depots failed to register', e); }
+    try { a.refreshBankAccess?.(); } catch (e) { log('bank access refresh failed', e); }
+  };
   ctx.onCharacterLoaded(() => setTimeout(() => {
     const a = api();
     if (a === undefined) return;
     wasOn = on();
     for (const f of a.folks()) remember(f);
+    try { syncDepots(); } catch (e) { log('depots sync failed', e); }
     try { a.refreshBankAccess?.(); } catch {}
     refreshMarks();
     collectSoon();
@@ -245,22 +283,24 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   // (the popup's Restock all), its button in the Restock column, so both buttons are one width.
   const rowsHtml = (rows, extra = '') => {
     const anyWord = rows.some((r) => r.word !== undefined);
-    const anyBtn = rows.some((r) => r.canRestock) || extra !== '';
+    const anyBtn = rows.some((r) => r.canRestock || r.depot !== undefined) || extra !== '';
     const usedW = Math.max(1, ...rows.map((r) => hours(r.room.usedMs).length));
     const sizeW = Math.max(1, ...rows.map((r) => hours(r.room.sizeMs).length));
     const num = (text, w) => `<span class="voyage-haul-num" style="min-width:${w}ch">${esc(text)}</span>`;
     let html = '';
-    for (const { f, room, word, canRestock } of rows) {
+    for (const { f, room, word, canRestock, depot } of rows) {
       const fill = t('MOD_VOY_HAUL_FILL', { used: hours(room.usedMs), size: hours(room.sizeMs) });
       const fillCell = esc(t('MOD_VOY_HAUL_FILL', { used: '\u0001', size: '\u0002' })).replace('\u0001', num(hours(room.usedMs), usedW)).replace('\u0002', num(hours(room.sizeMs), sizeW));
       const pct = Math.round(H.fillShare(room) * 100);
-      const label = t('MOD_VOY_HAUL_LABEL', { name: f.name });
-      html += `<div class="voyage-here-ship voyage-haul-row">`
-        + `<span class="voyage-run" title="${esc(aboutFolk(f))}"><span class="voyage-run-text voyage-here-label">${esc(label)}</span></span>`
+      const label = depot !== undefined ? t('MOD_VOY_DEPOT_LABEL') : t('MOD_VOY_HAUL_LABEL', { name: f.name });
+      const tip = depot !== undefined ? aboutDepot(depot) : aboutFolk(f);
+      html += `<div class="voyage-here-ship voyage-haul-row${depot !== undefined ? ' voyage-depot-row' : ''}">`
+        + `<span class="voyage-run" title="${esc(tip)}"><span class="voyage-run-text voyage-here-label">${esc(label)}</span></span>`
         + `<span class="voyage-haul-bar" role="img" aria-label="${esc(fill)}"><span class="voyage-haul-bar-in${word ? ' voyage-haul-bar-stop' : ''}" style="width:${pct}%"></span></span>`
         + `<small class="text-muted voyage-haul-fill" aria-label="${esc(fill)}">${fillCell}</small>`
         + (anyWord ? `<small class="text-warning voyage-haul-word">${word ? esc(t(word)) : ''}</small>` : '')
         + (canRestock ? `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-haul-btn" data-haul-act="restock" data-haul-folk="${esc(f.id)}">${esc(t('MOD_VOY_HAUL_RESTOCK'))}</button>` : '')
+        + (depot !== undefined && depot.members > 0 ? `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-haul-btn" data-haul-act="depot" data-haul-depot="${esc(depot.key)}">${esc(t('MOD_VOY_HAUL_RESTOCK_ALL'))}</button>` : '')
         + '</div>';
     }
     return `<div class="voyage-haul-rows${anyWord ? ' voyage-haul-w' : ''}${anyBtn ? ' voyage-haul-b' : ''}">${html}${extra}</div>`;
@@ -273,10 +313,11 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   const PANEL_ROWS = 3;
   const panelHtml = () => {
     const rows = nearRooms();
-    if (rows.length === 0) return '';
-    if (rows.length <= PANEL_ROWS) return rowsHtml(rows);
+    const depots = depotRows();
+    if (rows.length === 0 && depots.length === 0) return '';
+    if (rows.length <= PANEL_ROWS) return rowsHtml([...depots, ...rows]);
     const stopped = rows.filter((r) => r.word !== undefined).length;
-    return `<div class="voyage-here-ship voyage-haul-sum"><span><span class="voyage-here-label">${esc(t('MOD_VOY_HAUL_SUM_LABEL'))}</span> `
+    return (depots.length > 0 ? rowsHtml(depots) : '') + `<div class="voyage-here-ship voyage-haul-sum"><span><span class="voyage-here-label">${esc(t('MOD_VOY_HAUL_SUM_LABEL'))}</span> `
       + `${esc(t('MOD_VOY_HAUL_SUM', { count: `${rows.length}` }))}${stopped > 0 ? `, <span class="text-warning">${esc(t('MOD_VOY_HAUL_SUM_STOPPED', { count: `${stopped}` }))}</span>` : ''}</span>`
       + `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-haul-btn" data-haul-act="open">${esc(t('MOD_VOY_HAUL_SHOW'))}</button></div>`;
   };
@@ -359,6 +400,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     const id = el?.dataset?.haulFolk;
     if (el?.dataset?.haulAct === 'open') { openModal(); return; }
     if (el?.dataset?.haulAct === 'restock' && id) restock(id);
+    if (el?.dataset?.haulAct === 'depot' && el.dataset.haulDepot) restockDepot(el.dataset.haulDepot);
     afterAct();
   };
 
@@ -372,9 +414,133 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   /** A word for a Folk's tooltip: "Haul full", "Out of inputs" or ''. */
   const folkWord = (f) => { const m = on() ? markOf(f.id) : undefined; return m === undefined ? '' : t(stateWord[m]); };
 
+  // ---- tent depots (Worker Folks API v11, round 3) ------------------------------------------------------------------
+  // A pitched tent keeps a depot of 48 h of work, shared by the Folks within a hex of it that work from their rooms:
+  // their goods fill their own room first, then the depot; their inputs come from their stock, then the depot. Worker
+  // Folks keeps the stacks; Voyage registers each standing tent (on load, when one goes up), drops it when struck or
+  // when the haul goes off (its goods to the bank), names the depot in its bank-access answer, collects it when you
+  // stand within a hex, and restocks it for all its Folks at once from the Here panel.
+  const depotIds = new Map(); // tent key -> the name registered with it
+  const depotApi = () => { const a = api(); return a !== undefined && typeof a.registerDepot === 'function' ? a : undefined; };
+  const depotView = (id) => { try { return depotApi()?.depot(id); } catch (e) { log('depot read failed', e); return undefined; } };
+  const tentsUp = () => { try { return state.outposts?.list?.() ?? []; } catch { return []; } };
+  const depotTents = () => tentsUp().filter((x) => depotIds.has(x.key));
+  /** Worker Folks' answer for a Folk: its access, with the depot of the nearest tent within a hex when it works from its room. */
+  const hookAnswer = (folk) => {
+    const access = accessOf(folk);
+    if (access !== 'room' || depotIds.size === 0) return access;
+    return H.depotAccess(access, H.depotFor(folk.place, depotTents(), distance)?.key);
+  };
+  /** Registers the standing tents' depots and drops those gone; Worker Folks asks every Folk's access again after. */
+  const syncDepots = () => {
+    const a = depotApi();
+    if (a === undefined) return;
+    const tents = tentsUp();
+    const { register, drop } = H.depotSync(tents, depotIds, on());
+    // One registered that Worker Folks no longer holds (its crew load, right after ours, read the save's depots, where a
+    // new one is not yet): registered again.
+    if (on()) for (const tent of tents) if (depotIds.has(tent.key) && !register.includes(tent) && ['unregistered', undefined].includes(depotView(tent.key)?.state)) register.push(tent);
+    for (const tent of register) {
+      try { if (a.registerDepot(tent.key, { hours: H.DEPOT_HOURS, name: tent.name })) depotIds.set(tent.key, tent.name); } catch (e) { log(`depot ${tent.key} not registered`, e); }
+    }
+    for (const id of drop) {
+      depotIds.delete(id);
+      let r;
+      try { r = a.dropDepot(id); } catch (e) { log(`depot ${id} not dropped`, e); }
+      if (r != null) tell([r], { one: 'MOD_VOY_DEPOT_EMPTIED', many: 'MOD_VOY_DEPOT_EMPTIED', names: [t('MOD_VOY_DEPOT_NAME')] });
+    }
+    if (register.length === 0 && drop.length === 0) return;
+    log(`depots: ${[...depotIds.keys()].join(' ') || 'none'}`);
+    try { a.refreshBankAccess?.(); } catch (e) { log('bank access refresh failed', e); }
+    panelSoon();
+  };
+  /** The registered depots within a hex of `pos`, nearest first: [{ key, name, view }]. */
+  const depotsNear = (pos) => {
+    if (pos === undefined || depotApi() === undefined || !on()) return [];
+    return depotTents().filter((x) => distance(pos, x) <= H.REACH).sort((x, y) => distance(pos, x) - distance(pos, y))
+      .map((x) => ({ key: x.key, name: x.name, view: depotView(x.key) })).filter((d) => d.view !== undefined);
+  };
+  /** The Here panel's depot rows: one for each tent within a hex whose depot has Folks or holds something. */
+  const depotRows = () => depotsNear(state.position())
+    .filter((d) => d.view.members.length > 0 || d.view.usedMs > 0)
+    .map((d) => ({ room: d.view, word: d.view.state === 'full' ? stateWord.full : undefined, depot: { key: d.key, name: d.name, members: d.view.members.length, ids: d.view.members } }));
+  /** A depot row's tooltip: the tent, and the Folks that share it. */
+  const aboutDepot = (d) => {
+    const names = d.ids.map((id) => depotApi()?.folkById(id)?.name).filter((n) => typeof n === 'string');
+    return names.length === 0 ? t('MOD_VOY_DEPOT_TIP_NONE', { name: d.name }) : t('MOD_VOY_DEPOT_TIP', { name: d.name, names: names.join(', ') });
+  };
+  /** Worker Folks' reasons a depot restock is refused, in words. */
+  const DEPOT_WHY = { unknown: 'MOD_VOY_DEPOT_WHY_UNKNOWN', noMembers: 'MOD_VOY_DEPOT_WHY_NOMEMBERS', noRoom: 'MOD_VOY_DEPOT_WHY_NOROOM', noBank: 'MOD_VOY_DEPOT_WHY_NOBANK' };
+  const restockDepot = (id) => {
+    const a = depotApi();
+    if (a === undefined) return;
+    let r;
+    try { r = a.restockDepot(id); } catch (e) { log('depot restock failed', e); return; }
+    try {
+      if (r?.ok) {
+        const names = (r.members ?? []).filter((m) => (m.actions ?? 0) > 0).map((m) => a.folkById(m.folkId)?.name).filter((n) => typeof n === 'string');
+        game.notifications.createInfoNotification('voyage:haul', t('MOD_VOY_DEPOT_RESTOCKED', { names: names.join(', ') }), ctx.getResourceUrl('assets/icon.svg'));
+      } else game.notifications.createErrorNotification('voyage:haul', t(DEPOT_WHY[r?.why] ?? DEPOT_WHY.noBank));
+    } catch {}
+  };
+  let panelLater = false;
+  const panelSoon = () => { if (panelLater) return; panelLater = true; queueMicrotask(() => { panelLater = false; try { state.herePanel?.render?.(); } catch {} }); };
+
+  // ---- supply lines (Worker Folks' links, API v11) -------------------------------------------------------------------
+  // A line is direct under Voyage only while its two Folks stand within a hex of each other, or both within a hex of
+  // the same tent (the user, 10 Nov 2026: "Refuse and cut", "a tent joins them"). Setting one also needs you within a
+  // hex of the supplier: gate.mjs's staff guard, as for every order. Far lines wait for couriers. Rules on, haul or not.
+  const linksApi = () => {
+    const a = state.folksGuarded ? state.folksApi?.() : undefined;
+    return a !== undefined && typeof a.setSupply === 'function' && typeof a.supplyLinks === 'function' ? a : undefined;
+  };
+  const linksOn = () => linksApi() !== undefined && state.active?.() === true;
+  /** Where a Folk stands for a line: your hex when with you; null while walking (it has left); its place otherwise. */
+  const standsAt = (f) => (f?.travel === 'with' ? state.position() : f?.travel === 'walking' ? null : f?.place);
+  const linkClose = (s, r) => {
+    if (s?.travel === 'walking' || r?.travel === 'walking') return false;
+    return H.linkClose(standsAt(s), standsAt(r), tentsUp(), distance);
+  };
+  const folkOf = (a, id) => a.folks().find((f) => f.id === id);
+  const linkRefusal = ({ action, folk, receiverId }) => {
+    if (action !== 'link' || receiverId == null || folk === undefined || !linksOn()) return undefined;
+    const r = folkOf(linksApi(), receiverId);
+    if (r === undefined || linkClose(folk, r)) return undefined;
+    return { reason: t('MOD_VOY_FOLK_LINK_APART', { name: folk.name, receiver: r.name }) };
+  };
+  /** Ends every line whose Folks no longer stand close: after a Folk moves, a tent is struck, the rules come on. */
+  const checkLinks = () => {
+    const a = linksApi();
+    if (a === undefined || !linksOn()) return;
+    let links;
+    try { links = a.supplyLinks(); } catch (e) { log('supply links read failed', e); return; }
+    for (const l of links) {
+      const s = folkOf(a, l.supplierId);
+      const r = folkOf(a, l.receiverId);
+      if (s === undefined || r === undefined || linkClose(s, r)) continue;
+      try {
+        if (a.setSupply(s.id, null)) {
+          notifyPlayer(game.skills.getObjectByID('worker_folks:Hiring') ?? game.attack, t('MOD_VOY_FOLK_LINK_CUT', { name: s.name, receiver: r.name }), 'info');
+          log(`supply line ${s.name} → ${r.name} cut: too far apart`);
+        }
+      } catch (e) { log('supply line cut failed', e); }
+    }
+  };
+  ctx.onModsLoaded(() => {
+    const a = linksApi();
+    if (a === undefined) return;
+    try {
+      a.registerGuard('staff', (req) => { try { return linkRefusal(req ?? {}); } catch (e) { console.error('[Voyage] link guard failed open', e); return undefined; } });
+      a.on('folkMoved', () => checkLinks());
+      state.listeners.push(() => checkLinks());
+      log('haul: supply line guard registered');
+    } catch (e) { console.error('[Voyage] the supply line rule failed to hook Worker Folks', e); }
+  });
+  ctx.onCharacterLoaded(() => setTimeout(() => checkLinks(), 0));
+
   // listed: the ids of the Folks the haul's rows show (the Folks here row leaves out those it would repeat).
   const listed = () => nearRooms().map((r) => r.f.id);
-  const out = { on, rows: PANEL_ROWS, afterMove: () => { collectHere(); redrawModalSoon(); }, panelHtml, click, markAt, folkWord, accessOf, listed };
+  const out = { checkLinks, syncDepots, depotView, loaded, on, rows: PANEL_ROWS, afterMove: () => { collectHere(); redrawModalSoon(); }, panelHtml, click, markAt, folkWord, accessOf, listed };
   state.haul = out;
   return out;
 }

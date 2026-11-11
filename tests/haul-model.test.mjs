@@ -2,7 +2,7 @@
 // the collection's summary.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { HAUL_API, REACH, isBankPlace, accessFor, hasHaul, collectFrom, lifeStep, mergeCollected, emptySummary, roomMark, fillShare } from '../src/haul-model.mjs';
+import { HAUL_API, REACH, isBankPlace, accessFor, hasHaul, collectFrom, lifeStep, mergeCollected, emptySummary, roomMark, fillShare, linkClose, depotFor, depotAccess, depotSync, DEPOT_HOURS } from '../src/haul-model.mjs';
 import { isTradePlace, TRADE_FEATURES } from '../src/rules.mjs';
 
 const wild = { q: 0, r: 0, t: 'grasslands', f: ['forest'] };
@@ -85,4 +85,38 @@ test('the map marks a room that stopped full or dry, only away from a bank place
   assert.equal(fillShare({ sizeMs: 7_200_000, usedMs: 3_600_000 }), 0.5);
   assert.equal(fillShare({ sizeMs: 0, usedMs: 5 }), 0);
   assert.equal(fillShare({ sizeMs: 10, usedMs: 50 }), 1);
+});
+
+test('a supply line is direct within a hex, or around one tent; a Folk with no place fails open', () => {
+  const dist = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
+  assert.equal(linkClose({ q: 0, r: 0 }, { q: 1, r: 0 }, [], dist), true, 'next to each other');
+  assert.equal(linkClose({ q: 0, r: 0 }, { q: 0, r: 0 }, [], dist), true, 'the same hex');
+  assert.equal(linkClose({ q: 0, r: 0 }, { q: 2, r: 0 }, [], dist), false, 'two hexes apart, no tent');
+  assert.equal(linkClose({ q: 0, r: 0 }, { q: 2, r: 0 }, [{ q: 1, r: 0 }], dist), true, 'either side of a tent');
+  assert.equal(linkClose({ q: 0, r: 0 }, { q: 2, r: 0 }, [{ q: 5, r: 5 }], dist), false, 'a tent elsewhere');
+  assert.equal(linkClose({ q: 0, r: 0 }, { q: 3, r: 0 }, [{ q: 1, r: 0 }, { q: 2, r: 0 }], dist), false, 'two tents do not chain');
+  assert.equal(linkClose(undefined, { q: 9, r: 9 }, [], dist), true);
+});
+
+test('tent depots: the nearest tent within a hex, the hook answer, and what to register or drop', () => {
+  const dist = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
+  const t1 = { key: '5,5', q: 5, r: 5, name: 'A' };
+  const t2 = { key: '7,5', q: 7, r: 5, name: 'B' };
+  assert.equal(depotFor({ q: 6, r: 5 }, [t1, t2], dist), t1); // a tie: the first pitched
+  assert.equal(depotFor({ q: 7, r: 4 }, [t1, t2], dist), t2); // the nearer
+  assert.equal(depotFor({ q: 5, r: 5 }, [t2, t1], dist), t1); // on its hex beats one next door
+  assert.equal(depotFor({ q: 9, r: 9 }, [t1, t2], dist), undefined);
+  assert.equal(depotFor(null, [t1], dist), undefined);
+  assert.deepEqual(depotAccess('room', '5,5'), { access: 'room', depot: '5,5' });
+  assert.equal(depotAccess('bank', '5,5'), 'bank');
+  assert.equal(depotAccess('room', undefined), 'room');
+  assert.equal(DEPOT_HOURS, 48);
+  const reg = new Map([['5,5', 'A'], ['1,1', 'Gone']]);
+  const s = depotSync([t1, t2], reg, true);
+  assert.deepEqual(s.register.map((t) => t.key), ['7,5']);
+  assert.deepEqual(s.drop, ['1,1']);
+  assert.deepEqual(depotSync([{ ...t1, name: 'A2' }], new Map([['5,5', 'A']]), true).register.map((t) => t.name), ['A2']);
+  const off = depotSync([t1, t2], reg, false);
+  assert.deepEqual(off.register, []);
+  assert.deepEqual(off.drop.sort(), ['1,1', '5,5']);
 });

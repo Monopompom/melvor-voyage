@@ -535,6 +535,29 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     return `<div class="voyage-storm-ahead"><i class="fa fa-bolt" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_STORM_AHEAD_HEAD'))}</b> `
       + `${esc(t(pushes > 0 ? 'MOD_VOY_STORM_AHEAD_PUSH' : 'MOD_VOY_STORM_AHEAD', vars))}</span></div>`;
   };
+  /**
+   * Pilotage 40 (4.36): the toughest band that can meet you on the way, on land and at sea, counted only on the hexes
+   * of an area you know that well; '' with encounters off or nothing known that far.
+   */
+  const bandHtml = (path) => {
+    const P = state.pilotage;
+    const E = state.encounters;
+    if (P === undefined || E === undefined || E.enc?.() === undefined || !Array.isArray(path)) return '';
+    const steps = stepsOf(path);
+    const top = { land: 0, sea: 0 };
+    for (let j = 0; j < steps.length; j++) {
+      const hex = path[path.length - 2 - j];
+      if (hex === undefined || !P.seesBandTier(hex)) continue;
+      const p = E.placeOf(steps[j], hex);
+      if (p !== undefined && p.tier > top[p.where]) top[p.where] = p.tier;
+    }
+    if (top.land === 0 && top.sea === 0) return '';
+    const parts = [];
+    if (top.land > 0) parts.push(t('MOD_VOY_PILOT_BANDS_LAND', { n: `${top.land}` }));
+    if (top.sea > 0) parts.push(t('MOD_VOY_PILOT_BANDS_SEA', { n: `${top.sea}` }));
+    return `<div class="voyage-storm-ahead voyage-pilot-bands"><i class="fa fa-skull-crossbones" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_PILOT_BANDS_HEAD'))}</b> `
+      + `${esc(t('MOD_VOY_PILOT_BANDS', { list: parts.join(t('MOD_VOY_PILOT_BANDS_AND')) }))}</span></div>`;
+  };
   // Compact durations everywhere, "72h 0m" / "5m" (the user, build .298; lower case with a space since .301).
   const duration = (ms) => { const p = C.durationParts(ms); return p.h > 0 ? t('MOD_VOY_CLOCK_H_M', { h: `${p.h}`, m: `${p.m}` }) : t('MOD_VOY_CLOCK_M', { m: `${p.m}` }); };
   const clockAt = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
@@ -642,6 +665,20 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
    * indexes where the route loads the stores; the planner vouches for the stores through its stops), prefer (the arrival
    * pick to put first), started() (after the voyage set off) }.
    */
+  /**
+   * A tent you are putting up yourself on the hex you leave: leaving stops it (the work lost, the Tent back to the
+   * bank), so Set off says so before you go. '' with none.
+   */
+  const tentLeftHtml = () => {
+    let b;
+    try {
+      const pos = state.position?.();
+      b = pos === undefined ? undefined : state.outposts?.building?.().find((x) => x.you && x.q === pos.q && x.r === pos.r);
+    } catch (e) { log('tent check failed', e); }
+    if (b === undefined) return '';
+    return `<div class="voyage-storm-ahead voyage-tent-left"><i class="fa fa-campground" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_CLOCK_TENT_LEFT_HEAD'))}</b> `
+      + `${esc(t('MOD_VOY_CLOCK_TENT_LEFT', { time: duration(Math.max(60000, b.left)) }))}</span></div>`;
+  };
   const confirmSetOff = (path, original, fog, extra = {}) => {
     if (state.encounters?.fightOpen?.() === true) { state.encounters.refuse(); return; }
     const course = courseOf(path[0]);
@@ -831,7 +868,9 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       + `<div class="voyage-clock-tile">${head('<i class="fa fa-coins voyage-clock-fa" aria-hidden="true"></i>', 'MOD_VOY_CLOCK_COSTS')}`
       + `${costRows.length > 0 ? `<div class="voyage-stores-rows voyage-clock-rows text-info">${costRows.join('')}</div>` : ''}${hungryNote}${fogCostNote}</div>`
       + '</div>'
+      + tentLeftHtml()
       + stormHtml(info)
+      + (fog === undefined ? bandHtml(path) : '')
       + waitHtml
       + fogBlock
       + `<div class="voyage-section voyage-clock-arrival"><div class="voyage-clock-head"><i class="fa fa-anchor voyage-clock-fa" aria-hidden="true"></i>${esc(t('MOD_VOY_CLOCK_ON_ARRIVAL'))}</div>`

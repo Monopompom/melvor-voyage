@@ -178,6 +178,8 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     giveBack(build);
     log(`tent up at ${key}`);
     notify(t('MOD_VOY_OUTPOST_PITCHED', { name: nameOf(O.parseKey(key)) }));
+    // Its depot opens for the Folks within a hex.
+    try { state.haul?.syncDepots?.(); } catch {}
   };
   /** The tents going up: [{ key, q, r, name, left, folk, you, paused }]; `you` when you put it up yourself. */
   const building = () => Object.entries(outposts()).filter(([, o]) => O.isBuilding(o))
@@ -376,6 +378,9 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     game.bank.addItem(item, 1, false, true, true, true, 'Voyage');
     log(`camp struck at ${key}`);
     notify(t('MOD_VOY_OUTPOST_STRUCK', { name: o.name }));
+    // Its depot goes to the bank, and two Folks the tent joined may stand too far apart for their supply line now.
+    try { state.haul?.syncDepots?.(); } catch {}
+    try { state.haul?.checkLinks?.(); } catch {}
     return true;
   };
   const askStrike = (key, done) => {
@@ -536,7 +541,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     list, near, outposts, tents, pitchHere, pitch, share, strike, mapStores, askStore, askStrike, panelHtml, click, nameOf,
     media, refreshMarkers, building, stopBuild, builderText, tick, buildTick, passiveTick,
     /** On character load, after the terrain and its ice: lays the camps. */
-    loaded() { try { sync(); tick(); } catch (e) { log('outposts failed to load', e); } },
+    loaded() { try { sync(); tick(); } catch (e) { log('outposts failed to load', e); } try { state.haul?.syncDepots?.(); } catch {} },
   };
   state.outposts = api;
   return api;

@@ -207,3 +207,64 @@ test('the haul names the Folks its rows show, so the Folks here row can leave th
   fake.rooms.a = { ...fake.rooms.a, access: 'bank' };
   assert.deepEqual(out.listed(), [], 'one working from the bank is not in the rows');
 });
+
+test('tent depots (API v11): registered while the haul applies, named in the hook, collected near you, dropped when struck', () => {
+  const fake = fakeFolks(11);
+  const depots = new Map();
+  Object.assign(fake.api, {
+    registerDepot: (id, opts) => { fake.calls.push(`depot+:${id}:${opts.hours}`); depots.set(id, { haul: [{ itemId: 'Coal_Ore', qty: 7, ms: 1 }], purse: [] }); return true; },
+    dropDepot: (id) => { fake.calls.push(`depot-:${id}`); depots.delete(id); return { items: [{ itemId: 'Coal_Ore', qty: 7 }], left: [], purse: [] }; },
+    depot: (id) => { const d = depots.get(id); return d === undefined ? undefined : { id, name: 'T', sizeMs: 172_800_000, usedMs: 3_600_000, haul: d.haul, stock: [], members: ['a'], state: 'ok' }; },
+    collectDepot: (id) => { fake.calls.push(`depotc:${id}`); const d = depots.get(id); const out = { items: d.haul.map((s) => ({ itemId: s.itemId, qty: s.qty })), left: [], purse: [] }; d.haul = []; return out; },
+  });
+  const tents = [{ key: '1,0', q: 1, r: 0, name: 'Camp' }];
+  const { out, state } = setup(fake);
+  state.outposts = { list: () => tents.map((x) => ({ ...x })) };
+  state.listeners.forEach((fn) => fn()); // the load's settings change
+  assert.ok(fake.calls.includes('depot+:1,0:48'));
+  assert.deepEqual(fake.api.hook({ id: 'a', travel: 'idle', place: { q: 1, r: 0 } }), { access: 'room', depot: '1,0' });
+  assert.equal(fake.api.hook({ id: 'b', travel: 'idle', place: { q: 6, r: 0 } }), 'bank', 'by the port: the bank, no depot');
+  // Standing within a hex: the depot is collected with Ada's room, one notice.
+  notes.length = 0;
+  out.afterMove();
+  assert.ok(fake.calls.includes('depotc:1,0'));
+  assert.equal(notes.filter(([k]) => k === 'info').length, 1);
+  assert.match(notes[0][1], /MOD_VOY_DEPOT_FROM_ONE/, 'the depot named beside Ada, not counted as a Folk');
+  // Struck: dropped to the bank, said; Ada works from her own room again.
+  tents.length = 0;
+  notes.length = 0;
+  out.syncDepots();
+  assert.ok(fake.calls.includes('depot-:1,0'));
+  assert.match(notes[0][1], /MOD_VOY_DEPOT_EMPTIED/);
+  assert.equal(fake.api.hook({ id: 'a', travel: 'idle', place: { q: 1, r: 0 } }), 'room');
+  // The haul off drops every depot.
+  tents.push({ key: '1,0', q: 1, r: 0, name: 'Camp' });
+  out.syncDepots();
+  state.settings.haul = () => false;
+  state.listeners.forEach((fn) => fn());
+  assert.equal(fake.calls.filter((c) => c === 'depot-:1,0').length, 2);
+});
+
+test('on load, before offline progress: the tents registered and every answer asked again once Voyage is ready', () => {
+  const fake = fakeFolks(11);
+  Object.assign(fake.api, {
+    registerDepot: (id, opts) => { fake.calls.push(`depot+:${id}:${opts.hours}`); return true; },
+    dropDepot: () => ({ items: [], left: [], purse: [] }),
+    depot: (id) => ({ id, name: 'Camp', sizeMs: 172_800_000, usedMs: 0, haul: [], stock: [], members: [], state: 'ok' }),
+  });
+  let ready = false;
+  const { out, state } = setup(fake);
+  state.active = () => ready;
+  state.outposts = { list: () => [{ key: '1,0', q: 1, r: 0, name: 'Camp' }] };
+  // Still loading: the hook answers the bank, nothing is registered.
+  assert.equal(fake.api.hook({ id: 'a', travel: 'idle', place: { q: 1, r: 0 } }), 'bank');
+  out.syncDepots();
+  assert.ok(!fake.calls.some((c) => c.startsWith('depot+')));
+  // The table checked: loaded() registers the tent and asks every answer again, with no settings change.
+  ready = true;
+  fake.calls.length = 0;
+  out.loaded();
+  assert.deepEqual(fake.calls.filter((c) => c.startsWith('depot+')), ['depot+:1,0:48']);
+  assert.ok(fake.calls.includes('refresh'));
+  assert.deepEqual(fake.api.hook({ id: 'a', travel: 'idle', place: { q: 1, r: 0 } }), { access: 'room', depot: '1,0' });
+});

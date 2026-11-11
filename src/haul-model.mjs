@@ -107,3 +107,53 @@ export function fillShare(room) {
   if (size <= 0) return 0;
   return Math.max(0, Math.min(1, (Number(room?.usedMs) || 0) / size));
 }
+
+/**
+ * A supply line between two Folks (Worker Folks' links, API v11) is direct under Voyage (the user, 10 Nov 2026,
+ * "Refuse and cut"): the two stand within a hex of each other, or both within a hex of the same pitched tent ("a tent
+ * joins them"); a Folk with you stands on your hex. `a` and `b` are hexes ({ q, r }, undefined when not placed),
+ * `tents` the tents that are up, `dist` the hex distance. A Folk with no place fails open (true).
+ */
+export function linkClose(a, b, tents, dist) {
+  if (a == null || b == null || typeof dist !== 'function') return true;
+  if (dist(a, b) <= REACH) return true;
+  return (tents ?? []).some((t) => dist(a, t) <= REACH && dist(b, t) <= REACH);
+}
+
+// ---- tent depots (Worker Folks API v11, round 3) --------------------------------------------------------------------
+/** Hours of work a pitched tent's depot holds, shared by the Folks within a hex of it. */
+export const DEPOT_HOURS = 48;
+
+/**
+ * The tent whose depot a Folk standing on `place` shares: the nearest within REACH, a tie to the first in `tents`
+ * (they come in the order pitched). undefined when none is that near.
+ */
+export function depotFor(place, tents, dist) {
+  if (place == null || typeof dist !== 'function') return undefined;
+  let best;
+  let bestD = Infinity;
+  for (const t of tents ?? []) {
+    const d = dist(place, t);
+    if (d <= REACH && d < bestD) { best = t; bestD = d; }
+  }
+  return best;
+}
+
+/** Worker Folks' hook answer: 'bank' stays 'bank'; 'room' near a tent's depot becomes { access: 'room', depot: id }. */
+export function depotAccess(access, depotId) {
+  return access === 'room' && typeof depotId === 'string' && depotId !== '' ? { access: 'room', depot: depotId } : access;
+}
+
+/**
+ * What the depots need now. `tents` [{ key, name }] standing, `registered` Map id → name registered so far, `on` the
+ * haul applies. { register: tents new or renamed, drop: ids no longer wanted (struck, or the haul off) }.
+ */
+export function depotSync(tents, registered, on) {
+  const want = on === true ? (tents ?? []).filter((t) => typeof t?.key === 'string') : [];
+  const keys = new Set(want.map((t) => t.key));
+  const had = registered instanceof Map ? registered : new Map();
+  return {
+    register: want.filter((t) => !had.has(t.key) || had.get(t.key) !== t.name),
+    drop: [...had.keys()].filter((id) => !keys.has(id)),
+  };
+}

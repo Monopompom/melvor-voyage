@@ -44,6 +44,12 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   (water hexes more), and earlier travels count once when you first load. Levels sharpen the compass: at 10 it says
   how many hexes away, at 25 the name of the place. "Manage voyage" on the map and "Show map" on the page link the
   two.
+- **Pilotage.** Each of the 13 seas and each land region (the land nearest a city, capital or port) has its own
+  level, 1 to 99, from the hexes you travel there by any means but fast travel; it never fades. At 20 the map shows
+  where storms will drift over the next three hours: a sea's own, and for a land region those within 2 hexes of its
+  shore; at 40 Set off names the toughest band waiting on the
+  parts of your route you know that well; from 60 you travel there 2% faster, then 4, 6, 8 and 10% at 99, when the
+  name turns gold. The Journal's Places lists every area you have travelled, the map's panel the one you stand in.
 - **A boat for the water.** On foot you walk on land only. Build a dinghy on the Voyage page (500 GP, 50 Normal
   Logs and an Old Hat from Fishing (not in Adventure until you unlock Fishing), standing on a coast); it goes into the water next to you. Step onto it to board, sail up to 2 hexes from land,
   and step ashore on any coast: the boat waits where you left it, shown on the map with its anchor. Some islands
@@ -77,7 +83,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   levels in the skills it is qualified for, and eats what it finds only on the hexes a band leaves it hungry.
 - **Tents.** A Tent from the Voyage shop (Voyage level 30) makes an outpost: pitch it from the Here panel on the land
   hex you stand on (not on a town, port, market or camp). You put it up over about an hour, offline too, while you stay
-  on the hex, and you may work there meanwhile; leaving the hex, or Stop the build, puts it back in your bank. Then the
+  on the hex, and you may work there meanwhile; leaving the hex, or Stop the build, puts it back in your bank (Set off
+  warns you first). Then the
   hex counts as a camp: Smithing, Crafting and Fletching work there, and Thieving at 80%. One tent may stand at Voyage
   30, up to four at 90. The tent shows on the map and in the Journal's places, and its store keeps food and fuel
   outside your carry limit. Strike camp puts the tent back in your bank.

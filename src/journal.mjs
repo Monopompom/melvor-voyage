@@ -1345,6 +1345,11 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     // The Markets ledger (phase 4): every price list you know, first under the trading places.
     const mk = state.market?.enabled?.() ? state.market.known() : [];
     if (mk.length > 0) out.push({ key: 'markets', group: 'trade', name: t('MOD_VOY_JOURNAL_MARKETS_TITLE'), ledger: mk.length });
+    // Pilotage (4.36): one ledger of the seas and lands you know, under its own heading.
+    if (state.pilotage !== undefined) {
+      const areas = state.pilotage.all();
+      out.push({ key: 'pilotage', group: 'pilot', name: t('MOD_VOY_JOURNAL_PILOT_TITLE'), ledger: areas.filter((a) => a.hexes > 0).length, of: areas.length });
+    }
     // A trade noted before build .173 at a place still undiscovered waits until it is found (and is not left unread).
     const usedPort = (h) => out.some((p) => p.group === 'port' && p.q === h.q && p.r === h.r);
     for (const p of jm.placesOf(j, 'trade')) { if (usedPort(p)) continue; if (!tradeKnown(p)) { jm.markRead(j, `p:trade|${p.id}`); continue; } const poi = poiAt(p.q, p.r); out.push({ key: `trade|${p.id}`, group: 'trade', name: poi?.name ?? land(p.q, p.r), media: poi?.media, q: p.q, r: p.r }); }
@@ -1362,7 +1367,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
    * and, for a combat area, the monsters in it ("goblin" finds the area it was fought in).
    */
   const placeSearchEntry = (p) => {
-    if (p.ledger !== undefined) return { id: p.key, names: [p.name], skill: t('MOD_VOY_JOURNAL_PLACES_TRADE') };
+    if (p.ledger !== undefined) return { id: p.key, names: [p.name], skill: t(p.group === 'pilot' ? 'MOD_VOY_JOURNAL_PLACES_PILOT' : 'MOD_VOY_JOURNAL_PLACES_TRADE') };
     const names = p.group === 'island' ? [p.name] : [p.name, land(p.q, p.r)];
     if (p.group === 'combat') {
       for (const m of monstersOf(p)) {
@@ -1491,14 +1496,14 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const shown = hits === undefined ? all : all.filter((p) => hits.has(p.key));
     if (shown.length === 0) return (isGoblin ? golbin() : '') + `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_SEARCH_NONE', { query: view.placeQuery.trim() }))}</p>`;
     let list = isGoblin ? golbin() : '';
-    for (const g of ['outpost', 'combat', 'port', 'trade', 'island', 'poi']) {
+    for (const g of ['outpost', 'pilot', 'combat', 'port', 'trade', 'island', 'poi']) {
       const rows = shown.filter((p) => p.group === g);
       if (rows.length === 0) continue;
       list += `<div class="vj-group">${esc(t(`MOD_VOY_JOURNAL_PLACES_${g.toUpperCase()}`))}</div>`;
       for (const p of rows) {
         const drop = dropNote(p, query);
         list += `<button type="button" class="vj-row${p.key === view.place ? ' vj-on' : ''}" data-vj-place="${esc(p.key)}" aria-pressed="${p.key === view.place}">`
-          + rowOf(idx, p.key, () => `<span class="vj-row-name">${p.media ? `<img src="${p.media}" alt="">` : ''}<b>${esc(p.name)}</b>${unreadTag(`p:${p.key}`)}</span><span class="vj-row-count">${esc(p.ledger !== undefined ? t('MOD_VOY_JOURNAL_MARKETS_COUNT', { n: `${p.ledger}`, of: `${state.market.total()}` }) : at(p.q, p.r))}</span>`)
+          + rowOf(idx, p.key, () => `<span class="vj-row-name">${p.media ? `<img src="${p.media}" alt="">` : ''}<b>${esc(p.name)}</b>${unreadTag(`p:${p.key}`)}</span><span class="vj-row-count">${esc(p.ledger !== undefined ? t('MOD_VOY_JOURNAL_MARKETS_COUNT', { n: `${p.ledger}`, of: `${p.of ?? state.market.total()}` }) : at(p.q, p.r))}</span>`)
           + (drop === '' ? '' : `<span class="vj-row-drop">${esc(drop)}</span>`) + '</button>';
       }
       if (g === 'island' && view.placeQuery.trim() === '') {
@@ -1551,6 +1556,31 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     rows.numeric = [false, true];
     return `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_MARKET_PAYS'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_COL_GOODS'), t('MOD_VOY_JOURNAL_COL_PRICE')], rows)
       + `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_MARKET_REST'))}</p>`;
+  };
+  /**
+   * The Pilotage ledger (4.36): every sea and land travelled, its level, the hexes to the next level and what the next
+   * unlock brings; a name at 99 in gold. Areas not travelled yet are only counted.
+   */
+  const pilotLedger = () => {
+    const all = state.pilotage?.all?.() ?? [];
+    const unlockWord = (lvl) => (lvl === undefined ? '–' : t('MOD_VOY_JOURNAL_PILOT_UNLOCK', { level: `${lvl}`, what: lvl === 20 ? t('MOD_VOY_JOURNAL_PILOT_UNLOCK_20') : lvl === 40 ? t('MOD_VOY_JOURNAL_PILOT_UNLOCK_40') : t('MOD_VOY_JOURNAL_PILOT_UNLOCK_SPEED', { pct: `${lvl === 99 ? 10 : (lvl - 50) / 5}` }) }));
+    const rowsOf = (sea) => all.filter((a) => a.sea === sea && a.hexes > 0).map((a) => [
+      { text: a.name, cls: a.gold ? 'vj-strong vj-gold' : 'vj-strong' },
+      { text: `${a.level}` },
+      { text: a.need === 0 ? '–' : t('MOD_VOY_JOURNAL_PILOT_TO_NEXT', { into: `${a.into}`, need: `${a.need}` }) },
+      { text: unlockWord(a.next) },
+    ]);
+    const cols = [t('MOD_VOY_JOURNAL_COL_WHERE'), t('MOD_VOY_JOURNAL_COL_LEVEL'), t('MOD_VOY_JOURNAL_COL_HEXES'), t('MOD_VOY_JOURNAL_COL_NEXT')];
+    const part = (sea) => {
+      const rows = rowsOf(sea);
+      return `<h3 class="vj-h3">${esc(t(sea ? 'MOD_VOY_JOURNAL_PILOT_SEAS' : 'MOD_VOY_JOURNAL_PILOT_LANDS'))}</h3>`
+        + (rows.length === 0 ? `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_PILOT_NONE'))}</p>` : ledger(cols, rows));
+    };
+    const left = all.filter((a) => a.hexes === 0).length;
+    return runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), t('MOD_VOY_JOURNAL_PLACES_PILOT'))
+      + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_PILOT_TITLE'))}</h2><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_PILOT_INTRO'))}</p>`
+      + part(true) + part(false)
+      + (left > 0 ? `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_PILOT_LEFT', { n: `${left}` }))}</p>` : '');
   };
   /** The Markets ledger: every market whose prices you know, what each pays well and little for. */
   const marketsLedger = () => {
@@ -1613,6 +1643,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       + `<div class="vj-results vj-place-results">${placeResultsHtml(placeIdx)}</div>`;
     const p = all.find((x) => x.key === view.place);
     const right = p === undefined ? runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), '') + empty('MOD_VOY_JOURNAL_ENTRY_NONE')
+      : p.key === 'pilotage' ? pilotLedger()
       : p.ledger !== undefined ? marketsLedger()
       : runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), t(`MOD_VOY_JOURNAL_PLACES_${p.group.toUpperCase()}`))
         + `<div class="vj-entry-head">${p.media ? `<img src="${p.media}" alt="">` : ''}<h2 class="vj-h1">${esc(p.name)}</h2></div>`

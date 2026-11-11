@@ -311,6 +311,17 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return `<div class="voyage-here-ship"><span>${label}${esc(getLangString('MOD_VOY_PANEL_HOME_CAN'))}</span>` +
       `<button type="button" class="btn btn-sm btn-info voyage-row-btn voyage-home-set">${esc(getLangString('MOD_VOY_PANEL_HOME_SET'))}</button></div>`;
   };
+  /** Pilotage (4.36): "Pilotage: Vibrant Port waters 34", the next unlock in the tooltip; empty off the areas. */
+  const pilotLine = (pos) => {
+    const P = state.pilotage;
+    const area = P?.areaAt?.(pos);
+    if (area === undefined) return '';
+    const a = P.all().find((x) => x.area === area);
+    if (a === undefined) return '';
+    const tip = a.next === undefined ? '' : ` title="${esc(templateLangString('MOD_VOY_PANEL_PILOT_NEXT', { level: `${a.next}`, n: `${Math.max(0, P.hexesFor(a.next) - a.hexes)}` }))}"`;
+    return `<div class="voyage-here-ship"${tip}><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_PILOT_LABEL'))}</span> `
+      + `<span${a.gold ? ' style="color:var(--voyage-gold)"' : ''}>${esc(templateLangString('MOD_VOY_PANEL_PILOT', { area: a.name, level: `${a.level}` }))}</span></span></div>`;
+  };
   /** Trade status on its own line under the terrain line; empty while trade is not gated. */
   const tradeLine = (status) => {
     if (!state.active() || !state.settings.trade()) return '';
@@ -587,7 +598,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return parts.join(' · ');
   };
   const placeBox = (status, pos) => {
-    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + folksLine(pos) + (state.haul?.panelHtml?.() ?? '') + signLine() + homeLine() + (state.outposts?.panelHtml?.() ?? '');
+    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + folksLine(pos) + (state.haul?.panelHtml?.() ?? '') + signLine() + homeLine() + pilotLine(pos) + (state.outposts?.panelHtml?.() ?? '');
     if (inner === '') return '';
     const toggle = `<button type="button" class="voyage-legend-toggle voyage-place-toggle" aria-expanded="${placeOpen}">` +
       `<i class="fa fa-caret-${placeOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_PLACE_TITLE'))}</button>`;

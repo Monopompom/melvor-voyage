@@ -102,21 +102,23 @@ export function install(ctx, { state, terrainMod, log }) {
       const ticker = cartographyMap.app?.ticker;
       if (ticker !== undefined && stormTicker !== ticker) {
         ticker.add(() => {
-          const key = `${state.weather?.stormKey?.() ?? ''}|${cartographyMap.viewport?.scaled}|${game.cartography?.activeMap?.id}`;
+          const key = `${state.weather?.stormKey?.() ?? ''}|${cartographyMap.viewport?.scaled}|${game.cartography?.activeMap?.id}|${state.pilotage?.stamp?.() ?? 0}`;
           if (key !== stormDrawn) drawStorms();
         });
         stormTicker = ticker;
       }
       const map = game.cartography?.activeMap;
       // Called straight (a settings change, the panel's render) as well as by the ticker: nothing moved, nothing redrawn.
-      const key = `${state.weather?.stormKey?.() ?? ''}|${vp.scaled}|${map?.id}`;
+      const key = `${state.weather?.stormKey?.() ?? ''}|${vp.scaled}|${map?.id}|${state.pilotage?.stamp?.() ?? 0}`;
       if (key === stormDrawn && stormLayer.parent === vp) return;
       stormDrawn = key;
       stormLayer.clear();
       boltLayer.clear();
       if (map === undefined || cartographyMap.lastDrawnMap !== map || state.weather?.stormsOn?.() !== true) return;
-      const storms = state.weather.stormsAt(state.gameNow?.() ?? state.clockNow?.() ?? Date.now());
-      if (storms.length === 0) return;
+      const now = state.gameNow?.() ?? state.clockNow?.() ?? Date.now();
+      const storms = state.weather.stormsAt(now);
+      const tracks = stormTracks(now);
+      if (storms.length === 0 && tracks.length === 0) return;
       const points = cartographyMap.hexPolygon?.points;
       if (points === undefined || points.length === 0) return;
       const xs = points.filter((_, i) => i % 2 === 0);
@@ -151,8 +153,37 @@ export function install(ctx, { state, terrainMod, log }) {
         boltLayer.drawPolygon(bolt.map((v, i) => v * k + (i % 2 === 0 ? cx : cy)));
         boltLayer.endFill();
       }
+      // Pilotage 20 (4.36, the user: "Storm tracks on map"): where each storm's eye will be every half hour for the
+      // next hours, a dot fading with time, only on the hexes of an area you know that well.
+      for (const { q, r, k } of tracks) {
+        const hex = map.getHex(new HexCoords(q, r));
+        if (hex === undefined) continue;
+        const o = map.getHexOrigin(hex);
+        stormLayer.lineStyle({ width: edge * 0.6, color: 0x1b1f24, alpha: 0.6, alignment: 0.5 });
+        stormLayer.beginFill(info.edge, Math.max(0.25, 0.85 - k * 0.1));
+        stormLayer.drawCircle(o.x + mid.x, o.y + mid.y, tall * Math.max(0.05, 0.11 - k * 0.01));
+        stormLayer.endFill();
+      }
     } catch (e) { log('storm layer failed', e); }
   }
+  /** Half-hour steps of storm eyes ahead (1 to TRACK_STEPS), each on a hex where Pilotage shows the weather ahead. */
+  const TRACK_STEPS = 6;
+  const stormTracks = (now) => {
+    const P = state.pilotage;
+    if (P === undefined || state.weather?.stormsOn?.() !== true) return [];
+    const step = state.weather.stepMs?.() ?? 30 * 60000;
+    const out = [];
+    const seen = new Set();
+    for (let k = 1; k <= TRACK_STEPS; k++) {
+      for (const st of state.weather.stormsAt(now + k * step)) {
+        const id = `${st.q},${st.r}`;
+        if (seen.has(id) || !(P.seesStormAt ?? P.seesForecast)({ q: st.q, r: st.r })) continue;
+        seen.add(id);
+        out.push({ q: st.q, r: st.r, k });
+      }
+    }
+    return out;
+  };
 
   // ---- Worker Folks (phase 6b): a badge with the count on each hex where Folks stand, at the hex's lower right ----
   // Dark with a light green ring: it reads on grass, sand and sea alike.

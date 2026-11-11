@@ -202,9 +202,11 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       const wx = state.weather?.stepWeather?.(rec);
       // A storm on the sea hex entered now (phase 5c-3): its wear factor (stores-model wearOf).
       const storm = sea && !fastTravel ? state.weather?.stepStorm?.(rec) : undefined;
+      // Pilotage (4.36): from level 60 a hex of a sea or land you know well takes less time (0.9 at 99); not a hop.
+      const pilot = fastTravel ? 1 : state.pilotage?.speedAt?.(next) ?? 1;
       // A sea step's axial offset (phase 5c-2): its heading meets the wind (weather-model headingOf); the hex entered
       // (5c-3): the schedule asks whether a storm is on it when you get there.
-      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(adrift ? { adrift } : {}), ...(sea || hop > 0 ? { vessel: kind, dq: next.q - prev.q, dr: next.r - prev.r, q: next.q, r: next.r } : {}), ...(wx !== undefined ? { wx } : {}), ...(storm !== undefined ? { storm } : {}) });
+      steps.push({ water: sea, sea, cls: rec.t, fastTravel, hop, free, homeward, deep, ...(adrift ? { adrift } : {}), ...(sea || hop > 0 ? { vessel: kind, dq: next.q - prev.q, dr: next.r - prev.r, q: next.q, r: next.r } : {}), ...(wx !== undefined ? { wx } : {}), ...(storm !== undefined ? { storm } : {}), ...(pilot < 1 ? { pilot } : {}) });
     }
     return steps;
   };

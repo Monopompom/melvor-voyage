@@ -25,17 +25,20 @@ export const seaMs = (hull) => SEA_MS[hull] ?? SEA_MS.dinghy;
  * Milliseconds for one step of ship.stepsOf ({ sea, cls, fastTravel, hop, vessel, wx }). `hullOf(kind)` names the hull of
  * the vessel kind ('boat' or 'ship'); `mountSpeed` the land speed (4.27). A fast-travel hop takes its straight-line
  * hexes (`hop`, or `dist` when the rules leave it vanilla) at the vessel's speed. `slowOf(kind)` multiplies a sailed
- * step's time (a worn hull, the flat mechanics: ship-model wornTime; 1 when absent).
+ * step's time (a worn hull, the flat mechanics: ship-model wornTime; 1 when absent). A step's own `pilot` (Pilotage,
+ * 4.36: 0.9 to 1) cuts a land or sea step's time, never a hop's.
  */
 export function stepMs(step, { hullOf = () => undefined, mountSpeed = 1, slowOf = () => 1, pace = 1 } = {}) {
   if (step == null) return 0;
   const slow = (kind) => { const f = slowOf(kind); return Number.isFinite(f) && f > 0 ? f : 1; };
   // The gear's pace (gear-model.mjs): a factor on every hex, land and sea alike, applied last.
-  const p = Number.isFinite(pace) && pace > 0 ? pace : 1;
+  const g = Number.isFinite(pace) && pace > 0 ? pace : 1;
   if (step.fastTravel) {
+    const p = g;
     const n = step.hop > 0 ? step.hop : Math.max(1, Math.round(step.dist ?? 1));
     return Math.round(n * seaMs(hullOf(step.vessel ?? 'boat')) * slow(step.vessel ?? 'boat') * p);
   }
+  const p = g * (Number.isFinite(step.pilot) && step.pilot > 0 && step.pilot <= 1 ? step.pilot : 1);
   if (step.sea || SEA_CLASSES.includes(step.cls)) return Math.round(seaMs(hullOf(step.vessel ?? 'boat')) * slow(step.vessel ?? 'boat') * p);
   const speed = Number.isFinite(mountSpeed) && mountSpeed > 0 ? mountSpeed : 1;
   // The weather's band (phase 5c): snowdrifts in the bitter cold, resting at noon in the scorching heat.
