@@ -386,21 +386,36 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
   const askStrike = (key, done) => {
     const o = nearOne(key);
     if (o === undefined) return;
-    // Without Worker Folks there are no Folks to stay behind (build .555).
-    const lines = [t(folksApi() === undefined ? 'MOD_VOY_OUTPOST_STRIKE_TEXT_NF' : 'MOD_VOY_OUTPOST_STRIKE_TEXT')];
-    let lost;
+    // A warning, red throughout (the user, 11 Nov 2026: "more like a warning sign, irreversible"): the red triangle on
+    // top, what goes for good in a red-edged band, the red Strike camp. Without Worker Folks there are no Folks to stay
+    // behind (build .555).
+    const lines = [esc(t(folksApi() === undefined ? 'MOD_VOY_OUTPOST_STRIKE_TEXT_NF' : 'MOD_VOY_OUTPOST_STRIKE_TEXT'))];
+    const gone = [esc(t('MOD_VOY_OUTPOST_STRIKE_CAMP'))];
     if (provisions() && (o.food > 0 || o.fuel > 0)) {
       const out = O.strike(state.stores.stores(), o, state.stores.capacity());
-      lost = out.lost.food > 0 || out.lost.fuel > 0 ? out.lost : undefined;
+      const lost = out.lost.food > 0 || out.lost.fuel > 0 ? out.lost : undefined;
       const back = { food: o.food - out.lost.food, fuel: o.fuel - out.lost.fuel };
       if (back.food > 0 || back.fuel > 0) lines.push(t('MOD_VOY_OUTPOST_STRIKE_BACK', { amounts: state.stores.icons(back.food, back.fuel) }));
-      if (lost !== undefined) lines.push(`<span class="text-danger">${t('MOD_VOY_OUTPOST_STRIKE_LOST', { amounts: state.stores.icons(lost.food, lost.fuel) })}</span>`);
+      if (lost !== undefined) gone.push(t('MOD_VOY_OUTPOST_STRIKE_LOST', { amounts: state.stores.icons(lost.food, lost.fuel) }));
     }
+    // Its tent depot (Worker Folks' round 3) goes to the bank with the strike, and the lines only it joins end.
+    try {
+      const d = state.haul?.depotView?.(key);
+      if (d !== undefined && d.haul.length + d.stock.length > 0) gone.push(esc(t('MOD_VOY_OUTPOST_STRIKE_DEPOT')));
+    } catch {}
+    try {
+      const cut = state.haul?.linksCutBy?.(key) ?? [];
+      if (cut.length > 0) gone.push(esc(t('MOD_VOY_OUTPOST_STRIKE_LINKS', { list: cut.map((c) => `${c.supplier} → ${c.receiver}`).join(', ') })));
+    } catch {}
+    const warn = '<div class="voyage-strike-warn"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i><div>'
+      + `<b>${esc(t('MOD_VOY_OUTPOST_STRIKE_WARN_HEAD'))}</b>`
+      + `<ul>${gone.map((g) => `<li>${g}</li>`).join('')}</ul></div></div>`;
     SwalLocale.fire({
       didRender: state.popupDidRender,
-      customClass: swalClass(lost === undefined ? SWAL_CLASS : SWAL_DANGER),
+      customClass: swalClass({ ...SWAL_DANGER, popup: 'voyage-ui voyage-strike-popup' }),
+      icon: 'warning',
       title: t('MOD_VOY_OUTPOST_STRIKE_TITLE', { name: o.name }),
-      html: helpLayout.msgHtml(lines),
+      html: helpLayout.msgHtml(lines) + warn,
       showCancelButton: true,
       confirmButtonText: t('MOD_VOY_OUTPOST_STRIKE_BUTTON'),
       cancelButtonText: t('MOD_VOY_OUTPOST_CANCEL'),

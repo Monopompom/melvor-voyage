@@ -58,9 +58,11 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   };
   // The lines for some collections (or emptyings): what came in, then what the bank refused. `whoKey` holds the
   // language keys for one Folk and for several, and `names`, the Folks' names (one name: that Folk is named).
-  // Each line has its text (notices) and its HTML (the Welcome Back).
+  // Each line has its text (notices) and its HTML (the Welcome Back). `whoKey.left` names the line for what the bank
+  // refused (a dropped depot keeps it, not a Folk).
   const linesFor = (m, whoKey) => {
     const names = [...new Set(whoKey.names ?? [])];
+    const leftKey = whoKey.left ?? 'MOD_VOY_HAUL_LEFT';
     const head = names.length === 1 ? t(whoKey.one, { name: names[0] }) : t(whoKey.many, { count: `${Math.max(1, names.length || m.folks)}` });
     const lines = [];
     if (m.items.length > 0 || m.purse.length > 0) {
@@ -68,8 +70,8 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
         html: () => fillHtml(t('MOD_VOY_HAUL_IN', { who: head, list: LIST_MARK }), { [LIST_MARK]: listHtml(m.purse, m.items, 'text-success') }) });
     }
     if (m.left.length > 0) {
-      lines.push({ text: t('MOD_VOY_HAUL_LEFT', { list: leftText(m) }), warn: true,
-        html: () => fillHtml(t('MOD_VOY_HAUL_LEFT', { list: LIST_MARK }), { [LIST_MARK]: listHtml([], m.left, '') }) });
+      lines.push({ text: t(leftKey, { list: leftText(m) }), warn: true,
+        html: () => fillHtml(t(leftKey, { list: LIST_MARK }), { [LIST_MARK]: listHtml([], m.left, '') }) });
     }
     return lines;
   };
@@ -447,7 +449,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
       depotIds.delete(id);
       let r;
       try { r = a.dropDepot(id); } catch (e) { log(`depot ${id} not dropped`, e); }
-      if (r != null) tell([r], { one: 'MOD_VOY_DEPOT_EMPTIED', many: 'MOD_VOY_DEPOT_EMPTIED', names: [t('MOD_VOY_DEPOT_NAME')] });
+      if (r != null) tell([r], { one: 'MOD_VOY_DEPOT_EMPTIED', many: 'MOD_VOY_DEPOT_EMPTIED', left: 'MOD_VOY_DEPOT_LEFT', names: [t('MOD_VOY_DEPOT_NAME')] });
     }
     if (register.length === 0 && drop.length === 0) return;
     log(`depots: ${[...depotIds.keys()].join(' ') || 'none'}`);
@@ -526,6 +528,21 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
       } catch (e) { log('supply line cut failed', e); }
     }
   };
+  /** The lines a strike of tent `key` would end: those only that tent joins, as [{ supplier, receiver }] names. */
+  const linksCutBy = (key) => {
+    const a = linksApi();
+    if (a === undefined || !linksOn()) return [];
+    const others = tentsUp().filter((x) => x.key !== key);
+    const cut = [];
+    for (const l of a.supplyLinks()) {
+      const s = folkOf(a, l.supplierId);
+      const r = folkOf(a, l.receiverId);
+      if (s === undefined || r === undefined || !linkClose(s, r)) continue;
+      if (s.travel === 'walking' || r.travel === 'walking') continue;
+      if (!H.linkClose(standsAt(s), standsAt(r), others, distance)) cut.push({ supplier: s.name, receiver: r.name });
+    }
+    return cut;
+  };
   ctx.onModsLoaded(() => {
     const a = linksApi();
     if (a === undefined) return;
@@ -540,7 +557,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
 
   // listed: the ids of the Folks the haul's rows show (the Folks here row leaves out those it would repeat).
   const listed = () => nearRooms().map((r) => r.f.id);
-  const out = { checkLinks, syncDepots, depotView, loaded, on, rows: PANEL_ROWS, afterMove: () => { collectHere(); redrawModalSoon(); }, panelHtml, click, markAt, folkWord, accessOf, listed };
+  const out = { checkLinks, linksCutBy, syncDepots, depotView, loaded, on, rows: PANEL_ROWS, afterMove: () => { collectHere(); redrawModalSoon(); }, panelHtml, click, markAt, folkWord, accessOf, listed };
   state.haul = out;
   return out;
 }

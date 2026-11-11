@@ -1446,6 +1446,15 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 /* A tent you would leave half up: the tiles' side bar in red, as it costs the work so far. */
 .voyage-tent-left { border-left: 3px solid var(--voyage-bad-dot); padding-left: 12px; }
 .voyage-tent-left > .fa-campground { color: var(--voyage-bad-dot); margin-top: 3px; }
+/* Strike camp is a warning (the user, 11 Nov 2026: "more like a warning sign, irreversible"): the popup's top edge and
+   the warning triangle in red, and what goes for good in a red-edged band with a red wash, its heading in red. */
+.voyage-strike-popup { border-top: 4px solid var(--voyage-bad-dot); }
+.voyage-strike-popup .swal2-icon.swal2-warning { color: var(--voyage-bad-dot); border-color: var(--voyage-bad-dot); }
+.voyage-strike-warn { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; padding: 10px 12px; text-align: left; border-left: 3px solid var(--voyage-bad-dot); border-radius: 4px; background: var(--voyage-hot-tint); }
+.voyage-strike-warn > .fa-exclamation-triangle { color: var(--voyage-bad-dot); margin-top: 4px; }
+.voyage-strike-warn b { color: var(--voyage-hot); }
+.voyage-strike-warn ul { margin: 4px 0 0; padding-left: 1.1em; }
+.voyage-strike-warn li + li { margin-top: 2px; }
 .voyage-storm-wait { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 4px; background: var(--voyage-ok-tint); }
 .voyage-storm-wait > .fa { color: var(--voyage-ok); margin-top: 3px; }
 .voyage-storm-row .fa-bolt, .voyage-storm-sum, .voyage-storm-chip .fa-bolt { color: var(--voyage-storm); }
@@ -1920,8 +1929,9 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-haul-bar { display: inline-block; vertical-align: middle; width: 3.5em; height: 6px; border-radius: 3px; background: var(--voyage-track); overflow: hidden; }
 .voyage-haul-bar-in { display: block; height: 100%; border-radius: 3px; background: var(--voyage-good-fill); }
 .voyage-haul-bar-in.voyage-haul-bar-stop { background: var(--voyage-warn-dot); }
-/* Every Folk's row in one grid (the user, 6 Nov 2026): the name runs in what is left, then the bar, the hours and the
-   stop word in columns as wide as their widest, and Restock in the row-button column on the right. Restock drops under
+/* Every Folk's row in one grid (the user, 6 Nov 2026): the names first, as wide as the widest (a name runs only when
+   even the bar's 2.5em is gone), then the bar in what is left, the hours and the stop word in columns as wide as their
+   widest, and Restock in the row-button column on the right. Restock drops under
    its row, full width, when the panel's other row buttons drop (voyage-stacked). Without subgrid the rows stay plain
    lines. */
 .voyage-haul-rows { margin: 2px 0; }
@@ -1931,18 +1941,18 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-haul-fill { text-align: right; font-variant-numeric: tabular-nums; }
 .voyage-haul-num { display: inline-block; text-align: right; } /* each number as wide as its column's widest */
 @supports (grid-template-columns: subgrid) {
-  .voyage-haul-rows { display: grid; grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto; column-gap: 8px; row-gap: 6px; align-items: center; }
-  .voyage-haul-rows.voyage-haul-w { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto auto; }
-  .voyage-haul-rows.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto auto; }
-  .voyage-haul-rows.voyage-haul-w.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto auto auto; }
+  .voyage-haul-rows { display: grid; grid-template-columns: minmax(4em, max-content) minmax(2.5em, 1fr) auto; column-gap: 8px; row-gap: 6px; align-items: center; }
+  .voyage-haul-rows.voyage-haul-w { grid-template-columns: minmax(4em, max-content) minmax(2.5em, 1fr) auto auto; }
+  .voyage-haul-rows.voyage-haul-b { grid-template-columns: minmax(4em, max-content) minmax(2.5em, 1fr) auto auto; }
+  .voyage-haul-rows.voyage-haul-w.voyage-haul-b { grid-template-columns: minmax(4em, max-content) minmax(2.5em, 1fr) auto auto auto; }
   .voyage-haul-rows > .voyage-here-ship.voyage-haul-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; row-gap: 4px; margin: 0; }
   .voyage-haul-row > .voyage-run { grid-column: 1; }
-  .voyage-haul-row > .voyage-haul-bar { grid-column: 2; width: 100%; } /* the bar takes its column: two fifths of what the name and bar share */
+  .voyage-haul-row > .voyage-haul-bar { grid-column: 2; width: 100%; } /* the bar takes what the names leave, at least 2.5em */
   .voyage-haul-row > .voyage-haul-fill { grid-column: 3; }
   .voyage-haul-row > .voyage-haul-word { grid-column: 4; }
   .voyage-haul-row > .btn { grid-column: -2 / -1; }
-  .voyage-stacked .voyage-haul-rows.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto; }
-  .voyage-stacked .voyage-haul-rows.voyage-haul-w.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto auto; }
+  .voyage-stacked .voyage-haul-rows.voyage-haul-b { grid-template-columns: minmax(4em, max-content) minmax(2.5em, 1fr) auto; }
+  .voyage-stacked .voyage-haul-rows.voyage-haul-w.voyage-haul-b { grid-template-columns: minmax(4em, max-content) minmax(2.5em, 1fr) auto auto; }
   .voyage-stacked .voyage-haul-row > .btn { grid-column: 1 / -1; width: 100%; }
 }
 @supports not (grid-template-columns: subgrid) {
@@ -1958,8 +1968,8 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 @supports not (grid-template-columns: subgrid) { .voyage-haul-all { justify-content: flex-end; } }
 @supports (grid-template-columns: subgrid) {
   @container (max-width: 400px) {
-    .voyage-haul-modal .voyage-haul-rows.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto; }
-    .voyage-haul-modal .voyage-haul-rows.voyage-haul-w.voyage-haul-b { grid-template-columns: minmax(4em, 3fr) minmax(3.5em, 2fr) auto auto; }
+    .voyage-haul-modal .voyage-haul-rows.voyage-haul-b { grid-template-columns: minmax(4em, max-content) minmax(2.5em, 1fr) auto; }
+    .voyage-haul-modal .voyage-haul-rows.voyage-haul-w.voyage-haul-b { grid-template-columns: minmax(4em, max-content) minmax(2.5em, 1fr) auto auto; }
     .voyage-haul-modal .voyage-haul-row > .btn { grid-column: 1 / -1; width: 100%; }
   }
 }
