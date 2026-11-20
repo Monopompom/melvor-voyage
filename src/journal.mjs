@@ -480,6 +480,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     return { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
       level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, recent: `${model.RECENT_MAX}`, gp: nav === undefined ? '' : shortNumber(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
       signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '',
+      quay: state.settings.quayKey?.() || '', places: state.settings.placesKey?.() || '',
       stowShare: num(em?.STOWAWAY_PRICE_SHARE * 100), hungryPct: num(storesModel?.HUNGRY_GP * 100),
       stormWaitH: num((state.clock?.stormWaitMax ?? NaN) / 3600000), ...gearVars(), ...crewVars(), ...encVars() };
   };
@@ -637,6 +638,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const vars = bookVars();
     return spec.sections.map((sec) => {
       const lines = jm.folksLines(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_BODY`, vars).split('\n').filter((x) => x.trim() !== ''), folksOn(), vars.wfHas);
+      // The Quay key (1.8.1), under the board's first line while it is set.
+      if (spec.from === 'CARGO' && sec === 'BOARD' && vars.quay !== '') lines.splice(1, 0, t('MOD_VOY_JOURNAL_CH_CARGO_BOARD_KEY', vars));
       return `<div class="vj-section"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_HEAD`))}</h3>${prose(lines)}</div>`;
     }).join('');
   };
@@ -656,6 +659,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       if (lines.length === 0) continue;
       // The map key (build .171) opens the map from any page: one more line while it is set.
       if (id === 'map' && sec === 'KEYS' && vars.map !== '') lines.unshift(t('MOD_VOY_JOURNAL_CH_MAP_KEYS_OPEN', vars));
+      // The Places key (1.8.1) gets its line while it is set.
+      if (id === 'map' && sec === 'PLACES' && vars.places !== '') lines.push(t('MOD_VOY_JOURNAL_CH_MAP_PLACES_KEY', vars));
       const body = spec.points ? `<ul class="vj-points">${lines.map((l) => `<li>${rich(l)}</li>`).join('')}</ul>` : prose(lines);
       // The bands chapter (the user, 30 Oct 2026): an icon on each heading, the game's words marked.
       const encIcon = id === 'encounters' && ENC_HEAD_ICON[sec] ? fa(ENC_HEAD_ICON[sec], 'vj-h3-icon') : '';
@@ -839,6 +844,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       row(s.mapKey?.(), 'MOD_VOY_JOURNAL_KEYS_MAP'),
       row(s.centreKey?.(), 'MOD_VOY_JOURNAL_KEYS_CENTRE'),
       row(s.journalKey?.(), 'MOD_VOY_JOURNAL_KEYS_JOURNAL'),
+      row(s.quayKey?.(), 'MOD_VOY_JOURNAL_KEYS_QUAY'),
+      row(s.placesKey?.(), 'MOD_VOY_JOURNAL_KEYS_PLACES'),
     ]);
   };
   /**
@@ -885,7 +892,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       // The rest of the typed table's switches (build .423, scan: the live table left them out).
       [t('MOD_VOY_SETTING_WEATHER'), onOff(s.weather())],
       [t('MOD_VOY_SETTING_TIMED'), onOff(s.timedTravel())],
-      [t('MOD_VOY_SETTING_OVERLAY'), onOff(s.overlay())],
+      [t('MOD_VOY_JOURNAL_SET_TINT'), onOff(s.overlay())], // on the map's Legend card since 1.8.1
       [t('MOD_VOY_SETTING_MAP_MOTION'), onOff(s.mapMotion())],
       [t('MOD_VOY_SETTING_BOOK_OPENING'), onOff(s.bookOpening())],
     ].map(([a, b]) => [{ text: a, plain: true }, b]);

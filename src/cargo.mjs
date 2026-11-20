@@ -234,6 +234,23 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
   const notify = (text, kind = 'danger') => { try { notifyPlayer(skill(), text, kind); } catch {} };
 
   /** Why `run` (or a request about to become one) can't load more now, or undefined; `k` is how many would. */
+  /**
+   * Why no hold is in reach at this port: the winter ice (1.8.1, a player's report: at Snow Covered Pier "bring your
+   * boat" could not be done until Spring), with the time to the thaw, or else the boat is simply elsewhere.
+   */
+  const noHoldWhy = (poi) => {
+    try {
+      const p = portRec.get(poi);
+      const rec = p === undefined ? undefined : state.recordAt?.(p) ?? p;
+      if (rec !== undefined && shipModel.frozenQuay(rec, state.terrain?.neighbours(p.q, p.r) ?? [])) {
+        const wx = state.weather?.season?.();
+        const ms = Number(wx?.msLeft);
+        if (Number.isFinite(ms) && ms > 0) return t('MOD_VOY_CARGO_ICED', { time: state.clock?.duration?.(ms) ?? '' });
+        return t('MOD_VOY_CARGO_ICED_SOON');
+      }
+    } catch (e) { log('iced-in check failed', e); }
+    return t('MOD_VOY_CARGO_NO_VESSEL');
+  };
   const loadInfo = (run, poi) => {
     const goods = game.items.getObjectByID(run.item);
     const box = containerItem(run.c);
@@ -245,7 +262,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
     let why;
     let whyHtml;
     if (run.from !== poi) why = t('MOD_VOY_CARGO_LOAD_AT', { port: portName(run.from) });
-    else if (kinds.length === 0) why = t('MOD_VOY_CARGO_NO_VESSEL');
+    else if (kinds.length === 0) why = noHoldWhy(poi);
     else if (empties <= 0) why = t(run.c === 'sack' ? 'MOD_VOY_CARGO_NEED_SACKS' : 'MOD_VOY_CARGO_NEED_CRATES');
     else if (have < M.PER_CONTAINER) {
       // The row shows the goods' icon before their name and the count in red ("a count ... red when the bank
@@ -507,7 +524,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
     const kinds = reachable();
     const free = kinds.reduce((n, k) => n + freeOf(k), 0);
     const slots = kinds.reduce((n, k) => n + slotsOf(k), 0);
-    const holdText = kinds.length === 0 ? `<span class="text-warning">${esc(t('MOD_VOY_CARGO_NO_VESSEL'))}</span>`
+    const holdText = kinds.length === 0 ? `<span class="text-warning">${esc(noHoldWhy(poi))}</span>`
       : `<span><b>${esc(t('MOD_VOY_CARGO_HOLD_LABEL', { hull: kinds.map((k) => state.hold.hullName(k)).join(' + ') }))}</b> ${esc(t('MOD_VOY_CARGO_FREE', { free: `${free}`, slots: `${slots}` }))}</span>`;
     const empties = `<span>${esc(t('MOD_VOY_CARGO_EMPTIES'))} <img class="voyage-cargo-mini" src="${ctx.getResourceUrl(CONTAINER_ART.sack)}" alt="${esc(t('MOD_VOY_CARGO_EMPTY_SACKS'))}" title="${esc(t('MOD_VOY_CARGO_EMPTY_SACKS'))}"><b>${shortNumber(bankQty(containerItem('sack')))}</b>` +
       ` <img class="voyage-cargo-mini" src="${ctx.getResourceUrl(CONTAINER_ART.crate)}" alt="${esc(t('MOD_VOY_CARGO_EMPTY_CRATES'))}" title="${esc(t('MOD_VOY_CARGO_EMPTY_CRATES'))}"><b>${shortNumber(bankQty(containerItem('crate')))}</b></span>`;
@@ -711,7 +728,22 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
     return { ports: open.length, requests: all, goods: goods.length, top: rows.slice(0, 8) };
   };
 
-  const api = { max: M.MAX_RUNS, shares, open, portHere, portName, untilNext, panelLine, pill, errandsHtml, onPageClick, sealOf, art, has: () => (data()?.runs.length ?? 0) > 0 || state.tasks?.has?.() === true, count: () => data()?.runs.length ?? 0, redraw };
+  /** The ports found on the map, for the map's Places card: [{ poi, name, q, r, media, due }], due = runs to deliver there. */
+  const ports = () => {
+    const c = data();
+    const out = [];
+    for (const [poi, p] of portRec) {
+      const pt = gameHex(p)?.pointOfInterest;
+      if (pt?.isDiscovered !== true) continue;
+      const due = c === undefined ? 0 : c.runs.filter((r) => r.to === poi && packedIn(r, allKinds()) > 0).length;
+      out.push({ poi, name: portName(poi), q: p.q, r: p.r, media: pt.media, due });
+    }
+    return out;
+  };
+  /** The board is up (the Quay key closes it again). */
+  const boardUp = () => { try { return openPoi !== undefined && Swal.isVisible(); } catch { return false; } };
+  const close = () => { try { Swal.close(); } catch {} };
+  const api = { max: M.MAX_RUNS, shares, open, isOpen: boardUp, close, ports, portHere, portName, untilNext, panelLine, pill, errandsHtml, onPageClick, sealOf, art, has: () => (data()?.runs.length ?? 0) > 0 || state.tasks?.has?.() === true, count: () => data()?.runs.length ?? 0, redraw };
   state.cargo = api;
   return api;
 }

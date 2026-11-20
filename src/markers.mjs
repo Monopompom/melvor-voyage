@@ -68,7 +68,9 @@ export function install(ctx, { state, log }) {
       display.markerLayer.addChildAt(sprite, Math.max(0, at));
     }
     const hexDisplay = display.getHexDisplay(v);
-    const show = hexDisplay !== undefined && v.aboard !== true && state.ship.inVessel() !== kind && state.ship.enabled() && display.playerPin.visible;
+    // With the Voyage rules off too (1.8.1, a player's report: the galleon "pins at the last port but is not visible"):
+    // the vessel is still yours, its block and Show on map point at it, so the map shows where it lies.
+    const show = hexDisplay !== undefined && v.aboard !== true && state.ship.inVessel() !== kind && display.playerPin.visible;
     sprite.visible = show;
     if (!show) return;
     sprite.x = hexDisplay.x;

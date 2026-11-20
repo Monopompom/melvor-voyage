@@ -434,6 +434,51 @@ test('fast travel is sailing: the ship must wait at the departure quay, may land
   assert.equal(shipAfterHops([land(0, 1), land(0, 2)], left, () => dock), left);
 });
 
+test('the rules off: a hop takes the vessels at the quay to the other port, the boat on the big ship\'s deck when both go', () => {
+  const portA = { ...land(0, 0), f: ['port'] };
+  const portB = { ...land(10, 0), f: ['port'] };
+  const dock = sea(11, 0, 1);
+  const brig = (q, r) => ({ hull: 'brig', q, r });
+  const hop = [portA, { ...portB, hop: true }];
+  // the boat alone at the quay: it docks beside the pier you reach
+  assert.deepEqual(S.vesselsAfterLooseMove(hop, dinghy(1, 0), null, () => dock), { boat: dinghy(11, 0), ship: null });
+  // both at the quay: the brig docks, the dinghy rides on her deck
+  const both = S.vesselsAfterLooseMove(hop, dinghy(0, 1), brig(1, 0), () => dock);
+  assert.deepEqual(both.ship, brig(11, 0));
+  assert.deepEqual(both.boat, { ...dinghy(11, 0), aboard: true });
+  // the boat already aboard goes with the brig and stays aboard
+  const aboard = { ...dinghy(1, 0), aboard: true };
+  assert.equal(S.vesselsAfterLooseMove(hop, aboard, brig(1, 0), () => dock).boat, aboard);
+  // a vessel away from the port left stays where it was (the same object)
+  const far = dinghy(5, 5);
+  const out = S.vesselsAfterLooseMove(hop, far, null, () => dock);
+  assert.equal(out.boat, far);
+  // the brig goes, the boat away from the quay stays; the boat lying on the brig's new dock goes aboard
+  const onDock = S.vesselsAfterLooseMove(hop, dinghy(11, 0), brig(1, 0), () => dock);
+  assert.deepEqual(onDock.boat, { ...dinghy(11, 0), aboard: true });
+  // nowhere to dock (no sea beside the port): nothing moves
+  const stay = dinghy(1, 0);
+  assert.equal(S.vesselsAfterLooseMove(hop, stay, null, () => undefined).boat, stay);
+  // a port on the water is its own quay: the boat ties up on the port hex, under you
+  const water = { ...sea(20, 0, 1), f: ['port'] };
+  assert.deepEqual(S.vesselsAfterLooseMove([portA, { ...water, hop: true }], dinghy(1, 0), null, (rec) => S.dockSpot(rec, [])).boat, dinghy(20, 0));
+  // no hop: a crossing boarded on the way, as before
+  const walk = [land(0, 0), sea(1, 0, 1), sea(2, 0, 1)];
+  assert.deepEqual(S.vesselsAfterLooseMove(walk, dinghy(1, 0), null, () => dock).boat, dinghy(2, 0));
+  assert.deepEqual(S.vesselsAfterLooseMove([], null, null, () => dock), { boat: null, ship: null });
+});
+
+test('a port is iced in when the ice lies beside it and no open sea does', () => {
+  const pier = { ...land(9, 21), t: 'snowlands', f: ['snow', 'port'] };
+  const ice = (q, r) => ({ q, r, t: 'snowlands', ice: true });
+  assert.equal(S.frozenQuay(pier, [ice(10, 21), land(10, 20), ice(9, 20)]), true);
+  assert.equal(S.frozenQuay(pier, [ice(10, 21), sea(9, 20, 1)]), false, 'open water beside it: a vessel docks there');
+  assert.equal(S.frozenQuay(pier, [land(10, 20), sea(9, 20, 1)]), false);
+  assert.equal(S.frozenQuay(pier, [land(10, 20)]), false, 'a port with no sea at all is not iced in');
+  assert.equal(S.frozenQuay({ ...pier, ice: true }, []), true);
+  assert.equal(S.frozenQuay(undefined, []), false);
+});
+
 test('hull condition: a ship without one is sound; repairs go in 10% steps of 5 logs and 1 Pitch', () => {
   assert.equal(condOf(dinghy(1, 1)), 100);
   assert.equal(condOf({ ...dinghy(1, 1), cond: 42 }), 42);

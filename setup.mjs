@@ -20,9 +20,9 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-11.606';
+export const BUILD = '2026-11-20.613';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
-const DEV = false;
+const DEV = true;
 
 export async function setup(ctx) {
   const log = DEV ? (...args) => console.log('[Voyage]', ...args) : () => {};
@@ -164,7 +164,7 @@ export async function setup(ctx) {
   // once (Voyage had no release). The names stay English: they key the save.
   const SECTION_OF = { rules: 'Rules', strictness: 'Rules', zones: 'Rules', combat: 'Rules', trade: 'Rules', provisions: 'Rules', supply: 'Rules', spoilage: 'Rules', haul: 'Rules',
     timedTravel: 'Travel', weather: 'Travel', night: 'Travel', nightShift: 'Travel',
-    overlay: 'Display', mapMotion: 'Display', bookOpening: 'Display', journalKey: 'Keys', centreKey: 'Keys', mapKey: 'Keys' };
+    mapMotion: 'Display', bookOpening: 'Display', journalKey: 'Keys', centreKey: 'Keys', mapKey: 'Keys', quayKey: 'Keys', placesKey: 'Keys' };
   const sections = Object.fromEntries(['Rules', 'Travel', 'Display', 'Keys'].map((n) => [n, ctx.settings.section(n)]));
   const sectionOf = (name) => sections[SECTION_OF[name]] ?? sections.Rules;
   const live = {};
@@ -192,6 +192,10 @@ export async function setup(ctx) {
   const store = (name, v) => { try { sectionOf(name).set(name, v); } catch {} };
   const value = (name) => live[name] ?? stored(name);
   const flag = (name) => value(name) !== false;
+  // Map colours (1.8.1, the user): the terrain tint's switch moved from Mod Settings to the map's Legend card. A display
+  // choice of this browser, kept in localStorage as the Legend's open state is; on until switched off there.
+  const OVERLAY_KEY = 'voyage-overlay';
+  let overlayOn = (() => { try { return localStorage.getItem(OVERLAY_KEY) !== '0'; } catch { return true; } })();
   // A hint may be a DOM node (the loader appends it): the Strictness hint puts each mode on its own line, and its
   // class lets css/voyage.css space the dropdown below it.
   const strictnessHint = document.createElement('span');
@@ -212,12 +216,13 @@ export async function setup(ctx) {
     { type: 'switch', name: 'weather', label: getLangString('MOD_VOY_SETTING_WEATHER'), hint: getLangString('MOD_VOY_SETTING_WEATHER_HINT'), default: true, onChange: onChange('weather') },
     { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
     { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
-    { type: 'switch', name: 'overlay', label: getLangString('MOD_VOY_SETTING_OVERLAY'), hint: getLangString('MOD_VOY_SETTING_OVERLAY_HINT'), default: true, onChange: onChange('overlay') },
     { type: 'switch', name: 'mapMotion', label: getLangString('MOD_VOY_SETTING_MAP_MOTION'), hint: getLangString('MOD_VOY_SETTING_MAP_MOTION_HINT'), default: true, onChange: onChange('mapMotion') },
     { type: 'switch', name: 'bookOpening', label: getLangString('MOD_VOY_SETTING_BOOK_OPENING'), hint: getLangString('MOD_VOY_SETTING_BOOK_OPENING_HINT'), default: false, onChange: onChange('bookOpening') },
     { type: 'text', name: 'journalKey', label: getLangString('MOD_VOY_SETTING_JOURNAL_KEY'), hint: getLangString('MOD_VOY_SETTING_JOURNAL_KEY_HINT'), default: 'J', maxLength: 1, onChange: onChange('journalKey') },
     { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
     { type: 'text', name: 'mapKey', label: getLangString('MOD_VOY_SETTING_MAP_KEY'), hint: getLangString('MOD_VOY_SETTING_MAP_KEY_HINT'), default: 'M', maxLength: 1, onChange: onChange('mapKey') },
+    { type: 'text', name: 'quayKey', label: getLangString('MOD_VOY_SETTING_QUAY_KEY'), hint: getLangString('MOD_VOY_SETTING_QUAY_KEY_HINT'), default: 'Q', maxLength: 1, onChange: onChange('quayKey') },
+    { type: 'text', name: 'placesKey', label: getLangString('MOD_VOY_SETTING_PLACES_KEY'), hint: getLangString('MOD_VOY_SETTING_PLACES_KEY_HINT'), default: 'P', maxLength: 1, onChange: onChange('placesKey') },
   ];
   // "Folks hold what they make" is added only once a Worker Folks with the haul is found (haul.mjs, on mods loaded), so
   // a player without one never sees a switch that does nothing. It is the last of Rules, so it keeps its place. The
@@ -261,7 +266,7 @@ export async function setup(ctx) {
     reasons: [],
     listeners: [],
     settings: {
-      overlay: () => flag('overlay'),
+      overlay: () => overlayOn,
       rules: () => flag('rules'),
       strictness: () => (value('strictness') === 'relaxed' ? 'relaxed' : 'strict'),
       combat: () => flag('combat'),
@@ -279,7 +284,15 @@ export async function setup(ctx) {
       mapMotion: () => flag('mapMotion'),
       bookOpening: () => value('bookOpening') === true,
       mapKey: () => String(value('mapKey') ?? '').trim().toUpperCase(),
+      quayKey: () => String(value('quayKey') ?? '').trim().toUpperCase(),
+      placesKey: () => String(value('placesKey') ?? '').trim().toUpperCase(),
       nightShift: () => { const v = Number(value('nightShift')); return Number.isFinite(v) ? Math.max(-12, Math.min(12, Math.round(v))) : 0; },
+    },
+    /** The Legend card's Map colours switch. */
+    setOverlay(on) {
+      overlayOn = on === true;
+      try { localStorage.setItem(OVERLAY_KEY, overlayOn ? '1' : '0'); } catch {}
+      this.onSettingsChange();
     },
     onSettingsChange() {
       // Offline catch-up: the game replays the missed ticks behind its "offline progress" box, and a survey or a
@@ -375,7 +388,7 @@ export async function setup(ctx) {
   try { (await ctx.loadModule('src/focus-fix.mjs')).install(ctx, { log }); } catch (e) { console.error('[Voyage] focus fix failed', e); }
   // Melvor's tooltips for the page and the Here panel (build .160, the user).
   try { state.tips = (await ctx.loadModule('src/tips.mjs')).install(ctx, { log }); } catch (e) { console.error('[Voyage] tooltips failed', e); }
-  try { (await ctx.loadModule('src/map-keys.mjs')).install(ctx, { key: () => value('centreKey'), journalKey: () => value('journalKey'), mapKey: () => value('mapKey'), openPage: (p) => state.openPage(p), journal: () => state.journal, log }); } catch (e) { console.error('[Voyage] map keys failed', e); }
+  try { (await ctx.loadModule('src/map-keys.mjs')).install(ctx, { key: () => value('centreKey'), journalKey: () => value('journalKey'), mapKey: () => value('mapKey'), quayKey: () => value('quayKey'), quay: () => state.cargo, placesKey: () => value('placesKey'), places: () => state.places, openPage: (p) => state.openPage(p), journal: () => state.journal, log }); } catch (e) { console.error('[Voyage] map keys failed', e); }
   const helpLayout = await ctx.loadModule('src/help-layout.mjs');
   // Big GP, XP and bank counts in a short form (12.3K, 2.5M), rounded down, so a "You have" never reads as more;
   // fractions in the player's decimal mark.
@@ -417,6 +430,8 @@ export async function setup(ctx) {
   compassMod.install(ctx, { state, rules, terrainMod, model, helpLayout, log });
   traderMod.install(ctx, { state, rules, terrainMod, stranded, helpLayout, log });
   state.herePanel = herePanel.install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, shortNumber, log });
+  // The map's Places card (1.8.1): home, camps, ports and recent places under the Legend. A failure: no card.
+  try { (await ctx.loadModule('src/places.mjs')).install(ctx, { state, PM: await ctx.loadModule('src/places-model.mjs'), terrainMod, log }); } catch (e) { console.error('[Voyage] places card failed to load', e); state.places = undefined; }
   /** The Voyage skill object, or undefined when it did not register. */
   const voyageSkill = () => { try { return voyageSkillOk ? game.skills.getObjectByID(model.SKILL_ID) : undefined; } catch { return undefined; } };
   state.voyageSkill = voyageSkill;

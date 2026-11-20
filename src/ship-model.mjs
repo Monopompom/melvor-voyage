@@ -321,6 +321,43 @@ export function shipAfterHops(path, ship, dockOf) {
 }
 
 /**
+ * Both vessels after a move with the ship rules off (1.8.1, a player's report: at Snow Covered Pier the boat stayed at
+ * the port left, so the harbour board found no hold until a step into the sea brought it over). Travel is the game's,
+ * a hop free, but every vessel waiting within a hex of the port you hop from goes with you and ties up at
+ * `dockOf(rec)` at the other end; when both go, the small boat rides on the big ship's deck. Between hops one vessel
+ * follows a sea crossing it was boarded for (shipAfterPath): the big ship when the stretch starts on it, else the
+ * boat. Two vessels never share a hex unless the boat is aboard. `path` as shipAfterHops; returns { boat, ship }, each
+ * the same object when it did not move.
+ */
+export function vesselsAfterLooseMove(path, boat, ship, dockOf) {
+  let b = boat ?? null;
+  let s = ship ?? null;
+  if (path.length === 0) return { boat: b, ship: s };
+  const follow = (seg) => {
+    if (seg.length < 2) return;
+    if (s !== null && sameHex(seg[0], s)) s = shipAfterPath(seg, s);
+    else if (b !== null && b.aboard !== true) b = shipAfterPath(seg, b);
+  };
+  let seg = [path[0]];
+  for (let i = 1; i < path.length; i++) {
+    if (path[i].hop !== true) { seg.push(path[i]); continue; }
+    follow(seg);
+    const from = path[i - 1];
+    const dock = dockOf(path[i]);
+    if (dock !== undefined) {
+      const shipGoes = s !== null && hexDist(from, s) <= 1;
+      const boatGoes = b !== null && b.aboard !== true && hexDist(from, b) <= 1;
+      if (shipGoes && !sameHex(s, dock)) s = { ...s, q: dock.q, r: dock.r };
+      if (boatGoes && (shipGoes || !sameHex(b, dock))) b = { ...b, q: dock.q, r: dock.r, ...(shipGoes ? { aboard: true } : {}) };
+    }
+    if (s !== null && b !== null && b.aboard !== true && sameHex(b, s)) b = { ...b, aboard: true };
+    seg = [path[i]];
+  }
+  follow(seg);
+  return { boat: b, ship: s };
+}
+
+/**
  * Where a dinghy built on the Voyage page goes in: a sea hex next to the coast hex you stand on (the first in
  * neighbour order, open water before shoal). Undefined when you are not on a coast.
  */
@@ -339,6 +376,16 @@ export function dockSpot(portRec, neighbours) {
   if (portRec === undefined) return undefined;
   if (isSea(portRec)) return portRec.cloud === true ? undefined : { q: portRec.q, r: portRec.r };
   return launchSpot(portRec, neighbours);
+}
+
+/**
+ * True when the winter ice shuts a port's quay (1.8.1, a player's report at Snow Covered Pier): the port hex itself is
+ * ice, or ice lies beside it and no open sea does, so no vessel can tie up there until the thaw.
+ */
+export function frozenQuay(portRec, neighbours) {
+  if (portRec === undefined) return false;
+  if (portRec.ice === true) return true;
+  return neighbours.some((n) => n.ice === true) && !neighbours.some((n) => isSea(n) && n.cloud !== true);
 }
 
 /**

@@ -49,7 +49,7 @@ export const JOURNAL_WRITTEN = {
   crew_ranks: { sections: ['TIERS', 'LICENCES', 'PROMOTE'] },
   crew_pay: { sections: ['WAGES', 'GRACE', 'STRIKE', 'DISMISS', 'EASIER'], warn: ['STRIKE'] },
   crew_tips: { sections: ['OWN'], points: true },
-  map: { sections: ['TINT', 'PANEL', 'KEYS', 'MARKS'] },
+  map: { sections: ['TINT', 'PANEL', 'PLACES', 'KEYS', 'MARKS'] },
   lands: { sections: ['KINDS', 'FEATURES'] },
   tricks: { sections: ['STORES', 'BOAT', 'TRADE', 'NIGHT', 'WAY', 'PAGE'], points: true },
   settings: { sections: ['EASIER', 'KEYS', 'WHY'] },

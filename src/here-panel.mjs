@@ -851,14 +851,16 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       `<span class="voyage-toggle-pill">${swatch}${esc(d.label)}</span></button>${warn.join('')}${miniChips(pos, status).join('')}</div>`;
   };
 
-  // The legend folds away behind a "Legend" toggle; closed by default. The choice is a browser convenience kept in
-  // localStorage (not the save), so it never needs a migration.
+  // The other folds below are browser conveniences kept in localStorage (not the save), so they never need a migration.
+  // The Legend's card is not kept (the user, 1.8.1: "this Legend should be closed by default"): it lies over the map,
+  // so it starts closed on every load and opens only on a tap; the key it was kept under is cleared once.
   const LEGEND_KEY = 'voyage-legend-open';
+  try { localStorage.removeItem(LEGEND_KEY); } catch {}
   const LOCKED_KEY = 'voyage-locked-open';
   const WORKS_KEY = 'voyage-works-open';
   let worksOpen = (() => { try { return localStorage.getItem(WORKS_KEY) !== '0'; } catch { return true; } })();
   let lockedOpen = (() => { try { return localStorage.getItem(LOCKED_KEY) === '1'; } catch { return false; } })();
-  let legendOpen = (() => { try { return localStorage.getItem(LEGEND_KEY) === '1'; } catch { return false; } })();
+  let legendOpen = false;
   const WEATHER_KEY = 'voyage-weather-open';
   let weatherOpen = (() => { try { return localStorage.getItem(WEATHER_KEY) !== '0'; } catch { return true; } })();
   const PLACE_KEY = 'voyage-place-open';
@@ -882,30 +884,71 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   /**
    * The legend on the map (the user, build .296: "move the legend, as a clickable badge that expands, to the place where
    * the wind badge was"): a round button under the zoom and centre buttons; a tap opens the colours in a card beside it,
-   * another closes it. Shown while the terrain overlay is on. The open state is kept (localStorage voyage-legend-open).
+   * another closes it. It starts closed on every load (1.8.1, the user). 1.8.1 (the user): the card's first line
+   * is the Map colours switch, moved here from Mod Settings, so the badge shows with the tint off too (the card is then
+   * the switch alone).
    */
   const legendBadge = (box) => {
     let wrap = box.querySelector(':scope > .voyage-legend-badge');
-    if (!state.settings.overlay() || state.mode === 'dormant') { wrap?.remove(); return; }
+    if (state.mode === 'dormant') { wrap?.remove(); return; }
     if (wrap === null) {
       wrap = document.createElement('div');
       wrap.className = 'voyage-legend-badge m-2 pointer-events-auto';
       wrap.addEventListener('click', (e) => {
         if (!(e.target instanceof Element) || e.target.closest('.voyage-legend-btn') === null) return;
         legendOpen = !legendOpen;
-        try { localStorage.setItem(LEGEND_KEY, legendOpen ? '1' : '0'); } catch {}
+        // One card at a time (1.8.1): the Places card folds when the Legend's opens.
+        if (legendOpen) try { state.places?.close?.(); } catch {}
+        legendBadge(box);
+      });
+      wrap.addEventListener('change', (e) => {
+        if (!(e.target instanceof HTMLInputElement) || !e.target.matches('.voyage-legend-tint')) return;
+        state.setOverlay?.(e.target.checked);
         legendBadge(box);
       });
       box.append(wrap);
     }
     const label = getLangString('MOD_VOY_PANEL_LEGEND');
+    const tint = state.settings.overlay();
+    const tintSwitch = `<div class="custom-control custom-switch voyage-legend-switch" title="${esc(getLangString('MOD_VOY_SETTING_OVERLAY_HINT'))}">`
+      + `<input type="checkbox" class="custom-control-input voyage-legend-tint" id="voyage-legend-tint"${tint ? ' checked' : ''}>`
+      + `<label class="custom-control-label" for="voyage-legend-tint">${esc(getLangString('MOD_VOY_LEGEND_TINT'))}</label></div>`;
     const html = `<button type="button" class="btn btn-primary border border-2x border-dark btn-sm-mobile voyage-legend-btn${legendOpen ? ' active' : ''}" aria-expanded="${legendOpen}" aria-label="${esc(label)}" title="${esc(label)}"><i class="fa fa-palette" aria-hidden="true"></i></button>`
-      + (legendOpen ? `<div class="voyage-legend-card voyage-ui block block-rounded bg-combat-inner-dark p-2 mb-0"><div class="voyage-legend-card-title">${esc(label)}</div><div class="voyage-legend">${legend()}</div></div>` : '');
+      + (legendOpen ? `<div class="voyage-legend-card voyage-ui block block-rounded bg-combat-inner-dark p-2 mb-0"><div class="voyage-legend-card-title">${esc(label)}</div>${tintSwitch}${tint ? `<div class="voyage-legend">${legend()}</div>` : ''}</div>` : '');
     if (wrap.dataset.html !== html) {
       wrap.dataset.html = html;
       wrap.innerHTML = html;
       try { state.tips?.apply(wrap); } catch {}
     }
+    if (legendOpen) fitCard(wrap);
+  };
+  /**
+   * Keeps the open Legend card inside the map (1.8.1, seen at phone width, where it opens under its badge and the Map
+   * colours switch made it taller): past the map's foot it is cut to the room left and scrolls, and with too little
+   * room under the badge it opens upwards, its foot level with the badge's.
+   */
+  const fitCard = (wrap) => {
+    const card = wrap.querySelector(':scope > .voyage-legend-card');
+    const map = wrap.closest('.voyage-map-controls')?.offsetParent;
+    if (card === null || !(map instanceof HTMLElement)) return;
+    card.classList.remove('voyage-card-up');
+    card.style.maxHeight = '';
+    const m = map.getBoundingClientRect();
+    const c = card.getBoundingClientRect();
+    if (c.height === 0 || c.bottom <= m.bottom - 6) return;
+    const below = Math.floor(m.bottom - c.top - 6);
+    const above = Math.floor(wrap.getBoundingClientRect().bottom - m.top - 6);
+    if (below >= Math.min(c.height, 160) || below >= above) { card.style.maxHeight = `${Math.max(below, 96)}px`; return; }
+    card.classList.add('voyage-card-up');
+    card.style.maxHeight = `min(60vh, 480px, ${above}px)`;
+  };
+
+  /** Folds the Legend's card (the Places card opening, 1.8.1). */
+  state.closeLegend = () => {
+    if (!legendOpen) return;
+    legendOpen = false;
+    const box = document.querySelector('.voyage-map-controls');
+    if (box !== null) legendBadge(box);
   };
 
   const legend = () => [
@@ -1015,6 +1058,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       for (const el of [...host.children].filter((c) => c.matches('.btn-group-vertical, button'))) box.append(el);
       box.style.top = top && top.parentElement === map ? `${top.offsetTop + top.offsetHeight}px` : '';
       legendBadge(box);
+      try { state.places?.badge(box); } catch (e) { log('places badge failed', e); }
       // The storms' and the Folks' layers (overlay.mjs) hook the map's ticker the first time the map is up.
       state.overlay?.drawStorms?.();
       state.overlay?.drawFolks?.();

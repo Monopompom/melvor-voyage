@@ -191,6 +191,37 @@ div.form-inline:has(> .dropdown > [id="voyage:strictness"]) > .dropdown { width:
 .voyage-legend-card { position: absolute; top: 0; right: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(19rem, calc(100vw - 80px)); max-height: min(60vh, 480px); overflow-y: auto; scrollbar-width: thin; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); } /* never past the map's bottom (.308, B-59) */
 @media (max-width: 575.98px) { .voyage-legend-card { top: calc(100% + 6px); right: 0; } } /* under the badge, not over the panel (.308, B-57) */
 .voyage-legend-card-title { color: var(--voyage-label); font-weight: 600; }
+/* The Legend's Map colours switch (1.8.1, moved from Mod Settings), over the colours. */
+.voyage-legend-switch { margin: 4px 0 2px; white-space: nowrap; }
+/* The Places badge under the Legend's and its card (places.mjs, 1.8.1): the Legend card's box, a little wider. */
+.voyage-places-badge { position: relative; }
+.voyage-places-card { width: min(23rem, calc(100vw - 80px)); max-width: min(23rem, calc(100vw - 80px)); }
+/* A card with too little room under its badge opens upwards (here-panel.mjs fitCard, 1.8.1). */
+.voyage-legend-card.voyage-card-up { top: auto; bottom: 0; }
+.voyage-places-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.voyage-places-close { display: none; width: 34px; height: 34px; padding: 0; }
+/* On a phone the Places card is a full-screen sheet over the game (the user, 1.8.1), its list scrolling under the
+   title and the search box; the × closes it, Esc too. */
+@media (max-width: 575.98px) {
+  .voyage-places-card { position: fixed; inset: 0; z-index: 1060; width: auto; max-width: none; max-height: none; display: flex; flex-direction: column; overflow: hidden; border-radius: 0; padding: 12px 12px max(12px, env(safe-area-inset-bottom)) !important; }
+  .voyage-places-card .voyage-places-title { font-size: 1.15rem; }
+  .voyage-places-close { display: inline-flex; align-items: center; justify-content: center; }
+  .voyage-places-card .voyage-places-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }
+}
+.voyage-places-search { margin: 4px 0 6px; }
+.voyage-places-group { display: flex; flex-direction: column; gap: 3px; } /* 3px between the rows' Plan buttons (the user, 1.8.1) */
+.voyage-places-group + .voyage-places-group { margin-top: 6px; }
+.voyage-places-head { color: var(--voyage-label); font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.voyage-places-row { display: flex; align-items: center; gap: 6px; }
+.voyage-places-show { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 2px 4px; background: none; border: 0; border-radius: 4px; color: inherit; text-align: left; cursor: pointer; }
+@media (hover: hover) { .voyage-places-show:hover { background: rgba(127, 127, 127, .18); } }
+.voyage-places-show:focus-visible { outline: 2px solid var(--voyage-label); }
+.voyage-places-icon { flex: 0 0 auto; width: 20px; height: 20px; object-fit: contain; }
+.voyage-places-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voyage-places-dist { flex: 0 0 auto; font-size: .85rem; white-space: nowrap; }
+.voyage-places-plan { flex: 0 0 auto; }
+.voyage-places-empty { max-width: 18rem; }
+@media (max-width: 575.98px) { .voyage-places-show, .voyage-places-plan { min-height: 40px; } }
 .voyage-legend-card .voyage-legend { margin-top: 2px; grid-template-columns: repeat(2, max-content); }
 /* Locked here, at the panel's foot under a rule (build .296). */
 .voyage-locked-block { margin-top: 6px; padding-top: 4px; border-top: 1px solid var(--voyage-rule-soft); }
@@ -1206,7 +1237,7 @@ body #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 /* The mod's scroll areas get a thin scrollbar in the page's colours, not the browser's white one (the user, build .205):
    light on the dark board, Here panel and every popup's body (the Send dialog's showed white, 20 Oct 2026), ink-brown
    on the journal's paper. */
-.voyage-board-popup .voyage-cargo, #voyage-here.voyage-capped, .voyage-plan-arrival .dropdown-menu, .voyage-ui .swal2-html-container { scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }
+.voyage-board-popup .voyage-cargo, #voyage-here.voyage-capped, .voyage-plan-arrival .dropdown-menu, .voyage-ui .swal2-html-container, .voyage-legend-card { scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }
 .vj-page, .vj-page-body, .vj-spread, .vj-letter { scrollbar-width: thin; scrollbar-color: rgba(90, 60, 30, .45) transparent; }
 .voyage-cargo { display: flex; flex-direction: column; gap: 8px; font-size: .95rem; }
 .voyage-cargo-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 16px; padding: 8px 12px; border-radius: 4px; background: var(--voyage-band); }

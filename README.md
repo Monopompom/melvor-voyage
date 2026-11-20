@@ -16,7 +16,11 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 ## What it does
 
 - **Terrain overlay.** Surveyed hexes on the Cartography map are tinted by terrain. Fog is untouched: hexes
-  you have not surveyed show nothing new.
+  you have not surveyed show nothing new. The map's Legend (the palette button) names the colours, and its Map
+  colours switch turns the tint off and on.
+- **Places.** The pin button under the Legend lists your home, your camps, the ports you have found and the places
+  you set off for lately, with a search box: a name centres the map on it and selects it, and Plan plans the voyage.
+  P opens it from any page; on a phone it fills the screen.
 - **You are here.** A panel on the map shows the biome under you, the place name, the hex's features, which
   locked skills work here, and for the rest the nearest hex where they do and how far.
 - **Locked skills.** Starting a skill where it cannot run shows a message with a "Go to map" button instead of
@@ -267,7 +271,6 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 
 ## Settings (Mod Settings, under Voyage: Rules, Travel, Display and Keys)
 
-- **Terrain overlay**: tint on or off.
 - **Voyage rules**: off, nothing is locked by location.
 - **Strictness**: Strict locks gathering and crafting; Relaxed locks gathering only, and keeps Firemaking and Cooking on dry land and Archaeology at its dig sites.
 - **Resource zones**: each ore, tree, fish, crop, thieving target and constellation is found only in its own places (iron and copper
@@ -283,8 +286,9 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
 - **Night** and **Move the night (hours)**: night on or off, and when it falls (−12 to 12 hours from 21:00 to 05:00).
 - **Motion on the map**: while a voyage is under way the traveller walks and the vessel rolls; off, they stand still.
 - **Open the journal by its cover**: the cover and a few turning pages on every open, not only the first time.
-- **Keys**: G centres the map on you, J opens and closes the journal, M opens the map. Each can be changed, or left
-  empty to turn it off.
+- **Keys**: G centres the map on you, J opens and closes the journal, M opens the map, Q opens and closes the harbour
+  board of the port you are at, P opens and closes the map's Places. Each can be changed, or left empty to turn it
+  off.
 
 ## Backups
 

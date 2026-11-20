@@ -6,12 +6,17 @@
 // any page and closes it again, under the same conditions (typing in the book's search boxes types).
 // Build .171 (user ask): the setting `mapKey` (M by default; empty turns it off) opens the Cartography page from any
 // other page, closing the journal first if it is open.
+// 1.8.1 (a player's ask, the user): the setting `quayKey` (Q by default; empty turns it off) opens the harbour board of
+// the port you stand on or next to, from any page, as the Here panel's Quay button does, and closes it again. With no
+// port in reach it does nothing.
+// 1.8.1 (the user): the setting `placesKey` (P by default; empty turns it off) opens the map's Places card from any
+// page, opening the map first (and closing the journal) when it is elsewhere, and on the map closes it again.
 
 const CARTOGRAPHY_PAGE = 'melvorAoD:Cartography';
 
 const typing = (el) => el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 
-export function install(ctx, { key, journalKey, mapKey, openPage, journal, log }) {
+export function install(ctx, { key, journalKey, mapKey, quayKey, quay, placesKey, places, openPage, journal, log }) {
   ctx.onInterfaceReady(() => {
     document.addEventListener('keydown', (e) => {
       try {
@@ -36,6 +41,28 @@ export function install(ctx, { key, journalKey, mapKey, openPage, journal, log }
           openPage(page);
           return;
         }
+        const pk = `${placesKey?.() ?? ''}`.trim();
+        if (pk !== '' && e.key.toLowerCase() === pk.toLowerCase()) {
+          const list = places?.();
+          if (list === undefined || list.usable?.() === false || typeof game === 'undefined') return;
+          if (typeof Swal !== 'undefined' && Swal.isVisible()) return;
+          e.preventDefault();
+          if (book?.isOpen()) book.close();
+          if (game.openPage?.id === CARTOGRAPHY_PAGE) { list.toggle(); return; }
+          const page = game.pages?.getObjectByID(CARTOGRAPHY_PAGE);
+          if (page === undefined) return;
+          list.open();
+          openPage(page);
+          return;
+        }
+        const qk = `${quayKey?.() ?? ''}`.trim();
+        if (qk !== '' && e.key.toLowerCase() === qk.toLowerCase()) {
+          const board = quay?.();
+          if (board === undefined) return;
+          if ((typeof Swal !== 'undefined' && Swal.isVisible()) || book?.isOpen()) return;
+          if (board.open() === true) e.preventDefault();
+          return;
+        }
         const k = `${key() ?? ''}`.trim();
         if (k === '' || e.key.toLowerCase() !== k.toLowerCase()) return;
         if (typeof game === 'undefined' || game.openPage?.id !== CARTOGRAPHY_PAGE || game.cartography?.activeMap === undefined) return;
@@ -44,5 +71,19 @@ export function install(ctx, { key, journalKey, mapKey, openPage, journal, log }
         game.cartography.goToPlayerOnClick();
       } catch (err) { log('map key failed', err); }
     });
+    // The open board is a popup, and a popup keeps its keys to itself (SweetAlert stops them at its edge), so the
+    // Quay key that closes it again is heard on the way in, before the popup (seen in game, build .607).
+    window.addEventListener('keydown', (e) => {
+      try {
+        if (e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || typing(e.target)) return;
+        const qk = `${quayKey?.() ?? ''}`.trim();
+        if (qk === '' || e.key.toLowerCase() !== qk.toLowerCase()) return;
+        const board = quay?.();
+        if (board?.isOpen?.() !== true) return;
+        e.preventDefault();
+        e.stopPropagation();
+        board.close();
+      } catch (err) { log('quay key failed', err); }
+    }, true);
   });
 }

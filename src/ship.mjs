@@ -161,6 +161,24 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
     const around = state.terrain.neighbours(rec.q, rec.r);
     return shipModel.dockSpot(rec, around.filter(charted)) ?? shipModel.dockSpot(rec, around);
   };
+  /**
+   * The rules off (1.8.1, a player's report: fast travel to Snow Covered Pier in Winter and the galleon "goes
+   * disappear"): a vessel at the quay of the last hop's start that could not follow, the port reached having no water
+   * to tie up at (the winter ice, mostly), is named with where it waits, so it is not lost. `recs` run start to end.
+   */
+  const tellLeftBehind = (recs, after) => {
+    const j = recs.findLastIndex((r) => r.hop === true);
+    if (j < 1) return;
+    const to = recs[j];
+    const from = recs[j - 1];
+    if (dockOf(to.hex) !== undefined) return;
+    const v = [after.ship, after.boat].find((x) => x != null && x.aboard !== true && terrainMod.hexDistance(from, x) <= 1);
+    if (v === undefined) return;
+    const frozen = shipModel.frozenQuay(to, state.terrain?.neighbours(to.q, to.r) ?? []);
+    const port = to.hex?.pointOfInterest?.name ?? '';
+    const at = from.hex?.pointOfInterest?.name ?? whereIs(v);
+    notifyPlayer(skill(), t(frozen ? 'MOD_VOY_SHIP_HOP_ICED' : 'MOD_VOY_SHIP_HOP_NO_QUAY', { hull: hullWord(HULLS[v.hull]), port, from: at }), 'info');
+  };
   /** Sea steps from `rec` to a coast the hull `v` (the small boat by default) may land on (any coast with none); 0 on land. */
   const homeOf = (rec, v = ship()) => {
     const g = geoNow();
@@ -225,6 +243,22 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       if (after.boat !== ship()) setVessel('boat', after.boat, 'moved');
       snapToPlayer();
       return;
+    }
+    // The rules off (1.8.1): a hop is the game's, free, and the vessels waiting at the quay go with you, so the hold
+    // is at the port you reach (a player's report: at Snow Covered Pier the board found none until a step into the sea).
+    if (!enabled() && ship() !== undefined) {
+      const recs = path.map((hex, i) => ({ ...recOf(hex), hop: i < path.length - 1 && isHop(path[i + 1], hex), hex })).reverse();
+      if (recs.some((r) => r.hop)) {
+        const b0 = ship();
+        const s0 = big() ?? null;
+        const after = shipModel.vesselsAfterLooseMove(recs, b0, s0, (rec) => dockOf(rec.hex));
+        // The boat first: the big ship's move then carries a boat aboard to its hex (setVessel).
+        if (after.boat !== b0) setVessel('boat', after.boat, 'went with the hop');
+        if (after.ship !== s0) setVessel('ship', after.ship, 'went with the hop');
+        try { tellLeftBehind(recs, after); } catch (e) { log('left-behind notice failed', e); }
+        snapToPlayer();
+        return;
+      }
     }
     // One vessel moves: the big ship when the move starts on it, else the small boat (the trader's roads, rules off).
     const startRec = recOf(path[path.length - 1]);
