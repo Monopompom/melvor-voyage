@@ -605,3 +605,19 @@ test('vesselsAfterRoute: one voyage step in the ship moves the ship, never the b
   const carried = S.vesselsAfterRoute(recs, S.modesStartFirst(2, [{ m: 'ship' }]), { ...boat, q: 19, r: 8, aboard: true }, ship, () => undefined);
   assert.deepEqual([carried.boat.q, carried.boat.r, carried.boat.aboard], [19, 9, true]);
 });
+
+test('Pitch goes on every log of the realm once, shared lists included, and on no other realm', () => {
+  const pitch = { id: 'voyage:Pitch' };
+  const shared = [{ id: 'coal' }];
+  const own = [{ id: 'ash' }];
+  const has = [pitch];
+  const abyssal = [{ id: 'abyssal' }];
+  const logs = [{ realm: 'm', primaryProducts: shared }, { realm: 'm', primaryProducts: shared }, { realm: 'm', primaryProducts: own },
+    { realm: 'm', primaryProducts: has }, { realm: 'a', primaryProducts: abyssal }, { realm: 'm' }];
+  assert.equal(S.addPitchToLogs(logs, 'm', pitch), 2);
+  assert.equal(shared.filter((x) => x === pitch).length, 1);
+  assert.ok(own.includes(pitch));
+  assert.equal(has.length, 1);
+  assert.ok(!abyssal.includes(pitch));
+  assert.equal(S.addPitchToLogs(logs, 'm', pitch), 0);
+});

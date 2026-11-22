@@ -1774,7 +1774,8 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-enc-piles { margin-left: auto; color: var(--voyage-label); font-size: .82rem; display: flex; gap: 10px; }
 /* The trick book sits on the right, before the piles (the user). */
 .voyage-enc-tricks-btn { margin-left: auto; }
-.voyage-enc-tricks-btn + .voyage-enc-piles { margin-left: 4px; }
+.voyage-enc-act-row { display: contents; }
+.voyage-enc-act-row + .voyage-enc-piles { margin-left: 4px; }
 .voyage-enc-logwrap { padding-top: .5rem; }
 .voyage-enc-log { max-height: 190px; overflow: auto; font-size: .82rem; }
 .voyage-enc-log > div { padding: 2px 0; border-bottom: 1px solid var(--voyage-rule-soft); display: flex; gap: 8px; }
@@ -2018,3 +2019,21 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-slayer-near .form-check, .voyage-slayer-near .custom-control { margin: 0; }
 /* A port Slayer contract taken this season stays listed, dimmed. */
 .voyage-contract-taken { opacity: .6; }
+
+/* Practice fights: the setup's pickers, the tip above the hand, the offer on the first band's board. */
+.voyage-enc-chip-practice { border-color: var(--voyage-sea); color: var(--voyage-sea); }
+.voyage-enc-picks { display: grid; gap: .5rem; margin-bottom: .6rem; }
+.voyage-enc-pick-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.voyage-enc-pick-label { flex: 0 0 5.5rem; color: var(--voyage-label); font-size: .85rem; }
+.voyage-enc-pick.voyage-enc-btn { flex: 0 0 auto; min-width: 2.6rem; }
+.voyage-enc-coach { display: flex; gap: 8px; align-items: baseline; margin-top: 10px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--voyage-sea); background: var(--voyage-sea-tint); font-size: .9rem; }
+.voyage-enc-coach > .fa { color: var(--voyage-sea); }
+.voyage-enc-first { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--voyage-sea); background: var(--voyage-sea-tint); }
+@media (max-width: 560px) {
+  .voyage-enc-pick-label { flex-basis: 100%; }
+  /* The fight's buttons on a phone: the first row fills the width, the others keep one button at each edge. */
+  .voyage-enc-act-row { display: flex; flex: 1 1 100%; flex-wrap: wrap; justify-content: space-between; gap: 8px; min-width: 0; }
+  .voyage-enc-act-fill > .voyage-enc-btn { flex: 1 1 auto; }
+  .voyage-enc-act-row > :last-child { margin-left: auto; } /* on the right even when it wraps to a line of its own */
+  .voyage-enc-act-row + .voyage-enc-piles { margin-left: auto; }
+}

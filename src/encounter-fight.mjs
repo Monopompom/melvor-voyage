@@ -37,6 +37,7 @@ export function install(ctx, { state, log }) {
     const sea = f.opt.where === 'sea';
     return `<div class="voyage-enc-head"><span class="voyage-enc-title">${esc(api.bandName(f.opt.band))}</span>`
       + (f.folk !== undefined ? `<span class="voyage-enc-chip">${fa('fa-walking')}${esc(f.folk.name)}</span>` : '')
+      + (api.practice ? `<span class="voyage-enc-chip voyage-enc-chip-practice">${fa('fa-chalkboard-teacher')}${esc(t('MOD_VOY_ENC_PRACTICE'))}</span>` : '')
       + `<span class="voyage-enc-chip voyage-enc-chip-tier">${esc(t('MOD_VOY_ENC_TIER', { n: `${f.opt.tier}` }))}</span>`
       + `<span class="voyage-enc-chip ${sea ? 'voyage-enc-chip-sea' : 'voyage-enc-chip-land'}">${fa(sea ? 'fa-ship' : 'fa-mountain')}${esc(t(sea ? 'MOD_VOY_ENC_AT_SEA' : 'MOD_VOY_ENC_ON_LAND'))}</span>`
       + (f.opt.battered > 0 ? `<span class="voyage-enc-chip voyage-enc-chip-tier">${esc(t('MOD_VOY_ENC_BATTERED_CHIP', { n: `${f.opt.battered * E.BATTER}` }))}</span>` : '')
@@ -218,8 +219,11 @@ export function install(ctx, { state, log }) {
         : t(sea ? 'MOD_VOY_ENC_MEET_SEA' : 'MOD_VOY_ENC_MEET_LAND', { band: api.bandName(f.opt.band), nerve: `${s.band.max}` });
     const owed = (f.debt > 0 ? `<div class="voyage-enc-owed">${fa('fa-file-invoice-dollar')} ${esc(t('MOD_VOY_ENC_MEET_OWED', { gp: api.text(f.debt), pct: `${R.DEBT_PCT}` }))}</div>` : '')
       + (folksMet.length > 0 ? `<div class="voyage-enc-owed">${fa('fa-walking')} ${esc(t(folksMet.length === 1 ? 'MOD_VOY_ENC_MEET_AWAY_FOLK' : 'MOD_VOY_ENC_MEET_AWAY_FOLKS', { names: folksMet.map((x) => x.name).join(', '), wound: `${Math.round(R.FOLK_WOUND * 100)}` }))}</div>` : '');
+    // The very first band you meet offers a practice fight; it waits for you meanwhile.
+    const firstBand = state.encounterPractice !== undefined && folk === undefined && api.enc().met <= (away?.n ?? 1);
     return head(api, f) + '<div class="voyage-enc-body"><div class="voyage-enc-stage">'
       + `<div class="voyage-enc-lead">${esc(lead)}${owed}</div>`
+      + (firstBand ? `<div class="voyage-enc-first"><span>${esc(t('MOD_VOY_ENC_PRACTICE_FIRST'))}</span>${btn('practice', t('MOD_VOY_ENC_PRACTICE_BTN'), { cls: 'btn-info', icon: 'fa-chalkboard-teacher' })}</div>` : '')
       + `<div class="voyage-enc-vs">${you}<div class="voyage-enc-vs-mid" aria-hidden="true">${esc(t('MOD_VOY_ENC_VS'))}</div>${them}</div>`
       + '<div class="voyage-enc-panels">'
       + `<section class="voyage-enc-panel"><h3 class="voyage-enc-panel-ttl">${fa('fa-khanda')}${esc(t('MOD_VOY_ENC_IF_FIGHT'))}</h3>${blows}`
@@ -233,6 +237,36 @@ export function install(ctx, { state, log }) {
       + (away !== undefined ? '' : btn('run', t('MOD_VOY_ENC_BTN_RUN'), { cls: 'btn-danger', icon: 'fa-running', sub: t(folk !== undefined ? (lastHex ? 'MOD_VOY_ENC_BTN_RUN_SUB_FOLK_LAST' : 'MOD_VOY_ENC_BTN_RUN_SUB_FOLK') : sea ? 'MOD_VOY_ENC_BTN_RUN_SUB_SEA' : 'MOD_VOY_ENC_BTN_RUN_SUB_LAND') }))
       + '</div></div>';
   };
+
+  // ---- a practice fight's setup -------------------------------------------------------------------------------------
+  /** Where, how dangerous and which band, with what the same fight would cost for real at the GP you carry. */
+  const setupHtml = (api, f) => {
+    const { E } = api;
+    const p = api.pick();
+    const c = api.cost();
+    const def = E.BANDS[p.band];
+    const choice = (act, v, label, on, icon) => `<button type="button" class="btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'} voyage-enc-btn voyage-enc-pick" data-act="${act}" data-v="${esc(v)}" aria-pressed="${on}"><span>${icon ? `${fa(icon)} ` : ''}${esc(label)}</span></button>`;
+    const row = (key, inner) => `<div class="voyage-enc-pick-row"><span class="voyage-enc-pick-label">${esc(t(key))}</span>${inner}</div>`;
+    const picks = row('MOD_VOY_ENC_PRACTICE_WHERE', choice('pr-where', 'land', t('MOD_VOY_ENC_ON_LAND'), p.where === 'land', 'fa-mountain') + choice('pr-where', 'sea', t('MOD_VOY_ENC_AT_SEA'), p.where === 'sea', 'fa-ship'))
+      + row('MOD_VOY_ENC_PRACTICE_TIER', [1, 2, 3, 4].map((n) => choice('pr-tier', n, `${n}`, p.tier === n)).join(''))
+      + row('MOD_VOY_ENC_PRACTICE_BAND', E.bandsOf(p.where).map((id) => choice('pr-band', id, api.bandName(id), p.band === id)).join(''));
+    const stakes = outcome('fa-trophy', 'voyage-enc-good', t('MOD_VOY_ENC_STAKE_WIN'), t('MOD_VOY_ENC_PRACTICE_SETUP_WIN', { gp: api.text(c.purse) }))
+      + outcome('fa-coins', 'voyage-enc-s-coin', t('MOD_VOY_ENC_STAKE_PAY'), t('MOD_VOY_ENC_PRACTICE_SETUP_PAY', { gp: api.text(c.toll) }))
+      + outcome('fa-heart-broken', 'voyage-enc-bad', t('MOD_VOY_ENC_STAKE_LOSE'), t('MOD_VOY_ENC_PRACTICE_SETUP_LOSE', { gp: api.text(c.stake) }));
+    return head(api, f) + '<div class="voyage-enc-body"><div class="voyage-enc-stage">'
+      + `<div class="voyage-enc-lead">${esc(t('MOD_VOY_ENC_PRACTICE_INTRO'))}</div>`
+      + '<div class="voyage-enc-panels">'
+      + `<section class="voyage-enc-panel"><h3 class="voyage-enc-panel-ttl">${fa('fa-map-signs')}${esc(t('MOD_VOY_ENC_PRACTICE_PICK'))}</h3><div class="voyage-enc-picks">${picks}</div>`
+      + `<div class="voyage-enc-habit">${esc(t(`${def.key}_HABIT`))}</div>${traits(api, def)}</section>`
+      + `<section class="voyage-enc-panel"><h3 class="voyage-enc-panel-ttl">${fa('fa-balance-scale')}${esc(t('MOD_VOY_ENC_PRACTICE_STAKES'))}</h3>${stakes}</section>`
+      + '</div></div></div>'
+      + '<div class="voyage-enc-dock"><div class="voyage-enc-dock-row">'
+      + btn('pr-start', t('MOD_VOY_ENC_PRACTICE_START'), { cls: 'btn-primary', icon: 'fa-khanda' })
+      + tipsBtn(api)
+      + btn('pr-leave', t(api.leaveKey()), { icon: 'fa-sign-out-alt' })
+      + '</div></div>';
+  };
+  const tipsBtn = (api) => btn('pr-tips', t(api.tipsOn() ? 'MOD_VOY_ENC_PRACTICE_TIPS_ON' : 'MOD_VOY_ENC_PRACTICE_TIPS_OFF'), { icon: 'fa-chalkboard-teacher', pressed: api.tipsOn() });
 
   // ---- the fight ---------------------------------------------------------------------------------------------------
   const live = (api, s) => {
@@ -291,7 +325,7 @@ export function install(ctx, { state, log }) {
       run ? `<span class="voyage-enc-run" title="${esc(t('MOD_VOY_ENC_RUN_TIP'))}">${esc(t('MOD_VOY_ENC_RUN_CHAIN', { cards: run }))}</span>` : '',
       // A walking Folk carries no GP: nothing of yours is at stake on its board.
       !gpAtStake(api, f) ? '' : `<span class="voyage-enc-num"><img class="voyage-enc-gp" src="${esc(game.gp.media)}" alt=""> ${esc(t('MOD_VOY_ENC_GP', { gp: api.text(s.gp) }))}</span>`,
-      s.phase === 'fight' && gpAtStake(api, f) ? `<span title="${esc(t('MOD_VOY_ENC_STAKE_NOW_TIP'))}">${esc(t('MOD_VOY_ENC_STAKE_NOW'))} <b class="voyage-enc-minus">${esc(t('MOD_VOY_ENC_GP', { gp: api.text(stakeNow) }))}</b></span>` : '',
+      s.phase === 'fight' && gpAtStake(api, f) ? `<span title="${esc(t('MOD_VOY_ENC_STAKE_NOW_TIP'))}">${esc(t(api.practice ? 'MOD_VOY_ENC_PRACTICE_STAKE_NOW' : 'MOD_VOY_ENC_STAKE_NOW'))} <b class="voyage-enc-minus">${esc(t('MOD_VOY_ENC_GP', { gp: api.text(stakeNow) }))}</b></span>` : '',
       s.soften.length ? `<span>${esc(t('MOD_VOY_ENC_SOFTEN', { n: `${s.soften[0]}` }))}</span>` : '',
       b.weaken ? `<span>${esc(t('MOD_VOY_ENC_WEAKEN', { n: `${b.weaken}` }))}</span>` : '',
       b.bonus ? `<span class="voyage-enc-minus">${esc(t('MOD_VOY_ENC_BONUS', { n: `${b.bonus}` }))}</span>` : '',
@@ -300,11 +334,12 @@ export function install(ctx, { state, log }) {
     const hand = s.hand.map((c, i) => {
       const ok = ui.toss ? (E.CARDS[c.id].dead ? { ok: false, why: 'MOD_VOY_ENC_TOSS_DREAD' } : { ok: true }) : E.canPlay(s, i);
       const tr = !ui.toss && ok.ok ? E.trickIf(s, c.id) : null;
-      const known = tr && api.enc().tricks.includes(tr.id);
+      const known = tr && (api.enc().tricks.includes(tr.id) || (api.practice === true && s.found.includes(tr.id)));
       const name = t(E.cardKey(c.id));
       const tip = ok.ok ? (ui.toss ? t('MOD_VOY_ENC_TOSS_TIP', { name }) : known ? t('MOD_VOY_ENC_PLAY_TRICK_TIP', { name, trick: t(E.trickKey(tr.id)) }) : t('MOD_VOY_ENC_PLAY_TIP', { name })) : t(ok.why);
       return `<button type="button" class="voyage-enc-card-btn${i === best ? ' voyage-enc-hint' : ''}${known ? ' voyage-enc-trick' : ''}" data-act="${ui.toss ? 'toss' : 'play'}" data-i="${i}" aria-disabled="${!ok.ok}" title="${esc(tip)}">${cardFace(api, c.id, s)}${known ? `<span class="voyage-enc-trick-badge">${fa('fa-magic')} ${esc(t(E.trickKey(tr.id)))}</span>` : ''}</button>`;
     }).join('') || `<div class="voyage-enc-note">${esc(t('MOD_VOY_ENC_HAND_EMPTY'))}</div>`;
+    const coach = api.practice && api.tipsOn() ? api.coach(s) : undefined;
     const logHtml = s.log.slice().reverse().slice(0, 40).map((l) => `<div class="voyage-enc-log-${l.t}"><span class="voyage-enc-r">${l.r ? `R${l.r}` : ''}</span><span>${esc(api.line(l))}</span></div>`).join('');
     return head(api, f) + `<div class="voyage-enc-body voyage-enc-board">`
       // You on the left, the band on the right, as the game's own combat screen has it (the user, 30 Oct 2026).
@@ -322,15 +357,20 @@ export function install(ctx, { state, log }) {
       + nxt
       + (s.phase === 'chase' ? `<div class="voyage-enc-chase">${fa('fa-running')} ${esc(t('MOD_VOY_ENC_CHASE_BANNER', { n: `${b.nerve}` }))}</div>` : s.phase === 'press' ? `<div class="voyage-enc-habit">${esc(t('MOD_VOY_ENC_PRESS_NOTE'))}</div>` : traits(api, s.def))
       + '</div>'
-      + (ltT ? `<div class="voyage-enc-trick-strip${lt.first ? ' voyage-enc-new' : ''}">${fa('fa-magic')} ${esc(t(lt.first ? 'MOD_VOY_ENC_TRICK_FOUND' : 'MOD_VOY_ENC_TRICK_FIRED', { name: t(E.trickKey(lt.id)) }))} ${seqHtml(api, ltT)}: ${esc(t(E.trickTextKey(lt.id)))}</div>` : '')
+      + (ltT ? `<div class="voyage-enc-trick-strip${lt.first ? ' voyage-enc-new' : ''}">${fa('fa-magic')} ${esc(t(!lt.first ? 'MOD_VOY_ENC_TRICK_FIRED' : api.practice ? 'MOD_VOY_ENC_PRACTICE_TRICK' : 'MOD_VOY_ENC_TRICK_FOUND', { name: t(E.trickKey(lt.id)) }))} ${seqHtml(api, ltT)}: ${esc(t(E.trickTextKey(lt.id)))}</div>` : '')
+      + (coach !== undefined ? `<div class="voyage-enc-coach">${fa('fa-chalkboard-teacher')}<span>${esc(t(coach))}</span></div>` : '')
       + `<div class="voyage-enc-hand${ui.toss ? ' voyage-enc-tossing' : ''}">${hand}</div>`
       + '</div>'
-      + '<div class="voyage-enc-actions">'
+      // In rows on a phone (css); on a wider screen they run as one line.
+      + '<div class="voyage-enc-actions"><div class="voyage-enc-act-row voyage-enc-act-fill">'
       + btn('end', t('MOD_VOY_ENC_END_ROUND'), { cls: 'btn-primary', icon: 'fa-step-forward' })
       + btn('tossmode', s.tossed ? t('MOD_VOY_ENC_TOSSED') : ui.toss ? t('MOD_VOY_ENC_TOSS_PICK') : t('MOD_VOY_ENC_TOSS'), { icon: 'fa-trash-alt', disabled: s.tossed, pressed: ui.toss, title: t('MOD_VOY_ENC_TOSS_HELP') })
       + btn('hint', ui.hint ? t('MOD_VOY_ENC_HINT_HIDE') : t('MOD_VOY_ENC_HINT'), { icon: 'fa-lightbulb', pressed: ui.hint })
+      + '</div><div class="voyage-enc-act-row">'
       + btn('autoround', t('MOD_VOY_ENC_AUTO_ROUND'), { icon: 'fa-robot', title: t('MOD_VOY_ENC_AUTO_ROUND_TIP') })
       + btn('tricks', t('MOD_VOY_DECK_TRICKS'), { icon: 'fa-book-open', cls: 'btn-outline-secondary voyage-enc-tricks-btn' })
+      + '</div>'
+      + (api.practice ? `<div class="voyage-enc-act-row">${tipsBtn(api)}${btn('pr-leave', t(api.leaveKey()), { icon: 'fa-sign-out-alt' })}</div>` : '')
       + `<span class="voyage-enc-piles voyage-enc-num"><span title="${esc(t('MOD_VOY_ENC_PILE_DRAW'))}">${fa('fa-layer-group')} ${s.drawPile.length}</span><span title="${esc(t('MOD_VOY_ENC_PILE_DISCARD'))}">${fa('fa-recycle')} ${s.discard.length}</span><span title="${esc(t('MOD_VOY_ENC_PILE_GONE'))}">${fa('fa-times-circle')} ${s.gone.length}</span></span>`
       + '</div>'
       + `<div class="voyage-enc-body voyage-enc-logwrap"><div class="voyage-enc-log">${logHtml}</div></div>`;
@@ -400,7 +440,9 @@ export function install(ctx, { state, log }) {
     const patch = f.folk === undefined && api.canPatch() ? btn('patch', t('MOD_VOY_ENC_BTN_PATCH', { food: `${api.R.PATCH_FOOD}` }), { cls: 'btn-success', icon: 'fa-utensils', title: t('MOD_VOY_ENC_PATCH_TIP') }) : '';
     const acts = r.press && !r.banked
       ? btn('press', t('MOD_VOY_ENC_BTN_PRESS'), { cls: 'btn-warning', icon: 'fa-crown' }) + btn('take', t('MOD_VOY_ENC_BTN_TAKE'), { cls: 'btn-primary', icon: 'fa-coins' })
-      : btn('close', t('MOD_VOY_ENC_BTN_GO_ON'), { cls: 'btn-primary', icon: 'fa-route' }) + patch;
+      : api.practice
+        ? btn('pr-again', t('MOD_VOY_ENC_PRACTICE_AGAIN'), { cls: 'btn-primary', icon: 'fa-redo' }) + btn('pr-change', t('MOD_VOY_ENC_PRACTICE_CHANGE'), { icon: 'fa-map-signs' }) + btn('pr-leave', t(api.leaveKey()), { icon: 'fa-sign-out-alt' })
+        : btn('close', t('MOD_VOY_ENC_BTN_GO_ON'), { cls: 'btn-primary', icon: 'fa-route' }) + patch;
     return head(api, f) + '<div class="voyage-enc-body"><div class="voyage-enc-stage">'
       + `<div class="voyage-enc-banner voyage-enc-${r.tone}"><span class="voyage-enc-banner-ico">${fa(bannerIcon(r))}</span><div>`
       + `<div class="voyage-enc-banner-head">${esc(resText(api, r.head))}</div>`
@@ -413,10 +455,13 @@ export function install(ctx, { state, log }) {
   };
 
   // ---- the popup ---------------------------------------------------------------------------------------------------
+  // What the open popup draws: the real encounter, or a practice fight (a real band's redraw then waits its turn).
+  let shown;
+  let current;
   /** Draws the open encounter into the popup (each press redraws it). */
   const render = (api) => {
     const el = root();
-    if (el === null) return;
+    if (el === null || (shown !== undefined && api !== shown)) return;
     const v = api.fight();
     if (v === undefined) { el.innerHTML = ''; return; }
     const { f, s } = v;
@@ -424,8 +469,8 @@ export function install(ctx, { state, log }) {
     // The frame around the popup is the band's own (css: the voyage-enc-popup[data-band] rules).
     const pop = el.closest('.voyage-enc-popup');
     if (pop !== null) pop.dataset.band = f.opt.band;
-    el.dataset.stage = f.stage;
-    el.innerHTML = f.stage === 'meet' ? meetHtml(api, f) : f.stage === 'fight' ? fightHtml(api, f, s) : resultHtml(api, f, s);
+    el.dataset.stage = f.stage === 'setup' ? 'meet' : f.stage; // the setup is laid out as the meet is
+    el.innerHTML = f.stage === 'setup' ? setupHtml(api, f) : f.stage === 'meet' ? meetHtml(api, f) : f.stage === 'fight' ? fightHtml(api, f, s) : resultHtml(api, f, s);
     balanceHand(el);
   };
   // Spread a hand that needs more than one row evenly over its rows: 6 cards as 3 + 3, not 5 + 1.
@@ -450,7 +495,9 @@ export function install(ctx, { state, log }) {
     const i = Number(b.dataset.i);
     const ui = api.ui;
     try {
-      if (a === 'fight') api.startFight();
+      if (a.startsWith('pr-')) api.practiceAct?.(a, b.dataset.v);
+      else if (a === 'practice') state.encounterPractice?.fromMeet?.();
+      else if (a === 'fight') api.startFight();
       else if (a === 'pay') api.pay();
       else if (a === 'run') api.run();
       else if (a === 'auto') api.autoResolve();
@@ -470,6 +517,14 @@ export function install(ctx, { state, log }) {
   };
   /** Opens the popup on the open encounter; `onClosed` when it closes (by Go on, or by another popup). */
   const popup = ({ api, onClosed }) => {
+    const me = {};
+    current = me;
+    shown = api;
+    const closed = () => {
+      if (current === me) { const was = shown; current = undefined; shown = undefined; was?.reset?.(); }
+      state.deck?.closeTrickBook?.();
+      onClosed();
+    };
     const cls = { container: 'voyage-enc-backdrop', popup: 'voyage-ui voyage-enc-popup', htmlContainer: 'voyage-enc-html' };
     SwalLocale.fire({
       html: `<div id="${ROOT}" class="voyage-enc"></div>`,
@@ -482,12 +537,14 @@ export function install(ctx, { state, log }) {
       didOpen: () => {
         const el = root();
         if (el === null) return;
-        el.addEventListener('click', (e) => onClick(api, e));
-        render(api);
+        el.addEventListener('click', (e) => onClick(shown ?? api, e));
+        render(shown ?? api);
       },
-    }).then(() => { state.deck?.closeTrickBook?.(); onClosed(); }, () => { state.deck?.closeTrickBook?.(); onClosed(); });
+    }).then(closed, closed);
   };
   const onResize = () => { const el = root(); if (el !== null) balanceHand(el); };
   window.addEventListener('resize', onResize);
-  return { popup, render, cardFace, seqHtml, POPUP_WIDTH };
+  /** Swaps what the open popup shows: from a band's board to a practice fight and back. */
+  const show = (api) => { shown = api; render(api); };
+  return { popup, render, show, cardFace, seqHtml, POPUP_WIDTH };
 }

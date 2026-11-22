@@ -23,7 +23,7 @@
         "category": "Voyage",
         "type": "Misc",
         "media": "assets/pitch.webp",
-        "customDescription": "With logs, it repairs a ship's hull on the Voyage page. Firemaking makes it now and then: the better the logs, the more often.",
+        "customDescription": "With logs, it repairs a ship's hull on the Voyage page. Any log burned in the Melvor realm, mods' logs too, has a chance to make it: the better the log, the more often. Abyssal logs never do.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,

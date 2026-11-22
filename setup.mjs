@@ -20,9 +20,9 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-20.614';
+export const BUILD = '2026-11-22.618';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
-const DEV = false;
+const DEV = true;
 
 export async function setup(ctx) {
   const log = DEV ? (...args) => console.log('[Voyage]', ...args) : () => {};
@@ -519,6 +519,10 @@ export async function setup(ctx) {
     if (s !== undefined) s.encounters = encounters;
     // The Deck block on the Voyage page (slice 3): the deck, presets, charms and the trick book.
     state.deck = (await ctx.loadModule('src/deck.mjs')).install(ctx, { state, F, log });
+    // Practice fights (the user, 22 Nov 2026): the same board with nothing at stake. A failure: no Practice buttons.
+    try {
+      state.encounterPractice = (await ctx.loadModule('src/encounter-practice.mjs')).install(ctx, { state, F, M: await ctx.loadModule('src/encounter-practice-model.mjs'), log });
+    } catch (e) { console.error('[Voyage] practice fights failed to load', e); state.encounterPractice = undefined; }
   } catch (e) { console.error('[Voyage] encounters failed to load', e); state.encounters = undefined; state.deck = undefined; }
   // Backups (the user, 5 Nov 2026): Back up and Restore at the Voyage page's foot, by hand only. A failure: no buttons.
   if (voyageSkillOk) {

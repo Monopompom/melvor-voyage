@@ -925,6 +925,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
   const open = () => {
     if (asking || offlineNow() || enc()?.fight == null) return;
     asking = true;
+    try { state.encounterPractice?.closeForBand?.(); } catch {}
     prepOdds();
     const go = () => {
       if (enc()?.fight == null) { asking = false; return; }
@@ -987,7 +988,15 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     return e.debts;
   };
 
+  // ---- practice fights: what a pick would face and cost, read from the real rules, nothing written ---------------------
+  const practiceCost = (p) => {
+    const { toll, gp } = tollAt({ where: p.where, tier: p.tier, ground: '' }, p.band, 0);
+    return { gp, toll, purse: R.purseOf(p.where, p.tier), stake: R.stakeOf(toll, gp) };
+  };
+  const practiceKit = (p) => ({ kit: kitOpt(p.where, p.tier), strength: strengthFor(p.where, p.tier), roll: R.bandRoll(Math.random()), seed: seed(), know: enc().tricks.slice() });
+
   const api = {
+    practiceCost, practiceKit,
     text, line, levels, tilt, grade, has, sim, sample, E, R, L,
     debts, debtTotal, payOffWhy, payOff, debtName, awayNow, oweNow, kindsNow, buyWhy, buyCard, bankQty, deckNow, shortSupplies,
     /** The offline summary's line: how many bands wait on your return ('' for none). */

@@ -193,6 +193,20 @@ export function canRepair(playerRec, ship, shipRec, portNear = false) {
  */
 export const pitchChance = (logLevel) => 10 + 0.25 * Math.max(1, Math.floor(logLevel ?? 1));
 
+/**
+ * Puts Pitch on every log of `realm` whose product list lacks it, and returns how many lists changed. Logs may share
+ * one list (the game's default), so each is checked as it comes.
+ */
+export function addPitchToLogs(logs, realm, pitch) {
+  let n = 0;
+  for (const l of logs) {
+    if (l.realm !== realm || !Array.isArray(l.primaryProducts) || l.primaryProducts.includes(pitch)) continue;
+    l.primaryProducts.push(pitch);
+    n += 1;
+  }
+  return n;
+}
+
 export const SEA_CLASSES = ['water', 'shoal'];
 export const isSea = (rec) => rec !== undefined && SEA_CLASSES.includes(rec.t);
 export const sameHex = (a, b) => a !== undefined && a !== null && b !== undefined && b !== null && a.q === b.q && a.r === b.r;

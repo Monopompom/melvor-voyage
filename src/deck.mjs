@@ -60,7 +60,8 @@ export function install(ctx, { state, F, log }) {
       : t('MOD_VOY_DECK_SEA_NONE');
     return section(`<div class="voyage-deck-head"><span class="voyage-travel-total">${e.deck.length}</span><span class="voyage-travel-label">${esc(t('MOD_VOY_DECK_CARDS_LABEL'))}</span>`
       + `<span class="voyage-deck-suits">${suitChips(e.deck)}</span>`
-      + `<span class="ml-auto voyage-deck-build">${button('build', `${fa('fa-layer-group mr-1')}${esc(t('MOD_VOY_DECK_BUILD'))}`, { cls: 'btn-primary', disabled: locked })}</span></div>`
+      + `<span class="ml-auto voyage-deck-build">${state.encounterPractice === undefined ? '' : button('practice', `${fa('fa-chalkboard-teacher mr-1')}${esc(t('MOD_VOY_ENC_PRACTICE_BTN'))}`, { cls: 'btn-info', title: t('MOD_VOY_ENC_PRACTICE_TIP') })}</span>`
+      + `<span class="voyage-deck-build">${button('build', `${fa('fa-layer-group mr-1')}${esc(t('MOD_VOY_DECK_BUILD'))}`, { cls: 'btn-primary', disabled: locked })}</span></div>`
       + (locked ? `<div class="text-warning mt-2">${fa('fa-lock mr-1')}${esc(t('MOD_VOY_DECK_LOCKED'))}</div>` : '')
       + shortLine(e)
       + `<small class="d-block text-muted mt-2">${esc(t('MOD_VOY_DECK_RANGE', { min: `${E.DECK_MIN}`, max: `${E.DECK_MAX}` }))} ${esc(shipLine)}</small>`);
@@ -223,6 +224,7 @@ export function install(ctx, { state, F, log }) {
     const i = Number(b.dataset.i);
     ui.note = '';
     if (a === 'build') { if (!api().kitLocked()) openBuilder(); else refuseLocked(); return; }
+    if (a === 'practice') { state.encounterPractice?.open?.(); return; }
     if (a === 'equip') equipDeck(i === 0 ? E.STARTER : e.presets[i - 1]?.deck ?? []);
     else if (a === 'over' && e.presets[i] !== undefined) { e.presets = D.savePreset(e.presets, e.presets[i].name, e.deck, E).presets; say(t('MOD_VOY_DECK_SAVED', { name: e.presets[i].name })); }
     else if (a === 'delask') ui.delAsk = i;

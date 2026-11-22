@@ -94,7 +94,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   outside your carry limit. Strike camp puts the tent back in your bank. With Worker Folks, a tent is also a depot for
   the Folks around it (see Worker Folks).
 - **Hull wear.** Every sea hex wears your ship's hull a little. Repair it in the Voyage page's Stores block with logs
-  and Pitch, which Firemaking now makes from time to time (more often from better logs): the small boat on a beach,
+  and Pitch. Any log burned in the Melvor realm, mods' logs too, has a chance to make Pitch (better logs more often;
+  Abyssal logs never do): the small boat on a beach,
   the big ship at a port. Repairing is careening: the hull is hauled out 6 minutes for every 10% and can't sail
   meanwhile (offline too; Stop keeps the work done so far, and the logs and Pitch for the rest are lost). Below 50% a
   sea hex takes 25% longer and the hull keeps out of deep water. A worn-out hull can always limp back to the coast.
@@ -108,6 +109,9 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   - **Run**: at sea hull wear, a fifth of the crates overboard and a hex more at sea; on land 15% of your food and
     fuel and the hex's time again.
   - **Auto-resolve**: one fight played for you at the chance it shows.
+
+  New to it? **Practice fight** (on the Deck block, in the Journal, and on the first band you meet) plays your real
+  deck against any band and tier, with tips, and costs nothing: no GP, supplies, loot or Battered.
 
   What the GP you carry can't cover is owed to that band on that ground: you meet bands there twice as often until
   you pay it off wherever you can trade. Offline nobody stops you; the bands met wait for you as one when you are

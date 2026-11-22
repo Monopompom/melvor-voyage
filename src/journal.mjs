@@ -506,7 +506,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   /** The suits' icons, as the fight draws them (encounter-fight.mjs). */
   const SUIT_ICON = { steel: 'fa-khanda', powder: 'fa-bomb', coin: 'fa-coins', wits: 'fa-chess-knight' };
   /** An icon before each of the chapter's headings. */
-  const ENC_HEAD_ICON = { MEET: 'fa-map-signs', ANSWER: 'fa-balance-scale', ROUND: 'fa-hourglass-half', SUITS: 'fa-layer-group',
+  const ENC_HEAD_ICON = { MEET: 'fa-map-signs', ANSWER: 'fa-balance-scale', PRACTICE: 'fa-chalkboard-teacher', ROUND: 'fa-hourglass-half', SUITS: 'fa-layer-group',
     STAKES: 'fa-coins', DECK: 'fa-clone', AWAY: 'fa-moon', FOLKS: 'fa-walking', BANDS: 'fa-skull-crossbones' };
   const suitMark = (suit, name) => `<span class="vj-suit vj-suit-${suit}">${fa(SUIT_ICON[suit])}<b>${name}</b></span>`;
   /**
@@ -669,6 +669,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       if (id === 'settings' && sec === 'EASIER') html += settingsTable();
       if (id === 'weather' && sec === 'SEASON') html += weatherNow();
       if (id === 'encounters' && sec === 'MEET') html += encTiersTable();
+      if (id === 'encounters' && sec === 'PRACTICE' && state.encounterPractice !== undefined) html += `<div class="vj-foot vj-foot-end"><button type="button" class="vj-btn" data-vj-practice="1">${esc(t('MOD_VOY_ENC_PRACTICE_BTN'))}</button></div>`;
       if (id === 'encounters' && sec === 'SUITS') html += encCombosTable();
       if (id === 'encounters' && sec === 'BANDS') html += encBandsTable();
       if (id === 'settings' && sec === 'KEYS') html += keysTable();
@@ -1836,6 +1837,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       if (el === null) return;
       if (cover !== null) { endCover(); return; } // a click while the cover plays only skips it
       if (el === root || el.closest('[data-vj-close]')) { close(); return; }
+      if (el.closest('[data-vj-practice]')) { close(); state.encounterPractice?.open?.(); return; }
       const clear = el.closest('[data-vj-clear]');
       if (clear !== null) { const s = root.querySelector(`#${clear.dataset.vjClear}`); if (s !== null) { s.value = ''; searched(s); s.focus(); } return; }
       const tab = el.closest('[data-vj-tab]');
