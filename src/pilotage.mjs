@@ -115,6 +115,8 @@ export function install(ctx, { state, P, CM, hexes, terrainMod, log }) {
   const api = {
     areaAt, nameOf, levelAt, levelIn, hexesIn, moved,
     hexesFor: P.hexesFor,
+    unlocks: P.unlockTable,
+    stormShore: P.STORM_SHORE,
     /** Bumped when a level changes: the map's storm tracks redraw. */
     stamp: () => stamp,
     /** The share of a hex's time left for you on `hex`: 1, down to 0.9 at 99. */

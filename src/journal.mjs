@@ -23,7 +23,7 @@ const ROOT_ID = 'voyage-journal';
 /** Skills that work anywhere, named on the crafts page. */
 const ANYWHERE = ['melvorD:Agility', 'melvorD:Prayer', 'melvorAoD:Cartography', 'melvorD:Astrology'];
 
-export function install(ctx, { state, model, journalModel: jm, shipModel, storesModel, rules, terrainMod, shortNumber, log }) {
+export function install(ctx, { state, model, journalModel: jm, figures, shipModel, storesModel, rules, terrainMod, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const iconUrl = ctx.getResourceUrl('assets/journal.webp');
@@ -301,8 +301,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   const view = { open: false, tab: 'how', spread: 0, crewSpread: 0, entry: undefined, place: undefined, guide: undefined, query: '', placeQuery: '', back: null, pick: undefined, side: 'left' };
   let root;
 
-  const ledger = (cols, rows) => `<table class="vj-ledger"><thead><tr>${cols.map((c, i) => `<th class="${i > 0 && rows.numeric?.[i] ? 'vj-num' : ''}" data-no-skill-names>${esc(c)}</th>`).join('')}</tr></thead>`
-    + `<tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${i === 0 ? 'vj-first' : ''} ${c.cls ?? ''}"${c.plain ? ' data-no-skill-names' : ''}>${c.html === undefined ? esc(nb(c.text ?? c)) : nb(c.html)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const ledger = (cols, rows) => `<table class="vj-ledger${rows.stack ? ' vj-stack' : ''}${rows.stack === 'words' ? ' vj-stack-words' : ''}"><thead><tr>${cols.map((c, i) => `<th class="${i > 0 && rows.numeric?.[i] ? 'vj-num' : ''}" data-no-skill-names>${esc(c)}</th>`).join('')}</tr></thead>`
+    + `<tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${i === 0 ? 'vj-first' : ''} ${c.cls ?? ''}" data-th="${esc(cols[i] ?? '')}"${c.plain ? ' data-no-skill-names' : ''}>${c.html === undefined ? esc(nb(c.text ?? c)) : nb(c.html)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   /**
    * Book text with its crosslinks (journal-model.mjs splitLinks) as buttons. A link whose target isn't in the book
    * (an Adventure-only chapter, a guide page not written yet) stays plain text.
@@ -337,15 +337,18 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
    * last column sits right even as words, as a price does (the user, 29 Oct 2026).
    */
   const FIGURE = /^(?:—|[-+−]?\d[\d.,]*(?:\s*[-–]\s*\d[\d.,]*)?\s*(?:%|×|GP|HP|min|h|hexes?|hex)?)$/;
-  const prose = (lines) => jm.proseBlocks(lines).map((b) => {
+  const prose = (lines, figs) => { let nth = 0; return jm.proseBlocks(lines).map((b) => {
     if (b.kind === 'points') return `<ul class="vj-points">${b.items.map((i) => `<li>${rich(i)}</li>`).join('')}</ul>`;
     if (b.kind === 'note') return note(b.text);
     if (b.kind === 'p') return `<p class="vj-p">${rich(b.text)}</p>`;
+    // A table of figures this section draws as a chart (journal-figures-model.mjs); its words and numbers stay.
+    const spec = figs?.[nth++];
+    if (spec !== undefined) return figures.figureTable(spec, b.head.map((c) => rich(c)), b.rows.map((r) => ({ cells: b.head.map((_, i) => ({ html: rich(r[i] ?? ''), text: r[i] ?? '', cls: '' })) })));
     const num = b.head.map((_, i) => i > 0 && b.rows.length > 0 && b.rows.every((r) => FIGURE.test(r[i] ?? '')));
     const end = (i) => (i > 0 && i === b.head.length - 1 && !num[i] && num.some(Boolean) ? 'vj-end' : '');
     return `<table class="vj-ledger"><thead><tr>${b.head.map((c, i) => `<th class="${num[i] ? 'vj-num' : end(i)}">${rich(c)}</th>`).join('')}</tr></thead>`
       + `<tbody>${b.rows.map((r) => `<tr>${b.head.map((_, i) => `<td class="${i === 0 ? 'vj-first' : ''}${num[i] ? ' vj-num' : end(i) ? ' vj-end' : ''}">${rich(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
-  }).join('');
+  }).join(''); };
   const dropCap = (text) => { const s = String(text); return `<p class="vj-p vj-lead"><span class="vj-dropcap">${esc(s.slice(0, 1))}</span>${rich(s.slice(1))}</p>`; };
   const mapButton = (kind, id) => `<button type="button" class="vj-btn" data-vj-map="${esc(kind)}" data-vj-id="${esc(id)}">`
     + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>'
@@ -361,10 +364,14 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   const empty = (key) => `<p class="vj-p vj-faint">${esc(t(key))}</p>`;
 
   /** The Voyage page's help sections, in book form (help-layout.mjs shape: { head?, warn?, body: [...] }). */
-  const bookSections = (sections) => sections.map((s) => {
+  const bookSections = (sections) => { const dress = new Map(Object.entries(figures.HELP_DRESS).map(([k, d]) => [t(k), d])); return sections.map((s) => {
+    const d = s.head === undefined ? undefined : dress.get(s.head);
+    let nth = 0;
     const body = s.body.map((it) => {
       if (typeof it === 'string') return `<p class="vj-p">${esc(it)}</p>`;
       if (it.table !== undefined) {
+        const spec = d?.figs?.[nth++];
+        if (spec !== undefined) return figures.figureTable(spec, it.table.cols.map((c) => esc(c)), it.table.rows.map((r) => ({ cells: r.cells.map((c, i) => ({ html: esc(c), text: c, cls: i === 0 ? '' : r.cls?.[i - 1] ?? '' })) })));
         const rows = it.table.rows.map((r) => r.cells.map((c, i) => (i === 0 ? { text: c } : { text: c, cls: `vj-num ${r.cls?.[i - 1] ?? ''}` })));
         rows.numeric = it.table.cols.map((_, i) => i > 0);
         return ledger(it.table.cols, rows);
@@ -372,8 +379,8 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       if (it.html !== undefined) return `<p class="vj-p ${it.cls ?? ''}">${it.html}</p>`;
       return `<p class="vj-p ${it.cls ?? ''}">${esc(it.text)}</p>`;
     }).join('');
-    return `<div class="vj-section${s.warn ? ' vj-warn' : ''}">${s.head ? `<h3 class="vj-h3">${esc(s.head)}</h3>` : ''}${body}</div>`;
-  }).join('');
+    return `<div class="vj-section${s.warn ? ' vj-warn' : ''}">${s.head ? `<h3 class="vj-h3">${d?.icon ? fa(d.icon, 'vj-h3-icon') : ''}${esc(s.head)}</h3>` : ''}${body}</div>`;
+  }).join(''); };
 
   /** A skill's name with its icon; "Alt. Magic" by its page label (the name pass would split it). */
   const skillChip = (id, skill) => {
@@ -450,6 +457,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     // Archaeology (the user, 23 Oct 2026): not a ground but a place, each dig site its own.
     const arch = skillOf(rules.ARCHAEOLOGY_ID);
     if (arch !== undefined) rows.push([{ html: skillChip(rules.ARCHAEOLOGY_ID, arch) }, { text: t('MOD_VOY_JOURNAL_DIG_WORKS'), plain: true }, { text: t('MOD_VOY_HELP_NONE'), plain: true }]);
+    rows.stack = 'words'; // three columns of place names: on a phone each stacks under its craft
     const anywhere = ANYWHERE.map(skillOf).filter((s) => s !== undefined).map((s) => s.name);
     return ledger([t('MOD_VOY_JOURNAL_COL_CRAFT'), t('MOD_VOY_JOURNAL_COL_WORKS'), t('MOD_VOY_JOURNAL_COL_SLOWER')], rows)
       + `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_CRAFTS_ANYWHERE', { skills: anywhere.join(', ') }))}</p>`
@@ -508,6 +516,14 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   /** An icon before each of the chapter's headings. */
   const ENC_HEAD_ICON = { MEET: 'fa-map-signs', ANSWER: 'fa-balance-scale', PRACTICE: 'fa-chalkboard-teacher', ROUND: 'fa-hourglass-half', SUITS: 'fa-layer-group',
     STAKES: 'fa-coins', DECK: 'fa-clone', AWAY: 'fa-moon', FOLKS: 'fa-walking', BANDS: 'fa-skull-crossbones' };
+  /** A written section's heading icon (journal-figures-model.mjs), or nothing. */
+  const secIcon = (group, sec) => { const i = figures.SECTION_ICONS[group]?.[sec]; return i === undefined ? '' : fa(i, 'vj-h3-icon'); };
+  /** A section's list as cards with an icon each, or numbered where its order matters. */
+  const listDress = (where, html) => {
+    const icons = figures.LIST_CARDS[where];
+    if (icons !== undefined) { let i = 0; return html.replace('<ul class="vj-points">', '<ul class="vj-points vj-cardlist">').replace(/<li>/g, () => `<li>${fa(icons[i++] ?? 'fa-circle')}<div>`).replace(/<\/li>/g, '</div></li>'); }
+    return figures.LIST_NUMBERED.includes(where) ? html.replace('<ul class="vj-points">', '<ul class="vj-points vj-numbered">') : html;
+  };
   const suitMark = (suit, name) => `<span class="vj-suit vj-suit-${suit}">${fa(SUIT_ICON[suit])}<b>${name}</b></span>`;
   /**
    * The game's words in escaped text marked: a suit in its colour with its icon, the moves, bars and answers bold
@@ -640,7 +656,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       const lines = jm.folksLines(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_BODY`, vars).split('\n').filter((x) => x.trim() !== ''), folksOn(), vars.wfHas);
       // The Quay key (1.8.1), under the board's first line while it is set.
       if (spec.from === 'CARGO' && sec === 'BOARD' && vars.quay !== '') lines.splice(1, 0, t('MOD_VOY_JOURNAL_CH_CARGO_BOARD_KEY', vars));
-      return `<div class="vj-section"><h3 class="vj-h3">${esc(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_HEAD`))}</h3>${prose(lines)}</div>`;
+      return `<div class="vj-section"><h3 class="vj-h3">${secIcon(spec.from, sec)}${esc(t(`MOD_VOY_JOURNAL_CH_${spec.from}_${sec}_HEAD`))}</h3>${prose(lines)}</div>`;
     }).join('');
   };
   const writtenBody = (id) => {
@@ -661,10 +677,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       if (id === 'map' && sec === 'KEYS' && vars.map !== '') lines.unshift(t('MOD_VOY_JOURNAL_CH_MAP_KEYS_OPEN', vars));
       // The Places key (1.8.1) gets its line while it is set.
       if (id === 'map' && sec === 'PLACES' && vars.places !== '') lines.push(t('MOD_VOY_JOURNAL_CH_MAP_PLACES_KEY', vars));
-      const body = spec.points ? `<ul class="vj-points">${lines.map((l) => `<li>${rich(l)}</li>`).join('')}</ul>` : prose(lines);
+      const body = spec.points ? `<ul class="vj-points">${lines.map((l) => `<li>${rich(l)}</li>`).join('')}</ul>` : prose(lines, figures.WRITTEN_FIGS[id]?.[sec]);
       // The bands chapter (the user, 30 Oct 2026): an icon on each heading, the game's words marked.
-      const encIcon = id === 'encounters' && ENC_HEAD_ICON[sec] ? fa(ENC_HEAD_ICON[sec], 'vj-h3-icon') : '';
-      html += `<div class="vj-section${spec.warn?.includes(sec) ? ' vj-warn' : ''}"><h3 class="vj-h3">${encIcon}${esc(t(`MOD_VOY_JOURNAL_CH_${key}_${sec}_HEAD`))}</h3>${id === 'encounters' ? (sec === 'ROUND' ? encSteps() : '') + encDress(body) : body}</div>`;
+      const headIcon = id === 'encounters' && ENC_HEAD_ICON[sec] ? fa(ENC_HEAD_ICON[sec], 'vj-h3-icon') : secIcon(id, sec);
+      html += `<div class="vj-section${spec.warn?.includes(sec) ? ' vj-warn' : ''}"><h3 class="vj-h3">${headIcon}${esc(t(`MOD_VOY_JOURNAL_CH_${key}_${sec}_HEAD`))}</h3>${listDress(`${id}.${sec}`, id === 'encounters' ? (sec === 'ROUND' ? encSteps() : '') + encDress(body) : body)}</div>`;
       if (id === 'foreword' && sec === 'WHO') html += galleon();
       if (id === 'settings' && sec === 'EASIER') html += settingsTable();
       if (id === 'weather' && sec === 'SEASON') html += weatherNow();
@@ -706,15 +722,18 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     if (M === undefined) return '';
     // Phase 5a: with timed travel the mounts give land speed, not a GP cut.
     const timed = state.timed?.() === true;
+    const pace = (m) => (timed ? m.speed : m.cut * 100);
+    const paceMax = Math.max(...M.MOUNTS.map(pace));
     const rows = M.MOUNTS.map((m) => {
       const p = shopPurchase(m.id);
       const mine = owns(p);
       // "Yours" under the name, not a column of its own: the page is narrow (build .172).
       return [{ html: `<span class="vj-mount">${p?.media ? `<img src="${p.media}" alt="">` : ''}<span><b>${esc(p?.name ?? m.id)}</b>${mine ? `<span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_ROAD_YOURS'))}</span>` : ''}</span></span>` },
-        { text: `${m.level}`, cls: 'vj-num' }, { text: timed ? `×${m.speed}` : `${Math.round(m.cut * 100)}%`, cls: 'vj-num' },
+        { text: `${m.level}`, cls: 'vj-num' }, { html: figures.barCell(esc(timed ? `×${m.speed}` : `${Math.round(m.cut * 100)}%`), pace(m), paceMax), cls: 'vj-figcell' },
         { html: p === undefined ? '' : `<span class="vj-costs">${priceHtml(p)}</span>` }];
     });
-    rows.numeric = [false, true, true, false];
+    rows.numeric = [false, true, false, false];
+    rows.stack = true; // four columns do not fit a phone: each row stacks under its name there
     return ledger([t('MOD_VOY_JOURNAL_ROAD_COL_MOUNT'), t('MOD_VOY_JOURNAL_ROAD_COL_LEVEL'), t(timed ? 'MOD_VOY_JOURNAL_ROAD_COL_SPEED' : 'MOD_VOY_JOURNAL_ROAD_COL_CUT'), t('MOD_VOY_JOURNAL_ROAD_COL_PRICE')], rows);
   };
   // The shipwright's bill (build .178, the hull chapter): every hull's price live from ship-model.mjs, laid out like
@@ -808,6 +827,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
       try { const k = hiring.statusOf(f); status = has(`MOD_WF_STATUS_${k}`) ? getLangString(`MOD_WF_STATUS_${k}`) : k; } catch {}
       return [{ text: f.name ?? '?' }, roleName(f.tier), f.skillId ? (skillOf(f.skillId)?.name ?? '') : t('MOD_VOY_JOURNAL_CREW_IDLE'), status];
     });
+    rows.stack = true;
     return `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_CREW_ABOARD'))}</h3>`
       + ledger([t('MOD_VOY_JOURNAL_CREW_COL_NAME'), t('MOD_VOY_JOURNAL_CREW_COL_RANK'), t('MOD_VOY_JOURNAL_CREW_COL_AT'), t('MOD_VOY_JOURNAL_CREW_COL_STATUS')], rows);
   };
@@ -816,15 +836,18 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     // reports them (its .147 raised the first hires), else the numbers typed in journal-model.mjs.
     const r = folksRules();
     const live = (xs, i, typed) => (Array.isArray(xs) && xs.length === jm.CREW_TIERS.length && Number.isFinite(xs[i]) ? xs[i] : typed);
-    const rows = jm.CREW_TIERS.map((x, i) => [{ text: roleName(x.tier) }, { text: t('MOD_VOY_UNIT_PCT', { n: `${live(r?.produceRates, i, x.rate)}` }), cls: 'vj-num' },
+    const rateMax = Math.max(...jm.CREW_TIERS.map((x, i) => live(r?.produceRates, i, x.rate)));
+    const rows = jm.CREW_TIERS.map((x, i) => [{ text: roleName(x.tier) }, { html: figures.barCell(esc(t('MOD_VOY_UNIT_PCT', { n: `${live(r?.produceRates, i, x.rate)}` })), live(r?.produceRates, i, x.rate), rateMax), cls: 'vj-figcell' },
       { text: t('MOD_VOY_UNIT_GP', { n: gp(live(r?.wages, i, x.wage)) }), cls: 'vj-num' }, { text: t('MOD_VOY_UNIT_GP', { n: gp(live(r?.hireBase, i, x.hire)) }), cls: 'vj-num' }]);
-    rows.numeric = [false, true, true, true];
+    rows.numeric = [false, false, true, true];
+    rows.stack = true;
     return ledger([t('MOD_VOY_JOURNAL_CREW_COL_RANK'), t('MOD_VOY_JOURNAL_CREW_COL_RATE'), t('MOD_VOY_JOURNAL_CREW_COL_WAGE'), t('MOD_VOY_JOURNAL_CREW_COL_HIRE')], rows);
   };
   const crewLicences = () => {
     const dungeon = (id) => { try { return game.dungeons.getObjectByID(id)?.name; } catch { return undefined; } };
     const rows = jm.CREW_LICENCES.map((x) => [{ text: roleName(x.tier) }, { text: x.level > 0 ? `${x.level}` : '—', cls: 'vj-num' }, { text: gp(x.gp), cls: 'vj-num' }, dungeon(x.dungeon) ?? '—']);
     rows.numeric = [false, true, true, false];
+    rows.stack = true;
     return ledger([t('MOD_VOY_JOURNAL_CREW_COL_LICENCE'), t('MOD_VOY_JOURNAL_CREW_COL_LEVEL'), t('MOD_VOY_JOURNAL_CREW_COL_GP'), t('MOD_VOY_JOURNAL_CREW_COL_DUNGEON')], rows);
   };
   /** Worker Folks' own tips, as its author keeps them (its language keys). A tip ending in a colon leads into a table
@@ -840,7 +863,7 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   /** The keyboard shortcuts as set now (build .171, the user's ask): key, what it does; a cleared one says off. */
   const keysTable = () => {
     const s = state.settings;
-    const row = (k, what) => [{ text: k || t('MOD_VOY_JOURNAL_OFF'), cls: k ? 'vj-key' : 'text-muted' }, { text: t(what), plain: true }];
+    const row = (k, what) => [k ? { html: `<kbd class="vj-keycap">${esc(k)}</kbd>` } : { text: t('MOD_VOY_JOURNAL_OFF'), cls: 'text-muted' }, { text: t(what), plain: true }];
     return ledger([t('MOD_VOY_JOURNAL_KEYS_COL_KEY'), t('MOD_VOY_JOURNAL_KEYS_COL_DOES')], [
       row(s.mapKey?.(), 'MOD_VOY_JOURNAL_KEYS_MAP'),
       row(s.centreKey?.(), 'MOD_VOY_JOURNAL_KEYS_CENTRE'),
@@ -878,10 +901,10 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
   };
   const settingsTable = () => {
     const s = state.settings;
-    const onOff = (on) => ({ text: t(on ? 'MOD_VOY_JOURNAL_ON' : 'MOD_VOY_JOURNAL_OFF'), cls: `vj-num ${on ? 'text-success' : 'text-muted'}` });
+    const onOff = (on) => ({ html: `<span class="vj-pill ${on ? 'vj-pill-on' : 'vj-pill-off'}">${esc(t(on ? 'MOD_VOY_JOURNAL_ON' : 'MOD_VOY_JOURNAL_OFF'))}</span>`, cls: 'vj-num' });
     const rows = [
       [t('MOD_VOY_SETTING_RULES'), onOff(s.rules())],
-      [t('MOD_VOY_SETTING_STRICTNESS'), { text: t(s.strictness() === 'relaxed' ? 'MOD_VOY_SETTING_STRICTNESS_RELAXED' : 'MOD_VOY_SETTING_STRICTNESS_STRICT'), cls: 'vj-num' }],
+      [t('MOD_VOY_SETTING_STRICTNESS'), { html: `<span class="vj-pill">${esc(t(s.strictness() === 'relaxed' ? 'MOD_VOY_SETTING_STRICTNESS_RELAXED' : 'MOD_VOY_SETTING_STRICTNESS_STRICT'))}</span>`, cls: 'vj-num' }],
       [t('MOD_VOY_SETTING_ZONES'), onOff(s.zones())],
       [t('MOD_VOY_SETTING_COMBAT'), onOff(s.combat())],
       [t('MOD_VOY_SETTING_TRADE'), onOff(s.trade())],
@@ -1005,10 +1028,18 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
     const ms = (sk?.milestones ?? []).filter((m) => typeof CustomSkillMilestone === 'undefined' || m instanceof CustomSkillMilestone)
       .slice().sort((a, b) => a.level - b.level);
     if (sk === undefined || ms.length === 0) return '';
-    const rows = ms.map((m) => [{ text: `${m.level}` }, { text: m.name }, sk.level >= m.level ? { text: '✓', cls: 'vj-num text-success' } : { text: '', cls: 'vj-num' }]);
-    rows.numeric = [false, false, true];
-    return `<div class="vj-section"><h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_LEVELS_HEAD'))}</h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_BODY'))}</p>`
-      + ledger([t('MOD_VOY_JOURNAL_COL_VOYAGE_LEVEL'), t('MOD_VOY_JOURNAL_COL_GIVES'), t('MOD_VOY_JOURNAL_COL_YOURS')], rows)
+    // A trail of seals: the ones reached ticked, the next one named, so the eye finds where the character stands.
+    const reached = ms.filter((m) => sk.level >= m.level).length;
+    const next = ms.find((m) => sk.level < m.level)?.level;
+    const rows = ms.map((m) => {
+      const [title, ...rest] = String(m.name).split(': ');
+      const done = sk.level >= m.level;
+      const mark = done ? `<span class="vj-trail-tick">${fa('fa-check')}</span>` : m.level === next ? `<span class="vj-trail-tag">${esc(t('MOD_VOY_JOURNAL_LEVELS_NEXT'))}</span>` : '';
+      return `<li class="vj-trail-row${done ? ' vj-trail-done' : ''}${m.level === next ? ' vj-trail-next' : ''}"><span class="vj-tier vj-pilot-seal">${m.level}</span>`
+        + `<span class="vj-trail-text"><b>${esc(title)}</b>${rest.length > 0 ? `<span>${esc(rest.join(': '))}</span>` : ''}</span>${mark}</li>`;
+    }).join('');
+    return `<div class="vj-section"><h3 class="vj-h3 vj-pilot-head">${fa('fa-award', 'vj-h3-icon')}<span>${esc(t('MOD_VOY_JOURNAL_LEVELS_HEAD'))}</span><small class="vj-pilot-count">${esc(t('MOD_VOY_JOURNAL_LEVELS_COUNT', { n: `${reached}`, max: `${ms.length}` }))}</small></h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_BODY'))}</p>`
+      + `<ol class="vj-trail" data-no-skill-names>${rows}</ol>`
       // The balance pass: the reward every level gives (model.travelDiscount).
       + `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_DISCOUNT', { per: `${model.TRAVEL_DISCOUNT_PER_LEVEL}`, pct: `${model.travelDiscount(sk.level)}` }))}</p></div>`;
   };
@@ -1556,39 +1587,85 @@ export function install(ctx, { state, model, journalModel: jm, shipModel, stores
         : `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_ISLAND_KNOWS'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_COL_PLACE'), t('MOD_VOY_JOURNAL_COL_KIND')], rows));
   };
   /** A market's prices on its place page (phase 4): what it pays well and little for. */
-  const pctCell = (pct) => ({ text: `${pct}%`, cls: `vj-num ${pct > 100 ? 'vj-dear' : 'vj-cheap'}` });
   const marketPrices = (p) => {
     const m = state.market?.enabled?.() ? state.market.marketAt(p.q, p.r) : undefined;
     if (m === undefined) return '';
-    const rows = state.market.listOf(m).map((x) => [x.name, pctCell(x.percent)]);
-    rows.numeric = [false, true];
+    // Each price on a scale around the usual 100%: right of the middle it pays more, left of it less.
+    const list = state.market.listOf(m);
+    const reach = Math.max(1, ...list.map((x) => Math.abs(x.percent - 100)));
+    const rows = list.map((x) => [x.name, { html: figures.pivotCell(esc(`${x.percent}%`), x.percent, 100, reach, true), cls: `vj-figcell ${x.percent > 100 ? 'vj-dear' : 'vj-cheap'}` }]);
+    rows.numeric = [false, false];
     return `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_MARKET_PAYS'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_COL_GOODS'), t('MOD_VOY_JOURNAL_COL_PRICE')], rows)
       + `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_MARKET_REST'))}</p>`;
   };
   /**
-   * The Pilotage ledger (4.36): every sea and land travelled, its level, the hexes to the next level and what the next
-   * unlock brings; a name at 99 in gold. Areas not travelled yet are only counted.
+   * The Pilotage page (4.36): how a level is earned and what each one gives, then every sea and land travelled, its
+   * level, the hexes to the next level and what the next unlock brings; a name at 99 in gold. Areas not travelled yet
+   * are only counted.
    */
   const pilotLedger = () => {
     const all = state.pilotage?.all?.() ?? [];
-    const unlockWord = (lvl) => (lvl === undefined ? '–' : t('MOD_VOY_JOURNAL_PILOT_UNLOCK', { level: `${lvl}`, what: lvl === 20 ? t('MOD_VOY_JOURNAL_PILOT_UNLOCK_20') : lvl === 40 ? t('MOD_VOY_JOURNAL_PILOT_UNLOCK_40') : t('MOD_VOY_JOURNAL_PILOT_UNLOCK_SPEED', { pct: `${lvl === 99 ? 10 : (lvl - 50) / 5}` }) }));
-    const rowsOf = (sea) => all.filter((a) => a.sea === sea && a.hexes > 0).map((a) => [
-      { text: a.name, cls: a.gold ? 'vj-strong vj-gold' : 'vj-strong' },
-      { text: `${a.level}` },
-      { text: a.need === 0 ? '–' : t('MOD_VOY_JOURNAL_PILOT_TO_NEXT', { into: `${a.into}`, need: `${a.need}` }) },
-      { text: unlockWord(a.next) },
-    ]);
-    const cols = [t('MOD_VOY_JOURNAL_COL_WHERE'), t('MOD_VOY_JOURNAL_COL_LEVEL'), t('MOD_VOY_JOURNAL_COL_HEXES'), t('MOD_VOY_JOURNAL_COL_NEXT')];
-    const part = (sea) => {
-      const rows = rowsOf(sea);
-      return `<h3 class="vj-h3">${esc(t(sea ? 'MOD_VOY_JOURNAL_PILOT_SEAS' : 'MOD_VOY_JOURNAL_PILOT_LANDS'))}</h3>`
-        + (rows.length === 0 ? `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_PILOT_NONE'))}</p>` : ledger(cols, rows));
+    const unlocks = state.pilotage?.unlocks?.() ?? [];
+    const seal = (level, gold = false) => `<span class="vj-tier vj-pilot-seal${gold ? ' vj-pilot-seal-gold' : ''}">${level}</span>`;
+    const head = (icon, text, right = '') => `<h3 class="vj-h3 vj-pilot-head">${fa(icon, 'vj-h3-icon')}<span>${esc(text)}</span>${right === '' ? '' : `<small class="vj-pilot-count">${esc(right)}</small>`}</h3>`;
+    const items = (cls, list) => `<ul class="vj-pilot-items ${cls}">${list.map(([icon, key]) => `<li>${fa(icon)}<span>${esc(t(key))}</span></li>`).join('')}</ul>`;
+
+    // What teaches and what doesn't, side by side.
+    const rules = '<div class="vj-pilot-rules">'
+      + `<section class="vj-pilot-rule vj-pilot-yes"><div class="vj-pilot-rule-head">${fa('fa-check')}<span>${esc(t('MOD_VOY_JOURNAL_PILOT_YES_HEAD'))}</span></div>`
+      + `<p class="vj-pilot-plus"><b>+1</b><span>${esc(t('MOD_VOY_JOURNAL_PILOT_YES_BODY'))}</span></p>`
+      + items('', [['fa-ship', 'MOD_VOY_JOURNAL_PILOT_WAY_SHIP'], ['fa-water', 'MOD_VOY_JOURNAL_PILOT_WAY_DINGHY'], ['fa-shoe-prints', 'MOD_VOY_JOURNAL_PILOT_WAY_FOOT'], ['fa-horse', 'MOD_VOY_JOURNAL_PILOT_WAY_MOUNT'], ['fa-moon', 'MOD_VOY_JOURNAL_PILOT_WAY_OFFLINE']])
+      + '</section>'
+      + `<section class="vj-pilot-rule vj-pilot-no"><div class="vj-pilot-rule-head">${fa('fa-times')}<span>${esc(t('MOD_VOY_JOURNAL_PILOT_NO_HEAD'))}</span></div>`
+      + items('', [['fa-bolt', 'MOD_VOY_JOURNAL_PILOT_NO_FAST'], ['fa-wind', 'MOD_VOY_JOURNAL_PILOT_NO_DRIFT'], ['fa-cloud', 'MOD_VOY_JOURNAL_PILOT_NO_CLOUD'], ['fa-users', 'MOD_VOY_JOURNAL_PILOT_NO_FOLKS'], ['fa-map-marker-alt', 'MOD_VOY_JOURNAL_PILOT_NO_START'], ['fa-history', 'MOD_VOY_JOURNAL_PILOT_NO_OLD']])
+      + '</section></div>';
+
+    // The milestones: a row for storms and for bands, then the speed levels as a rising chart.
+    const gain = (u, icon, title, body) => `<li class="vj-pilot-gain">${seal(u.level)}<div class="vj-pilot-gain-text"><div class="vj-pilot-gain-title"><b>${fa(icon)}${esc(title)}</b>`
+      + `<span class="vj-pilot-gain-hexes">${esc(t('MOD_VOY_JOURNAL_PILOT_HEXES', { n: numberWithCommas(u.hexes) }))}</span></div><span>${esc(body)}</span></div></li>`;
+    const forecast = unlocks.find((u) => u.kind === 'forecast');
+    const bandTier = unlocks.find((u) => u.kind === 'bandTier');
+    const speeds = unlocks.filter((u) => u.kind === 'speed');
+    const top = Math.max(1, ...speeds.map((u) => u.pct));
+    const speedChart = `<ol class="vj-pilot-speed">${speeds.map((u) => `<li class="${u.gold ? 'vj-pilot-speed-gold' : ''}"><b>${esc(t('MOD_VOY_JOURNAL_PILOT_SPEED_PCT', { pct: `${u.pct}` }))}</b>`
+      + `<span class="vj-pilot-bar"><span style="height:${Math.round(u.pct / top * 100)}%"></span></span>${seal(u.level, u.gold)}`
+      + `<small>${esc(numberWithCommas(u.hexes))}<br>${esc(t('MOD_VOY_JOURNAL_PILOT_HEXES_WORD'))}</small></li>`).join('')}</ol>`;
+    const gains = '<ol class="vj-pilot-gains">'
+      + (forecast === undefined ? '' : gain(forecast, 'fa-cloud-showers-heavy', t('MOD_VOY_JOURNAL_PILOT_GAIN_STORMS_HEAD'), t('MOD_VOY_JOURNAL_PILOT_GAIN_STORMS', { n: `${state.pilotage.stormShore}` })))
+      + (bandTier === undefined ? '' : gain(bandTier, 'fa-skull-crossbones', t('MOD_VOY_JOURNAL_PILOT_GAIN_BANDS_HEAD'), t('MOD_VOY_JOURNAL_PILOT_GAIN_BANDS')))
+      + `<li class="vj-pilot-gain vj-pilot-gain-wide"><div class="vj-pilot-gain-text"><b>${fa('fa-wind')}${esc(t('MOD_VOY_JOURNAL_PILOT_GAIN_SPEED_HEAD'))}</b><span>${esc(t('MOD_VOY_JOURNAL_PILOT_GAIN_SPEED'))}</span></div>${speedChart}</li>`
+      + '</ol>';
+
+    // Each area travelled: its level, how far through it, and what comes next.
+    const nextIcon = (u) => (u.kind === 'forecast' ? 'fa-cloud-showers-heavy' : u.kind === 'bandTier' ? 'fa-skull-crossbones' : 'fa-wind');
+    const nextOf = (a) => {
+      const u = unlocks.find((x) => x.level === a.next);
+      if (u === undefined) return `<span class="vj-pilot-next vj-gold">${fa('fa-crown')}${esc(t('MOD_VOY_JOURNAL_PILOT_DONE'))}</span>`;
+      const what = u.kind === 'forecast' ? t('MOD_VOY_JOURNAL_PILOT_UNLOCK_20') : u.kind === 'bandTier' ? t('MOD_VOY_JOURNAL_PILOT_UNLOCK_40') : t('MOD_VOY_JOURNAL_PILOT_UNLOCK_SPEED', { pct: `${u.pct}` });
+      return `<span class="vj-pilot-next">${fa(nextIcon(u))}${esc(t('MOD_VOY_JOURNAL_PILOT_UNLOCK', { level: `${u.level}`, what, n: numberWithCommas(u.hexes - a.hexes) }))}</span>`;
     };
-    const left = all.filter((a) => a.hexes === 0).length;
+    const areaRow = (a) => {
+      const pct = a.need > 0 ? Math.round(a.into / a.need * 100) : 100;
+      const where = a.need > 0 ? t('MOD_VOY_JOURNAL_PILOT_INTO', { into: numberWithCommas(a.into), need: numberWithCommas(a.need), level: `${a.level + 1}` }) : t('MOD_VOY_JOURNAL_PILOT_HEXES', { n: numberWithCommas(a.hexes) });
+      return `<li class="vj-pilot-area${a.gold ? ' vj-pilot-area-gold' : ''}">${seal(a.level, a.gold)}<div class="vj-pilot-area-body">`
+        + `<div class="vj-pilot-area-name">${esc(a.name)}</div>`
+        + `<div class="vj-pilot-meter" role="progressbar" aria-label="${esc(where)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>`
+        + `<div class="vj-pilot-area-foot"><span>${esc(where)}</span>${nextOf(a)}</div></div></li>`;
+    };
+    const part = (sea) => {
+      const inPart = all.filter((a) => a.sea === sea);
+      const known = inPart.filter((a) => a.hexes > 0);
+      return head(sea ? 'fa-water' : 'fa-mountain', t(sea ? 'MOD_VOY_JOURNAL_PILOT_SEAS' : 'MOD_VOY_JOURNAL_PILOT_LANDS'), t('MOD_VOY_JOURNAL_PILOT_COUNT', { n: `${known.length}`, of: `${inPart.length}` }))
+        + (known.length === 0 ? `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_PILOT_NONE'))}</p>` : `<ul class="vj-pilot-areas">${known.map(areaRow).join('')}</ul>`);
+    };
+
     return runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), t('MOD_VOY_JOURNAL_PLACES_PILOT'))
-      + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_PILOT_TITLE'))}</h2><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_PILOT_INTRO'))}</p>`
-      + part(true) + part(false)
-      + (left > 0 ? `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_PILOT_LEFT', { n: `${left}` }))}</p>` : '');
+      + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_PILOT_TITLE'))}</h2>`
+      + dropCap(t('MOD_VOY_JOURNAL_PILOT_INTRO', { seas: `${all.filter((a) => a.sea).length}`, lands: `${all.filter((a) => !a.sea).length}` }))
+      + head('fa-compass', t('MOD_VOY_JOURNAL_PILOT_HOW_HEAD')) + rules
+      + head('fa-award', t('MOD_VOY_JOURNAL_PILOT_GAINS_HEAD')) + gains
+      + `<p class="vj-p vj-faint vj-pilot-foot">${esc(t('MOD_VOY_JOURNAL_PILOT_GAINS_FOOT'))}</p>`
+      + part(true) + part(false);
   };
   /** The Markets ledger: every market whose prices you know, what each pays well and little for. */
   const marketsLedger = () => {

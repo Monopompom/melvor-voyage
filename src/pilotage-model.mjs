@@ -150,6 +150,14 @@ export const seesBandTier = (level) => level >= UNLOCKS.bandTier;
 export const isGold = (level) => level >= UNLOCKS.gold;
 /** The next level that unlocks something, or undefined at the top. */
 export const nextUnlock = (level) => [UNLOCKS.forecast, UNLOCKS.bandTier, ...SPEED_LEVELS].filter((l) => l > level).sort((a, b) => a - b)[0];
+/** Every level that unlocks something, lowest first: { level, hexes, kind ('forecast', 'bandTier' or 'speed'), pct, gold }. */
+export const unlockTable = () => [UNLOCKS.forecast, UNLOCKS.bandTier, ...SPEED_LEVELS].map((level) => ({
+  level,
+  hexes: hexesFor(level),
+  kind: level === UNLOCKS.forecast ? 'forecast' : level === UNLOCKS.bandTier ? 'bandTier' : 'speed',
+  pct: Math.round((1 - speedFactor(level)) * 100),
+  gold: isGold(level),
+}));
 /** Levels between `before` (exclusive) and `after` (inclusive) worth a notice: every unlock and every tenth level. */
 export function noticeLevels(before, after) {
   const out = [];

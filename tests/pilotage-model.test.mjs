@@ -89,3 +89,12 @@ test('the save: clean keys and whole counts, adding reports the levels before an
   assert.equal(P.addHexes(rec, 'nowhere', 1), undefined);
   assert.equal(P.addHexes(rec, 'sea_VibrantPort', 0), undefined);
 });
+
+test('the unlock table lists each unlock with its total hexes and speed', () => {
+  const rows = P.unlockTable();
+  assert.deepEqual(rows.map((r) => r.level), [20, 40, 60, 70, 80, 90, 99]);
+  assert.deepEqual(rows.map((r) => r.hexes), [38, 159, 363, 496, 650, 825, 1000]);
+  assert.deepEqual(rows.map((r) => r.kind), ['forecast', 'bandTier', 'speed', 'speed', 'speed', 'speed', 'speed']);
+  assert.deepEqual(rows.map((r) => r.pct), [0, 0, 2, 4, 6, 8, 10]);
+  assert.deepEqual(rows.filter((r) => r.gold).map((r) => r.level), [99]);
+});
