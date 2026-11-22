@@ -415,6 +415,9 @@ test('home port: the recent list keeps each destination once, newest first, at m
   assert.deepEqual(list.map((e) => e.name), ['Farmlands', 'Normal Tree']);
   assert.deepEqual(list[0].hexes, [{ q: 9, r: 9 }], 'the newest copy is kept');
   assert.deepEqual(addRecent(list, { name: 'x', hexes: 'no' }), list, 'an unusable entry changes nothing');
+  // The same place saved under another language's name is still one entry.
+  const twice = addRecent([{ name: 'The Vibrant Port', hexes: [{ q: 28, r: 7 }] }], { name: 'Der lebhafte Hafen', hexes: [{ q: 28, r: 7 }] });
+  assert.deepEqual(twice.map((e) => e.name), ['Der lebhafte Hafen']);
   for (let i = 0; i < RECENT_MAX + 3; i++) list = addRecent(list, { name: `Place ${i}`, hexes: [{ q: i, r: 0 }] });
   assert.equal(list.length, RECENT_MAX);
   assert.equal(list[0].name, `Place ${RECENT_MAX + 2}`);

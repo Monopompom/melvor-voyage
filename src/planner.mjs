@@ -718,7 +718,17 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     if (h === undefined || h.here) return false;
     return planTo({ name: h.name, media: h.media, hexes: [{ q: h.q, r: h.r }], home: true });
   };
-  const recent = () => (open() ? model.cleanRecent(record()?.recent) : []);
+  /** A saved place in the language shown now: its action or area, else the place on its one hex, else the saved words. */
+  const recentName = (e) => {
+    try {
+      const a = e.arrival;
+      const live = a?.kind === 'action' ? game.skills.getObjectByID(a.skillId)?.actions?.getObjectByID(a.actionId)
+        : a?.kind === 'area' ? (game.combatAreas.getObjectByID(a.areaId) ?? game.slayerAreas.getObjectByID(a.areaId) ?? game.dungeons.getObjectByID(a.areaId))
+          : e.hexes.length === 1 ? placeOf(liveHex(e.hexes[0].q, e.hexes[0].r)) : undefined;
+      return live?.name || e.name;
+    } catch { return e.name; }
+  };
+  const recent = () => (open() ? model.cleanRecent(record()?.recent).map((e) => ({ ...e, name: recentName(e) })) : []);
   /** Puts the target set off for at the top of the recent list (the trip home is not listed). */
   const remember = (tg) => {
     const r = record();

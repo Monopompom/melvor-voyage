@@ -473,8 +473,13 @@ export function cleanRecentEntry(raw) {
   return out;
 }
 
-/** Two destinations are one when they have the same name and the same action or area. */
-export const recentKey = (e) => `${e.name}|${e.arrival?.actionId ?? e.arrival?.areaId ?? ''}`;
+/** Two destinations are one with the same action or area; without either, with the same name or hexes (a saved name changes with the language). */
+export const sameRecent = (a, b) => {
+  const id = (e) => e.arrival?.actionId ?? e.arrival?.areaId;
+  const hexes = (e) => e.hexes.map((h) => `${h.q},${h.r}`).join(';');
+  if (id(a) !== undefined || id(b) !== undefined) return id(a) === id(b);
+  return a.name === b.name || hexes(a) === hexes(b);
+};
 
 /** The recent list as saved: checked entries, each destination once (the newest kept), at most RECENT_MAX. */
 export function cleanRecent(raw) {
@@ -482,7 +487,7 @@ export function cleanRecent(raw) {
   const out = [];
   for (const x of raw) {
     const e = cleanRecentEntry(x);
-    if (e !== undefined && !out.some((o) => recentKey(o) === recentKey(e))) out.push(e);
+    if (e !== undefined && !out.some((o) => sameRecent(o, e))) out.push(e);
     if (out.length === RECENT_MAX) break;
   }
   return out;
@@ -493,7 +498,7 @@ export function addRecent(list, entry) {
   const prev = cleanRecent(list);
   const e = cleanRecentEntry(entry);
   if (e === undefined) return prev;
-  return [e, ...prev.filter((x) => recentKey(x) !== recentKey(e))].slice(0, RECENT_MAX);
+  return [e, ...prev.filter((x) => !sameRecent(x, e))].slice(0, RECENT_MAX);
 }
 // ---- receipts (save v30) -----------------------------------------------------------------------------------------
 /** Finished voyages a save keeps the receipts of. */

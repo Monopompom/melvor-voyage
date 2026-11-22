@@ -172,7 +172,7 @@ div.form-inline:has(> .dropdown > [id="voyage:strictness"]) > .dropdown { width:
 
 /* phase 3b: the ship block and the hex overview note */
 .voyage-hull-icon { width: 48px; height: 48px; flex: 0 0 auto; }
-.voyage-cost { display: inline-flex; align-items: center; margin-right: 12px; white-space: nowrap; }
+.voyage-cost { display: inline-flex; flex-wrap: wrap; align-items: center; max-width: 100%; margin-right: 12px; white-space: nowrap; } /* a long item name pushes "you have" to its own line on a phone */
 .voyage-cost img { width: 20px; height: 20px; }
 .voyage-hull { padding-top: 8px; border-top: 1px solid var(--voyage-rule-soft); }
 .voyage-hull-bar { height: 8px; margin-top: 4px; } /* the full band width beside the icon (build .159, the user) */
@@ -357,16 +357,26 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
    in a box too narrow for that, the button drops under them and fills the line. */
 .voyage-action { container-type: inline-size; }
 .voyage-hold-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.voyage-hold-row .voyage-hold-qty { flex: 0 1 140px; min-width: 96px; min-height: 40px; }
-.voyage-hold-row .voyage-hold-presets { display: flex; gap: 8px; }
-.voyage-hold-row .voyage-hold-go { margin-left: auto; }
-@container (max-width: 32rem) { .voyage-hold-row .voyage-hold-go { flex: 1 1 100%; margin-left: 0; } }
+/* No gaps (the user, 22 Nov 2026): the amount box takes a shared line's spare width; whatever wraps fills its own line. */
+.voyage-hold-row .voyage-hold-qty { flex: 999 1 96px; min-width: 96px; min-height: 40px; }
+.voyage-hold-row .voyage-hold-presets { display: flex; flex: 1 1 auto; gap: 8px; }
+.voyage-hold-row .voyage-hold-presets .btn { flex: 1 1 auto; }
+.voyage-hold-row > .voyage-hold-go { flex: 1 1 var(--voyage-main-width); }
+@container (max-width: 32rem) { .voyage-hold-row > .voyage-hold-go { flex: 1 1 100%; } }
 /* Sell ahead of the main button (the hold, build .265): the pair keeps the main button's place at the row's right;
    in a narrow panel the pair takes the whole line, Sell at its own width and the main button the rest. */
 .voyage-hold-row .voyage-hold-gos { display: flex; gap: 8px; margin-left: auto; max-width: 100%; }
 .voyage-hold-gos .voyage-hold-go { margin-left: 0; }
 .voyage-hold-gos .voyage-hold-before { min-height: 40px; min-width: 6rem; }
-@container (max-width: 32rem) { .voyage-hold-row .voyage-hold-gos { flex: 1 1 100%; margin-left: 0; } #voyage-container .voyage-hold-gos .voyage-hold-go { flex: 1 1 auto; width: auto; } }
+@container (max-width: 36rem) { .voyage-hold-row .voyage-hold-gos { flex: 1 1 100%; margin-left: 0; } #voyage-container .voyage-hold-gos .voyage-hold-go { flex: 1 1 auto; width: auto; } }
+/* Wide enough for one line, longer labels take their room from the amount box and the green button, not a second row. */
+@container (min-width: 36.01rem) {
+  .voyage-hold-row-pair { flex-wrap: nowrap; }
+  .voyage-hold-row-pair .voyage-hold-qty { flex-basis: 140px; }
+  .voyage-hold-row-pair .voyage-hold-presets, .voyage-hold-row-pair .voyage-hold-before { flex: none; }
+  .voyage-hold-row-pair .voyage-hold-gos { flex: 0 1 auto; min-width: 0; margin-left: 0; }
+  #voyage-container .voyage-hold-row-pair .voyage-hold-go { flex: 0 1 auto; min-width: 0; }
+}
 /* Every green button on the page one width (build .157, the user). Alone at a band's foot it is centred (hull repairs .158, the ship block's build, upgrade and buy .182, the user); in an amount row
    it sits at the row's right (.voyage-hold-go above). */
 :root { --voyage-main-width: 15rem; } /* 15rem (was 13): "Stock up (+12,345 food)" on one line (the user, 4 Nov 2026) */
@@ -1212,6 +1222,8 @@ body #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 @media (hover: hover) { .voyage-crate-full:hover { border-color: rgba(84, 166, 232, .6); } } /* .308: hover only where there is one (C-21) */
 .voyage-crate-picked { border-color: var(--voyage-pick); box-shadow: inset 0 3px 7px var(--voyage-crate-shade), 0 0 0 2px var(--voyage-pick); }
 .voyage-crate-qty { position: absolute; right: 2px; bottom: 3px; padding: 0 4px; border-radius: 4px; background: var(--voyage-qty-chip); font-size: .9rem; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000; } /* a dark chip on Light's pale crates, none on the dark themes */
+/* A count with a whole word for its unit ("23,4 Mio.") stays inside the crate. */
+.voyage-crate-qty-wide { right: 1px; max-width: calc(100% - 2px); padding: 0 2px; font-size: .7rem; line-height: 1.35; white-space: nowrap; }
 
 /* The market line in the bank's Sell block (phase 4). */
 .voyage-market-box { margin: 6px 0; padding: 6px 10px; border-radius: 4px; background: var(--voyage-band); font-size: .9rem; line-height: 1.45; }
@@ -1728,7 +1740,10 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-enc-card::before { content: ""; position: absolute; pointer-events: none; inset: 3px; border: 1px solid color-mix(in srgb, var(--s) 30%, transparent); border-radius: 6px; }
 .voyage-enc-card-top { display: flex; align-items: center; gap: 4px; padding: 4px 7px; border-bottom: 2px solid var(--s); color: var(--s); font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
 /* The skill, level and tilt at the head's right (.461, the user). */
-.voyage-enc-card-skill { margin-left: auto; font-size: .66rem; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--voyage-label); }
+.voyage-enc-card-skill { display: inline-flex; align-items: center; gap: 3px; min-width: 0; margin-left: auto; font-size: .66rem; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--voyage-label); }
+/* A long skill name in another language gives way; the tilt arrow after it always shows. */
+.voyage-enc-card-skill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.voyage-enc-card-skill > span:not(.voyage-enc-card-skill-name) { flex: none; }
 .voyage-enc-card-name { font-size: .98rem; font-weight: 600; line-height: 1.15; padding: 7px 8px 3px; }
 /* The body (.461, the user): the emblem or the main line, centred over a faint mark of the suit, so a short card is not
    a top line and a gap and a long one is not cramped. */

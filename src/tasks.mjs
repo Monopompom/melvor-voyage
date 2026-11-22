@@ -241,7 +241,7 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     const item = game.items.getObjectByID(n.item);
     return t('MOD_VOY_TASK_BRING', { n: qty(n.n), item: `<b>${esc(item?.name ?? n.item)}</b>`, port: `<b>${esc(portName(n.to))}</b>` });
   };
-  const payBlock = (n) => `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}<b class="text-success">${shortNumber(n.gp)}</b> GP</div>` +
+  const payBlock = (n) => `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}${t('MOD_VOY_ENC_GP', { gp: `<b class="text-success">${shortNumber(n.gp)}</b>` })}</div>` +
     `<div>${icon(skill()?.media)}<b class="text-success">${shortNumber(n.xp)}</b> <span data-no-skill-names>${esc(t('MOD_VOY_CARGO_XP'))}</span></div></div>`;
   const row = (n, lines, act, cls = '') => `<div class="voyage-cargo-row ${cls}">${art(n)}<div class="voyage-cargo-mid">${lines.join('')}</div>${payBlock(n)}<div class="voyage-cargo-act">${act}</div></div>`;
 

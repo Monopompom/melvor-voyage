@@ -5,17 +5,21 @@
 // (b) wrap fetchLanguageJSON so the object *returned* for any later language
 // change already carries our keys.
 
-const SUPPORTED = ['en'];
+const SUPPORTED = ['en', 'de', 'fr', 'zh-CN', 'zh-TW'];
 
-export async function install(ctx, { mergeLang }) {
-  const pick = (lang) => (SUPPORTED.includes(lang) ? lang : 'en');
-  const load = async (lang) => {
+export async function install(ctx, { mergeLang, overEnglish }) {
+  const read = async (lang) => {
     try {
-      return await ctx.loadData(`languages/${pick(lang)}.json`);
+      return await ctx.loadData(`languages/${lang}.json`);
     } catch (e) {
       console.error('[Voyage] Failed to load language file', lang, e);
       return {};
     }
+  };
+  // English underneath every translation, so a text added since it was translated never shows as a missing key.
+  const load = async (lang) => {
+    const en = await read('en');
+    return lang !== 'en' && SUPPORTED.includes(lang) ? overEnglish(en, await read(lang)) : en;
   };
 
   const original = globalThis.fetchLanguageJSON;

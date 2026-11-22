@@ -48,7 +48,7 @@ export function install(ctx, { state, F, log }) {
     const short = api().shortSupplies();
     if (short.length === 0) return '';
     // Each "Hot Meal (×3)" one piece that never breaks across a line (the user); the list is put in after escaping.
-    const what = short.map((x) => `<span class="text-nowrap">${esc(supplyCount(x.id, x.short))}</span>`).join(', ');
+    const what = short.map((x) => `<span class="text-nowrap">${esc(supplyCount(x.id, x.short))}</span>`).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
     const text = esc(t('MOD_VOY_DECK_SHORT', { what: '\u0001', met: `${api().deckNow().length}`, n: `${e.deck.length}` })).replace('\u0001', what);
     return `<div class="text-warning mt-2">${fa('fa-box-open mr-1')}${text}</div>`;
   };
@@ -278,7 +278,7 @@ export function install(ctx, { state, F, log }) {
     if (owned >= D.COPIES.shop) return mine;
     const price = D.priceOf(id, a.grade());
     const goods = price.items.map((x) => ({ ...x, item: itemOf(x.id) }));
-    const words = [t('MOD_VOY_ENC_GP', { gp: a.text(price.gp) }), ...goods.map((x) => `${a.text(x.qty)} ${x.item?.name ?? x.id}`)].join(', ');
+    const words = [t('MOD_VOY_ENC_GP', { gp: a.text(price.gp) }), ...goods.map((x) => `${a.text(x.qty)} ${x.item?.name ?? x.id}`)].join(getLangString('MOD_VOY_GATE_LIST_SEP'));
     const icons = `<span class="voyage-enc-num"><img class="voyage-enc-gp" src="${esc(game.gp.media)}" alt="">${esc(a.text(price.gp))}</span>`
       + goods.map((x) => `<span class="voyage-enc-num">${x.item?.media ? `<img class="voyage-enc-gp" src="${esc(x.item.media)}" alt="">` : ''}${esc(a.text(x.qty))}</span>`).join('');
     const why = a.buyWhy(id);

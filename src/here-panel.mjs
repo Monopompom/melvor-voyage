@@ -21,7 +21,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       ? templateLangString('MOD_VOY_PANEL_CLOUD_OVER', { cloud: getLangString(terrainMod.CLOUD_KEY), terrain: classLabel(rec.t) })
       : rec.ice === true ? getLangString(terrainMod.ICE_KEY) : classLabel(rec.t);
     const places = [rec.area, rec.dungeon].filter(Boolean).map(terrainMod.areaLabel);
-    return { label, features, css: info?.css, area: places.length > 0 ? places.join(', ') : undefined };
+    return { label, features, css: info?.css, area: places.length > 0 ? places.join(getLangString('MOD_VOY_GATE_LIST_SEP')) : undefined };
   };
 
   const poiNameOf = (hex) => {
@@ -104,7 +104,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         if (here.length === 0) {
           const later = state.zoneActionsHere(id, { later: true });
           const first = later[0]?.level ?? 1;
-          const names = later.filter((a) => (a.level ?? 1) === first).map((a) => a.name).join(', ');
+          const names = later.filter((a) => (a.level ?? 1) === first).map((a) => a.name).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
           // The level it opens at, red under the icon as the amber "80%" in Works (build .280, the user: "show red
           // 'lvl' as '80%'").
           const lvl = later.length > 0 ? `<small class="text-danger">${esc(templateLangString('MOD_VOY_PANEL_ZONE_LVL', { level: `${first}` }))}</small>` : '';
@@ -115,7 +115,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
             : templateLangString('MOD_VOY_PANEL_ZONE_NEVER', { skill: name }), `<img class="skill-icon-xs voyage-skill-locked" src="${skill.media}" alt="">${lvl}`, lvl === '' ? '' : 'voyage-skill-rate', lines));
           continue;
         }
-        zoneNote = here.slice(0, 8).map((a) => a.name).join(', ') + (here.length > 8 ? ', …' : '');
+        zoneNote = here.slice(0, 8).map((a) => a.name).join(getLangString('MOD_VOY_GATE_LIST_SEP')) + (here.length > 8 ? `${getLangString('MOD_VOY_GATE_LIST_SEP')}…` : '');
       }
       // One sentence each (build .279, the user: "Thieving: works here Here: Man." read badly): "Thieving works here:
       // Man.", "Woodcutting works here at 80%: Normal Tree, Oak Tree."
@@ -166,7 +166,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (skill === undefined) continue;
       const here = state.zoneActionsHere(id);
       if (here.length > 0) {
-        const names = here.slice(0, 8).map((a) => a.name).join(', ') + (here.length > 8 ? ', …' : '');
+        const names = here.slice(0, 8).map((a) => a.name).join(getLangString('MOD_VOY_GATE_LIST_SEP')) + (here.length > 8 ? `${getLangString('MOD_VOY_GATE_LIST_SEP')}…` : '');
         works.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKILL_WORKS_LIST', { skill: skill.name, names }), `<img class="skill-icon-xs" src="${skill.media}" alt="">`));
       } else {
         locked.push(skillIcon(skill, templateLangString('MOD_VOY_PANEL_SKY_NONE', { skill: skill.name }), `<img class="skill-icon-xs voyage-skill-locked" src="${skill.media}" alt="">`, '', [lockedHead(skill, skill.name), getLangString('MOD_VOY_PANEL_SKY_NONE_ROW')]));
@@ -177,7 +177,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     if (arch !== undefined && arch.isUnlocked) {
       const sites = state.digSitesHere?.() ?? [];
       if (sites.length > 0) {
-        works.push(skillIcon(arch, templateLangString('MOD_VOY_PANEL_SKILL_WORKS_LIST', { skill: arch.name, names: sites.map((s) => s.name).join(', ') }), `<img class="skill-icon-xs" src="${arch.media}" alt="">`));
+        works.push(skillIcon(arch, templateLangString('MOD_VOY_PANEL_SKILL_WORKS_LIST', { skill: arch.name, names: sites.map((s) => s.name).join(getLangString('MOD_VOY_GATE_LIST_SEP')) }), `<img class="skill-icon-xs" src="${arch.media}" alt="">`));
       } else {
         const sentences = [templateLangString('MOD_VOY_PANEL_NEEDS', { noun: getLangString('MOD_VOY_DIG_NOUN') })];
         const lines = [lockedHead(arch, arch.name), sentences[0]];
@@ -738,7 +738,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (c < 100) {
         // The name starts the tooltip, so it takes a capital (build .270, the user: "ship name - capitalize").
         const named = sh.hullName?.(sh.vessel(kind)) ?? getLangString('MOD_VOY_SHIP_BOAT');
-        const tip = `${named.charAt(0).toUpperCase()}${named.slice(1)}: ${templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` })}`;
+        const tip = `${named.charAt(0).toUpperCase()}${named.slice(1)}${getLangString('MOD_VOY_COLON')}${templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` })}`;
         out.push(chip(`<i class="fa fa-ship mr-1"></i>${c}%`, `${tip}.`, c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : '', 'voyage-chip-link voyage-find-ship', ` data-kind="${kind}"`));
       }
     }
@@ -778,7 +778,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         if (areas.length > 0) {
           // Several in reach: the tap unfolds the panel, its Combat row has a button each (build .280, the user's pick).
           const one = areas.length === 1;
-          const tip = templateLangString('MOD_VOY_MINI_COMBAT', { areas: areas.map((a) => a.name).join(', ') });
+          const tip = templateLangString('MOD_VOY_MINI_COMBAT', { areas: areas.map((a) => a.name).join(getLangString('MOD_VOY_GATE_LIST_SEP')) });
           const media = game.pages.getObjectByID('melvorD:Combat')?.media ?? '';
           fight = `<button type="button" class="voyage-skill-btn voyage-fight-chip"${one ? ` data-area="${esc(areas[0].id)}"` : ''} title="${esc(tip)}" aria-label="${esc(tip)}"><img class="skill-icon-xs" src="${esc(media)}" alt=""></button>`;
         }
@@ -834,7 +834,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
   const tuckHtml = (tip, status) => {
     const alert = tuckAlert();
-    const said = `${getLangString('MOD_VOY_PANEL_YOU_ARE_HERE')}: ${tip}.${alert === '' ? '' : ` ${getLangString(alert === 'bad' ? 'MOD_VOY_PANEL_TUCK_BAD' : 'MOD_VOY_PANEL_TUCK_WARN')}`}`;
+    const said = `${getLangString('MOD_VOY_PANEL_YOU_ARE_HERE')}${getLangString('MOD_VOY_COLON')}${tip}.${alert === '' ? '' : ` ${getLangString(alert === 'bad' ? 'MOD_VOY_PANEL_TUCK_BAD' : 'MOD_VOY_PANEL_TUCK_WARN')}`}`;
     const label = `${said} ${getLangString('MOD_VOY_PANEL_UNTUCK')}`;
     return `<div class="voyage-tuck-row"><button type="button" class="voyage-panel-toggle voyage-tuck" aria-expanded="false" title="${esc(said)}" aria-label="${esc(label)}">`
       + `${captainIcon()}${alert === '' ? '' : `<span class="voyage-tuck-dot voyage-tuck-${alert}" aria-hidden="true"></span>`}</button>${warnChips(status).join('')}</div>`;
@@ -1351,20 +1351,20 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       const d = describe(rec);
       const poi = poiNameOf(pos);
       // A dungeon's POI and area share a name: once (.308, scan B-52).
-      const place = [...new Set([poi ? esc(poi) : undefined, d.area ? esc(d.area) : undefined].filter(Boolean))].join(', ');
+      const place = [...new Set([poi ? esc(poi) : undefined, d.area ? esc(d.area) : undefined].filter(Boolean))].join(getLangString('MOD_VOY_GATE_LIST_SEP'));
       // The place's name and its coordinates move to the next line as one, never split (build .286, the user: "if name +
       // cords don't fit in line it goes on next line as whole"); a name wider than the panel still wraps inside.
       // The name in the body's ink; the terrain's features and the coordinates stay muted (.309, scan B-31).
       const where = place ? ` · <span class="voyage-keep">${place} <small class="text-muted">${coordsOf(pos)}</small></span>` : ` <small class="text-muted"><span class="voyage-keep">${coordsOf(pos)}</span></small>`;
       const swatch = d.css ? `<span class="voyage-swatch" style="background:${d.css}"></span>` : '';
-      const features = d.features.length > 0 ? ` · ${esc(d.features.join(', '))}` : '';
+      const features = d.features.length > 0 ? ` · ${esc(d.features.join(getLangString('MOD_VOY_GATE_LIST_SEP')))}` : '';
       const mode = state.mode === 'relaxed' ? `<div><small class="text-warning">${esc(getLangString('MOD_VOY_PANEL_TABLE_MISMATCH'))}</small></div>` : '';
       const status = traderStatus();
       const tucked = !panelOpen && panelTucked;
       panel.classList.toggle('voyage-mini', !panelOpen && !tucked);
       panel.classList.toggle('voyage-tucked', tucked);
       if (!panelOpen) {
-        const tip = `${d.label}${d.features.length > 0 ? ` · ${d.features.join(', ')}` : ''}${place ? ` · ${[poi, d.area].filter(Boolean).join(', ')}` : ''} ${coordsOf(pos)}`;
+        const tip = `${d.label}${d.features.length > 0 ? ` · ${d.features.join(getLangString('MOD_VOY_GATE_LIST_SEP'))}` : ''}${place ? ` · ${[poi, d.area].filter(Boolean).join(getLangString('MOD_VOY_GATE_LIST_SEP'))}` : ''} ${coordsOf(pos)}`;
         put(panel, tucked ? tuckHtml(tip, status) : miniHtml(pos, d, tip, status) + mode);
         settle(false);
         return;
@@ -1421,7 +1421,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       if (state.mode === 'dormant' || !hex.isFullySurveyed) { line.classList.add('d-none'); return; }
       const d = describe(state.recordAt(hex));
       const swatch = d.css ? `<span class="voyage-swatch" style="background:${d.css}"></span>` : '';
-      const features = d.features.length > 0 ? ` <span class="text-muted">· ${esc(d.features.join(', '))}</span>` : '';
+      const features = d.features.length > 0 ? ` <span class="text-muted">· ${esc(d.features.join(getLangString('MOD_VOY_GATE_LIST_SEP')))}</span>` : '';
       line.innerHTML = `${swatch}${esc(d.label)}${features}`;
       line.classList.remove('d-none');
     } catch (e) { log('overview line failed', e); }

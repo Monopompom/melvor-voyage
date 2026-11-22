@@ -10,7 +10,7 @@ const HITS = ['strike', 'charge', 'volley', 'board'];
 // all of it (css).
 const POPUP_WIDTH = '90vw';
 
-export function install(ctx, { state, log }) {
+export function install(ctx, { state, decimal, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fa = (icon, cls = '') => `<i class="fa ${icon}${cls ? ` ${cls}` : ''}" aria-hidden="true"></i>`;
@@ -19,7 +19,7 @@ export function install(ctx, { state, log }) {
 
   const skillName = (id) => { try { return game.skills.allObjects.find((s) => s.localID === id)?.name ?? id; } catch { return id; } };
   const itemOf = (id) => { try { return game.items.getObjectByID(id); } catch { return undefined; } };
-  const gpSign = (api, n) => `<span class="voyage-enc-num ${n >= 0 ? 'voyage-enc-plus' : 'voyage-enc-minus'}">${n >= 0 ? '+' : '−'}${esc(api.text(Math.abs(n)))} GP</span>`;
+  const gpSign = (api, n) => `<span class="voyage-enc-num ${n >= 0 ? 'voyage-enc-plus' : 'voyage-enc-minus'}">${n >= 0 ? '+' : '−'}${t('MOD_VOY_ENC_GP', { gp: esc(api.text(Math.abs(n))) })}</span>`;
   /** A result line: its vars as words, a trick's cards joined as a run (→). */
   const resText = (api, l) => {
     const vars = {};
@@ -49,7 +49,7 @@ export function install(ctx, { state, log }) {
     const out = [];
     for (const k of E.SUITS) {
       const x = E.suitMul(def, k);
-      if (x !== 1) out.push(`<span class="voyage-enc-chip voyage-enc-trait ${x > 1 ? 'voyage-enc-weak' : 'voyage-enc-tough'} voyage-enc-s-${k}">${fa(SUIT_ICON[k])}${esc(t('MOD_VOY_ENC_TRAIT_SUIT', { suit: t(E.suitKey(k)), x: `${x}` }))}</span>`);
+      if (x !== 1) out.push(`<span class="voyage-enc-chip voyage-enc-trait ${x > 1 ? 'voyage-enc-weak' : 'voyage-enc-tough'} voyage-enc-s-${k}">${fa(SUIT_ICON[k])}${esc(t('MOD_VOY_ENC_TRAIT_SUIT', { suit: t(E.suitKey(k)), x: decimal(x, 2) }))}</span>`);
     }
     if (def.rattled) out.push(`<span class="voyage-enc-chip voyage-enc-trait voyage-enc-weak voyage-enc-s-wits">${fa('fa-chess-knight')}${esc(t('MOD_VOY_ENC_TRAIT_RATTLED'))}</span>`);
     if (def.hidden) out.push(`<span class="voyage-enc-chip voyage-enc-trait">${fa('fa-eye-slash')}${esc(t('MOD_VOY_ENC_TRAIT_HIDDEN'))}</span>`);
@@ -133,7 +133,7 @@ export function install(ctx, { state, log }) {
     // Every card wears a tag (the user): one with none of the above says where it comes from.
     if (tags.length === 0 && SRC_TAG[d.src]) tags.push(`<span class="voyage-enc-tag">${esc(t(SRC_TAG[d.src]))}</span>`);
     // The skill, its level and tilt at the head's right (.461, the user), leaving the foot to the tags.
-    const skill = d.skill ? `<span class="voyage-enc-card-skill">${esc(skillName(d.skill))}${d.lvl ? ` ${d.lvl}` : ''}${tl > 0 ? ` <span class="voyage-enc-tilt-up" title="${esc(t('MOD_VOY_ENC_TILT_UP'))}">▲</span>` : tl < 0 ? ` <span class="voyage-enc-tilt-dn" title="${esc(t('MOD_VOY_ENC_TILT_DN'))}">▼</span>` : ''}</span>` : '';
+    const skill = d.skill ? `<span class="voyage-enc-card-skill"><span class="voyage-enc-card-skill-name" title="${esc(skillName(d.skill))}">${esc(skillName(d.skill))}${d.lvl ? ` ${d.lvl}` : ''}</span>${tl > 0 ? ` <span class="voyage-enc-tilt-up" title="${esc(t('MOD_VOY_ENC_TILT_UP'))}">▲</span>` : tl < 0 ? ` <span class="voyage-enc-tilt-dn" title="${esc(t('MOD_VOY_ENC_TILT_DN'))}">▼</span>` : ''}</span>` : '';
     return `<div class="voyage-enc-card" data-suit="${suit}">`
       + `<div class="voyage-enc-card-top">${fa(SUIT_ICON[d.suit] ?? 'fa-ghost')}${esc(d.suit ? t(E.suitKey(d.suit)) : t('MOD_VOY_ENC_CURSE'))}${skill}</div>`
       + `<div class="voyage-enc-card-name">${esc(t(E.cardKey(id)))}</div>`
@@ -218,7 +218,7 @@ export function install(ctx, { state, log }) {
       : folk !== undefined ? t('MOD_VOY_ENC_MEET_FOLK', { band: api.bandName(f.opt.band), name: folk.name, nerve: `${s.band.max}` })
         : t(sea ? 'MOD_VOY_ENC_MEET_SEA' : 'MOD_VOY_ENC_MEET_LAND', { band: api.bandName(f.opt.band), nerve: `${s.band.max}` });
     const owed = (f.debt > 0 ? `<div class="voyage-enc-owed">${fa('fa-file-invoice-dollar')} ${esc(t('MOD_VOY_ENC_MEET_OWED', { gp: api.text(f.debt), pct: `${R.DEBT_PCT}` }))}</div>` : '')
-      + (folksMet.length > 0 ? `<div class="voyage-enc-owed">${fa('fa-walking')} ${esc(t(folksMet.length === 1 ? 'MOD_VOY_ENC_MEET_AWAY_FOLK' : 'MOD_VOY_ENC_MEET_AWAY_FOLKS', { names: folksMet.map((x) => x.name).join(', '), wound: `${Math.round(R.FOLK_WOUND * 100)}` }))}</div>` : '');
+      + (folksMet.length > 0 ? `<div class="voyage-enc-owed">${fa('fa-walking')} ${esc(t(folksMet.length === 1 ? 'MOD_VOY_ENC_MEET_AWAY_FOLK' : 'MOD_VOY_ENC_MEET_AWAY_FOLKS', { names: folksMet.map((x) => x.name).join(getLangString('MOD_VOY_GATE_LIST_SEP')), wound: `${Math.round(R.FOLK_WOUND * 100)}` }))}</div>` : '');
     // The very first band you meet offers a practice fight; it waits for you meanwhile.
     const firstBand = state.encounterPractice !== undefined && folk === undefined && api.enc().met <= (away?.n ?? 1);
     return head(api, f) + '<div class="voyage-enc-body"><div class="voyage-enc-stage">'

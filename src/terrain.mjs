@@ -63,7 +63,26 @@ export const hasFeature = (rec, f) => Array.isArray(rec?.f) && rec.f.includes(f)
 
 /** Human name of a hand-placed area id such as StrongholdOfTheGods. */
 // A one-letter word before the next keeps its space too: ANewStart is "A New Start" (phase 2 re-run, 16 Oct 2026).
-export const areaLabel = (area) => String(area).replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').replace(/([a-z])([A-Z])/g, '$1 $2');
+const spacedId = (area) => String(area).replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').replace(/([a-z])([A-Z])/g, '$1 $2');
+const placeKey = (id) => String(id).split(':').pop().replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+let gamePlaces;
+/** The game's own object for a place id ("IntoTheAbyss" is its Into_The_Abyss), so the name follows the player's language. */
+function gamePlace(area) {
+  if (typeof game === 'undefined') return undefined;
+  if (gamePlaces === undefined) {
+    const found = new Map();
+    const add = (list) => { for (const o of list ?? []) { const k = placeKey(o.id); if (!found.has(k)) found.set(k, o); } };
+    for (const w of game.cartography?.worldMaps?.allObjects ?? []) add(w.pointsOfInterest?.allObjects);
+    for (const list of [game.combatAreas, game.slayerAreas, game.dungeons, game.strongholds, game.abyssDepths]) add(list?.allObjects);
+    if (found.size === 0) return undefined;
+    gamePlaces = found;
+  }
+  return gamePlaces.get(placeKey(area));
+}
+export const areaLabel = (area) => {
+  try { const name = gamePlace(area)?.name; if (name) return name; } catch {}
+  return spacedId(area);
+};
 
 /** FNV-1a 32-bit over ASCII text, lower-case hex, 8 digits. */
 export function fnv1a(text) {

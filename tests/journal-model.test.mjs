@@ -82,6 +82,17 @@ test('search takes action and item names, by word starts', () => {
   assert.deepEqual(search(entries, '  '), ['rock', 'fish', 'tree']);
 });
 
+test('search reads German and Chinese names', () => {
+  const entries = [{ id: 'de', names: ['Großer Hai'], skill: 'Fischen' }, { id: 'zh', names: ['生鲨鱼'], skill: '钓鱼' }];
+  assert.deepEqual(search(entries, 'gross'), ['de']);
+  assert.deepEqual(search(entries, 'fisch hai'), ['de']);
+  assert.deepEqual(search([{ id: 'fr', names: ["Œil de bœuf"] }], 'oeil boeuf'), ['fr']);
+  assert.deepEqual(search([{ id: 'fr', names: ['Épée de marin'] }], 'epee'), ['fr']);
+  assert.deepEqual(search(entries, '鲨鱼'), ['zh'], 'anywhere in a Chinese name');
+  assert.deepEqual(search(entries, '钓鱼 鲨'), ['zh']);
+  assert.deepEqual(search(entries, '矿'), []);
+});
+
 test('search takes the skill name too, alone or with a name', () => {
   const entries = [
     { id: 'iron', names: ['Iron', 'Iron Ore'], skill: 'Mining' },

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as ship from '../src/ship-model.mjs';
 import * as model from '../src/voyage-model.mjs';
+import { TEXT_ITEMS, TEXT_SHOP } from '../src/lang-merge.mjs';
 
 const root = new URL('../', import.meta.url);
 const en = JSON.parse(readFileSync(new URL('languages/en.json', root), 'utf8'));
@@ -51,6 +52,27 @@ test('the six charts are in the data package, named as in en.json', async () => 
     assert.equal(en[`MOD_VOY_ITEM_${id.toUpperCase()}_NAME`], item.name, id);
     assert.equal(en[`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`], item.customDescription, id);
   }
+});
+
+test('goods, fight consumables and shop entries read from en.json, word for word as in the data', () => {
+  const pkg = json('data/package.json').data;
+  for (const id of TEXT_ITEMS) {
+    const item = pkg.items.find((i) => i.id === id);
+    assert.ok(item, id);
+    assert.equal(en[`MOD_VOY_ITEM_${id.toUpperCase()}_NAME`], item.name, id);
+    assert.equal(en[`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`], item.customDescription, id);
+  }
+  for (const id of TEXT_SHOP) {
+    const buy = pkg.shopPurchases.find((p) => p.id === id);
+    assert.ok(buy, id);
+    assert.equal(en[`MOD_VOY_SHOP_${id.toUpperCase()}_NAME`], buy.customName, id);
+    assert.equal(en[`MOD_VOY_SHOP_${id.toUpperCase()}_DESC`], buy.customDescription, id);
+  }
+  // Every shop entry with its own words is on the list: a new one would otherwise stay English.
+  const covered = new Set([...TEXT_SHOP]);
+  for (const p of pkg.shopPurchases) if (p.customName !== undefined) assert.ok(covered.has(p.id), p.id);
+  const recipe = pkg.skillData.find((s) => s.skillID === 'melvorD:Herblore').data.recipes.find((r) => r.id === 'Bitter_Draught');
+  assert.equal(en.MOD_VOY_RECIPE_BITTER_DRAUGHT, recipe.name);
 });
 
 test('item ids in the data package are unique, the rumours and the Starlit Chart named as in en.json', () => {

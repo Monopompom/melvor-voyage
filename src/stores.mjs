@@ -894,7 +894,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
     } catch (e) { log('forage forecast failed', e); return undefined; }
   };
   /** "10 food, 0.25 fuel", the parts that are there. */
-  const foundWords = (food, fuel) => [food > 0 ? t('MOD_VOY_UNIT_FOOD', { n: hp(food) }) : '', fuel > 0 ? t('MOD_VOY_UNIT_FUEL', { n: fuelText(fuel) }) : ''].filter((x) => x !== '').join(', ');
+  const foundWords = (food, fuel) => [food > 0 ? t('MOD_VOY_UNIT_FOOD', { n: hp(food) }) : '', fuel > 0 ? t('MOD_VOY_UNIT_FUEL', { n: fuelText(fuel) }) : ''].filter((x) => x !== '').join(getLangString('MOD_VOY_GATE_LIST_SEP'));
   /**
    * The range as the cost rows show amounts (the user, build .554: "just icons with a tooltip"): the ration and fuel
    * art, each with its number, the parts that are there; the words go in `forageTip`. `cls` is the images' class,

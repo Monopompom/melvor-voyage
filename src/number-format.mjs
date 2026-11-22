@@ -12,11 +12,11 @@ const UNITS = [
 const whole = (n) => (typeof numberWithCommas === 'function' ? numberWithCommas(n) : `${n}`);
 const tenth = (n) => (typeof formatFixed === 'function' ? formatFixed(n, 1) : n.toFixed(1));
 
-/** The game's own letter for a unit (its short form of ten of them, digits stripped), so a translation carries over. */
+/** The game's own letter for a unit (its short form of a hundred of them, digits stripped), so a translation carries over, with the space the game puts before it ("127 Mio."). Ten thousand stays whole in some languages, so ten of a unit can show no letter. */
 function suffix(unit) {
   if (typeof formatNumber !== 'function') return unit.fallback;
-  const s = String(formatNumber(unit.size * 10)).replace(/^[-\d\s.,  ']+/, '');
-  return s === '' ? unit.fallback : s;
+  const s = String(formatNumber(unit.size * 100)).replace(/^[-\d.,']+/, '').replace(/^\s+/, '\u00a0');
+  return s.trim() === '' ? unit.fallback : s;
 }
 
 /**
@@ -35,6 +35,12 @@ export function shortNumber(value) {
   const t = Math.floor(v * 10) / 10;
   return `${sign}${Number.isInteger(t) ? whole(t) : tenth(t)}${suffix(unit)}`;
 }
+
+/**
+ * True when a short number is too wide for a count on a 64px tile at full size: a whole word for the unit, as in
+ * "23,4 Mio." or "127百万". A Han character counts as two.
+ */
+export const wideCount = (text) => [...String(text)].reduce((w, c) => w + (/\p{Script=Han}/u.test(c) ? 2 : 1), 0) > 6;
 
 /**
  * A fraction with at most `digits` decimals and no trailing zeros, in the player's decimal mark: "0.5", "1.25", "2"

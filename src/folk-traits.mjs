@@ -14,8 +14,9 @@ const TICK_MS = 50;
 
 export function install(ctx, { state, FT, S, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
-  /** The effect after a notice's colon reads lower case where it starts with a plain word (the colon rule). */
-  const after = (s) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
+  /** The effect after a notice's colon reads lower case where it starts with a plain word (the colon rule). English
+   *  only: a German noun keeps its capital. */
+  const after = (s) => ((typeof setLang !== 'string' || setLang === 'en') && /^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
 
   const canTraits = () => (state.folksApi?.()?.version ?? 0) >= 5;
   const api = () => (state.folksGuarded && canTraits() ? state.folksApi?.() : undefined);

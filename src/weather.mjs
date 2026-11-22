@@ -427,7 +427,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, deci
     return out;
   };
   /** The effects in words ("fuel ×1.5, ×1.25 time"), for tooltips and notes; '' when none. */
-  const fxWords = (wx) => fxParts(wx).map((f) => f.words).join(', ');
+  const fxWords = (wx) => fxParts(wx).map((f) => f.words).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
   const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   /**
    * The effects as icons ("[fuel] ×1.5, [clock] ×1.25"; the user, build .290: "fuel icon x1.5, clock icon x1.25"), each
@@ -438,7 +438,7 @@ export function install(ctx, { state, W, shipModel, terrainMod, helpLayout, deci
     const icon = f.icon === 'fuel' ? img('fuel.webp') : f.icon === 'time' ? '<i class="fa fa-clock" aria-hidden="true"></i>' : img('ration.webp');
     const gain = f.x.startsWith('\u00d7') && Number(f.x.slice(1)) < 1; // a smaller multiplier is a gain: green (.309, scan B-14)
     return `<span class="voyage-wx-fx${gain ? ' text-success' : ''}" title="${escHtml(f.words)}">${icon}${escHtml(f.x)}</span>`;
-  }).join(', ');
+  }).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
   const degrees = (n) => `${n < 0 ? '\u2212' : ''}${Math.abs(n)}\u00b0`;
   /** The text colour of a band: blue for the cold ones, amber for scorching (Melvor's own theme classes). */
   const tone = (band) => (band === 'bitter' || band === 'cold' ? 'text-info' : band === 'scorching' ? 'text-warning' : '');

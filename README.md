@@ -319,8 +319,9 @@ The Captain's Journal keeps its parchment in all three.
 
 ## Languages
 
-Every text of the mod comes from its language files. Only English ships for now; the game's language setting
-picks the matching file when one exists.
+Every text of the mod comes from its language files. It ships in English, German, French, Simplified Chinese and
+Traditional Chinese; the game's language setting picks the matching file, and any other language shows English.
+Corrections from native speakers are welcome.
 
 ## Safety
 

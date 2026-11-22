@@ -253,8 +253,11 @@ export function byDistance(list, from) {
     .sort((a, b) => a.distance - b.distance);
 }
 
-/** Lower case, accents and punctuation folded away, so "raw shark" finds "Raw Shark" and "Shark". */
-export const fold = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+/** Lower case, accents and punctuation folded away, ß as ss, so "raw shark" finds "Raw Shark" and "Shark". */
+export const fold = (s) => String(s ?? '').toLowerCase().replace(/ß/g, 'ss').replace(/œ/g, 'oe').replace(/æ/g, 'ae').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+/** A test for one folded query word: it starts a word, or sits anywhere in one when it is Chinese (no spaces to start at). */
+export const wordTest = (w) => (/\p{Script=Han}/u.test(w) ? (x) => x.includes(w) : (x) => x.startsWith(w));
 
 /**
  * Search (item names as well as action names). `entries` are [{ id, names: [...], skill? }]: an
@@ -282,7 +285,8 @@ export function searchIndex(entries) {
 export function searchIn(index, query) {
   const words = fold(query).split(' ').filter((w) => w !== '');
   if (words.length === 0) return index.map((e) => e.id);
-  return index.filter((e) => e.names.some((parts) => words.every((w) => parts.some((x) => x.startsWith(w))))).map((e) => e.id);
+  const tests = words.map(wordTest);
+  return index.filter((e) => e.names.some((parts) => tests.every((hit) => parts.some(hit)))).map((e) => e.id);
 }
 
 // ---------------------------------------------------------------- charting (build .116)

@@ -36,10 +36,10 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   const SHOWN = 4;
   const listText = (m) => {
     const parts = [...m.purse.map((p) => currencyText(p.currencyId, p.amount)), ...m.items.map((s) => `${shortNumber(s.qty)} ${itemName(s.itemId)}`)];
-    if (parts.length <= SHOWN) return parts.join(', ');
-    return t('MOD_VOY_HAUL_AND_MORE', { list: parts.slice(0, SHOWN).join(', '), more: `${parts.length - SHOWN}` });
+    if (parts.length <= SHOWN) return parts.join(getLangString('MOD_VOY_GATE_LIST_SEP'));
+    return t('MOD_VOY_HAUL_AND_MORE', { list: parts.slice(0, SHOWN).join(getLangString('MOD_VOY_GATE_LIST_SEP')), more: `${parts.length - SHOWN}` });
   };
-  const leftText = (m) => m.left.map((s) => `${shortNumber(s.qty)} ${itemName(s.itemId)}`).join(', ');
+  const leftText = (m) => m.left.map((s) => `${shortNumber(s.qty)} ${itemName(s.itemId)}`).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
   // On the Welcome Back the list reads as the game's own lines (the user, 6 Nov 2026): the amount (green for what came
   // in), the item's icon, its name, never split across lines; the comma rides with the one before it.
   const mediaOf = (id) => { try { return game.items.getObjectByID(id)?.media; } catch { return undefined; } };
@@ -390,7 +390,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     }
     try {
       if (done > 0) game.notifications.createInfoNotification('voyage:haul', t('MOD_VOY_HAUL_RESTOCKED_ALL', { count: `${done}` }), ctx.getResourceUrl('assets/icon.svg'));
-      if (refused.length > 0) game.notifications.createErrorNotification('voyage:haul-left', t('MOD_VOY_HAUL_RESTOCK_REFUSED', { names: refused.join(', ') }));
+      if (refused.length > 0) game.notifications.createErrorNotification('voyage:haul-left', t('MOD_VOY_HAUL_RESTOCK_REFUSED', { names: refused.join(getLangString('MOD_VOY_GATE_LIST_SEP')) }));
     } catch {}
   };
   const afterAct = () => {
@@ -469,7 +469,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   /** A depot row's tooltip: the tent, and the Folks that share it. */
   const aboutDepot = (d) => {
     const names = d.ids.map((id) => depotApi()?.folkById(id)?.name).filter((n) => typeof n === 'string');
-    return names.length === 0 ? t('MOD_VOY_DEPOT_TIP_NONE', { name: d.name }) : t('MOD_VOY_DEPOT_TIP', { name: d.name, names: names.join(', ') });
+    return names.length === 0 ? t('MOD_VOY_DEPOT_TIP_NONE', { name: d.name }) : t('MOD_VOY_DEPOT_TIP', { name: d.name, names: names.join(getLangString('MOD_VOY_GATE_LIST_SEP')) });
   };
   /** Worker Folks' reasons a depot restock is refused, in words. */
   const DEPOT_WHY = { unknown: 'MOD_VOY_DEPOT_WHY_UNKNOWN', noMembers: 'MOD_VOY_DEPOT_WHY_NOMEMBERS', noRoom: 'MOD_VOY_DEPOT_WHY_NOROOM', noBank: 'MOD_VOY_DEPOT_WHY_NOBANK' };
@@ -481,7 +481,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     try {
       if (r?.ok) {
         const names = (r.members ?? []).filter((m) => (m.actions ?? 0) > 0).map((m) => a.folkById(m.folkId)?.name).filter((n) => typeof n === 'string');
-        game.notifications.createInfoNotification('voyage:haul', t('MOD_VOY_DEPOT_RESTOCKED', { names: names.join(', ') }), ctx.getResourceUrl('assets/icon.svg'));
+        game.notifications.createInfoNotification('voyage:haul', t('MOD_VOY_DEPOT_RESTOCKED', { names: names.join(getLangString('MOD_VOY_GATE_LIST_SEP')) }), ctx.getResourceUrl('assets/icon.svg'));
       } else game.notifications.createErrorNotification('voyage:haul', t(DEPOT_WHY[r?.why] ?? DEPOT_WHY.noBank));
     } catch {}
   };

@@ -12,6 +12,7 @@ import { TRAITS as TRAVEL_TRAITS } from '../src/folk-traits-model.mjs';
 import { JOURNAL_CHAPTERS, JOURNAL_CREW, JOURNAL_WRITTEN, JOURNAL_GUIDE_SECTIONS, JOURNAL_ASIDES, JOURNAL_NOTES, CHART_ITEMS, splitLinks, linkTargetExists } from '../src/journal-model.mjs';
 import { OUTFIT, LESSER_RELIC, RELICS, MODIFIERS, SKILLCAPE, SUPERIOR_SKILLCAPE } from '../src/gear-model.mjs';
 import { CARDS, TRICKS, BANDS as ENC_BANDS, CHARMS, SUITS, ATTACKS } from '../src/encounter-model.mjs';
+import { TEXT_ITEMS, TEXT_SHOP } from '../src/lang-merge.mjs';
 
 const root = new URL('../', import.meta.url);
 const en = JSON.parse(readFileSync(new URL('languages/en.json', root), 'utf8'));
@@ -22,7 +23,14 @@ const sources = [
 ];
 const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const localIds = Object.keys(rules.SKILL_RULES).map((id) => id.split(':').pop());
+const nameAndDesc = (ids) => ids.flatMap((id) => [`${id.toUpperCase()}_NAME`, `${id.toUpperCase()}_DESC`]);
+const zones = JSON.parse(readFileSync(new URL('data/zones.json', root), 'utf8'));
+const zoneNotes = Object.values(zones.skills).flatMap((s) => Object.entries(s.actions).filter(([, a]) => a.why !== undefined));
 export const FAMILIES = {
+  // the old hand's note on where each resource is found, one per action in the zone table
+  MOD_VOY_ZONE_WHY_: zoneNotes.map(([id]) => id.replace(':', '_')),
+  // shop entries with words of their own, renamed from the language file at load (setup.mjs)
+  MOD_VOY_SHOP_: nameAndDesc(TEXT_SHOP),
   // the travel traits (phase 6f, src/folk-traits.mjs): name, effect, and how a bad one fades
   MOD_VOY_TRAIT_: TRAVEL_TRAITS.flatMap((tr) => [tr.id, `${tr.id}_DESC`, ...(tr.fade === undefined ? [] : [`${tr.id}_FADES`])]),
   MOD_VOY_DIR_: DIRS,
@@ -42,8 +50,10 @@ export const FAMILIES = {
   MOD_VOY_ISLAND_: ['WESTERN', 'GOLDEN', 'FROST', 'CURSED', 'OMINOUS', 'MAINLAND'],
   MOD_VOY_MILESTONE_: ['1', '2', '3', 'LONGBOAT', 'BRIG', 'GALLEON'], // LONGBOAT, GALLEON, BRIG: shipModel.UPGRADES, BIG_SHIPS (setup.mjs)
   // the six charts (build .116, setup.mjs): MOD_VOY_ITEM_<ID>_NAME / _DESC; the gear (src/gear.mjs): the outfit's
-  // names and their one description, the Lesser Relic's name and description, the Albatross's name
+  // names and their one description, the Lesser Relic's name and description, the Albatross's name; goods and fight
+  // consumables, renamed from the language file at load (setup.mjs)
   MOD_VOY_ITEM_: [
+    ...nameAndDesc(TEXT_ITEMS),
     ...Object.values(CHART_ITEMS).flatMap((id) => [`${id.toUpperCase()}_NAME`, `${id.toUpperCase()}_DESC`]),
     ...Object.keys(OUTFIT).map((id) => `${id.toUpperCase()}_NAME`), 'OUTFIT_DESC',
     `${LESSER_RELIC.id.toUpperCase()}_NAME`, `${LESSER_RELIC.id.toUpperCase()}_DESC`, 'ALBATROSS_NAME',
@@ -145,4 +155,8 @@ test('journal crosslinks: only in journal texts, every target in the book, no st
     for (const l of links) if (!linkTargetExists(l.kind, l.id, JOURNAL_GUIDES)) bad.push(`${key}: ${l.kind}:${l.id}`);
   }
   assert.deepEqual(bad, []);
+});
+
+test('every zone note in the language file says what the zone table says', () => {
+  for (const [id, a] of zoneNotes) assert.equal(en[`MOD_VOY_ZONE_WHY_${id.replace(':', '_')}`], a.why, id);
 });

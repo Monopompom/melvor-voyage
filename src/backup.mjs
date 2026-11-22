@@ -89,7 +89,7 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
       });
     } catch (e) { log('backup: Folks read failed', e); return undefined; }
   };
-  const names = (list) => list.map((x) => (typeof x === 'string' ? x : x.name)).join(', ');
+  const names = (list) => list.map((x) => (typeof x === 'string' ? x : x.name)).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
   const storage = () => {
     const out = {};
     for (const k of STORAGE_KEYS) { try { const v = ctx.characterStorage.getItem(k); if (v !== undefined) out[k] = v; } catch {} }
@@ -256,7 +256,7 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
       bank.push({ table: { rows } });
       if (plan.add.length > 6) bank.push(t('MOD_VOY_RESTORE_ITEMS_MORE', { more: num(plan.add.length - 6) }));
     }
-    if (plan.buys.length > 0) bank.push(t('MOD_VOY_RESTORE_BUYS', { buys: plan.buys.map(([id]) => nameOf(id, game.shop.purchases)).join(', ') }));
+    if (plan.buys.length > 0) bank.push(t('MOD_VOY_RESTORE_BUYS', { buys: plan.buys.map(([id]) => nameOf(id, game.shop.purchases)).join(getLangString('MOD_VOY_GATE_LIST_SEP')) }));
     if (bank.length === 0) bank.push(t('MOD_VOY_RESTORE_BANK_NONE'));
     sections.push({ head: t('MOD_VOY_RESTORE_BANK_HEAD'), body: bank });
     // Worker Folks' side: put back, made without it, or held by a backup while Worker Folks is off now.

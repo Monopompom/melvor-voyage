@@ -415,7 +415,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
       const later = state.zoneActionsHere(id, { later: true });
       if (later.length === 0) return templateLangString('MOD_VOY_PANEL_ZONE_NEVER', { skill: name });
       const first = later[0].level ?? 1;
-      return templateLangString('MOD_VOY_PANEL_ZONE_LATER', { skill: name, level: `${first}`, names: later.filter((a) => (a.level ?? 1) === first).map((a) => a.name).join(', ') });
+      return templateLangString('MOD_VOY_PANEL_ZONE_LATER', { skill: name, level: `${first}`, names: later.filter((a) => (a.level ?? 1) === first).map((a) => a.name).join(getLangString('MOD_VOY_GATE_LIST_SEP')) });
     } catch { return ''; }
   };
   // Sidebar: a gated skill that is locked here is dimmed in the Non-Combat list (hover shows why).
@@ -621,7 +621,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
     if (term.coast === true) bits.push(coloured(getLangString('MOD_VOY_ZONE_COAST')).html);
     if (term.shore !== undefined) bits.push(coloured(getLangString('MOD_VOY_ZONE_SEA')).html);
     if (term.lat !== undefined) bits.push(esc(latText(term.lat)));
-    return bits.length > 0 ? bits.join(', ') : esc(getLangString('MOD_VOY_ZONE_ANYWHERE'));
+    return bits.length > 0 ? bits.join(getLangString('MOD_VOY_GATE_LIST_SEP')) : esc(getLangString('MOD_VOY_ZONE_ANYWHERE'));
   };
   /** The modal's first lines. A sky zone (Astrology: rows and a dark sky) is told term by term. */
   /** A sky zone's places, term by term, as HTML: "Mountain or Highlands, between rows 6 and 24; or near Magic". */
@@ -702,7 +702,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
         try {
           const pos = state.position();
           for (const r of left) { log(`skipped ${r.id} at (${pos?.q},${pos?.r}): outside its zone`); state.journal?.miss(r, pos); }
-          game.notifications.createErrorNotification('voyage:skipped', templateLangString('MOD_VOY_ZONE_SKIPPED', { names: left.map((r) => r.name ?? r.id).join(', ') }));
+          game.notifications.createErrorNotification('voyage:skipped', templateLangString('MOD_VOY_ZONE_SKIPPED', { names: left.map((r) => r.name ?? r.id).join(getLangString('MOD_VOY_GATE_LIST_SEP')) }));
         } catch (e) { log('skipped notice failed', e); }
       }
       return result;
@@ -796,7 +796,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
     const name = area.name ?? area.id;
     const lines = [line('MOD_VOY_GATE_AREA_STAND', { name: esc(name) })];
     const here = combatHere();
-    if (here.length > 0) lines.push(line('MOD_VOY_GATE_AREA_HERE', { names: esc(here.map((a) => a.name).join(', ')) }));
+    if (here.length > 0) lines.push(line('MOD_VOY_GATE_AREA_HERE', { names: esc(here.map((a) => a.name).join(getLangString('MOD_VOY_GATE_LIST_SEP'))) }));
     if (nearest !== undefined && state.knowledge?.isKnown(nearest.hex)) {
       const where = whereIs(pos, nearest.hex, nearest.distance);
       lines.push(line('MOD_VOY_GATE_AREA_WHERE', { where }));
@@ -1031,7 +1031,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
     const name = site.name ?? site.id;
     const lines = [line('MOD_VOY_GATE_DIG_STAND', { name: esc(name) })];
     const others = digSitesAt(pos);
-    if (others.length > 0) lines.push(line('MOD_VOY_GATE_DIG_HERE', { names: esc(others.map((s) => s.name).join(', ')) }));
+    if (others.length > 0) lines.push(line('MOD_VOY_GATE_DIG_HERE', { names: esc(others.map((s) => s.name).join(getLangString('MOD_VOY_GATE_LIST_SEP'))) }));
     if (nearest !== undefined && knownPlace(nearest.hex)) lines.push(line('MOD_VOY_GATE_AREA_WHERE', { where: whereIs(pos, nearest.hex, nearest.distance) }));
     else {
       lines.push(line('MOD_VOY_GATE_AREA_UNKNOWN', { name: esc(name) }));

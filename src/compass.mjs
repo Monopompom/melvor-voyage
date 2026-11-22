@@ -145,7 +145,7 @@ export function install(ctx, { state, rules, terrainMod, model, helpLayout, log 
           { cells: [getLangString('MOD_VOY_WELCOME_ROW_AREA'), road.area.name] },
           { cells: [getLangString('MOD_VOY_WELCOME_ROW_HEX'), `(${at})`] },
           { cells: [getLangString('MOD_VOY_WELCOME_ROW_WAY'), `${hexes(steps)} ${dir}`.trim()] },
-          { cells: [getLangString('MOD_VOY_WELCOME_ROW_ROAD'), `${numberWithCommas(road.gp)} GP`] },
+          { cells: [getLangString('MOD_VOY_WELCOME_ROW_ROAD'), templateLangString('MOD_VOY_ENC_GP', { gp: numberWithCommas(road.gp) })] },
         ] } },
         { html: getLangString('MOD_VOY_WELCOME_COMBAT_LINE') },
         getLangString('MOD_VOY_WELCOME_TRADE_WHERE'),

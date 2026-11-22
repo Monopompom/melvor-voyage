@@ -405,7 +405,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     } catch {}
     try {
       const cut = state.haul?.linksCutBy?.(key) ?? [];
-      if (cut.length > 0) gone.push(esc(t('MOD_VOY_OUTPOST_STRIKE_LINKS', { list: cut.map((c) => `${c.supplier} → ${c.receiver}`).join(', ') })));
+      if (cut.length > 0) gone.push(esc(t('MOD_VOY_OUTPOST_STRIKE_LINKS', { list: cut.map((c) => `${c.supplier} → ${c.receiver}`).join(getLangString('MOD_VOY_GATE_LIST_SEP')) })));
     } catch {}
     const warn = '<div class="voyage-strike-warn"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i><div>'
       + `<b>${esc(t('MOD_VOY_OUTPOST_STRIKE_WARN_HEAD'))}</b>`

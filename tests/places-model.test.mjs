@@ -12,6 +12,15 @@ test('the search matches the start of each word, without case or accents', () =>
   assert.equal(matches('Anything', '   '), true);
 });
 
+test('the search reads German and Chinese names', () => {
+  assert.equal(fold('Große Brücke'), 'grosse brucke');
+  assert.equal(matches('Große Brücke', 'gross bru'), true);
+  assert.equal(matches('Große Brücke', 'rücke'), false, 'a German word is still matched from its start');
+  assert.equal(matches('霜流港', '流港'), true, 'Chinese has no spaces: anywhere in the name');
+  assert.equal(matches('霜流港', '雾'), false);
+  assert.equal(matches('霜流港', '   '), true);
+});
+
 test('rows go nearest first, an unknown distance last, then by name', () => {
   const rows = [{ name: 'B', distance: 4 }, { name: 'C' }, { name: 'A', distance: 4 }, { name: 'D', distance: 1 }];
   assert.deepEqual(byDistance(rows).map((r) => r.name), ['D', 'A', 'B', 'C']);

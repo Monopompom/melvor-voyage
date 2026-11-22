@@ -446,7 +446,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
    * green as a reward (the user, 18 Oct 2026: "icons, coloring"). */
   const payBlock = (q) => {
     const left = q.n - (q.done ?? 0);
-    return `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}<b class="text-success">${shortNumber(left * q.gp)}</b> GP</div>` +
+    return `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}${t('MOD_VOY_ENC_GP', { gp: `<b class="text-success">${shortNumber(left * q.gp)}</b>` })}</div>` +
       `<div>${icon(skill()?.media)}<b class="text-success">${shortNumber(left * q.xp)}</b> <span data-no-skill-names>${esc(t('MOD_VOY_CARGO_XP'))}</span></div>` +
       (q.n > 1 ? `<div class="text-muted">${esc(t('MOD_VOY_CARGO_PER', { what: containerWord(q.c, 1) }))}</div>` : '') + '</div>';
   };
@@ -537,7 +537,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
     else if (!open) {
       const near = (regionsNow()[poi] ?? []).map((n) => dungeonOf(n)?.name).filter(Boolean);
       // Names in bold, three at most, the rest a count (.308, scan B-40).
-      const named = near.slice(0, 3).map((n) => `<b>${esc(n)}</b>`).join(', ') + (near.length > 3 ? esc(t('MOD_VOY_CARGO_CLOSED_MORE', { n: `${near.length - 3}` })) : '');
+      const named = near.slice(0, 3).map((n) => `<b>${esc(n)}</b>`).join(getLangString('MOD_VOY_GATE_LIST_SEP')) + (near.length > 3 ? esc(t('MOD_VOY_CARGO_CLOSED_MORE', { n: `${near.length - 3}` })) : '');
       html += `<div class="voyage-cargo-empty">${near.length > 0 ? esc(t('MOD_VOY_CARGO_CLOSED', { dungeons: '\u0001' })).replace('\u0001', named) : esc(t('MOD_VOY_CARGO_CLOSED_NONE'))}</div>`;
     } else if (!hasPartner(poi) && board(poi).length === 0) html += `<div class="voyage-cargo-empty">${esc(t('MOD_VOY_CARGO_NO_PARTNER'))}</div>`;
     else {

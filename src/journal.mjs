@@ -23,7 +23,7 @@ const ROOT_ID = 'voyage-journal';
 /** Skills that work anywhere, named on the crafts page. */
 const ANYWHERE = ['melvorD:Agility', 'melvorD:Prayer', 'melvorAoD:Cartography', 'melvorD:Astrology'];
 
-export function install(ctx, { state, model, journalModel: jm, figures, shipModel, storesModel, rules, terrainMod, shortNumber, log }) {
+export function install(ctx, { state, model, journalModel: jm, figures, shipModel, storesModel, rules, terrainMod, shortNumber, decimal, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const iconUrl = ctx.getResourceUrl('assets/journal.webp');
@@ -391,7 +391,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
   const loadedRules = () => Object.entries(rules.SKILL_RULES).map(([id, rule]) => [id, rule, skillOf(id)]).filter(([, , s]) => s !== undefined);
   const dryLandLine = () => {
     const dry = loadedRules().filter(([, rule]) => rule.tier === 'land').map(([, , s]) => s.name);
-    return dry.length > 0 ? `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LANDS_DRY', { skills: dry.join(', ') }))}</p>` : '';
+    return dry.length > 0 ? `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LANDS_DRY', { skills: dry.join(getLangString('MOD_VOY_GATE_LIST_SEP')) }))}</p>` : '';
   };
   /** Lands: every kind of land (terrain.mjs CLASSES) with its map colour and the crafts its own ground allows. */
   const landsTable = () => {
@@ -410,7 +410,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
       }
       const css = terrainMod.CLASS_INFO[cls]?.css ?? 'transparent';
       return [{ html: `<span class="vj-swatch" style="background:${css}" aria-hidden="true"></span>${esc(t(terrainMod.classKey(cls)))}`, plain: true },
-        { html: works.length > 0 ? works.join(', ') : esc(t('MOD_VOY_JOURNAL_LANDS_NOTHING')) }];
+        { html: works.length > 0 ? works.join(getLangString('MOD_VOY_GATE_LIST_SEP')) : esc(t('MOD_VOY_JOURNAL_LANDS_NOTHING')) }];
     });
     return ledger([t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_CRAFTS_HERE')], rows) + dryLandLine();
   };
@@ -428,7 +428,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
       if (rule.flags?.coast !== undefined) add('coast', t('MOD_VOY_JOURNAL_LANDS_COAST'), id, skill, rule.flags.coast);
       for (const [p, r] of Object.entries({ ...rule.pois, ...rule.areas })) add(`p:${p}`, termLabel('place', p), id, skill, r);
     }
-    const rows = [...by.values()].map((x) => [{ text: x.label, plain: true }, { html: x.bits.join(', ') }]);
+    const rows = [...by.values()].map((x) => [{ text: x.label, plain: true }, { html: x.bits.join(getLangString('MOD_VOY_GATE_LIST_SEP')) }]);
     return ledger([t('MOD_VOY_JOURNAL_COL_FEATURE'), t('MOD_VOY_JOURNAL_COL_CRAFTS_HERE')], rows)
       + (state.settings.strictness() === 'relaxed' ? `<p class="vj-p text-info">${esc(t('MOD_VOY_JOURNAL_CRAFTS_RELAXED'))}</p>` : '');
   };
@@ -452,7 +452,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
       if (rule.grace !== undefined) full.push(t('MOD_VOY_JOURNAL_ONE_OUT'));
       // The skill cell carries its own chip (the name pass would split "Alt. Magic"); the terrain cells are left out
       // of the pass, since "Magic" there is the place, not the skill.
-      rows.push([{ html: skillChip(id, skill) }, { text: full.join(', '), plain: true }, { text: slow.length > 0 ? slow.join(', ') : t('MOD_VOY_HELP_NONE'), plain: true }]);
+      rows.push([{ html: skillChip(id, skill) }, { text: full.join(getLangString('MOD_VOY_GATE_LIST_SEP')), plain: true }, { text: slow.length > 0 ? slow.join(getLangString('MOD_VOY_GATE_LIST_SEP')) : t('MOD_VOY_HELP_NONE'), plain: true }]);
     }
     // Archaeology (the user, 23 Oct 2026): not a ground but a place, each dig site its own.
     const arch = skillOf(rules.ARCHAEOLOGY_ID);
@@ -460,7 +460,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     rows.stack = 'words'; // three columns of place names: on a phone each stacks under its craft
     const anywhere = ANYWHERE.map(skillOf).filter((s) => s !== undefined).map((s) => s.name);
     return ledger([t('MOD_VOY_JOURNAL_COL_CRAFT'), t('MOD_VOY_JOURNAL_COL_WORKS'), t('MOD_VOY_JOURNAL_COL_SLOWER')], rows)
-      + `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_CRAFTS_ANYWHERE', { skills: anywhere.join(', ') }))}</p>`
+      + `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_CRAFTS_ANYWHERE', { skills: anywhere.join(getLangString('MOD_VOY_GATE_LIST_SEP')) }))}</p>`
       + (state.settings.strictness() === 'relaxed' ? `<p class="vj-p text-info">${esc(t('MOD_VOY_JOURNAL_CRAFTS_RELAXED'))}</p>` : '');
   };
 
@@ -535,7 +535,8 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     const suits = new Map(E.SUITS.map((k) => [esc(t(E.suitKey(k))), k]));
     const words = [...suits.keys(), ...t('MOD_VOY_JOURNAL_ENC_TERMS').split('|').map((w) => esc(w.trim())).filter((w) => w !== '')]
       .sort((x, y) => y.length - x.length).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    return text.replace(new RegExp(`\\b(${words.join('|')})\\b`, 'g'), (m) => (suits.has(m) ? suitMark(suits.get(m), m) : `<b class="vj-term">${m}</b>`));
+    // Not \b: it never fires between Chinese characters, so a translated term would go unmarked.
+    return text.replace(new RegExp(`(?<!\\w)(${words.join('|')})(?!\\w)`, 'g'), (m) => (suits.has(m) ? suitMark(suits.get(m), m) : `<b class="vj-term">${m}</b>`));
   };
   /** A section's html dressed: a point's short lead-in ("A win:") bold, then the terms in every text run. */
   const encDress = (html) => html
@@ -632,15 +633,15 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     const r = folksRules();
     const gates = r?.masteryGates?.length > 0 ? [...r.masteryGates] : [20, 40, 60, 80];
     const caps = r?.slotCaps?.length > 0 ? [...r.slotCaps] : [2, 4, 7, 10];
-    const orList = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} ${t('MOD_VOY_JOURNAL_LIST_OR')} ${xs[xs.length - 1]}`);
-    const byRank = (xs) => (Array.isArray(xs) && xs.length === jm.CREW_TIERS.length ? jm.CREW_TIERS.map((x, i) => `${roleName(x.tier)} ${shortNumber(xs[i])}`).join(', ') : '');
+    const orList = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(getLangString('MOD_VOY_GATE_LIST_SEP'))} ${t('MOD_VOY_JOURNAL_LIST_OR')} ${xs[xs.length - 1]}`);
+    const byRank = (xs) => (Array.isArray(xs) && xs.length === jm.CREW_TIERS.length ? jm.CREW_TIERS.map((x, i) => `${roleName(x.tier)} ${shortNumber(xs[i])}`).join(getLangString('MOD_VOY_GATE_LIST_SEP')) : '');
     const pct = (x) => `${Math.round(x * 100)}`;
     const sev = Array.isArray(r?.firingSeverance) ? r.firingSeverance.map(([level, rate], i) => (i === 0 ? t('MOD_VOY_JOURNAL_CREW_SEV_FIRST', { pct: pct(rate) })
-      : rate > 0 ? t('MOD_VOY_JOURNAL_CREW_SEV_STEP', { pct: pct(rate), level: `${level}` }) : t('MOD_VOY_JOURNAL_CREW_SEV_NONE', { level: `${level}` }))).join(', ') : '';
+      : rate > 0 ? t('MOD_VOY_JOURNAL_CREW_SEV_STEP', { pct: pct(rate), level: `${level}` }) : t('MOD_VOY_JOURNAL_CREW_SEV_NONE', { level: `${level}` }))).join(getLangString('MOD_VOY_GATE_LIST_SEP')) : '';
     const cb = r?.crewBonus;
     // Worker Folks up to 1.3.0: +3% a Foreman, 15% at most, no Hiring 99 step.
     const cbCap = cb?.topMax > cb?.max ? t('MOD_VOY_JOURNAL_CREW_CB_TOP', { max: `${cb.max}`, top: `${cb.topMax}`, level: `${cb.topLevel}` }) : `${cb?.max ?? 15}%`;
-    const vars = { promoLevel: `${r?.promotionLevel ?? 10}`, masteryGates: orList(gates), promoShare: `${Math.round((r?.promotionCostRate ?? 0.6) * 100)}`, slotCaps: caps.join(', '),
+    const vars = { promoLevel: `${r?.promotionLevel ?? 10}`, masteryGates: orList(gates), promoShare: `${Math.round((r?.promotionCostRate ?? 0.6) * 100)}`, slotCaps: caps.join(getLangString('MOD_VOY_GATE_LIST_SEP')),
       xpPerHour: byRank(r?.hiringXPPerHour), qualLevels: byRank(r?.qualification), qualLower: `${r?.qualificationLowering ?? ''}`, sevSteps: sev,
       cbPer: `${cb?.per ?? 3}`, cbCap, ordersLevel: `${r?.workOrdersLevel ?? ''}`, marksLevel: `${r?.marksLevel ?? ''}`, marksPct: Number.isFinite(r?.marksShare) ? pct(r.marksShare) : '' };
     vars.wfHas = { xp: vars.xpPerHour !== '', qual: vars.qualLevels !== '' && vars.qualLower !== '', sev: sev !== '',
@@ -729,7 +730,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
       const mine = owns(p);
       // "Yours" under the name, not a column of its own: the page is narrow (build .172).
       return [{ html: `<span class="vj-mount">${p?.media ? `<img src="${p.media}" alt="">` : ''}<span><b>${esc(p?.name ?? m.id)}</b>${mine ? `<span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_ROAD_YOURS'))}</span>` : ''}</span></span>` },
-        { text: `${m.level}`, cls: 'vj-num' }, { html: figures.barCell(esc(timed ? `×${m.speed}` : `${Math.round(m.cut * 100)}%`), pace(m), paceMax), cls: 'vj-figcell' },
+        { text: `${m.level}`, cls: 'vj-num' }, { html: figures.barCell(esc(timed ? `×${decimal(m.speed, 2)}` : `${Math.round(m.cut * 100)}%`), pace(m), paceMax), cls: 'vj-figcell' },
         { html: p === undefined ? '' : `<span class="vj-costs">${priceHtml(p)}</span>` }];
     });
     rows.numeric = [false, true, false, false];
@@ -774,7 +775,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     const now = !L.signOwned() ? t('MOD_VOY_JOURNAL_ROAD_SIGN_SHOP', { level })
       : here === undefined ? t('MOD_VOY_JOURNAL_ROAD_SIGN_CARRIED') : t('MOD_VOY_JOURNAL_ROAD_SIGN_AT', { place: `${here.name} ${atHex(here.hex)}` });
     let html = `<p class="vj-p"><b>${esc(now)}</b></p>`;
-    if (!L.signOwned() && signP !== undefined) html += `<p class="vj-p vj-costs"><span>${esc(t('MOD_VOY_JOURNAL_ROAD_COL_PRICE'))}:</span>${priceHtml(signP)}</p>`;
+    if (!L.signOwned() && signP !== undefined) html += `<p class="vj-p vj-costs"><span>${esc(t('MOD_VOY_JOURNAL_ROAD_COL_PRICE'))}${esc(t('MOD_VOY_COLON').trimEnd())}</span>${priceHtml(signP)}</p>`;
     const found = [];
     let hidden = 0;
     try {
@@ -1052,7 +1053,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     const head = `<div class="vj-section"><h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_RECEIPTS_HEAD'))}</h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_RECEIPTS_BODY', { n: `${model.RECEIPTS_MAX}` }))}</p>`;
     if (list.length === 0) return `${head}<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_RECEIPTS_NONE'))}</p></div>`;
     const hexWord = (n) => t(n === 1 ? 'MOD_VOY_JOURNAL_RECEIPT_HEX_ONE' : 'MOD_VOY_JOURNAL_RECEIPT_HEX_MANY', { n: numberWithCommas(n) });
-    const gp = (n) => `${shortNumber(n)} GP`;
+    const gp = (n) => t('MOD_VOY_ENC_GP', { gp: shortNumber(n) });
     const food = (n) => t('MOD_VOY_UNIT_FOOD', { n: numberWithCommas(Math.floor(n)) });
     const fuel = (n) => t('MOD_VOY_UNIT_FUEL', { n: state.stores?.fuelText?.(n) ?? `${n}` });
     const xp = (n) => (n < 1 ? '<1' : shortNumber(Math.floor(n)));
@@ -1071,7 +1072,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     row('MOD_VOY_JOURNAL_RECEIPT_FOOD', some(r.food, food), some(r.foundFood, food));
     row('MOD_VOY_JOURNAL_RECEIPT_FUEL', some(r.fuel, fuel), some(r.foundFuel, fuel));
     const rot = [some(r.rotFood, food), some(r.rotFuel, fuel)].filter((x) => x !== '');
-    row('MOD_VOY_JOURNAL_RECEIPT_SPOILED', rot.length === 0 ? '' : { html: rot.map((x) => `<span class="vj-nobr">${esc(x)}</span>`).join(', '), cls: 'vj-num vj-wraps' }, '');
+    row('MOD_VOY_JOURNAL_RECEIPT_SPOILED', rot.length === 0 ? '' : { html: rot.map((x) => `<span class="vj-nobr">${esc(x)}</span>`).join(getLangString('MOD_VOY_GATE_LIST_SEP')), cls: 'vj-num vj-wraps' }, '');
     row('MOD_VOY_JOURNAL_RECEIPT_WEAR', some(r.wear, (n) => t('MOD_VOY_JOURNAL_RECEIPT_WEAR_N', { n: n < 1 ? '<1' : `${Math.round(n)}` })), '');
     row('MOD_VOY_JOURNAL_RECEIPT_VOYAGE_XP', '', some(r.xp, xp), true);
     row('MOD_VOY_JOURNAL_RECEIPT_CARTO_XP', '', some(r.cx, xp), true);
@@ -1134,7 +1135,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     e.found.length > 0 ? t(e.found.length === 1 ? 'MOD_VOY_JOURNAL_HEXES_ONE' : 'MOD_VOY_JOURNAL_HEXES_MANY', { count: `${e.found.length}` }) : '',
     e.missed.length > 0 ? t(e.missed.length === 1 ? 'MOD_VOY_JOURNAL_MISSES_ONE' : 'MOD_VOY_JOURNAL_MISSES_MANY', { count: `${e.missed.length}` }) : '',
     e.charted ? t('MOD_VOY_JOURNAL_CHARTED_COUNT') : '',
-  ].filter((x) => x !== '').join(', ');
+  ].filter((x) => x !== '').join(getLangString('MOD_VOY_GATE_LIST_SEP'));
   /**
    * A search field with its label (Resources and Places). Its × (build .418, the user's ask) shows while the field
    * holds text and empties it in one tap; the browser's own cancel button is hidden, as it differs by platform.
@@ -1181,7 +1182,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     if (e === undefined) return runningHead(t('MOD_VOY_JOURNAL_TAB_RESOURCES'), '') + empty('MOD_VOY_JOURNAL_ENTRY_NONE');
     const skill = skillOf(e.skillId);
     const level = e.action?.level;
-    const why = zoneOf(e.id)?.why;
+    const why = zoneOf(e.id)?.why === undefined ? undefined : t(`MOD_VOY_ZONE_WHY_${e.id.replace(':', '_')}`);
     const from = state.position();
     const rows = jm.byDistance(e.found, from).map((h, i) => [{ text: at(h.q, h.r) }, land(h.q, h.r), i === 0 && from !== undefined && h.distance > 0 ? t('MOD_VOY_JOURNAL_NEAREST', { where: fromHere(h) }) : fromHere(h)]);
     const misses = e.missed.map(jm.parseHex).filter((h) => h !== undefined).map((h) => at(h.q, h.r));
@@ -1194,7 +1195,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
       + (rows.length > 0
         ? `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_WHERE_FOUND'))}</h3>${ledger([t('MOD_VOY_JOURNAL_COL_HEX'), t('MOD_VOY_JOURNAL_COL_LAND'), t('MOD_VOY_JOURNAL_COL_FROM_HERE')], rows)}`
         : empty('MOD_VOY_JOURNAL_NOT_FOUND_YET'))
-      + (misses.length > 0 ? `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_WHERE_NOT'))}</h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_MISSES_LINE', { name: e.names[0], hexes: misses.join(', ') }))}</p>` : '')
+      + (misses.length > 0 ? `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_WHERE_NOT'))}</h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_MISSES_LINE', { name: e.names[0], hexes: misses.join(getLangString('MOD_VOY_GATE_LIST_SEP')) }))}</p>` : '')
       + (rows.length > 0 ? `<div class="vj-foot vj-foot-end vj-foot-actions">${sendButton(e.id)}${planButton('entry', e.id)}${mapButton('entry', e.id)}</div>` : '');
   };
   /** The heat map button next to an entry's name (src/heatmap.mjs): a hexagon with a glow in it. */
@@ -1440,7 +1441,8 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
   const dropNote = (p, query) => {
     const words = jm.fold(query).split(' ').filter((w) => w !== '');
     if (words.length === 0 || p.group !== 'combat') return '';
-    const hit = (name) => { const parts = wordsOf(name); return words.every((w) => parts.some((x) => x.startsWith(w))); };
+    const tests = words.map(jm.wordTest);
+    const hit = (name) => { const parts = wordsOf(name); return tests.every((has) => parts.some(has)); };
     const monsters = monstersOf(p);
     if (hit(p.name) || hit(land(p.q, p.r)) || monsters.some((m) => hit(m?.name ?? ''))) return '';
     // A dungeon or stronghold lists a monster once per wave (the Stronghold of the Undead ten Mummies a tier), so each
@@ -1452,7 +1454,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
       if (!who.includes(m.name)) who.push(m.name);
     }
     if (byItem.size === 0) return '';
-    return [...byItem].map(([item, who]) => t(who.length === 1 ? 'MOD_VOY_JOURNAL_PLACES_DROP_ONE' : 'MOD_VOY_JOURNAL_PLACES_DROP_MANY', { monsters: who.join(', '), item: item.name })).join(' · ');
+    return [...byItem].map(([item, who]) => t(who.length === 1 ? 'MOD_VOY_JOURNAL_PLACES_DROP_ONE' : 'MOD_VOY_JOURNAL_PLACES_DROP_MANY', { monsters: who.join(getLangString('MOD_VOY_GATE_LIST_SEP')), item: item.name })).join(' · ');
   };
   /** An island's name for a heading or a row: "The Western Isle", "Frost Island", "The mainland". */
   const islandName = (id) => { const s = t(shipModel.islandNameKey(id)); return s.charAt(0).toUpperCase() + s.slice(1); };
@@ -1671,7 +1673,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
   const marketsLedger = () => {
     const known = state.market.known().sort((a, b) => (state.market.name(a.id) < state.market.name(b.id) ? -1 : 1));
     const list = (m, dear) => state.market.listOf(m).filter((x) => !x.done && (dear ? x.percent > 100 : x.percent < 100))
-      .map((x) => `<span class="${dear ? 'vj-dear' : 'vj-cheap'}">${esc(x.name)} ${x.percent}%</span>`).join(', ') || '–';
+      .map((x) => `<span class="${dear ? 'vj-dear' : 'vj-cheap'}">${esc(x.name)} ${x.percent}%</span>`).join(getLangString('MOD_VOY_GATE_LIST_SEP')) || '–';
     const rows = known.map((m) => [{ text: state.market.name(m.id), cls: 'vj-strong' }, { html: list(m, true) }, { html: list(m, false) }]);
     const left = state.market.total() - known.length;
     return runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), t('MOD_VOY_JOURNAL_PLACES_TRADE'))

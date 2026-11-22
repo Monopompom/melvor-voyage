@@ -10,7 +10,7 @@ export const CONTAINER_ID = 'voyage-container';
 export const PAGE_ID = 'voyage:Voyage';
 const CARTOGRAPHY_PAGE_ID = 'melvorAoD:Cartography';
 
-export function install(ctx, { state, model, shipModel, storesModel, supplyModel, rules, pageLayout, helpLayout, helpHtml, HELP_WIDTH, shortNumber, decimal, log }) {
+export function install(ctx, { state, model, shipModel, storesModel, supplyModel, rules, pageLayout, helpLayout, helpHtml, HELP_WIDTH, shortNumber, decimal, wideCount, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const part = (name) => document.querySelector(`#${CONTAINER_ID} [data-voyage="${name}"]`);
@@ -252,7 +252,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
    */
   /** `before`: a second action ahead of the main one ({ action, label, cls }), as the hold's red Sell (build .265). */
   const actionBlock = ({ action, amount = action, itemId, max, value, presets, main, before }) =>
-    '<div class="voyage-action"><div class="voyage-hold-row">' +
+    `<div class="voyage-action"><div class="voyage-hold-row${before === undefined ? '' : ' voyage-hold-row-pair'}">` +
     `<input type="number" min="1" max="${max}" value="${value}" inputmode="numeric" class="form-control voyage-hold-qty" data-voyage-amount="${amount}" data-item="${esc(itemId)}" aria-label="${esc(t('MOD_VOY_PAGE_AMOUNT'))}">` +
     `<div class="voyage-hold-presets">${presets.filter((p) => p.n > 0).map((p) => `<button type="button" class="btn btn-sm btn-info" data-voyage-preset="${p.n}">${esc(p.label)}</button>`).join('')}</div>` +
     (before === undefined
@@ -450,7 +450,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     const find = api.inVessel() === kind || (kind === 'boat' && v.aboard === true) ? ''
       : `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="find" data-kind="${kind}">${t('MOD_VOY_PAGE_FIND_SHIP')}</button>`;
     return section(`<div class="voyage-row"><div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl(hull.media)}" alt="">` +
-      `<div><div><b>${esc(t(shipModel.hullNameKey(hull.id)))}</b>: ${where}</div>${off}</div></div>${find}</div>`);
+      `<div><div><b>${esc(t(shipModel.hullNameKey(hull.id)))}</b>${esc(t('MOD_VOY_COLON'))}${where}</div>${off}</div></div>${find}</div>`);
   };
   /**
    * The big ship (build .150): bought at a port, shown from the start with what it
@@ -532,9 +532,9 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         cells.push(`<div class="voyage-crate voyage-crate-sealed" role="img" data-tip-item="${esc(x.item.id)}" title="${esc(label)}" aria-label="${esc(label)}">${state.cargo.art(seal.c, x.item, 'voyage-cargo-art voyage-cargo-art-cell')}</div>`);
         continue;
       }
-      const label = `${x.item.name}: ${numberWithCommas(x.qty)}`;
+      const label = `${x.item.name}${t('MOD_VOY_COLON')}${numberWithCommas(x.qty)}`;
       cells.push(`<button type="button" class="voyage-crate voyage-crate-full${x.item.id === pickedId ? ' voyage-crate-picked' : ''}" data-voyage-action="hold-pick" data-item="${esc(x.item.id)}" data-tip-item="${esc(x.item.id)}" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${x.item.id === pickedId}">`
-        + `${CRATE_SVG}<img src="${x.item.media}" alt=""><span class="voyage-crate-qty">${shortNumber(x.qty)}</span></button>`);
+        + `${CRATE_SVG}<img src="${x.item.media}" alt=""><span class="voyage-crate-qty${wideCount(shortNumber(x.qty)) ? ' voyage-crate-qty-wide' : ''}">${shortNumber(x.qty)}</span></button>`);
     }
     if (!open && empty > 0) {
       cells.push(`<button type="button" class="voyage-crate voyage-crate-more" data-voyage-action="hold-fold" data-kind="${kind}" aria-expanded="false" aria-label="${esc(t('MOD_VOY_HOLD_MORE_SLOTS', { n: `${empty}` }))}">`
@@ -757,7 +757,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
    * { cells: [label, ...values], cls?: [per-value class], icon? }.
    */
   const skillName = (id, fallback) => { try { return game.skills.getObjectByID(id)?.name ?? fallback; } catch { return fallback; } };
-  const terrainList = (classes) => classes.map((c) => t(`MOD_VOY_TERRAIN_${c}`)).join(', ');
+  const terrainList = (classes) => classes.map((c) => t(`MOD_VOY_TERRAIN_${c}`)).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
 
   /** Terrains grouped by what a hex costs, land first (cheapest first), then the sea. */
   const costRows = () => {
@@ -855,9 +855,9 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       if (O === undefined || rules === undefined) return [];
       const skillName = (id) => { try { return game.skills.getObjectByID(id)?.name ?? id; } catch { return id; } };
       const camp = Object.entries(rules.SKILL_RULES).filter(([, r]) => (r.features?.[O.OUTPOST_FEATURE] ?? 0) > 0);
-      const crafts = camp.filter(([, r]) => r.features[O.OUTPOST_FEATURE] >= 1).map(([id]) => skillName(id)).join(', ');
+      const crafts = camp.filter(([, r]) => r.features[O.OUTPOST_FEATURE] >= 1).map(([id]) => skillName(id)).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
       const partial = camp.filter(([, r]) => r.features[O.OUTPOST_FEATURE] < 1)
-        .map(([id, r]) => t('MOD_VOY_HELP_CREW_OUTPOST_RATE', { skill: skillName(id), pct: `${Math.round(r.features[O.OUTPOST_FEATURE] * 100)}` })).join(', ');
+        .map(([id, r]) => t('MOD_VOY_HELP_CREW_OUTPOST_RATE', { skill: skillName(id), pct: `${Math.round(r.features[O.OUTPOST_FEATURE] * 100)}` })).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
       const [one, two, three, four] = O.OUTPOST_LEVELS.map((l) => `${l}`);
       return [{ head: t('MOD_VOY_HELP_HEAD_CREW_OUTPOST'), body: [
         t(alone ? 'MOD_VOY_HELP_OUTPOST_NF' : 'MOD_VOY_HELP_CREW_OUTPOST', { level: `${O.TENT.level}`, crafts, partial }),
@@ -1000,7 +1000,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       if (SP !== undefined && !provOff) {
         if (setOff('spoilage')) out.push({ head: t('MOD_VOY_HELP_HEAD_SPOIL'), body: [t('MOD_VOY_HELP_SPOIL_OFF')] });
         else {
-          const x = (n) => `×${n}`;
+          const x = (n) => `×${decimal(n, 2)}`;
           const one = x(1);
           const casksOn = st.casks?.() === true;
           const band = (b) => ({ cells: [t(`MOD_VOY_WX_BAND_${b.toUpperCase()}`), x(SP.WARMTH[b]), one] });
@@ -1221,7 +1221,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     loadSplit = (n) => {
       const parts = plan(Math.min(n, most)).parts;
       if (parts.length < 2) return '';
-      return t('MOD_VOY_PAGE_STORES_SPLIT', { parts: parts.map((x) => t('MOD_VOY_PAGE_STORES_SPLIT_PART', { amount: amountText(x.added), place: t(PLACE_KEY[x.place]) })).join(', ') });
+      return t('MOD_VOY_PAGE_STORES_SPLIT', { parts: parts.map((x) => t('MOD_VOY_PAGE_STORES_SPLIT_PART', { amount: amountText(x.added), place: t(PLACE_KEY[x.place]) })).join(getLangString('MOD_VOY_GATE_LIST_SEP')) });
     };
     loadPreview = (n) => {
       const v = Math.min(room, plan(Math.min(n, most)).added ?? storesModel.loadAmount(sel.unit, Math.min(n, most), rate));
@@ -1520,7 +1520,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       // Build .165 (the user): one portrait, the mount bought last. Build .167: its tooltip is only what it gives, in green.
       // Phase 5a: with timed travel the mount gives speed, not a GP cut.
       const lines = state.timed?.() === true
-        ? [m === undefined || !(m.speed > 1) ? t('MOD_VOY_PAGE_LAND_NO_SPEED') : { text: t('MOD_VOY_PAGE_LAND_SPEED', { speed: `${m.speed}` }), cls: 'text-success' }]
+        ? [m === undefined || !(m.speed > 1) ? t('MOD_VOY_PAGE_LAND_NO_SPEED') : { text: t('MOD_VOY_PAGE_LAND_SPEED', { speed: decimal(m.speed, 2) }), cls: 'text-success' }]
         : [m === undefined || m.cut === 0 ? t('MOD_VOY_PAGE_LAND_NO_CUT') : { text: t('MOD_VOY_PAGE_LAND_CUT', { pct: `${Math.round(m.cut * 100)}` }), cls: 'text-success' }];
       const tipText = lines.map((l) => (typeof l === 'string' ? l : l.text)).join('. ');
       const inner = `<div class="voyage-land-face" data-tip-lines="${esc(JSON.stringify(lines))}"><div class="voyage-land-ring"><img src="${m === undefined ? ctx.getResourceUrl('assets/marker_traveller_figure.webp') : L.mediaOf(m)}" alt=""></div>` +

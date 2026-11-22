@@ -461,7 +461,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, s
           parts.push(`${num(qty)} ${item.name}`);
         } catch (e) { log('the sailor\'s share failed', e); }
       }
-      fish = parts.join(', ');
+      fish = parts.join(getLangString('MOD_VOY_GATE_LIST_SEP'));
     }
     if (!startTow(id, way)) return;
     const empty = r.take === true && fish === ''; // nothing of the catch left in the bank: he tows you all the same

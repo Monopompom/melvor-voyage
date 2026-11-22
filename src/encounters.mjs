@@ -22,7 +22,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     if (Array.isArray(x)) {
       const words = x.map(text);
       if (words.length < 2) return words[0] ?? '';
-      return t('MOD_VOY_ENC_OR', { a: words.slice(0, -1).join(', '), b: words[words.length - 1] });
+      return t('MOD_VOY_ENC_OR', { a: words.slice(0, -1).join(getLangString('MOD_VOY_GATE_LIST_SEP')), b: words[words.length - 1] });
     }
     if (typeof x === 'object' && typeof x.key === 'string') {
       const vars = {};
@@ -469,7 +469,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
     const add = f.away !== undefined ? R.shareDebt(f.away.parts, n) : { [R.debtKey(f.opt.band, f.ground)]: n };
     e.debts = R.owe(e.debts, add);
     // A Folk's part (toll 0) owes nothing: only the bands with a share are named.
-    const who = Object.keys(add).filter((key) => add[key] > 0).map((key) => { const [band, ground] = key.split(':'); return debtName(band, ground); }).join(', ');
+    const who = Object.keys(add).filter((key) => add[key] > 0).map((key) => { const [band, ground] = key.split(':'); return debtName(band, ground); }).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
     lines.push(k('MOD_VOY_ENC_RES_OWED', { gp: n, who }));
     log(`encounters: ${n} GP owed (${Object.keys(add).join(', ')})`);
     return n;
@@ -509,7 +509,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
       try { game.bank.removeItemQuantity(game.items.getObjectByID(x.id), x.qty, true); } catch (err) { log(`encounters: ${x.id} not used up`, err); }
     }
     f.usedDone = { ...(s.used ?? {}) };
-    if (taken.length > 0) lines.push(k('MOD_VOY_ENC_RES_USED', { what: taken.map((x) => t('MOD_VOY_ENC_SUPPLY_COUNT', { name: t(E.cardKey(x.card)), n: `${x.qty}` })).join(', ') }));
+    if (taken.length > 0) lines.push(k('MOD_VOY_ENC_RES_USED', { what: taken.map((x) => t('MOD_VOY_ENC_SUPPLY_COUNT', { name: t(E.cardKey(x.card)), n: `${x.qty}` })).join(getLangString('MOD_VOY_GATE_LIST_SEP')) }));
   };
   // ---- a walking Folk's stakes (6c): its pack and its HP, never your GP ---------------------------------------------
   /** A band takes `share` of the food left in the Folk's pack: the road's last hexes it can no longer feed go hungry. */

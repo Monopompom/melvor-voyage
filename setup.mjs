@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-22.630';
+export const BUILD = '2026-11-22.647';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -28,8 +28,8 @@ export async function setup(ctx) {
   const log = DEV ? (...args) => console.log('[Voyage]', ...args) : () => {};
   console.info(`[Voyage] Far Shores — build ${BUILD}`);
   // Every player-facing text comes from languages/<code>.json (Translatable text); merged before anything reads it.
-  const { mergeLang } = await ctx.loadModule('src/lang-merge.mjs');
-  await (await ctx.loadModule('src/lang.mjs')).install(ctx, { mergeLang });
+  const { mergeLang, overEnglish, TEXT_ITEMS, TEXT_SHOP } = await ctx.loadModule('src/lang-merge.mjs');
+  await (await ctx.loadModule('src/lang.mjs')).install(ctx, { mergeLang, overEnglish });
 
   // Hard requirement: Atlas of Discovery. Without it the mod registers nothing and never throws.
   const hasAoD = () => {
@@ -153,6 +153,22 @@ export async function setup(ctx) {
       it._customDescription = getLangString(desc);
       it._modifiedDescription = undefined;
     }
+    // Goods, the fight's consumables and the shop's own entries.
+    for (const id of TEXT_ITEMS) {
+      const it = game.items.getObjectByID(`voyage:${id}`);
+      if (it === undefined) continue;
+      it._name = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_NAME`);
+      it._customDescription = getLangString(`MOD_VOY_ITEM_${id.toUpperCase()}_DESC`);
+      it._modifiedDescription = undefined;
+    }
+    for (const id of TEXT_SHOP) {
+      const buy = game.shop.purchases.getObjectByID(`voyage:${id}`);
+      if (buy === undefined) continue;
+      buy._customName = getLangString(`MOD_VOY_SHOP_${id.toUpperCase()}_NAME`);
+      buy._customDescription = getLangString(`MOD_VOY_SHOP_${id.toUpperCase()}_DESC`);
+    }
+    const draught = game.herblore.actions.getObjectByID('voyage:Bitter_Draught');
+    if (draught !== undefined) draught._name = getLangString('MOD_VOY_RECIPE_BITTER_DRAUGHT');
     const category = game.shop.categories.getObjectByID('voyage:Voyage');
     if (category !== undefined) category._name = getLangString('MOD_VOY_SHOP_CATEGORY');
   } catch (e) { console.error('[Voyage] data names not translated', e); }
@@ -392,7 +408,7 @@ export async function setup(ctx) {
   const helpLayout = await ctx.loadModule('src/help-layout.mjs');
   // Big GP, XP and bank counts in a short form (12.3K, 2.5M), rounded down, so a "You have" never reads as more;
   // fractions in the player's decimal mark.
-  const { shortNumber, decimal } = await ctx.loadModule('src/number-format.mjs');
+  const { shortNumber, decimal, wideCount } = await ctx.loadModule('src/number-format.mjs');
   // Every popup we open runs this on render: skill names get their icon and bold.
   const skillNamesMod = await ctx.loadModule('src/skill-names.mjs');
   state.popupDidRender = skillNamesMod.didRender;
@@ -513,7 +529,7 @@ export async function setup(ctx) {
   } catch (e) { console.error('[Voyage] events failed to load', e); state.events = undefined; }
   // Encounters (4.33): bandits and pirates as a card game. A failure: no encounters.
   try {
-    const F = (await ctx.loadModule('src/encounter-fight.mjs')).install(ctx, { state, log });
+    const F = (await ctx.loadModule('src/encounter-fight.mjs')).install(ctx, { state, decimal, log });
     const encounters = (await ctx.loadModule('src/encounters.mjs')).install(ctx, { state, E: await ctx.loadModule('src/encounter-model.mjs'), R: await ctx.loadModule('src/encounter-rules-model.mjs'), L: await ctx.loadModule('src/encounter-loot-model.mjs'), D: await ctx.loadModule('src/deck-model.mjs'), F, EM: await ctx.loadModule('src/events-model.mjs'), S: storesModel, terrainMod, shortNumber, log });
     const s = voyageSkill();
     if (s !== undefined) s.encounters = encounters;
@@ -534,14 +550,14 @@ export async function setup(ctx) {
       state.backup = (await ctx.loadModule('src/backup.mjs')).install(ctx, { state, model, B: await ctx.loadModule('src/backup-model.mjs'), helpLayout, BUILD, settingsIO, log });
     } catch (e) { console.error('[Voyage] backups failed to load; the rest runs', e); state.backup = undefined; }
   }
-  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, supplyModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, shortNumber, decimal, log }) : undefined;
+  const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, supplyModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, shortNumber, decimal, wideCount, log }) : undefined;
   // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
   // popups and everything else as they were.
   state.helpSections = page?.helpSections;
   try {
     const journalModel = await ctx.loadModule('src/journal-model.mjs');
     const journalFigures = await ctx.loadModule('src/journal-figures-model.mjs');
-    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, figures: journalFigures, shipModel, storesModel, rules, terrainMod, shortNumber, log });
+    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, figures: journalFigures, shipModel, storesModel, rules, terrainMod, shortNumber, decimal, log });
   } catch (e) { console.error('[Voyage] the journal failed to load; the rest runs', e); state.journal = undefined; }
   // The journal's heat maps (build .114); without them the entries simply have no heat map button.
   try { (await ctx.loadModule('src/heatmap.mjs')).install(ctx, { state, terrainMod, log }); } catch (e) { log('heat maps failed to load', e); state.heatmap = undefined; }
