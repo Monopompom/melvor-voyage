@@ -107,8 +107,11 @@ export function newCourier(stops, from) {
  * its leg began on, `road` the leg's hexes, `reached` those entered, `into` the ms spent toward the next one. `back` the
  * stop to go back to after a trip home with a full load, `pending` an edited route, taken up at the next bank stop,
  * `retired` true when its route was deleted and it is on its way to unload, `crossing` a packet it is on (its hex stays
- * the land it boarded from), `pack` its road food, `packing` true while it waits at a bank stop for that food. `round` the
- * trip under way, counted from its first bank stop, `last` the last whole one.
+ * the land it boarded from), `pack` its road food, `packing` true while it waits at a bank stop for that food, `topping`
+ * true while it waits on its road to top it up. `round` the
+ * trip under way, counted from its first bank stop, `last` the last whole one. Round 5 (save v34): `held` the game ms a
+ * band stopped it on the hex it stands on, until answered; `lent` the card you lend it from your deck (checked against
+ * the deck where it is read); `lag` the ms it stands still after running from a band (the hex's time again).
  */
 export function cleanCourier(c) {
   if (c === null || typeof c !== 'object' || routeProblem(c.stops) !== undefined) return undefined;
@@ -133,10 +136,14 @@ export function cleanCourier(c) {
   const pack = c.pack === undefined ? undefined : cleanPack(c.pack);
   if (pack !== undefined) out.pack = pack;
   if (c.packing === true) out.packing = true;
+  if (c.topping === true) out.topping = true;
   const round = c.round === undefined ? undefined : cleanRound(c.round);
   if (round !== undefined) out.round = round;
   const last = c.last === undefined ? undefined : cleanRound(c.last);
   if (last !== undefined) out.last = last;
+  if (Number.isFinite(c.held) && c.held > 0) out.held = Math.floor(c.held);
+  if (Number.isFinite(c.lag) && c.lag > 0) out.lag = Math.min(Math.round(c.lag), 24 * 3600 * 1000);
+  if (typeof c.lent === 'string' && /^\w{1,40}$/.test(c.lent)) out.lent = c.lent;
   return out;
 }
 
@@ -214,9 +221,10 @@ export const atLegEnd = (c) => c.reached >= c.road.length;
 
 /**
  * `ms` of its time on the road: { courier, entered, arrived, spare }. `entered` the hexes walked into, in order, `arrived`
- * true when this took it to the leg's end, `spare` the time left over then, for the next leg.
+ * true when this took it to the leg's end, `spare` the time left over then, for the next leg. `onHex(at)` is told of each
+ * hex entered (`at` the courier standing on it); false stops it there, `topping` true (it waits for road food).
  */
-export function advance(c, ms) {
+export function advance(c, ms, meet, onHex) {
   let left = Number.isFinite(ms) && ms > 0 ? ms : 0;
   if (atLegEnd(c)) return { courier: c, entered: [], arrived: false, spare: left };
   let { reached, into } = c;
@@ -228,9 +236,47 @@ export function advance(c, ms) {
     into = 0;
     entered.push(c.road[reached]);
     reached += 1;
+    const stand = onHex?.({ ...c, reached, into: 0 }) === false;
+    const topping = stand ? { topping: true } : {};
+    // A band on the hex just entered (round 5): it stands there, the rest of its time unspent, until answered.
+    const held = meet?.(c.road[reached - 1]);
+    if (Number.isFinite(held) && held > 0) return { courier: { ...c, reached, into, held: Math.floor(held), ...topping }, entered, arrived: false, spare: 0, held: true, ...topping };
+    if (stand) return { courier: { ...c, reached, into, topping: true }, entered, arrived: false, spare: 0, topping: true };
   }
   const arrived = reached >= c.road.length;
   return { courier: { ...c, reached, into }, entered, arrived, spare: arrived ? left : 0 };
+}
+
+// ---- healing on the round (round 5, the user: "25% per bank stop, and maybe a slow healing rate in the cost of food") --
+/** Each bank stop gives back this share of max HP. */
+export const BANK_HEAL = 0.25;
+/** A hex walked below max HP eats this many times its road food and gives back ROAD_HEAL of max HP. [BALANCE] */
+export const ROAD_HEAL_FOOD = 2;
+export const ROAD_HEAL = 0.03;
+const hpOf = (hp, maxHp) => (Number.isFinite(hp) ? Math.max(0, Math.min(hp, maxHp)) : maxHp);
+/** The HP a bank stop gives back to a Folk at `hp` of `maxHp` (hp null or undefined: full): whole HP, never past max. */
+export function bankHeal(hp, maxHp) {
+  if (!(maxHp > 0)) return 0;
+  const missing = maxHp - hpOf(hp, maxHp);
+  return missing <= 0 ? 0 : Math.min(missing, Math.max(1, Math.round(maxHp * BANK_HEAL)));
+}
+/** How many hexes of food healing bring a Folk back to max HP (0 when it is full). */
+export function roadHealHexes(hp, maxHp) {
+  if (!(maxHp > 0)) return 0;
+  const missing = maxHp - hpOf(hp, maxHp);
+  return missing <= 0 ? 0 : Math.ceil(missing / Math.max(1, Math.round(maxHp * ROAD_HEAL)));
+}
+/**
+ * One hex walked: `{ cost, heal }`. Below max HP and with the food for it in the pack (`pack.food` at least
+ * ROAD_HEAL_FOOD times `cost.food`), it eats that much and heals ROAD_HEAL of max HP; otherwise it eats `cost` and
+ * heals nothing (a hungry hex heals nothing). A hex that costs no food heals as one that does (Provisions off).
+ */
+export function roadHeal(pack, cost, hp, maxHp) {
+  const missing = maxHp > 0 ? maxHp - hpOf(hp, maxHp) : 0;
+  if (missing <= 0) return { cost, heal: 0 };
+  const food = Math.max(0, cost?.food ?? 0);
+  if (food > 0 && !((pack?.food ?? 0) >= food * ROAD_HEAL_FOOD)) return { cost, heal: 0 };
+  return { cost: { ...cost, food: food * ROAD_HEAL_FOOD }, heal: Math.min(missing, Math.max(1, Math.round(maxHp * ROAD_HEAL))) };
 }
 
 /** A new leg from `from` along `road` (the hexes entered, in order). */
@@ -243,10 +289,22 @@ export function land(c) {
   return { ...rest, from: crossing.to, road: [], reached: 0, into: 0 };
 }
 
-/** `ms` of its time on the packet: { courier, landed, spare }, `spare` the time left over once ashore. */
-export function sail(c, ms) {
+/**
+ * `ms` of its time on the packet: { courier, landed, spare }, `spare` the time left over once ashore. `meet(hex)` (round
+ * 5) is asked on each sea hex the packet sails into after the first (`{ q, r, sea: true }`); a positive answer (the game
+ * ms) holds it there, `held` true, the rest of its time unspent, until the band is answered.
+ */
+export function sail(c, ms, meet) {
   const x = c.crossing;
   const left = Number.isFinite(ms) && ms > 0 ? ms : 0;
+  const per = x.hexes.length > 0 ? x.ms / x.hexes.length : x.ms;
+  if (meet !== undefined && per > 0) {
+    const end = Math.min(x.ms, x.into + left);
+    for (let k = Math.floor(x.into / per) + 1; k < x.hexes.length && k * per <= end; k++) {
+      const held = meet({ q: x.hexes[k].q, r: x.hexes[k].r, sea: true });
+      if (Number.isFinite(held) && held > 0) return { courier: { ...c, crossing: { ...x, into: k * per }, held: Math.floor(held) }, landed: false, spare: 0, held: true };
+    }
+  }
   const need = x.ms - x.into;
   if (left < need) return { courier: { ...c, crossing: { ...x, into: x.into + left } }, landed: false, spare: 0 };
   return { courier: land(c), landed: true, spare: left - need };
@@ -476,7 +534,7 @@ export function walkOn(start, ms, options) {
 }
 
 /** The walk itself. `clock.noted` is how much of `total` is already in a round, so one long tick splits across rounds. */
-function walkRoute(start, total, { stopHex, road, visit, distance, packet, board, pack, eat }, clock) {
+function walkRoute(start, total, { stopHex, road, visit, distance, packet, board, pack, eat, meet, topUp }, clock) {
   const isLive = (s) => stopHex(s) !== undefined;
   const entered = [];
   let c = start;
@@ -485,11 +543,22 @@ function walkRoute(start, total, { stopHex, road, visit, distance, packet, board
   let stuck = 0;
   let sailedAny = false;
   const skipTo = (next) => ({ ...c, next, from: hexOf(c), road: [], reached: 0, into: 0 });
+  // Stopped by a band (round 5): nothing moves until it is answered.
+  if (c.held !== undefined) return { courier: c, entered, wait: 'band', done: false };
+  // A Run from a band: the hex's time again, stood still before it goes on.
+  if (c.lag > 0) {
+    const spent = Math.min(left, c.lag);
+    left -= spent;
+    const { lag, ...rest } = c;
+    c = c.lag - spent > 0 ? { ...rest, lag: c.lag - spent } : rest;
+    if (left <= 0) return { courier: c, entered, wait: '', done: false };
+  }
   for (;;) {
     if (c.crossing !== undefined) {
       sailedAny = true;
-      const sailed = sail(c, left);
+      const sailed = sail(c, left, meet);
       c = sailed.courier;
+      if (sailed.held) return { courier: c, entered, wait: 'band', done: false };
       if (!sailed.landed) return { courier: c, entered, wait: '', done: false };
       left = sailed.spare;
     }
@@ -498,6 +567,13 @@ function walkRoute(start, total, { stopHex, road, visit, distance, packet, board
       if (pack !== undefined && packed === undefined) return { courier: c, entered, wait: 'food', done: false };
       const { packing, ...rest } = c;
       c = packed === undefined ? rest : { ...rest, pack: packed };
+    }
+    // Waiting on its road for the rest of its road food: it tops up again before it walks on.
+    if (c.topping === true) {
+      const got = topUp !== undefined && c.pack !== undefined ? topUp(c.pack, c) : c.pack;
+      if (topUp !== undefined && c.pack !== undefined && got === undefined) return { courier: c, entered, wait: 'food', done: false };
+      const { topping, ...rest } = c;
+      c = got === undefined ? rest : { ...rest, pack: got };
     }
     const stop = c.stops[c.next];
     const hex = stopHex(stop);
@@ -526,10 +602,21 @@ function walkRoute(start, total, { stopHex, road, visit, distance, packet, board
     }
     stuck = 0;
     if (!atLegEnd(c)) {
-      const walked = advance(c, left);
-      c = walked.courier;
+      // Each hex eats from its pack; where it can load, it tops the pack up (`topUp` undefined: it waits there).
+      let p = c.pack;
+      const onHex = (eat === undefined && topUp === undefined) || p === undefined ? undefined : (at) => {
+        if (eat !== undefined) p = eat(p, at.road[at.reached - 1]);
+        if (topUp === undefined) return true;
+        const got = topUp(p, at);
+        if (got === undefined) return false;
+        p = got;
+        return true;
+      };
+      const walked = advance(c, left, meet, onHex);
+      c = p === undefined ? walked.courier : { ...walked.courier, pack: p };
       entered.push(...walked.entered);
-      if (eat !== undefined && c.pack !== undefined) c = { ...c, pack: walked.entered.reduce(eat, c.pack) };
+      if (walked.held) return { courier: c, entered, wait: 'band', done: false };
+      if (walked.topping) return { courier: c, entered, wait: 'food', done: false };
       if (!walked.arrived) return { courier: c, entered, wait: '', done: false };
       left = walked.spare;
       // The Folk it was heading for has moved on meanwhile: a new road from here.
@@ -574,6 +661,43 @@ export function stretchSteps(c, { stopHex, road, packet, distance }) {
     if (stop.kind === 'bank') break;
   }
   return out;
+}
+
+/**
+ * A stretch's steps split at the hexes where it can top up its road food (`isSupply(step)`, a place to load in reach):
+ * the k-th part ends on the k-th such hex, the last part runs to the stretch's end. Part 0 starts where it packs.
+ */
+export function stretchParts(steps, isSupply) {
+  const parts = [[]];
+  (steps ?? []).forEach((s, i) => {
+    parts[parts.length - 1].push(s);
+    if (i < steps.length - 1 && isSupply(s)) parts.push([]);
+  });
+  return parts;
+}
+
+const KINDS = ['food', 'fuel'];
+const EPS = { food: 1e-6, fuel: 0.005 };
+/**
+ * Whether its road food can ever be packed for a stretch (the .711 check: a courier stood at its bank stop for good when
+ * the places there could not hold a trip's worth). `points` [{ need, stock }]: the k-th the road food from that point to
+ * the next (point 0 where it packs, the next ones the hexes it can top up on), and the most the places in reach of it
+ * hold when full (Infinity where supply is off). At each point it packs up to what the rest of the stretch needs.
+ * Undefined when it can, else { at, short } at the first point it can't leave.
+ */
+export function stretchFits(points) {
+  const pack = { food: 0, fuel: 0 };
+  for (let k = 0; k < (points ?? []).length; k++) {
+    const p = points[k];
+    for (const kind of KINDS) {
+      const rest = points.slice(k).reduce((a, x) => a + (x.need?.[kind] ?? 0), 0);
+      pack[kind] += Math.max(0, Math.min(rest - pack[kind], p.stock?.[kind] ?? 0));
+    }
+    const short = { food: Math.max(0, (p.need?.food ?? 0) - pack.food), fuel: Math.max(0, (p.need?.fuel ?? 0) - pack.fuel) };
+    if (KINDS.some((kind) => short[kind] > EPS[kind])) return { at: k, short };
+    for (const kind of KINDS) pack[kind] -= p.need?.[kind] ?? 0;
+  }
+  return undefined;
 }
 
 // ---- editing a route ------------------------------------------------------------------------------------------------

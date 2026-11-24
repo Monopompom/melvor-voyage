@@ -9,6 +9,12 @@
 // vanilla pin is 512; at full zoom the game draws it about 167 CSS px tall, so 384 stays sharp on a 2x screen). The
 // moored dinghy is a second sprite in the same marker layer, under the pin, scaled the same way. If a texture fails
 // to load, the vanilla pin stays (and no moored marker is drawn).
+//
+// Cairns (round 5): a small pile of stones on the hex where a Folk fell, at the middle of the hex's right edge: the
+// corners hold the Crossroads Sign (upper left), a walker's boot (upper right), the tent (lower left) and the Folks
+// badge (lower right), and your own marker stands in the middle (.711 check: at the lower left the tent hid it). A red
+// pennant on it while a band guards it. Drawn with PIXI.Graphics (no texture to load), in the
+// same marker layer under the pin, shown with the player marker filter like the moored vessels.
 
 const TEXTURES = {
   land: 'assets/marker_traveller_figure.webp',
@@ -78,6 +84,53 @@ export function install(ctx, { state, log }) {
     sprite.scale.set((HexCoords.SQRT3 * map.hexScale.y) / want.orig.height / 2);
   };
 
+  /** The cairn markers drawn, by cairn id: { g, guarded }. */
+  const cairnMarks = new Map();
+  /** Drawn 100 units tall, base at (0, 0); scaled to the hex where placed. */
+  const CAIRN_H = 100;
+  const drawCairn = (guarded) => {
+    const g = new PIXI.Graphics();
+    g.eventMode = 'none';
+    const stone = (x, y, rx, ry, fill) => g.lineStyle(5, 0x24262b, 1).beginFill(fill, 1).drawEllipse(x, y, rx, ry).endFill();
+    g.lineStyle(0).beginFill(0x000000, 0.28).drawEllipse(0, -6, 50, 12).endFill();
+    stone(0, -24, 42, 21, 0x7d838b);
+    stone(-4, -55, 31, 16, 0x9aa0a8);
+    stone(3, -80, 19, 11, 0xb8bdc3);
+    if (guarded) {
+      g.lineStyle(5, 0x24262b, 1).moveTo(14, -86).lineTo(14, -CAIRN_H - 30);
+      g.lineStyle(4, 0x24262b, 1).beginFill(0xc0392b, 1).drawPolygon([14, -CAIRN_H - 30, 52, -CAIRN_H - 20, 14, -CAIRN_H - 10]).endFill();
+    }
+    return g;
+  };
+  const placeCairns = (display, map) => {
+    if (display?.markerLayer === undefined) return;
+    const cairns = state.folksGuarded === true ? (state.cairns?.all?.() ?? []) : [];
+    const ids = new Set(cairns.map((c) => c.id));
+    for (const [id, m] of cairnMarks) {
+      if (!ids.has(id) || m.g.destroyed) { try { if (!m.g.destroyed) m.g.destroy(); } catch {} cairnMarks.delete(id); }
+    }
+    for (const c of cairns) {
+      const guarded = c.guard !== undefined;
+      let m = cairnMarks.get(c.id);
+      if (m !== undefined && m.guarded !== guarded) { try { m.g.destroy(); } catch {} m = undefined; }
+      if (m === undefined) { m = { g: drawCairn(guarded), guarded }; cairnMarks.set(c.id, m); }
+      if (m.g.parent !== display.markerLayer) {
+        const at = display.markerLayer.getChildIndex(display.playerPin);
+        display.markerLayer.addChildAt(m.g, Math.max(0, at));
+      }
+      const hexDisplay = display.getHexDisplay(c);
+      const show = hexDisplay !== undefined && display.playerPin.visible;
+      m.g.visible = show;
+      if (!show) continue;
+      // Between the two right-hand badges (their centres 0.22 of the hex's width and height off the middle, radius 0.09
+      // of its height): the stones a fifth of the hex tall, their base a tenth below the middle.
+      const tall = HexCoords.SQRT3 * map.hexScale.y;
+      m.g.scale.set((tall * 0.2) / CAIRN_H);
+      m.g.x = hexDisplay.x + 2 * map.hexScale.x * 0.38;
+      m.g.y = hexDisplay.y + tall * 0.1;
+    }
+  };
+
   /** Puts the right texture on the pin, lets the game rescale it, and places the moored dinghy. */
   const refresh = () => {
     const map = drawn();
@@ -89,6 +142,7 @@ export function install(ctx, { state, log }) {
     }
     placeParked(cartographyMap, map, 'ship');
     placeParked(cartographyMap, map, 'boat');
+    try { placeCairns(cartographyMap, map); } catch (e) { log('cairn markers failed', e); }
   };
 
   ctx.patch(WorldMapDisplayElement, 'configurePlayerPin').before(function () {
@@ -146,6 +200,7 @@ export function install(ctx, { state, log }) {
       playerPinVisible: cartographyMap?.playerPin?.visible,
       boat: one('boat'),
       ship: one('ship'),
+      cairns: [...cairnMarks].map(([id, m]) => ({ id, guarded: m.guarded, visible: m.g.visible, x: m.g.x, y: m.g.y, scale: m.g.scale?.x })),
     };
   };
   return { refresh, debug };

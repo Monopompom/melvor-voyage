@@ -287,12 +287,32 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     if (due > 0) lines.push(`<div class="text-warning">${esc(t('MOD_VOY_TASK_DUE_WITHIN', { time: state.clock?.duration?.(due) ?? '' }))}</div>`);
     return row(n, lines, button('btn-success', t('MOD_VOY_TASK_TAKE'), `data-task="take" data-id="${esc(n.id)}"`, why));
   };
+  /**
+   * The rival captain's Wanted notice (round 5), on top of every board once you have met him and until you beat him:
+   * his name, the sea he was last seen on, his captain's cards, the bounty. Nothing to take: beating him pays it.
+   */
+  const wantedRow = () => {
+    let r;
+    try { r = state.encounters?.rivalView?.(); } catch {}
+    if (r === undefined || !(r.met > 0) || r.beaten > 0) return '';
+    let sea = r.lastSea;
+    try { sea = state.charts?.seaName?.(r.lastSea) ?? r.lastSea; } catch {}
+    const lines = [
+      `<div><b>${esc(t('MOD_VOY_TASK_WANTED_WHO', { name: t('MOD_VOY_BAND_RIVAL') }))}</b></div>`,
+      sea === '' ? '' : `<div class="text-muted">${esc(t('MOD_VOY_TASK_WANTED_SEEN', { sea }))}</div>`,
+      `<div class="text-muted">${esc(t('MOD_VOY_TASK_WANTED_CARDS', { n: `${r.deck.length}` }))}</div>`,
+      `<div class="text-muted">${esc(t('MOD_VOY_TASK_WANTED_NOTE'))}</div>`,
+    ];
+    const art = `<span class="voyage-cargo-art"><img class="voyage-cargo-box" src="${esc(ctx.getResourceUrl('assets/trophy_tricorn.webp'))}" alt=""></span>`;
+    const pay = `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}${t('MOD_VOY_ENC_GP', { gp: `<b class="text-success">${shortNumber(r.bounty)}</b>` })}</div></div>`;
+    return `<div class="voyage-cargo-head">${esc(t('MOD_VOY_TASK_WANTED'))}</div><div class="voyage-cargo-row">${art}<div class="voyage-cargo-mid">${lines.join('')}</div>${pay}<div class="voyage-cargo-act"></div></div>`;
+  };
   /** The Notices tab of the port `poi`'s harbour board. */
   const html = (poi) => {
     const d = data();
     if (d === undefined) return `<div class="text-warning">${esc(t('MOD_VOY_PAGE_NO_SHIP'))}</div>`;
     if (NO_TASKS.includes(poi)) return `<div class="voyage-cargo-empty">${esc(t('MOD_VOY_CARGO_FAKE'))}</div>`;
-    let out = '';
+    let out = wantedRow();
     if (d.cur !== null) out += `<div class="voyage-cargo-head">${esc(t('MOD_VOY_TASK_YOURS'))}</div>${curRow(d.cur, poi)}`;
     out += `<div class="voyage-cargo-head">${esc(t('MOD_VOY_TASK_POSTED'))}</div>`;
     const list = board(poi);

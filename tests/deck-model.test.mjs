@@ -99,7 +99,7 @@ test('charms: an item you own makes one yours, a trophy only when won; slotted o
 
 test('every trophy charm has its own picture in the mod, the other charms none', () => {
   const trophies = Object.keys(E.CHARMS).filter((id) => E.CHARMS[id].trophy !== undefined);
-  assert.equal(trophies.length, 6);
+  assert.equal(trophies.length, 7, 'six bands and the rival captain');
   for (const id of trophies) assert.ok(existsSync(new URL(`../${trophyArt(id, E)}`, import.meta.url)), id);
   for (const id of Object.keys(CHARM_ITEMS)) assert.equal(trophyArt(id, E), undefined, id);
 });

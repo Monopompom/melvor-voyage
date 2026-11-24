@@ -108,9 +108,10 @@ export function planLoad(S, unit, qty, room, sources, kind) {
  * A courier's road food (round 4): `want` { food, fuel } from the bank's `items` ([{ item, kind, unit, qty }], the foods
  * marked Never load already left out), the plainest first, so it never eats your best. Each at the places' own rates and
  * stocks. All or nothing: { ok: true, picks: [{ item, kind, n, parts }], food, fuel }, or { ok: false, short } naming the
- * kind that ran out, and nothing is to be taken. `S`: stores-model.mjs.
+ * kind that ran out, and nothing is to be taken. With `min` { food, fuel } it takes as much as there is up to `want`,
+ * and fails only below `min`. `S`: stores-model.mjs.
  */
-export function planPack(S, items, want, sources) {
+export function planPack(S, items, want, sources, min) {
   const src = (sources ?? []).map((s) => ({ ...s, stock: { ...s.stock } }));
   const picks = [];
   const got = { food: 0, fuel: 0 };
@@ -129,7 +130,9 @@ export function planPack(S, items, want, sources) {
       room -= plan.added;
       got[kind] += plan.added;
     }
-    if (room > 1e-9) return { ok: false, short: kind };
+    // With `min` (a courier topping up on its road) as much as there is, but at least that.
+    const floor = min === undefined ? want?.[kind] ?? 0 : Math.min(want?.[kind] ?? 0, min[kind] ?? 0);
+    if (got[kind] < floor - 1e-9) return { ok: false, short: kind };
   }
   return { ok: true, picks, food: got.food, fuel: got.fuel };
 }

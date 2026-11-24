@@ -6,6 +6,7 @@ import {
   PACKET_HEX_MS, packetFare, land, sail, crossingAt, crossingAhead, stretchSteps,
   routeOf, routeServes, couriersServing, carrierOf, inputStops, loadFull, INPUT_BANK_SHARE, capInputs,
   folkKey, depotKey, noteStop, roundTime, roundFare, routeParts, folkPart, faresPerHour, SHEET_SWIPE_MIN, sheetSwipe,
+  BANK_HEAL, ROAD_HEAL, ROAD_HEAL_FOOD, bankHeal, roadHealHexes, roadHeal, stretchParts, stretchFits,
 } from '../src/courier-model.mjs';
 import { NEIGHBOURS, findRoadToAny } from '../src/walk-model.mjs';
 import { SAVE_VERSION, defaultSave, loadSave, serializeSave } from '../src/voyage-model.mjs';
@@ -282,7 +283,7 @@ test('a deleted route: it unloads at the bank stop and is done', () => {
 
 test('save v33: no courier yet after the migration, and a route survives a reload', () => {
   const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 32, couriers: undefined }));
-  assert.deepEqual(report.applied, [32]);
+  assert.deepEqual(report.applied, [32, 33]);
   assert.equal(save.v, SAVE_VERSION);
   assert.deepEqual(save.couriers, {});
   const c = newCourier(route(), { q: 1, r: 1 });
@@ -677,3 +678,149 @@ test('what the courier code keeps: anything past its cap, or left by a Folk that
     assert.ok(named.includes(part), `names ${part}: ${named}`);
   }
 });
+
+test('save v34: a courier keeps the band that stopped it and the card you lend it', () => {
+  const c = { ...newCourier(route(), { q: 1, r: 1 }), held: 5000.6, lent: 'slash' };
+  assert.deepEqual({ held: cleanCourier(c).held, lent: cleanCourier(c).lent }, { held: 5000, lent: 'slash' });
+  const junk = cleanCourier({ ...newCourier(route(), { q: 1, r: 1 }), held: -3, lent: '<b>' });
+  assert.equal('held' in junk, false);
+  assert.equal('lent' in junk, false);
+});
+
+test('a band on a hex just entered stops the courier there, its time unspent, until answered', () => {
+  const c = startLeg(newCourier(route(), { q: 0, r: 0 }), { q: 0, r: 0 }, [step(1, 0), step(2, 0), step(3, 0)]);
+  const met = [];
+  const out = advance(c, 1000, (s) => { met.push(s.q); return s.q === 2 ? 777.9 : 0; });
+  assert.deepEqual(met, [1, 2]);
+  assert.equal(out.held, true);
+  assert.deepEqual([out.courier.reached, out.courier.into, out.courier.held, out.spare, out.arrived], [2, 0, 777, 0, false]);
+  assert.deepEqual(out.entered.map((s) => s.q), [1, 2]);
+  assert.equal(advance(c, 1000, () => undefined).arrived, true, 'no band: on as before');
+});
+
+test('along the route: a held courier waits for the band; after a Run it stands the lag out first', () => {
+  const c = newCourier([bank(0, 0), folk('a')], { q: 0, r: 0 });
+  const opts = (meet) => ({ stopHex: (s) => (s.kind === 'bank' ? s : { q: 5, r: 0 }), road: lineRoad, visit: () => ({}), distance: dist, meet });
+  const stopped = walkOn(c, 400, opts((s) => (s.q === 2 ? 5000 : 0)));
+  assert.equal(stopped.wait, 'band');
+  assert.deepEqual(hexOf(stopped.courier), { q: 2, r: 0 });
+  assert.equal(stopped.courier.held, 5000);
+  const still = walkOn(stopped.courier, 400, opts(() => 0));
+  assert.equal(still.wait, 'band');
+  assert.deepEqual(hexOf(still.courier), { q: 2, r: 0 }, 'nothing moves while held');
+  const { held, ...free } = stopped.courier;
+  const lagged = walkOn({ ...free, lag: 150 }, 100, opts(() => 0));
+  assert.deepEqual(hexOf(lagged.courier), { q: 2, r: 0 });
+  assert.equal(lagged.courier.lag, 50);
+  const on = walkOn(lagged.courier, 150, opts(() => 0));
+  assert.equal('lag' in on.courier, false);
+  assert.deepEqual(hexOf(on.courier), { q: 3, r: 0 }, 'the rest of the time walks on');
+});
+
+test('a Run lag is kept whole, at most a day', () => {
+  const c = newCourier(route(), { q: 1, r: 1 });
+  assert.equal(cleanCourier({ ...c, lag: 1200.4 }).lag, 1200);
+  assert.equal(cleanCourier({ ...c, lag: 1e12 }).lag, 24 * 3600 * 1000);
+  assert.equal('lag' in cleanCourier({ ...c, lag: -1 }), false);
+});
+
+test('on a packet each sea hex after the first may meet a band; one holds it there until answered, and is not met twice', () => {
+  const c = { ...newCourier([portA, portB], { q: 0, r: 0 }), next: 1, crossing: { ...boat, into: 0 } };
+  const asked = [];
+  const out = sail(c, 3 * PACKET_HEX_MS, (h) => { asked.push(h); return h.q === 3 ? 4242 : 0; });
+  assert.deepEqual(asked, [{ q: 3, r: 0, sea: true }], 'the first sea hex, by the port, never meets one');
+  assert.equal(out.held, true);
+  assert.deepEqual([out.landed, out.spare, out.courier.held, out.courier.crossing.into], [false, 0, 4242, PACKET_HEX_MS]);
+  assert.deepEqual(crossingAt(out.courier), { q: 3, r: 0 });
+  const { held, ...free } = out.courier;
+  const again = [];
+  const on = sail(free, 3 * PACKET_HEX_MS, (h) => { again.push(h.q); return 0; });
+  assert.deepEqual(again, [4]);
+  assert.equal(on.landed, true);
+  assert.equal(on.spare, PACKET_HEX_MS);
+  assert.equal(sail(c, PACKET_HEX_MS - 1, () => 1).held, undefined, 'short of the next hex: nothing asked');
+});
+
+test('along the route: a band on the packet holds the courier at sea, and it waits there', () => {
+  const c = { ...newCourier([portA, portB], { q: 0, r: 0 }), next: 1 };
+  const held = walkOn(c, 3 * PACKET_HEX_MS, seaRoutes({ meet: (h) => (h.sea === true && h.q === 4 ? 9000 : 0) }));
+  assert.equal(held.wait, 'band');
+  assert.deepEqual(crossingAt(held.courier), { q: 4, r: 0 });
+  assert.equal(held.courier.held, 9000);
+  const still = walkOn(held.courier, 3 * PACKET_HEX_MS, seaRoutes());
+  assert.equal(still.wait, 'band');
+  assert.deepEqual(crossingAt(still.courier), { q: 4, r: 0 });
+});
+
+test('a bank stop gives back a quarter of max HP, never past max; full or unknown health heals nothing', () => {
+  assert.deepEqual([BANK_HEAL, ROAD_HEAL, ROAD_HEAL_FOOD], [0.25, 0.03, 2]);
+  assert.equal(bankHeal(10, 100), 25);
+  assert.equal(bankHeal(90, 100), 10);
+  assert.equal(bankHeal(null, 100), 0, 'null is full health');
+  assert.equal(bankHeal(100, 100), 0);
+  assert.equal(bankHeal(0, 3), 1, 'at least 1');
+  assert.equal(bankHeal(5, undefined), 0);
+});
+
+test('on the road a hurt courier eats double for 3% of max HP a hex; a hex without that food heals nothing', () => {
+  const cost = { food: 4, fuel: 1 };
+  assert.deepEqual(roadHeal({ food: 8, fuel: 5 }, cost, 50, 100), { cost: { food: 8, fuel: 1 }, heal: 3 });
+  assert.deepEqual(roadHeal({ food: 7, fuel: 5 }, cost, 50, 100), { cost, heal: 0 }, 'not enough for double');
+  assert.deepEqual(roadHeal({ food: 99, fuel: 5 }, cost, 99, 100), { cost: { food: 8, fuel: 1 }, heal: 1 }, 'only what is missing');
+  assert.deepEqual(roadHeal({ food: 99, fuel: 5 }, cost, null, 100), { cost, heal: 0 }, 'full: plain road food');
+  assert.equal(roadHeal(undefined, { food: 0, fuel: 0 }, 10, 100).heal, 3, 'Provisions off: no food to count');
+  assert.equal(roadHealHexes(50, 100), 17);
+  assert.equal(roadHealHexes(null, 100), 0);
+  assert.equal(roadHealHexes(99, 1000), 31);
+});
+
+test('a stretch splits at the hexes where it can top up its road food; the last hex never starts a part', () => {
+  const steps = [1, 2, 3, 4, 5].map((q) => ({ q, r: 0 }));
+  const town = (s) => s.q === 2 || s.q === 5;
+  assert.deepEqual(stretchParts(steps, town).map((p) => p.map((s) => s.q)), [[1, 2], [3, 4, 5]]);
+  assert.deepEqual(stretchParts(steps, () => false).map((p) => p.length), [5]);
+  assert.deepEqual(stretchParts([], town), [[]]);
+});
+
+test('a stretch fits when each part can be packed at its start, topping up towards the rest of the way', () => {
+  const pt = (food, stock, fuel = 0, fstock = Infinity) => ({ need: { food, fuel }, stock: { food: stock, fuel: fstock } });
+  // 723 food to the next bank stop, a town holding 600: it never leaves (Milo, the .711 check).
+  assert.deepEqual(stretchFits([pt(723, 600)]), { at: 0, short: { food: 123, fuel: 0 } });
+  // With a town on the way the same trip goes: 600 here, the rest topped up there.
+  assert.equal(stretchFits([pt(400, 600), pt(323, 600)]), undefined);
+  // The bank stop packs what it can (600 of 723): 200 left after the first part, and the farm on the way gives 75 of 123.
+  assert.deepEqual(stretchFits([pt(400, 600), pt(323, 75)]), { at: 1, short: { food: 48, fuel: 0 } });
+  assert.deepEqual(stretchFits([pt(10, 100, 3, 2)]), { at: 0, short: { food: 0, fuel: 1 } });
+  assert.equal(stretchFits([pt(500, Infinity)]), undefined, 'supply off: the places never run out');
+  assert.equal(stretchFits([]), undefined);
+});
+
+test('on a hex it can load on, the courier tops its pack up; short, it waits there and tries again before walking on', () => {
+  const far = { kind: 'bank', q: 4, r: 0 };
+  const walk = [1, 2, 3, 4].map((q) => ({ q, r: 0, cls: 'grass', ms: 10 }));
+  const c = { ...newCourier([portA, far], { q: 0, r: 0 }), next: 1, pack: { food: 4, fuel: 0 } };
+  let give = false;
+  const opts = {
+    stopHex: hexOfStop,
+    road: (from, to) => (to.q === 4 && from.q < 4 ? walk.slice(from.q) : undefined),
+    distance: hexDist,
+    visit: () => ({}),
+    eat: (p) => ({ food: p.food - 1, fuel: p.fuel }),
+    topUp: (p, at) => (hexOf(at).q !== 2 ? p : give ? { food: 9, fuel: 0 } : undefined),
+  };
+  const first = walkOn(c, 40, opts);
+  assert.equal(first.wait, 'food');
+  assert.deepEqual(hexOf(first.courier), { q: 2, r: 0 });
+  assert.equal(first.courier.topping, true);
+  assert.equal(first.courier.pack.food, 2, 'two hexes eaten');
+  assert.equal(cleanCourier(first.courier).topping, true, 'kept in the save');
+  const still = walkOn(first.courier, 40, opts);
+  assert.equal(still.wait, 'food');
+  assert.deepEqual(hexOf(still.courier), { q: 2, r: 0 });
+  give = true;
+  const on = walkOn(still.courier, 15, opts);
+  assert.equal(on.courier.topping, undefined);
+  assert.deepEqual(hexOf(on.courier), { q: 3, r: 0 });
+  assert.equal(on.courier.pack.food, 8, 'topped up to 9, then a hex eaten');
+});
+

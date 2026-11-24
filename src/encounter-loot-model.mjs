@@ -59,6 +59,9 @@ export const TOKENS = {
   Thieving: 'melvorF:Mastery_Token_Thieving', Smithing: 'melvorD:Mastery_Token_Smithing', Herblore: 'melvorF:Mastery_Token_Herblore',
   Fishing: 'melvorD:Mastery_Token_Fishing', Runecrafting: 'melvorF:Mastery_Token_Runecrafting', Archaeology: 'melvorAoD:Mastery_Token_Archaeology',
 };
+// The rival captain (round 5) carries a corsair's haul; his trophy, the Tricorn, comes with beating him, never as a rare
+// find (a rare trophy roll from him is a Bank Slot Token).
+LOOT.rival = { ...LOOT.corsairs, trophy: undefined };
 export const BANK_SLOT_TOKEN = 'melvorF:Bank_Slot_Token';
 export const SIGNET_HALVES = ['melvorD:Signet_Ring_Half_A', 'melvorD:Signet_Ring_Half_B'];
 /** The rare find's weights: the Signet halves and the trophy only at tiers 3 and 4. */
@@ -114,7 +117,7 @@ export function rollLoot(band, tier, grade, rnd, opt = {}, owned = [], has = all
       k = rows[0][1];
       for (const [w, id] of rows) { if ((x -= w) < 0) { k = id; break; } }
     }
-    if (k === 'trophy' && owned.includes(L.trophy)) k = 'bankslot';
+    if (k === 'trophy' && (L.trophy === undefined || owned.includes(L.trophy))) k = 'bankslot';
     if (k === 'token') out.push({ id: TOKENS[L.skill], qty: randIn(rnd, [1, 3]), kind: 'rare' });
     else if (k === 'signet') out.push({ id: SIGNET_HALVES[rnd() < 0.5 ? 0 : 1], qty: 1, kind: 'rare' });
     else if (k === 'trophy') out.push({ trophy: L.trophy, qty: 1, kind: 'rare' });

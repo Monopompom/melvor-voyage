@@ -5,14 +5,17 @@
 
 const MAP_PAGE = 'melvorAoD:Cartography';
 
-export function install(ctx, { state, M, N, helpLayout, log }) {
+export function install(ctx, { state, M, W, N, helpLayout, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const couriers = () => state.couriers;
   const folk = (id) => state.folksApi?.()?.folkById(id);
   const hexes = (n) => t(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: numberWithCommas(n) });
 
-  /** What is being edited: { id, stops, choices (a hex's stops to pick from), note (the last tap's reason) }. */
+  /**
+   * What is being edited: { id, stops, choices (a hex's stops to pick from), note (the last tap's reason), lent (the card
+   * it carries for its bands, round 5) }.
+   */
   let editing;
   let panel;
   /** Bumped when the stops change, so the map line redraws only then. */
@@ -31,13 +34,19 @@ export function install(ctx, { state, M, N, helpLayout, log }) {
   const sameRoute = (a, b) => a.length === b.length && a.every((s, i) => M.sameStop(s, b[i]));
 
   // ---- what can stop it saving ---------------------------------------------------------------------------------------
-  const problemText = (stops, p) => {
+  const problemText = (stops, p, id) => {
     const problem = M.routeProblem(stops);
     if (problem === 'few') return t('MOD_VOY_ROUTE_FEW');
     if (problem === 'noBank') return t('MOD_VOY_ROUTE_NO_BANK');
     if (problem === 'repeat') return t('MOD_VOY_ROUTE_SAME');
     if (problem !== undefined) return t('MOD_VOY_ROUTE_UNREADABLE');
-    return p?.noRoad === true ? t('MOD_VOY_ROUTE_NO_ROAD_SAVE') : '';
+    if (p?.noRoad === true) return t('MOD_VOY_ROUTE_NO_ROAD_SAVE');
+    // A bank stop whose way on the places could never feed, even full (round 5): it would stand there for good.
+    const food = id === undefined ? undefined : couriers().foodCheck?.(id, stops);
+    if (food !== undefined) {
+      return t('MOD_VOY_ROUTE_FOOD_NEVER', { stop: couriers().stopName(stops[food.at]), amounts: state.stores?.amounts?.(food.short.food, food.short.fuel) ?? '' });
+    }
+    return '';
   };
 
   // ---- the panel --------------------------------------------------------------------------------------------------
@@ -69,6 +78,23 @@ export function install(ctx, { state, M, N, helpLayout, log }) {
       + `${iconBtn('remove', i, 'fa-times', t('MOD_VOY_ROUTE_REMOVE'), false, 'btn-outline-danger')}</span></div>`
       + (p?.legs[i] === undefined ? '' : legHtml(p.legs[i])) + '</li>').join('')}</ol>`;
   };
+  // ---- the card it carries for its bands (round 5): one of your deck's, as for a Folk you send ----------------------
+  const lendables = () => state.encounters?.lendables?.() ?? { cards: [], first: undefined };
+  /** The card a route opens with: the one it carries, while still in your deck; else the last one lent. */
+  const lentOf = (saved) => { const lend = lendables(); return lend.cards.some((c) => c.id === saved?.lent) ? saved.lent : lend.first; };
+  const cardFace = (c) => `<i class="fa fa-layer-group voyage-plan-pick-ico voyage-enc-s-${esc(c?.suit ?? 'curse')}" aria-hidden="true"></i><span>${esc(c?.name ?? '')}</span>`;
+  const lendHtml = (f, saved) => {
+    const lend = lendables();
+    if (lend.cards.length === 0) return '';
+    const c = lend.cards.find((x) => x.id === editing.lent) ?? lend.cards[0];
+    const held = saved?.held !== undefined && saved.retired !== true;
+    const pick = held || lend.cards.length === 1 ? `<div class="voyage-walk-one">${cardFace(c)}</div>`
+      : helpLayout.dropdownHtml({ id: 'voyage-route-lend', labelId: 'voyage-route-lend-label', face: cardFace(c), attrs: ' data-display="static"',
+        items: lend.cards.map((x) => `<a class="dropdown-item pointer-enabled${x.id === c.id ? ' active' : ''}" role="button" data-route="lend" data-card="${esc(x.id)}">${cardFace(x)}</a>`).join('') });
+    const note = held ? `<div class="voyage-walk-note text-warning">${esc(t('MOD_VOY_ROUTE_LEND_HELD', { name: f.name }))}</div>`
+      : `<div class="voyage-walk-note text-muted">${esc(t('MOD_VOY_ROUTE_LEND_NOTE', { name: f.name, n: `${state.encounters.folkDeckOf(f).length}` }))}</div>`;
+    return `<div class="voyage-section mt-2"><div class="font-w600 mb-2" id="voyage-route-lend-label">${esc(t('MOD_VOY_WALK_LEND_LABEL'))}</div>${pick}${note}</div>`;
+  };
   const html = () => {
     const { id, stops, choices, note } = editing;
     const f = folk(id);
@@ -77,9 +103,12 @@ export function install(ctx, { state, M, N, helpLayout, log }) {
     const p = stops.length >= 2 ? c.preview(id, stops) : undefined;
     const saved = c.all()?.[id];
     const far = c.editRefusal(id);
-    const problem = problemText(stops, p);
-    const why = far ?? problem;
-    const edited = saved !== undefined && saved.retired !== true && !sameRoute(stops, saved.pending ?? saved.stops);
+    const problem = problemText(stops, p, id);
+    const unchanged = saved !== undefined && saved.retired !== true && sameRoute(stops, saved.pending ?? saved.stops);
+    // Stops left as saved: Save only lends the card, so what is wrong with the route doesn't stop it (.711 check: a
+    // route with a leg of no road could not change its card). The problem still shows.
+    const why = far ?? (unchanged ? '' : problem);
+    const edited = saved !== undefined && saved.retired !== true && !unchanged;
     const pick = choices === undefined ? ''
       : `<div class="voyage-route-pick"><div class="font-w600">${esc(t('MOD_VOY_ROUTE_ADD_HERE'))}</div><div class="voyage-route-chips">${choices.map((s, i) => `<button type="button" class="btn btn-sm btn-outline-info" data-route="pick" data-at="${i}">${esc(keepEnd(c.stopName(s)))}</button>`).join('')}</div></div>`;
     const round = p !== undefined && !p.noRoad && p.ms > 0 ? `<div class="voyage-route-round">${helpLayout.withTime('MOD_VOY_COURIER_LOOP', { time: state.clock?.duration?.(p.ms) ?? '' })}</div>`
@@ -89,15 +118,35 @@ export function install(ctx, { state, M, N, helpLayout, log }) {
       + `<span class="voyage-route-count text-muted">${esc(count)}${p !== undefined && !p.noRoad && p.ms > 0 ? `<span class="voyage-walk-dot" aria-hidden="true">·</span>${helpLayout.timeHtml(state.clock?.duration?.(p.ms) ?? '')}` : ''}</span>`
       + `<button type="button" class="voyage-route-grab" data-route="fold" data-tip-touch="off" aria-expanded="${!folded}" aria-label="${esc(t(folded ? 'MOD_VOY_ROUTE_UNFOLD' : 'MOD_VOY_ROUTE_FOLD'))}"><svg viewBox="0 0 36 10" aria-hidden="true"><path d="M3 7.5 18 2.5 33 7.5"/></svg></button></div>`
       // The hint only teaches the first tap: it goes once the list has a stop.
+      // The middle scrolls; the title and the buttons stay in the panel's flow, never a pinned row with the stops and
+      // the card's note sliding under it (.711 check: the footer hid the note's last line).
+      + '<div class="voyage-route-body">'
       + `<div class="voyage-section">${stops.length === 0 ? `<div>${esc(t('MOD_VOY_ROUTE_HINT'))}</div>` : ''}${pick}`
       + (note === '' || note === undefined ? '' : `<div class="text-warning mt-2">${esc(note)}</div>`)
       + stopsHtml(stops, p) + round + '</div>'
+      + lendHtml(f, saved) + '</div>'
       + '<div class="voyage-route-foot">'
-      + (why === '' ? (edited ? `<div class="text-muted voyage-route-why">${esc(t('MOD_VOY_ROUTE_PENDING'))}</div>` : '') : `<div class="text-warning voyage-route-why">${esc(why)}</div>`)
+      + (why !== '' ? `<div class="text-warning voyage-route-why">${esc(why)}</div>`
+        : unchanged && problem !== '' ? `<div class="text-warning voyage-route-why">${esc(problem)}</div>`
+          : edited ? `<div class="text-muted voyage-route-why">${esc(t('MOD_VOY_ROUTE_PENDING'))}</div>` : '')
       + (saved === undefined || saved.retired === true ? '' : footBtn('delete', 'btn-outline-danger', t('MOD_VOY_ROUTE_DELETE'), far))
       + `<span class="voyage-route-pair"><button type="button" class="btn btn-sm btn-outline-info" data-route="cancel">${esc(t('MOD_VOY_ROUTE_CANCEL'))}</button>`
       + `${footBtn('save', 'btn-success', t('MOD_VOY_ROUTE_SAVE'), why)}</span></div>`;
   };
+  const placeMenu = (wrap) => {
+    const toggle = wrap.querySelector('[data-toggle="dropdown"]');
+    const menu = wrap.querySelector('.dropdown-menu');
+    if (toggle === null || menu === null) return;
+    menu.classList.remove('voyage-menu-fixed');
+    const r = toggle.getBoundingClientRect();
+    const box = W.menuPlace(r, menu.offsetHeight, window.innerHeight);
+    menu.style.setProperty('--voyage-menu-top', `${box.top}px`);
+    menu.style.setProperty('--voyage-menu-left', `${r.left}px`);
+    menu.style.setProperty('--voyage-menu-width', `${r.width}px`);
+    menu.style.setProperty('--voyage-menu-height', `${box.height}px`);
+    menu.classList.add('voyage-menu-fixed');
+  };
+  const closeMenus = () => { for (const x of panel?.querySelectorAll('.dropdown.show [data-toggle="dropdown"]') ?? []) window.jQuery?.(x).dropdown('hide'); };
   const render = () => {
     if (editing === undefined) return;
     if (folk(editing.id) === undefined) { close(); return; }
@@ -107,10 +156,23 @@ export function install(ctx, { state, M, N, helpLayout, log }) {
       panel.className = 'voyage-ui block block-rounded bg-combat-inner-dark p-2';
       panel.addEventListener('click', onClick);
       panel.addEventListener('pointerdown', onPointerDown);
+      // The card menu stands over the map at its button's place, so the panel's scroll can't cut it; it closes when the
+      // panel scrolls.
+      window.jQuery?.(panel).on('shown.bs.dropdown', (e) => { try { placeMenu(e.target); } catch (err) { log('route menu not placed', err); } });
+      // Captured: the scroll is the body's, inside the panel.
+      panel.addEventListener('scroll', closeMenus, { passive: true, capture: true });
       cartographyMap.append(panel);
     }
     const next = html();
-    if (next !== shown) { panel.innerHTML = next; shown = next; state.tips?.apply(panel); }
+    if (next !== shown) {
+      // The body is drawn anew: it keeps where it was scrolled to.
+      const top = panel.querySelector('.voyage-route-body')?.scrollTop ?? 0;
+      panel.innerHTML = next;
+      shown = next;
+      const body = panel.querySelector('.voyage-route-body');
+      if (body !== null) body.scrollTop = top;
+      state.tips?.apply(panel);
+    }
     panel.classList.remove('d-none');
     panel.classList.toggle('voyage-route-folded', folded);
     panel.parentElement?.classList.add('voyage-route-open');
@@ -146,11 +208,13 @@ export function install(ctx, { state, M, N, helpLayout, log }) {
     const c = couriers();
     if ((c.editRefusal(editing.id) ?? '') !== '') { render(); return; }
     const saved = c.all()?.[editing.id];
+    // The card goes with it at once: no edit to wait for at the next bank stop.
+    const lend = () => { if (editing.lent !== undefined) c.setLent(editing.id, editing.lent); };
     // Nothing changed: no edit to wait for at the next bank stop.
-    if (saved !== undefined && saved.retired !== true && sameRoute(editing.stops, saved.pending ?? saved.stops)) { close(); return; }
+    if (saved !== undefined && saved.retired !== true && sameRoute(editing.stops, saved.pending ?? saved.stops)) { lend(); close(); return; }
     const problem = c.setRoute(editing.id, editing.stops);
-    if (problem === undefined) { close(); return; }
-    editing = { ...editing, note: problemText(editing.stops) || t('MOD_VOY_ROUTE_UNREADABLE') };
+    if (problem === undefined) { lend(); close(); return; }
+    editing = { ...editing, note: problemText(editing.stops, undefined, editing.id) || t('MOD_VOY_ROUTE_UNREADABLE') };
     render();
   };
   const setFolded = (on) => {
@@ -192,6 +256,7 @@ export function install(ctx, { state, M, N, helpLayout, log }) {
       else if (action === 'down') changed(M.moveStop(editing.stops, at, 1));
       else if (action === 'remove') changed(M.removeStop(editing.stops, at));
       else if (action === 'pick') { const s = editing.choices?.[at]; if (s !== undefined) add(s); }
+      else if (action === 'lend') { if (b.dataset.card !== editing.lent) { editing = { ...editing, lent: b.dataset.card }; render(); } }
       else if (action === 'cancel') close();
       else if (action === 'save') save();
       else if (action === 'delete') { couriers().deleteRoute(editing.id); close(); }
@@ -223,7 +288,7 @@ export function install(ctx, { state, M, N, helpLayout, log }) {
     if (c === undefined || folk(id) === undefined) return;
     const saved = c.all()?.[id];
     c.forgetRoads();
-    editing = { id, stops: saved === undefined || saved.retired === true ? [] : [...(saved.pending ?? saved.stops)], choices: undefined, note: '' };
+    editing = { id, stops: saved === undefined || saved.retired === true ? [] : [...(saved.pending ?? saved.stops)], choices: undefined, note: '', lent: lentOf(saved) };
     if (editing.stops.length === 0) folded = false; // an empty route opens with its hint in view; the kept choice returns with the next route
     version += 1;
     shown = undefined;

@@ -11,7 +11,7 @@ import { SEASONS, BANDS } from '../src/weather-model.mjs';
 import { TRAITS as TRAVEL_TRAITS } from '../src/folk-traits-model.mjs';
 import { JOURNAL_CHAPTERS, JOURNAL_CREW, JOURNAL_WRITTEN, JOURNAL_GUIDE_SECTIONS, JOURNAL_ASIDES, JOURNAL_NOTES, CHART_ITEMS, splitLinks, linkTargetExists } from '../src/journal-model.mjs';
 import { OUTFIT, LESSER_RELIC, RELICS, MODIFIERS, SKILLCAPE, SUPERIOR_SKILLCAPE } from '../src/gear-model.mjs';
-import { CARDS, TRICKS, BANDS as ENC_BANDS, CHARMS, SUITS, ATTACKS } from '../src/encounter-model.mjs';
+import { CARDS, TRICKS, BANDS as ENC_BANDS, CHARMS, SUITS, ATTACKS, CAPTAIN_CARDS } from '../src/encounter-model.mjs';
 import { TEXT_ITEMS, TEXT_SHOP } from '../src/lang-merge.mjs';
 
 const root = new URL('../', import.meta.url);
@@ -97,6 +97,8 @@ export const FAMILIES = {
   MOD_VOY_CARD_: Object.keys(CARDS).map((id) => id.toUpperCase()).flatMap((id) => [id, `${id}_TEXT`]),
   MOD_VOY_TRICK_: Object.keys(TRICKS).map((id) => id.toUpperCase()).flatMap((id) => [id, `${id}_TEXT`]),
   MOD_VOY_BAND_: Object.keys(ENC_BANDS).map((id) => id.toUpperCase()).flatMap((id) => [id, `${id}_HABIT`, `${id}_CAPTAIN`]),
+  // the rival's captain cards, named in his Journal record
+  MOD_VOY_RIVAL_CARD_: Object.keys(CAPTAIN_CARDS).map((id) => id.toUpperCase()),
   MOD_VOY_CHARM_: Object.keys(CHARMS).map((id) => id.toUpperCase()).flatMap((id) => [id, `${id}_TEXT`]),
   MOD_VOY_SUIT_: SUITS.map((s) => s.toUpperCase()),
   MOD_VOY_COMBO_: [...SUITS.flatMap((s) => [2, 3].map((k) => `${s.toUpperCase()}_${k}`)), 'MIXED_3', 'MIXED_4'].flatMap((k) => [k, `${k}_TEXT`]),

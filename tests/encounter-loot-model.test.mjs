@@ -9,7 +9,9 @@ test('every band has loot: five rungs a line, five chests, a token skill and its
   assert.deepEqual(Object.keys(LOOT).sort(), Object.keys(BANDS).sort());
   for (const [band, L] of Object.entries(LOOT)) {
     assert.match(TOKENS[L.skill], ID, band);
-    assert.equal(CHARMS[L.trophy].trophy, band);
+    // The rival captain's Tricorn comes with beating him, never as loot.
+    if (BANDS[band].unique === true) assert.equal(L.trophy, undefined, band);
+    else assert.equal(CHARMS[L.trophy].trophy, band);
     assert.equal(L.stash.length, 5);
     for (const id of L.stash) assert.match(id, ID);
     for (const line of L.haul) {

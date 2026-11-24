@@ -232,11 +232,54 @@ export const BANDS = {
       [1, { kind: 'brace', n: 5 }],
     ],
   },
+  // The rival captain (round 5): one named pirate, met only by you at sea, never picked at random (`unique`). A
+  // corsair's base, plus the captain cards he holds (`opt.rival`, the ids in CAPTAIN_CARDS): his deck grows each time
+  // you pay him or run from him. He never flees.
+  rival: {
+    where: 'sea', unique: true, nerve: 30, suits: { steel: 0.6 }, rattled: true,
+    moves: (s) => (s.round <= 1 && !s.intents.length ? [[1, { kind: 'volley', n: 7 }]] : [
+      [3, { kind: 'volley', n: 7 }],
+      [s.you.resolve <= s.you.max / 2 ? 4 : 1, { kind: 'board', n: 7, pct: 20 }],
+      [1, { kind: 'call', n: 8, stop: 10 }],
+      [2, { kind: 'strike', n: 8 }],
+      ...captainMoves(s),
+    ]),
+  },
 };
+/**
+ * The rival's captain cards: each a weighted move beside his corsair's base. He starts with RIVAL_START; RIVAL_GAINS
+ * come one at a time, in order. [BALANCE]
+ */
+export const CAPTAIN_CARDS = {
+  broadside: [2, { kind: 'volley', n: 9 }],
+  grapple: [2, { kind: 'board', n: 8, pct: 25 }],
+  parley: [1, { kind: 'call', n: 8, stop: 10 }],
+  broadside2: [2, { kind: 'volley', n: 10 }],
+  taunt: [2, { kind: 'taunt', n: 6 }],
+  ironbrace: [1, { kind: 'brace', n: 6 }],
+  boarding: [2, { kind: 'charge', n: 11 }],
+  allhands: [2, { kind: 'strike', n: 10 }],
+  chainshot: [2, { kind: 'volley', n: 12 }],
+  cutpurse: [2, { kind: 'grab', pct: 30, stop: 6 }],
+  blackpowder: [1, { kind: 'charge', n: 13 }],
+  laststand: [1, { kind: 'brace', n: 8 }],
+};
+export const RIVAL_START = ['broadside', 'grapple', 'parley'];
+export const RIVAL_GAINS = ['broadside2', 'taunt', 'ironbrace', 'boarding', 'allhands', 'chainshot', 'cutpurse', 'blackpowder', 'laststand'];
+function captainMoves(s) {
+  const out = [];
+  for (const id of Array.isArray(s.opt.rival) ? s.opt.rival : RIVAL_START) {
+    const c = CAPTAIN_CARDS[id];
+    if (c === undefined) continue;
+    // A taunt only while he is shaken, as the cultists' (it brings back Nerve).
+    out.push([c[1].kind === 'taunt' && !(s.band.nerve < s.band.max * 0.7) ? 0 : c[0], { ...c[1] }]);
+  }
+  return out;
+}
 for (const [id, b] of Object.entries(BANDS)) { b.id = id; b.key = bandKey(id); }
 export const suitMul = (def, suit) => (def.suits && def.suits[suit] != null ? def.suits[suit] : 1);
 /** The bands of a ground ('land' or 'sea'). */
-export const bandsOf = (where) => Object.keys(BANDS).filter((k) => BANDS[k].where === 'any' || BANDS[k].where === where);
+export const bandsOf = (where) => Object.keys(BANDS).filter((k) => BANDS[k].unique !== true && (BANDS[k].where === 'any' || BANDS[k].where === where));
 
 // ---- charms ---------------------------------------------------------------------------------------------------------
 // Passive rule-benders, three slots. Each is read where it bites (scaleMove, startRound, play, incoming, hurt, grabPct,
@@ -254,7 +297,11 @@ export const CHARMS = {
   spyglass: { trophy: 'corsairs' },
   censer: { trophy: 'cultists' },
   lantern: { trophy: 'wreckers' },
+  // The rival captain's (round 5): given when you beat him, never a rare find.
+  tricorn: { trophy: 'rival', given: true },
 };
+/** The Rival's Tricorn: a band at sea starts with this share of its Nerve. */
+export const TRICORN_NERVE = 0.9;
 for (const [id, c] of Object.entries(CHARMS)) { c.id = id; c.key = charmKey(id); }
 
 // ---- effects --------------------------------------------------------------------------------------------------------
@@ -404,7 +451,8 @@ export function newFight(opt) {
     edge: 0, chain: [], found: [], lastTrick: null, learn: !!opt.learn,
     know: new Set(opt.know === 'all' ? Object.keys(TRICKS) : opt.know || []),
   };
-  s.band.nerve = s.band.max = Math.round(def.nerve * Math.pow(S, TUNE.exp) * TUNE.nerve);
+  const tricorn = charms.has('tricorn') && opt.where === 'sea' ? TRICORN_NERVE : 1;
+  s.band.nerve = s.band.max = Math.round(def.nerve * Math.pow(S, TUNE.exp) * TUNE.nerve * tricorn);
   const ids = (opt.deck || []).filter((id) => CARDS[id] !== undefined);
   if (opt.where === 'sea') {
     for (let i = 0; i < (opt.cannons || 0); i++) ids.push('broadside');

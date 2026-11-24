@@ -487,11 +487,35 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
     const em = state.events?.model;
     const num = (x) => (Number.isFinite(x) ? `${Math.round(x)}` : '');
     return { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
-      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, courierStops: `${courierModel.STOPS_MAX}`, courierLoad: `${courierModel.LOAD_SCALE}`, packetMinutes: `${courierModel.PACKET_HEX_MS / 60000}`, courierLinkLevel: `${courierModel.CARRIED_LINK_HIRING}`, inputShare: `${Math.round(courierModel.INPUT_BANK_SHARE * 100)}`, recent: `${model.RECENT_MAX}`, gp: nav === undefined ? '' : shortNumber(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
+      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, courierStops: `${courierModel.STOPS_MAX}`, courierBankHeal: `${Math.round(courierModel.BANK_HEAL * 100)}`, courierRoadHeal: `${Math.round(courierModel.ROAD_HEAL * 100)}`, courierHealFood: `${courierModel.ROAD_HEAL_FOOD}`, courierLoad: `${courierModel.LOAD_SCALE}`, packetMinutes: `${courierModel.PACKET_HEX_MS / 60000}`, courierLinkLevel: `${courierModel.CARRIED_LINK_HIRING}`, inputShare: `${Math.round(courierModel.INPUT_BANK_SHARE * 100)}`, recent: `${model.RECENT_MAX}`, gp: nav === undefined ? '' : shortNumber(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
       signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '',
       quay: state.settings.quayKey?.() || '', places: state.settings.placesKey?.() || '',
       stowShare: num(em?.STOWAWAY_PRICE_SHARE * 100), hungryPct: num(storesModel?.HUNGRY_GP * 100),
       stormWaitH: num((state.clock?.stormWaitMax ?? NaN) / 3600000), ...gearVars(), ...crewVars(), ...encVars() };
+  };
+  /**
+   * The rival captain's record under his section (round 5): shown once you have met him. How often you met, paid, ran,
+   * lost or drew, the captain's cards he has shown, his bounty and the sea he was last seen on; once beaten, that.
+   */
+  const encRivalTable = () => {
+    let r;
+    try { r = state.encounters?.rivalView?.(); } catch {}
+    if (r === undefined || !(r.met > 0)) return '';
+    const row = (key, text) => [{ text: t(key) }, { text }];
+    let sea = r.lastSea;
+    try { sea = state.charts?.seaName?.(r.lastSea) ?? r.lastSea; } catch {}
+    const rows = [
+      row('MOD_VOY_JOURNAL_RIVAL_ROW_MET', numberWithCommas(r.met)),
+      row('MOD_VOY_JOURNAL_RIVAL_ROW_PAID', numberWithCommas(r.paid)),
+      row('MOD_VOY_JOURNAL_RIVAL_ROW_RAN', numberWithCommas(r.ran)),
+      row('MOD_VOY_JOURNAL_RIVAL_ROW_LOST', numberWithCommas(r.lost)),
+      row('MOD_VOY_JOURNAL_RIVAL_ROW_DREW', numberWithCommas(r.drew)),
+      row('MOD_VOY_JOURNAL_RIVAL_ROW_CARDS', r.deck.map((id) => t(`MOD_VOY_RIVAL_CARD_${id.toUpperCase()}`)).join(getLangString('MOD_VOY_GATE_LIST_SEP'))),
+      ...(r.beaten > 0 ? [row('MOD_VOY_JOURNAL_RIVAL_ROW_BEATEN', t('MOD_VOY_JOURNAL_RIVAL_BEATEN'))]
+        : [row('MOD_VOY_JOURNAL_RIVAL_ROW_BOUNTY', t('MOD_VOY_ENC_GP', { gp: numberWithCommas(r.bounty) })), ...(sea === '' ? [] : [row('MOD_VOY_JOURNAL_RIVAL_ROW_SEEN', t('MOD_VOY_JOURNAL_RIVAL_SEA', { sea }))])]),
+    ];
+    rows.stack = 'words';
+    return `<div class="vj-enc-rival">${ledger([t('MOD_VOY_JOURNAL_RIVAL_COL_WHAT'), t('MOD_VOY_JOURNAL_RIVAL_COL_NOW')], rows)}</div>`;
   };
   /** The bands chapter's numbers, from the encounter models (4.33); none without the encounters module. */
   const encVars = () => {
@@ -499,7 +523,15 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
     if (en === undefined) return {};
     const { E, R, L, D } = en;
     const n = (x) => `${Math.round(x)}`;
-    return { encHideout: n(R.HIDEOUT_REACH), encBreather: n(R.BREATHER), encDebtPct: n(R.DEBT_PCT), encTollLow: n(R.TOLL_PCT[1]),
+    const V = en.V;
+    const rival = V === undefined ? {} : { rivalAfter: n(V.FIRST_AFTER), rivalOdds: n(1 / V.CHANCE), rivalStep: n(V.CARD_STEP * 100), rivalMax: n(E.RIVAL_START.length + E.RIVAL_GAINS.length),
+      rivalBase: numberWithCommas(V.BOUNTY_BASE), rivalPer: numberWithCommas(V.BOUNTY_STEP), rivalTricorn: n((1 - E.TRICORN_NERVE) * 100) };
+    // Road moments and cairns (round 5): their numbers from their models, when those loaded (their lines need Worker Folks).
+    const RM = state.roadMoments?.RM;
+    const moments = RM === undefined ? {} : { shortOdds: n(RM.SHORT_ODDS * 3), shortHexes: n(RM.SHORT_HEXES), shortLost: n(RM.LOST_MS / 3600000), innBelow: n(RM.INN_BELOW * 100),
+      innHeal: n(RM.INN_HEAL * 100), innHours: n(RM.INN_MS / 3600000), guideHours: n(RM.GUIDE_MS / 3600000), guideGp: numberWithCommas(RM.GUIDE_GP) };
+    const cairnMax = state.cairns?.max === undefined ? {} : { cairnMax: n(state.cairns.max) };
+    return { ...rival, ...moments, ...cairnMax, encHideout: n(R.HIDEOUT_REACH), encBreather: n(R.BREATHER), encDebtPct: n(R.DEBT_PCT), encRaidDays: n(R.RAID_AFTER_MS / (24 * 3600 * 1000)), encTollLow: n(R.TOLL_PCT[1]),
       encTollHigh: n(R.TOLL_PCT[R.MAX_TIER]), encFare: n(R.FARE_HEXES), encHold: n(R.HOLD_SHARE * 100), encWear: n(en.runWear()),
       encRunLand: n(R.RUN_LAND_DROP * 100), encRounds: n(E.MAX_ROUNDS), encHand: n(E.HAND), encPlays: n(E.PLAYS), encTilt: n(R.TILT_GAP),
       encEdge: n(E.EDGE_MAX), encPurseLow: numberWithCommas(R.purseOf('land', 1)), encPurseHigh: numberWithCommas(R.purseOf('sea', R.MAX_TIER)),
@@ -508,7 +540,7 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
       encDeckMax: n(E.DECK_MAX), encCharms: n(D.CHARM_SLOTS), encPresets: n(D.PRESETS_MAX), encAwayCap: n(R.AWAY_CAP),
       // A walking Folk's bands (6c): its Resolve, its deck before the lent card, its pack's tolls, its wound, its hunger.
       encFolkResolve: n(E.FOLK_RESOLVE), encFolkDeck: n(E.FOLK_DECK.length + 1), encFolkTollLow: n(R.FOLK_TOLL_PCT[1]),
-      encFolkTollHigh: n(R.FOLK_TOLL_PCT[R.MAX_TIER]), encFolkWound: n(R.FOLK_WOUND * 100), encHunger: n((state.crewModel?.HUNGER_SHARE ?? 0.1) * 100) };
+      encFolkTollHigh: n(R.FOLK_TOLL_PCT[R.MAX_TIER]), encFolkWound: n(R.FOLK_WOUND * 100), encCourierLand: n(R.COURIER_CLAIM.land * 100), encCourierSea: n(R.COURIER_CLAIM.sea * 100), encHunger: n((state.crewModel?.HUNGER_SHARE ?? 0.1) * 100) };
   };
   // ---- the bands chapter's dressing (the user, 30 Oct 2026: "make some text bolding, decorations, icons") ----------
   const fa = (icon, cls = '') => `<i class="fa ${icon}${cls ? ` ${cls}` : ''}" aria-hidden="true"></i>`;
@@ -516,7 +548,8 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
   const SUIT_ICON = { steel: 'fa-khanda', powder: 'fa-bomb', coin: 'fa-coins', wits: 'fa-chess-knight' };
   /** An icon before each of the chapter's headings. */
   const ENC_HEAD_ICON = { MEET: 'fa-map-signs', ANSWER: 'fa-balance-scale', PRACTICE: 'fa-chalkboard-teacher', ROUND: 'fa-hourglass-half', SUITS: 'fa-layer-group',
-    STAKES: 'fa-coins', DECK: 'fa-clone', AWAY: 'fa-moon', FOLKS: 'fa-walking', BANDS: 'fa-skull-crossbones' };
+    STAKES: 'fa-coins', RAIDS: 'fa-fire', DECK: 'fa-clone', AWAY: 'fa-moon', FOLKS: 'fa-walking', MOMENTS: 'fa-comment-dots', CAIRNS: 'fa-monument',
+    BANDS: 'fa-skull-crossbones', RIVAL: 'fa-flag' };
   /** A written section's heading icon (journal-figures-model.mjs), or nothing. */
   const secIcon = (group, sec) => { const i = figures.SECTION_ICONS[group]?.[sec]; return i === undefined ? '' : fa(i, 'vj-h3-icon'); };
   /** A section's list as cards with an icon each, or numbered where its order matters. */
@@ -599,7 +632,8 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
     const WHERE = { land: ['fa-road'], sea: ['fa-water'], any: ['fa-road', 'fa-water'] };
     const where = (w) => `${(WHERE[w] ?? []).map((i) => fa(i)).join('')}${esc(t(w === 'sea' ? 'MOD_VOY_ENC_AT_SEA' : w === 'land' ? 'MOD_VOY_ENC_ON_LAND' : 'MOD_VOY_JOURNAL_ENC_BOTH'))}`;
     const emblem = (id) => { const tr = L?.LOOT?.[id]?.trophy; return tr === undefined ? '' : `<img src="${esc(ctx.getResourceUrl(`assets/trophy_${tr}.webp`))}" alt="">`; };
-    const rows = Object.values(E.BANDS).map((b) => [
+    // The rival captain (round 5) has his own page, not a row here.
+    const rows = Object.values(E.BANDS).filter((b) => b.unique !== true).map((b) => [
       { html: `<span class="vj-band">${emblem(b.id)}<span><b>${esc(t(b.key))}</b><span class="vj-band-where">${where(b.where)}</span></span></span>`, plain: true },
       { html: markTerms(esc(t(`${b.key}_HABIT`))) }]);
     return `<div class="vj-enc-bands">${ledger([t('MOD_VOY_JOURNAL_ENC_COL_BAND'), t('MOD_VOY_JOURNAL_ENC_COL_HABIT')], rows)}</div>`;
@@ -690,6 +724,7 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
       if (id === 'encounters' && sec === 'PRACTICE' && state.encounterPractice !== undefined) html += `<div class="vj-foot vj-foot-end"><button type="button" class="vj-btn" data-vj-practice="1">${esc(t('MOD_VOY_ENC_PRACTICE_BTN'))}</button></div>`;
       if (id === 'encounters' && sec === 'SUITS') html += encCombosTable();
       if (id === 'encounters' && sec === 'BANDS') html += encBandsTable();
+      if (id === 'encounters' && sec === 'RIVAL') html += encRivalTable();
       if (id === 'settings' && sec === 'KEYS') html += keysTable();
       if (id === 'lands' && sec === 'KINDS') html += landsTable();
       if (id === 'lands' && sec === 'FEATURES') html += featuresTable();

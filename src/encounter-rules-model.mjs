@@ -88,9 +88,10 @@ export const nerveLeft = (nerve, max) => (max > 0 ? Math.min(1, Math.max(0, nerv
  * drops); purse: what a win banks (before Press on), with what they grabbed and the Cut the Purse Strings bonus;
  * short: what a draw or loss claims beyond the GP you carry (it becomes a debt); battered: whether you leave Battered.
  * f: the fight's end (encounter-model state: over, spent, grabbed, bonusPct,
- * band nerve and max, def.keepGrabs).
+ * band nerve and max, def.keepGrabs). `carriedStake` false (a courier's fight, round 5): a loss stakes the toll alone,
+ * not a tenth of what you carry as well.
  */
-export function settle(f, { toll, purse: base, gp }) {
+export function settle(f, { toll, purse: base, gp, carriedStake = true }) {
   const spent = num(f.spent);
   const grabbed = num(f.grabbed);
   const left = nerveLeft(f.band?.nerve ?? 0, f.band?.max ?? 0);
@@ -107,7 +108,7 @@ export function settle(f, { toll, purse: base, gp }) {
     out.short = want - out.take;
     out.now -= out.take;
   } else if (f.over === 'lose') {
-    out.stake = stakeOf(toll, carried);
+    out.stake = stakeOf(toll, carriedStake ? carried : 0);
     const want = Math.round(out.stake * left);
     out.take = Math.min(carried, want);
     out.short = want - out.take;
@@ -163,6 +164,22 @@ export function hungryTail(costs, take) {
   return n;
 }
 
+// ---- a courier's stakes (round 5) ------------------------------------------------------------------------------------
+// A courier carries the goods of its route: a band claims a share of the load's sale value, settled in your GP (never
+// the items: the goods stay the route's to deliver); what your GP can't cover is owed. A loss wounds it as it wounds a walking Folk.
+/** The share of a courier's load a band claims: bandits on land, pirates on a packet's deep sea. [BALANCE] */
+export const COURIER_CLAIM = { land: 0.15, sea: 0.25 };
+/** A packet meets pirates only this many hexes or more from land: deep water, as for the big ship (ship-model DEEP_SHORE). */
+export const PACKET_DEEP_SHORE = 3;
+/** The claim in GP on a load worth `worth`: ten points more from a band you owe there. At least 1. */
+/**
+ * A courier carrying nothing worth a GP (an empty pack, no purse) is let pass: the band has nothing to take (the user,
+ * 24 Nov 2026: "No, let it pass").
+ */
+export const courierPasses = (worth) => !(num(worth) >= 1);
+export const courierClaim = (worth, where, owed = false) =>
+  Math.max(1, Math.round(num(worth) * ((COURIER_CLAIM[where === 'sea' ? 'sea' : 'land']) + (owed ? DEBT_PCT / 100 : 0))));
+
 // ---- offline and debt -------------------------------------------------------------------------------------------------
 /**
  * Offline nobody stops: each band met is kept (band, tier, where, ground, toll, purse) and on your return they fold
@@ -177,16 +194,22 @@ const topSum = (list, key) => list.map((x) => num(x[key])).sort((a, b) => b - a)
 /** Adds a band met while away to the list (a new list), dropping the weakest past AWAY_MAX. */
 export const awayAdd = (list, met) => [...(list ?? []), met].sort(stronger).slice(0, AWAY_MAX);
 /**
- * The walking Folks a fold's bands met (6c), each once, at the highest tier it met: [{ id, name, tier }]. A Folk's part
- * claims no GP (`toll` 0); its pack and HP answer for it when the fold is settled.
+ * The walking Folks and couriers a fold's bands met (6c, round 5), each once, at the highest tier it met:
+ * [{ id, name, tier, courier? }]. A walking Folk's part claims no GP (`toll` 0): its pack and HP answer for it when the
+ * fold is settled. A courier's part claims its share of the load in GP (its `toll`), and its HP answers for a loss.
  */
 export function foldFolks(parts) {
   const by = new Map();
-  for (const x of parts ?? []) if (x?.folk !== undefined && (by.get(x.folk.id)?.tier ?? 0) < x.tier) by.set(x.folk.id, { id: x.folk.id, name: x.folk.name, tier: x.tier });
+  for (const x of parts ?? []) {
+    if (x?.folk === undefined || (by.get(x.folk.id)?.tier ?? 0) >= x.tier) continue;
+    by.set(x.folk.id, { id: x.folk.id, name: x.folk.name, tier: x.tier, ...(x.folk.courier === true ? { courier: true } : {}) });
+  }
   return [...by.values()];
 }
-/** Whether a fold holds a band that met you (not only walking Folks): only then is your GP at stake, and you Battered. */
-export const foldMine = (parts) => (parts ?? []).some((x) => x?.folk === undefined);
+/** Whether a fold puts your GP at stake: a band that met you, or a courier's (its claim is paid in your GP). */
+export const foldMine = (parts) => (parts ?? []).some((x) => x?.folk === undefined || x.folk.courier === true);
+/** Whether a fold holds a band that met you yourself: only then are you Battered by a loss. */
+export const foldYou = (parts) => (parts ?? []).some((x) => x?.folk === undefined);
 /** The waiting encounter: `{ lead, toll, purse, n }`, or undefined when nobody was met. */
 export function foldAway(list) {
   if (!Array.isArray(list) || list.length === 0) return undefined;
@@ -259,6 +282,68 @@ export function payDebts(debts, gp) {
     paid += p;
   }
   return { debts: out, paid };
+}
+/** A debt left unpaid this long (game time) brings its band's raids (round 5). [BALANCE] */
+export const RAID_AFTER_MS = 7 * 24 * 3600 * 1000;
+/**
+ * When each debt started (save v34), `{ key: game ms }`, kept beside `debts`: a debt still owed keeps its date, one
+ * with none (a new debt, or one from before v34 on its first load) starts at `now`, and a paid-off one loses it. A
+ * part paid leaves the date as it was: the raids wait for the whole debt. A new object.
+ */
+export function datedDebts(debts, since, now) {
+  const out = {};
+  const at = Number.isFinite(now) && now > 0 ? Math.floor(now) : 0;
+  for (const key of Object.keys(debts ?? {})) {
+    if (!(num(debts[key]) > 0)) continue;
+    const was = since?.[key];
+    out[key] = Number.isFinite(was) && was > 0 && was <= at ? Math.floor(was) : at;
+  }
+  return out;
+}
+/** The debts unpaid for RAID_AFTER_MS by `now`: their keys, the biggest debt first. */
+export function raidDue(debts, since, now) {
+  return Object.keys(debts ?? {})
+    .filter((key) => num(debts[key]) > 0 && Number.isFinite(since?.[key]) && now - since[key] >= RAID_AFTER_MS)
+    .sort((a, b) => num(debts[b]) - num(debts[a]));
+}
+/** A band that raids comes back once a day of game time while the debt stands. [BALANCE] */
+export const RAID_EVERY_MS = 24 * 3600 * 1000;
+/**
+ * The raids due at `now` (build .715): the debts of raidDue whose band hasn't raided (or tried to: nothing on its ground
+ * counts as that day's raid) in the last RAID_EVERY_MS, `raided` { key: game ms of the last one }. Biggest debt first.
+ */
+export const raidsNow = (debts, since, raided, now) => raidDue(debts, since, now)
+  .filter((key) => !(Number.isFinite(raided?.[key]) && now - raided[key] < RAID_EVERY_MS));
+/**
+ * How long until the band of debt `key` raids, in game ms: the 7 days from its start, then a day from its last raid;
+ * 0 when due now, undefined for no such debt or no date.
+ */
+export function raidIn(debts, since, raided, now, key) {
+  if (!(num(debts?.[key]) > 0) || !Number.isFinite(since?.[key])) return undefined;
+  const first = since[key] + RAID_AFTER_MS;
+  const last = raided?.[key];
+  const next = Number.isFinite(last) && last + RAID_EVERY_MS > first ? last + RAID_EVERY_MS : first;
+  return Math.max(0, next - now);
+}
+/** Debts after a raid took `gp` toward debt `key`: lowered, gone at 0. A new object. */
+export function lowerDebt(debts, key, gp) {
+  const out = { ...(debts ?? {}) };
+  const left = Math.round(num(out[key]) - Math.max(0, num(gp)));
+  if (left > 0) out[key] = left; else delete out[key];
+  return out;
+}
+/**
+ * Where the band of a debt raids, in order: the tents on its ground (oldest first, as given), then the Folks' rooms
+ * there (idle Folks only: one walking, sailing with you or gone has none to raid there). `onGround(hex)` says whether
+ * a hex is of that ground (for a sea: a hex on or next to it). `tents` [{ key, q, r, name }], `folks` Worker Folks'
+ * views. Each `{ target: { depot } | { folk }, name, kind: 'tent' | 'folk' }`.
+ */
+export function raidTargets({ tents = [], folks = [], onGround }) {
+  const at = (h) => h != null && Number.isFinite(h.q) && Number.isFinite(h.r) && onGround(h) === true;
+  return [
+    ...tents.filter(at).map((x) => ({ target: { depot: x.key }, name: x.name ?? '', kind: 'tent' })),
+    ...folks.filter((f) => f?.travel === 'idle' && at(f.place)).map((f) => ({ target: { folk: f.id }, name: f.name ?? '', kind: 'folk' })),
+  ];
 }
 
 /** Running on land: the next hex's time again, and this share of your food and fuel dropped. */
@@ -334,11 +419,11 @@ function cleanAway(raw, BANDS) {
     if (plain(x) === undefined || BANDS[x.band] === undefined || !(isInt(x.tier) && x.tier >= 1 && x.tier <= MAX_TIER)) continue;
     if (x.where !== 'land' && x.where !== 'sea') continue;
     if (typeof x.ground !== 'string' || !/^\w{0,40}$/.test(x.ground)) continue;
-    // A walking Folk's part (6c): who it was; it claims no GP.
+    // A walking Folk's part (6c): who it was; it claims no GP. A courier's (round 5) claims its share of the load.
     const folk = plain(x.folk);
     const who = folk !== undefined && typeof folk.id === 'string' && folk.id !== '' && folk.id.length <= 80
-      ? { id: folk.id, name: typeof folk.name === 'string' ? folk.name.slice(0, 60) : '' } : undefined;
-    const toll = who !== undefined ? 0 : Number.isFinite(x.toll) && x.toll >= 1 ? Math.round(x.toll) : 1;
+      ? { id: folk.id, name: typeof folk.name === 'string' ? folk.name.slice(0, 60) : '', ...(folk.courier === true ? { courier: true } : {}) } : undefined;
+    const toll = who !== undefined && who.courier !== true ? 0 : Number.isFinite(x.toll) && x.toll >= 1 ? Math.round(x.toll) : 1;
     out.push({ band: x.band, tier: x.tier, where: x.where, ground: x.ground, toll, purse: Number.isFinite(x.purse) && x.purse >= 0 ? Math.round(x.purse) : 0, ...(who !== undefined ? { folk: who } : {}) });
   }
   return out.sort(stronger).slice(0, AWAY_MAX);
@@ -369,6 +454,8 @@ export function cleanFight(raw, E) {
   };
   // A walking Folk's fight (6c) starts at the Folk's Resolve: without the flag a reload would replay it at yours.
   if (o.folk === true) opt.folk = true;
+  // The rival captain's deck (round 5): his captain cards, as the fight began; a reload replays it with the same.
+  if (o.band === 'rival') opt.rival = Array.isArray(o.rival) ? o.rival.filter((id) => E.CAPTAIN_CARDS?.[id] !== undefined).slice(0, 12) : (E.RIVAL_START ?? []).slice();
   const actions = [];
   for (const a of Array.isArray(f.actions) ? f.actions.slice(0, ACTIONS_MAX) : []) {
     if (!Array.isArray(a)) break;
@@ -389,6 +476,17 @@ export function cleanFight(raw, E) {
   const folk = plain(f.folk);
   if (opt.folk === true && folk !== undefined && typeof folk.id === 'string' && folk.id !== '' && folk.id.length <= 80) {
     out.folk = { id: folk.id, name: typeof folk.name === 'string' ? folk.name.slice(0, 60) : '', pack: Number.isFinite(folk.pack) && folk.pack > 0 ? Math.round(folk.pack) : 0 };
+    // A courier (round 5): its band claims `claim` GP of a load worth `worth`, paid from your GP.
+    if (folk.courier === true) {
+      out.folk.courier = true;
+      out.folk.claim = Number.isFinite(folk.claim) && folk.claim >= 1 ? Math.round(folk.claim) : 1;
+      out.folk.worth = Number.isFinite(folk.worth) && folk.worth > 0 ? Math.round(folk.worth) : 0;
+    }
+  }
+  // A cairn's guard (round 5): the cairn it guards, handed over when the band is beaten or paid.
+  const cairn = plain(f.cairn);
+  if (opt.folk !== true && cairn !== undefined && typeof cairn.id === 'string' && cairn.id !== '' && cairn.id.length <= 120) {
+    out.cairn = { id: cairn.id, name: typeof cairn.name === 'string' ? cairn.name.slice(0, 60) : '' };
   }
   const used = plain(f.usedDone);
   if (used !== undefined) {
@@ -414,6 +512,7 @@ export function cleanFight(raw, E) {
       done: ['pay', 'run', 'fight'].includes(r.done) ? r.done : 'fight',
       owed: Number.isFinite(r.owed) && r.owed > 0 ? Math.round(r.owed) : 0,
     };
+    if (r.won === true) out.res.won = true;
     const pair = (p) => (Array.isArray(p) && p.length === 2 && p.every((n) => Number.isInteger(n) && n >= 0 && n <= 1e6) && p[0] <= p[1] && p[1] > 0 ? [p[0], p[1]] : undefined);
     const end = plain(r.end);
     if (end !== undefined && pair(end.you) && pair(end.band)) out.res.end = { you: pair(end.you), band: pair(end.band), captain: end.captain === true };
@@ -425,8 +524,13 @@ export function cleanFight(raw, E) {
  * `rest` (ms rested in a town or port towards curing it), `calm` (hexes of breather left), `cal` (the calibration
  * cache: `key` the kit it was measured for, `values` { 'land:2': strength }), `tricks` found, `trophies` won { charm: true },
  * `owned` cards { id: count }, `fight` the open encounter or null, `met` bands met so far, `away` the bands met while
- * you were away (waiting to fold into one encounter), `debts` { '<band>:<ground>': GP }.
+ * you were away (waiting to fold into one encounter), `debts` { '<band>:<ground>': GP }, `since` (save v34) when each
+ * of those debts started, { key: game ms }, for a debt still owed only, `raided` (build .715) when its band last
+ * raided for it, the same way.
  */
+/** `{ key: game ms }` kept for the debts still owed only. */
+const datesOf = (raw, debts) => Object.fromEntries(Object.entries(plain(raw) ?? {})
+  .filter(([key, at]) => debts[key] !== undefined && Number.isFinite(at) && at > 0).map(([key, at]) => [key, Math.floor(at)]));
 export function cleanEnc(raw, E) {
   const { TRICKS, CHARMS } = E;
   const e = plain(raw) ?? {};
@@ -458,7 +562,20 @@ export function cleanEnc(raw, E) {
     met: isInt(e.met) && e.met > 0 ? e.met : 0,
     away: cleanAway(e.away, E.BANDS),
     debts,
+    since: datesOf(e.since, debts),
+    raided: datesOf(e.raided, debts),
   };
 }
 /** The calibration cache's key: the kit a band's strength was measured against (deck, charms, skill tilts). */
 export const calKey = ({ deck = [], charms = [], tilt = {} }) => JSON.stringify([deck.slice().sort(), charms.slice().sort(), Object.entries(tilt).sort()]);
+
+/**
+ * What the online tick does about bands (round 5, the shared away popup): 'wait' while the fold waits in Worker Folks'
+ * away queue (`queuedAt` the ms it was put there, 0 when not) and `waitMs` hasn't passed; else 'open' a fight already
+ * under way, 'fold' the bands met while away (into the queue, or opened on their own), or 'none'.
+ */
+export function afterOffline({ fight = null, away = 0, queuedAt = 0, now = 0, waitMs = 0 } = {}) {
+  if (queuedAt > 0 && now - queuedAt < waitMs && now >= queuedAt) return 'wait';
+  if (fight !== null && fight !== undefined) return 'open';
+  return away > 0 ? 'fold' : 'none';
+}

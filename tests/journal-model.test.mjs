@@ -6,7 +6,7 @@ import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, searc
 test('v6 saves get an empty journal', () => {
   const v6 = { v: 6, landHexes: 3, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 10, fuel: 1 }, kitGiven: true, hold: [], unlockNotice: [] };
   const { save, report } = loadSave(JSON.stringify(v6));
-  assert.deepEqual(report.applied, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]);
+  assert.deepEqual(report.applied, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33]);
   assert.deepEqual(save.journal, { ...emptyJournal(), opened: true });
   assert.equal(save.landHexes, 3);
 });
@@ -134,7 +134,7 @@ test('crosslinks: split into text and links, targets checked', () => {
 test('v7 saves get charting and unread marks, the rest kept', () => {
   const v7 = { v: 7, landHexes: 1, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 0, fuel: 0 }, kitGiven: true, hold: [], unlockNotice: [], journal: { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'] } };
   const { save, report } = loadSave(JSON.stringify(v7));
-  assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]);
+  assert.deepEqual(report.applied, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33]);
   assert.deepEqual(save.journal, { found: { a: ['1,1'] }, missed: {}, places: {}, guides: ['zone'], charted: [], freeUsed: 0, unread: {}, golbin: false, ports: {}, opened: true });
 });
 
@@ -252,4 +252,17 @@ test('folksLines: a {folks} line shows only with Folks on, its mark gone', () =>
   assert.deepEqual(folksLines(wf, true, { orders: true }), ['A.', '- Orders.']);
   assert.deepEqual(folksLines(wf, true), ['A.'], 'an older Worker Folks reports none');
   assert.deepEqual(folksLines(wf, false, { orders: true, sev: true }), ['A.'], 'nothing of Folks with Folks off');
+});
+
+test('raids, road moments and cairns in the Bands chapter: every line needs Worker Folks, in every language', async () => {
+  const { readFileSync } = await import('node:fs');
+  for (const lang of ['en', 'de', 'fr', 'zh-CN', 'zh-TW']) {
+    const json = JSON.parse(readFileSync(new URL(`../languages/${lang}.json`, import.meta.url), 'utf8'));
+    for (const sec of ['RAIDS', 'MOMENTS', 'CAIRNS']) {
+      const lines = json[`MOD_VOY_JOURNAL_CH_ENCOUNTERS_${sec}_BODY`].split('\n');
+      assert.ok(lines.length >= 4, `${lang} ${sec}`);
+      assert.deepEqual(folksLines(lines, false), [], `${lang} ${sec}: gone without Worker Folks`);
+      assert.equal(folksLines(lines, true).length, lines.length);
+    }
+  }
 });

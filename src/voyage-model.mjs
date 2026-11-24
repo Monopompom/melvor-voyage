@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 33;
+export const SAVE_VERSION = 34;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -134,9 +134,11 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * pilotage-model.mjs cleanPilotage where it is read.
  * `couriers` (save v33) is each courier's route and where it is on it, { [folkId]: courier }; the goods it carries stay
  * in its Worker Folks room. Checked by courier-model.mjs cleanCouriers where it is read.
+ * `cairns` (save v34, round 5) is what Folks that died on the road left on their hex, oldest first, checked by
+ * cairn-model.mjs cleanCairns where it is read.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, couriers: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [], receipts: [], slayer: { near: false, taken: {} }, pilotage: {}, routeBy: 'cheap' };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, couriers: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [], receipts: [], slayer: { near: false, taken: {} }, pilotage: {}, routeBy: 'cheap', cairns: [] };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -245,6 +247,8 @@ export const MIGRATIONS = {
   31: (rec) => ({ ...rec, v: 32, pilotage: {} }),
   // round 4: no courier on a route yet
   32: (rec) => ({ ...rec, v: 33, couriers: {}, routeBy: 'cheap' }),
+  // round 5: no Folk has died on the road yet, so no cairn stands (a debt's start date is set where enc is read)
+  33: (rec) => ({ ...rec, v: 34, cairns: [] }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -425,6 +429,8 @@ function clean(rec) {
     receipts: cleanReceipts(rec.receipts),
     slayer: plainObject(rec.slayer) ?? { near: false, taken: {} },
     pilotage: plainObject(rec.pilotage) ?? {},
+    // Cairns (round 5): checked by cairn-model.mjs cleanCairns where it is read.
+    cairns: Array.isArray(rec.cairns) ? rec.cairns : [],
   };
 }
 /** Foods a save keeps marked Never load at most: far more than the game has foods. */

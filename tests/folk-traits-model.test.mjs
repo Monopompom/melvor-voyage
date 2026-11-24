@@ -252,3 +252,25 @@ test('every trait text names its numbers from the table, and every number it nam
     }
   }
 });
+
+test("Footsore fades after 10 of a courier's bank stops too; moving never resets that count", () => {
+  const DAY = 24 * HOUR;
+  const sore = { has: (id) => id === 'Footsore' };
+  const rec = emptyFolkTraits();
+  assert.ok(SOURCES.includes('bankRest'));
+  addProgress(rec, 'bankRest', 9, sore);
+  addProgress(rec, 'oneHexRest', DAY, sore);
+  resetProgress(rec, 'moved');
+  assert.deepEqual(due(rec, sore).fade, []);
+  assert.equal(rec.counts['Footsore.rest'], 9, 'kept through a move');
+  assert.equal(rec.counts['Footsore.fade'], undefined);
+  addProgress(rec, 'bankRest', 1, sore);
+  assert.deepEqual(due(rec, sore).fade, ['Footsore']);
+  assert.deepEqual(cleanFolkTraits({ f: rec }).f.counts, { 'Footsore.rest': 10 }, 'saved');
+  lost(rec, 'Footsore');
+  assert.equal(rec.counts['Footsore.rest'], undefined);
+  const fresh = emptyFolkTraits();
+  addProgress(fresh, 'bankRest', 50, { has: () => false });
+  assert.deepEqual(fresh.counts, {}, 'no count without the trait');
+  assert.equal(traitVars('Footsore').fadeAlso, '10');
+});

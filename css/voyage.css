@@ -1515,7 +1515,7 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-walk-send:not([style*="display: none"]) { display: flex !important; flex-direction: column; max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px); }
 .voyage-walk-send > * { flex: none; }
 .voyage-ui.voyage-walk-send .swal2-html-container { flex: 1 1 auto; min-height: 7rem; max-height: none; overflow-y: auto; }
-.voyage-walk-send .dropdown-menu.voyage-menu-fixed { position: fixed; top: var(--voyage-menu-top); left: var(--voyage-menu-left); right: auto; bottom: auto; width: var(--voyage-menu-width); max-height: var(--voyage-menu-height); margin: 0; transform: none; }
+.voyage-walk-send .dropdown-menu.voyage-menu-fixed, #voyage-route .dropdown-menu.voyage-menu-fixed { position: fixed; top: var(--voyage-menu-top); left: var(--voyage-menu-left); right: auto; bottom: auto; width: var(--voyage-menu-width); max-height: var(--voyage-menu-height); margin: 0; transform: none; }
 @media (max-height: 560px) { .voyage-walk-send .swal2-icon { display: none !important; } } /* a phone held sideways keeps its room for the choices */
 .voyage-clock-pick-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
   border: 1px solid var(--voyage-ring); color: var(--voyage-gold); font-size: .9rem; font-weight: 700; } /* (.308, C-26) */
@@ -2234,7 +2234,9 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .vj-tierband-lab .fa, .vj-band-where .fa, .vj-pilot-gain-text b .fa { display: inline-block; min-width: 1.35em; margin-right: 6px; text-align: center; }
 
 /* The courier route editor (round 4): a tool panel on the map beside the zoom buttons; on a phone along the bottom. */
-#voyage-route { position: absolute; top: 62px; right: 66px; z-index: 5; width: min(360px, calc(100% - 82px)); max-height: calc(100% - 78px); margin: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; pointer-events: auto; text-align: left; }
+#voyage-route { position: absolute; top: 62px; right: 66px; z-index: 5; width: min(360px, calc(100% - 82px)); max-height: calc(100% - 78px); margin: 0; display: flex; flex-direction: column; overflow: hidden; pointer-events: auto; text-align: left; }
+.voyage-route-head { flex: none; }
+.voyage-route-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; } /* the part that grows is the part that scrolls */
 .voyage-route-title { margin: 0 0 .5rem; }
 .voyage-route-count, .voyage-route-grab { display: none; }
 .voyage-route-stops { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 8px 0 0; padding: 0; }
@@ -2248,7 +2250,7 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-route-pick { margin-top: 8px; }
 .voyage-route-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .voyage-route-why { flex: 0 0 100%; }
-.voyage-route-foot { position: sticky; bottom: -.5rem; z-index: 1; display: flex; flex-wrap: wrap; align-items: stretch; justify-content: space-between; gap: 8px; margin: 8px -.5rem -.5rem; padding: .5rem; background: inherit; border-top: 1px solid var(--voyage-rule-soft); } /* Save and its reason stay in view while the stops scroll */
+.voyage-route-foot { flex: none; display: flex; flex-wrap: wrap; align-items: stretch; justify-content: space-between; gap: 8px; margin: 8px -.5rem -.5rem; padding: .5rem; background: inherit; border-top: 1px solid var(--voyage-rule-soft); } /* Save and its reason stay in view while the stops scroll */
 .voyage-spoil-line { font-size: .9rem; }
 .voyage-route-foot .btn, .voyage-route-chips .btn { font-size: 1rem; }
 .voyage-route-foot .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; } /* one height for the row, even when one label wraps */
@@ -2264,14 +2266,14 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
   .voyage-route-pair .btn { flex: 1 1 0; min-width: 0; }
   .voyage-route-foot .btn { padding-left: .25rem; padding-right: .25rem; line-height: 1.15; white-space: normal; text-wrap: balance; } /* two-line labels break at the same word */
   /* The title row is the sheet's grip: tap it or swipe down to leave the map free, swipe up to bring the stops back. */
-  .voyage-route-head { position: sticky; top: -.5rem; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-height: 40px; margin: -.5rem -.5rem 4px; padding: 14px .5rem 2px; background: inherit; touch-action: none; }
+  .voyage-route-head { position: relative; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-height: 40px; margin: -.5rem -.5rem 4px; padding: 14px .5rem 2px; background: inherit; touch-action: none; }
   .voyage-route-title { flex: 0 1 auto; min-width: 0; margin: 0; overflow-wrap: anywhere; }
   .voyage-route-grab { position: absolute; inset: 0; z-index: 1; display: flex; justify-content: center; align-items: flex-start; width: 100%; padding: 4px 0 0; color: var(--voyage-label); background: none; border: 0; cursor: pointer; touch-action: none; }
   .voyage-route-grab svg { width: 36px; height: 10px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
   #voyage-route:not(.voyage-route-folded) .voyage-route-grab svg { transform: scaleY(-1); } /* open, a tap folds it down */
   .voyage-route-grab:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
   #voyage-route.voyage-route-folded { overflow: hidden; }
-  #voyage-route.voyage-route-folded .voyage-section, #voyage-route.voyage-route-folded .voyage-route-foot { display: none; }
+  #voyage-route.voyage-route-folded .voyage-route-body, #voyage-route.voyage-route-folded .voyage-route-foot { display: none; }
   .voyage-route-folded .voyage-route-head { margin-bottom: 0; }
   .voyage-route-folded .voyage-route-count { display: inline-flex; flex: none; align-items: center; gap: 4px; white-space: nowrap; }
 }

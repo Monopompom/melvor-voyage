@@ -690,6 +690,15 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     arriving: () => arrivingId,
     /** Forgets the cached next moment (the dev console moved a walk's start). */
     reschedule: schedule,
+    /** A road moment's answer (round 5): `fn(walk, now)` gives the changed walk, kept when the save can read it. */
+    edit: (id, fn) => {
+      const w = walks()[id];
+      if (w === undefined) return false;
+      const next = W.cleanWalk(fn(w, now()));
+      if (next === undefined) return false;
+      setWalks({ ...walks(), [id]: next });
+      return true;
+    },
     purchaseName: () => purchase()?.name ?? 'Walking Orders',
   };
   return out;

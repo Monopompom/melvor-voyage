@@ -5,11 +5,13 @@ import {
   SEA_TIER, GROUND_TIER, seaTier, landTier, ODDS, meets, BREATHER, tollOf, stakeOf, purseOf, settle, pressPurse,
   batteredAfterLoss, BATTERED_MAX, patchedLines, PATCH_FOOD, FOLK_TOLL_PCT, FOLK_WOUND, folkWound, folkTakeShare, hungryTail, RUN_LAND_DROP, tiltOf, gradeOf, pickBand, bandRoll, HIDEOUT_HEX, cleanEnc, cleanFight, cleanDeck, calKey,
   DEBT_PCT, AWAY_CAP, AWAY_MAX, awayAdd, foldAway, foldFolks, foldMine, debtKey, debtOf, creditors, meetOn, shareDebt, owe, payDebts,
+  RAID_AFTER_MS, datedDebts, raidDue, RAID_EVERY_MS, raidsNow, raidIn, lowerDebt, raidTargets, COURIER_CLAIM, courierClaim, courierPasses, foldYou, PACKET_DEEP_SHORE,
 } from '../src/encounter-rules-model.mjs';
 import * as E from '../src/encounter-model.mjs';
 const { STARTER, replay } = E;
 const fightOf = (raw) => cleanFight(raw, E);
 import { CLASS_INFO } from '../src/terrain.mjs';
+import { DEEP_SHORE } from '../src/ship-model.mjs';
 import { seas } from '../src/charts-model.mjs';
 
 test('every chart sea has a tier 1 to 4, and every land ground a tier 0 to 3', () => {
@@ -296,4 +298,153 @@ test('offline: a band that met a walking Folk claims no GP; the fold names each 
   assert.equal(cleanEnc({ away: [{ ...raw[0], folk: { id: '' } }] }, E).away[0].toll, 500);
   const f = fightOf({ opt: { band: 'deserters', tier: 3, where: 'land', seed: 3, strength: 1 }, stage: 'meet', away: { n: 3, parts: raw } });
   assert.deepEqual(foldFolks(f.away.parts).map((x) => x.name), ['Cora', 'Bram'], 'kept through a reload');
+});
+
+test('each debt keeps the date it started: new ones and older saves start now, paid ones lose it', () => {
+  const debts = { 'a:x': 500, 'b:y': 200 };
+  assert.deepEqual(datedDebts(debts, undefined, 1000), { 'a:x': 1000, 'b:y': 1000 }, 'a save from before v34 starts on its first load');
+  assert.deepEqual(datedDebts(debts, { 'a:x': 400 }, 1000), { 'a:x': 400, 'b:y': 1000 });
+  assert.deepEqual(datedDebts({ 'a:x': 100 }, { 'a:x': 400, 'b:y': 600 }, 1000), { 'a:x': 400 }, 'a paid-off debt loses its date; a part paid keeps it');
+  assert.deepEqual(datedDebts(debts, { 'a:x': 5000, 'b:y': 'x' }, 1000), { 'a:x': 1000, 'b:y': 1000 }, 'a date after now or junk starts now');
+  assert.deepEqual(datedDebts({}, { 'a:x': 1 }, 1000), {});
+});
+
+test('raids come for a debt unpaid for seven days, the biggest debt first', () => {
+  const debts = { 'a:x': 500, 'b:y': 900, 'c:z': 50 };
+  const since = { 'a:x': 0 + 1, 'b:y': 1, 'c:z': 1 + RAID_AFTER_MS };
+  assert.deepEqual(raidDue(debts, since, 1 + RAID_AFTER_MS - 1), []);
+  assert.deepEqual(raidDue(debts, since, 1 + RAID_AFTER_MS), ['b:y', 'a:x']);
+  assert.deepEqual(raidDue(debts, {}, 1e15), [], 'no date, no raid');
+  assert.equal(RAID_AFTER_MS, 7 * 24 * 3600 * 1000);
+});
+
+test('the save keeps a debt\'s date only while it is owed', () => {
+  const e = cleanEnc({ debts: { 'highwaymen:highlands': 900 }, since: { 'highwaymen:highlands': 1234.7, 'highwaymen:desert': 99, x: -1 }, raided: { 'highwaymen:highlands': 5000.2, 'highwaymen:desert': 9 } }, E);
+  assert.deepEqual(e.since, { 'highwaymen:highlands': 1234 });
+  assert.deepEqual(e.raided, { 'highwaymen:highlands': 5000 }, 'the last raid too');
+  assert.deepEqual(cleanEnc(undefined, E).since, {});
+  assert.deepEqual(cleanEnc(undefined, E).raided, {});
+});
+
+test('a band raids once a day after its seven days; the countdown says when', () => {
+  const debts = { 'a:x': 500, 'b:y': 900 };
+  const since = { 'a:x': 0, 'b:y': 0 };
+  const due = RAID_AFTER_MS;
+  assert.deepEqual(raidsNow(debts, since, {}, due), ['b:y', 'a:x']);
+  assert.deepEqual(raidsNow(debts, since, { 'b:y': due }, due + RAID_EVERY_MS - 1), ['a:x'], 'raided today: not again');
+  assert.deepEqual(raidsNow(debts, since, { 'b:y': due }, due + RAID_EVERY_MS), ['b:y', 'a:x'], 'a day on: again');
+  assert.equal(raidIn(debts, since, {}, 0, 'a:x'), RAID_AFTER_MS);
+  assert.equal(raidIn(debts, since, {}, due + 5, 'a:x'), 0, 'due now');
+  assert.equal(raidIn(debts, since, { 'a:x': due + 10 }, due + 10, 'a:x'), RAID_EVERY_MS, 'then a day between raids');
+  assert.equal(raidIn(debts, since, { 'a:x': -1e12 }, 0, 'a:x'), RAID_AFTER_MS, 'an old raid before this debt counts for nothing');
+  assert.equal(raidIn(debts, {}, {}, 0, 'a:x'), undefined);
+  assert.equal(raidIn(debts, since, {}, 0, 'none'), undefined);
+  assert.equal(RAID_EVERY_MS, 24 * 3600 * 1000);
+});
+
+test('a raid lowers its debt by what it took and never raises it; paid in full, the debt is gone', () => {
+  assert.deepEqual(lowerDebt({ 'a:x': 500, 'b:y': 9 }, 'a:x', 120), { 'a:x': 380, 'b:y': 9 });
+  assert.deepEqual(lowerDebt({ 'a:x': 500 }, 'a:x', 500), {});
+  assert.deepEqual(lowerDebt({ 'a:x': 500 }, 'a:x', 900), {});
+  assert.deepEqual(lowerDebt({ 'a:x': 500 }, 'a:x', -50), { 'a:x': 500 });
+});
+
+test('a raid hits the tents on its ground first, then idle Folks there; a walking or sailing Folk has no room to raid', () => {
+  const onGround = (h) => h.q === 1;
+  const tents = [{ key: '1,2', q: 1, r: 2, name: 'Camp A' }, { key: '5,5', q: 5, r: 5, name: 'Far' }];
+  const folks = [
+    { id: 'f1', name: 'Tobin', travel: 'idle', place: { q: 1, r: 9 } },
+    { id: 'f2', name: 'Mira', travel: 'walking', place: { q: 1, r: 3 } },
+    { id: 'f3', name: 'Ada', travel: 'with', place: { q: 1, r: 3 } },
+    { id: 'f4', name: 'Cora', travel: 'idle', place: null },
+    { id: 'f5', name: 'Rolf', travel: 'idle', place: { q: 2, r: 3 } },
+  ];
+  assert.deepEqual(raidTargets({ tents, folks, onGround }), [
+    { target: { depot: '1,2' }, name: 'Camp A', kind: 'tent' },
+    { target: { folk: 'f1' }, name: 'Tobin', kind: 'folk' },
+  ]);
+  assert.deepEqual(raidTargets({ onGround }), []);
+});
+
+test("a courier's claim: a share of the load's worth, ten points more where you owe; at least 1", () => {
+  assert.deepEqual(COURIER_CLAIM, { land: 0.15, sea: 0.25 });
+  assert.equal(courierClaim(10000, 'land'), 1500);
+  assert.equal(courierClaim(10000, 'sea'), 2500);
+  assert.equal(courierClaim(10000, 'land', true), 1500 + 10000 * DEBT_PCT / 100);
+  assert.equal(courierClaim(0, 'sea'), 1);
+  assert.equal(courierClaim(NaN, 'odd'), 1);
+});
+
+test('a courier carrying nothing worth a GP is let pass; one carrying anything is stopped', () => {
+  assert.equal(courierPasses(0), true);
+  assert.equal(courierPasses(0.6), true);
+  assert.equal(courierPasses(NaN), true);
+  assert.equal(courierPasses(1), false);
+  assert.equal(courierPasses(10000), false);
+});
+
+test("a courier's loss stakes its claim alone, never a tenth of the GP you carry", () => {
+  const band = { nerve: 50, max: 100 };
+  const m = { toll: 1500, purse: 2000, gp: 100000, carriedStake: false };
+  const lose = settle({ over: 'lose', spent: 0, grabbed: 0, band }, m);
+  assert.equal(lose.stake, 1500);
+  assert.equal(lose.take, 750);
+  const draw = settle({ over: 'draw', spent: 0, grabbed: 0, band }, m);
+  assert.equal(draw.take, 750);
+  const broke = settle({ over: 'lose', spent: 0, grabbed: 0, band: { nerve: 100, max: 100 } }, { ...m, gp: 400 });
+  assert.deepEqual([broke.take, broke.short], [400, 1100], 'what your GP cannot cover is owed');
+  assert.equal(settle({ over: 'lose', spent: 0, grabbed: 0, band }, { ...m, carriedStake: true }).stake, stakeOf(1500, 100000));
+});
+
+test('offline: a courier\'s part claims its share in GP; it puts your GP at stake but never Batters you', () => {
+  const dora = { id: 'worker_folks:D', name: 'Dora', courier: true };
+  const cora = { id: 'worker_folks:C', name: 'Cora' };
+  const raw = [
+    { band: 'highwaymen', tier: 2, where: 'land', ground: 'desert', toll: 1800.4, purse: 2000, folk: dora },
+    { band: 'cultists', tier: 1, where: 'land', ground: 'swamplands', toll: 50, purse: 1000, folk: cora },
+  ];
+  const away = cleanEnc({ away: raw }, E).away;
+  assert.equal(away.find((x) => x.folk.id === dora.id).toll, 1800, "a courier's claim is kept");
+  assert.equal(away.find((x) => x.folk.id === cora.id).toll, 0);
+  assert.deepEqual(foldFolks(away), [{ ...dora, tier: 2 }, { ...cora, tier: 1 }]);
+  assert.equal(foldMine(away), true, 'the claim is paid from your GP');
+  assert.equal(foldYou(away), false, 'no band met you: no Battered');
+  assert.equal(foldAway(away).toll, 1800);
+  assert.equal(foldYou([...away, { band: 'x', tier: 1, toll: 5 }]), true);
+  assert.equal(foldMine([away[1]]), false);
+});
+
+test("a courier's fight keeps its claim and its load's worth through a reload", () => {
+  const base = { opt: { band: 'highwaymen', tier: 2, where: 'land', seed: 7, strength: 1, deck: E.FOLK_DECK.slice(), folk: true }, stage: 'meet' };
+  const f = fightOf({ ...base, folk: { id: 'worker_folks:D', name: 'Dora', pack: 90, courier: true, claim: 1500.6, worth: 10003.2 } });
+  assert.deepEqual(f.folk, { id: 'worker_folks:D', name: 'Dora', pack: 90, courier: true, claim: 1501, worth: 10003 });
+  const junk = fightOf({ ...base, folk: { id: 'worker_folks:D', name: 'Dora', courier: true, claim: -4, worth: 'x' } });
+  assert.deepEqual([junk.folk.claim, junk.folk.worth], [1, 0]);
+  assert.equal('courier' in fightOf({ ...base, folk: { id: 'a', name: 'n', courier: 'yes', claim: 9 } }).folk, false);
+});
+
+test("a cairn's guard keeps the cairn it guards and a win through a reload; a Folk's fight never guards one", () => {
+  const base = { opt: { band: 'highwaymen', tier: 2, where: 'land', seed: 7, strength: 1 }, stage: 'result' };
+  const f = fightOf({ ...base, cairn: { id: 'worker_folks:F1@5000', name: 'Rolf', extra: 1 }, res: { head: { key: 'MOD_VOY_ENC_RES_WIN', vars: {} }, done: 'fight', won: true } });
+  assert.deepEqual(f.cairn, { id: 'worker_folks:F1@5000', name: 'Rolf' });
+  assert.equal(f.res.won, true);
+  assert.equal('won' in fightOf({ ...base, res: { done: 'fight', won: 'yes' } }).res, false);
+  assert.equal('cairn' in fightOf({ ...base, cairn: { id: '' } }), false);
+  assert.equal('cairn' in fightOf({ ...base, opt: { ...base.opt, folk: true, deck: E.FOLK_DECK.slice() }, folk: { id: 'a', name: 'n' }, cairn: { id: 'x', name: 'y' } }), false);
+});
+
+test('a packet meets pirates in the same deep water as the big ship', () => {
+  assert.equal(PACKET_DEEP_SHORE, DEEP_SHORE);
+});
+
+const { afterOffline } = await import('../src/encounter-rules-model.mjs');
+test('back online: the fold waits while it is in the shared away popup, then a fight under way opens before new bands', () => {
+  const W = 30 * 60 * 1000;
+  assert.equal(afterOffline({ away: 2 }), 'fold');
+  assert.equal(afterOffline({ away: 2, queuedAt: 1000, now: 2000, waitMs: W }), 'wait', 'in the queue');
+  assert.equal(afterOffline({ fight: {}, away: 2, queuedAt: 1000, now: 2000, waitMs: W }), 'wait', 'the queue opened it: its popup is up');
+  assert.equal(afterOffline({ away: 2, queuedAt: 1000, now: 1000 + W, waitMs: W }), 'fold', 'never opened: on its own now');
+  assert.equal(afterOffline({ away: 2, queuedAt: 5000, now: 10, waitMs: W }), 'fold', 'a clock gone back does not hold it for ever');
+  assert.equal(afterOffline({ fight: {}, away: 3 }), 'open');
+  assert.equal(afterOffline({}), 'none');
 });

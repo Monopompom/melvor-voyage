@@ -1,6 +1,8 @@
 // Console helpers for development builds only (setup.mjs loads this when DEV is true; the release
 // build leaves it out of player zips). Exposed as `voyageDev` on window.
 
+/** Dev cairns made so far: each gets its own id. */
+let devCairns = 0;
 export function install(ctx, { state, terrainMod, rules, model, journalModel: jm, log }) {
   const cartography = () => game.cartography;
   const map = () => cartography()?.activeMap;
@@ -383,6 +385,30 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       if (redraw) { try { state.markers?.refresh(); } catch (e) { return `refresh failed: ${e}`; } }
       return state.markers?.debug() ?? 'markers module not loaded';
     },
+    /**
+     * Cairns (round 5): `voyageDev.cairn()` lists them; `voyageDev.cairn('here', guarded, dq)` leaves a test cairn (a
+     * bronze bar stack, 10 Raw Shrimp, 100 GP) `dq` hexes east of you (0: your hex), guarded by Highwaymen (highlands,
+     * tier 2) when `guarded`; `voyageDev.cairn('clear')` removes every cairn without banking it.
+     */
+    cairn(what = 'list', guarded = false, dq = 0) {
+      const cs = state.cairns;
+      if (cs === undefined) return 'cairns not loaded';
+      if (what === 'list') return cs.all();
+      if (what === 'clear') { const s = state.voyageSkill?.(); if (s?.record) s.record.cairns = []; try { state.markers?.refresh(); state.herePanel?.render(); } catch {} return 'cleared'; }
+      if (what !== 'here') return "cairn('list' | 'here', guarded, dq | 'clear')";
+      const pos = state.position();
+      if (pos == null) return 'no position';
+      const hex = { q: pos.q + dq, r: pos.r };
+      const at = Math.floor(state.gameNow?.() ?? Date.now());
+      // Each its own id, even two made in the same ms (.711 check: Collect on one took both).
+      devCairns += 1;
+      const made = {
+        id: `dev:cairn${devCairns}@${at}`, folk: `dev:cairn${devCairns}`, name: `Test Folk ${devCairns}`, q: hex.q, r: hex.r, at, cause: guarded ? 'band' : 'hunger',
+        items: [{ id: 'melvorD:Bronze_Bar', qty: 25 }, { id: 'melvorD:Raw_Shrimp', qty: 10 }], purse: [{ id: 'melvorD:GP', amount: 100 }],
+        ...(guarded ? { guard: { band: 'highwaymen', ground: 'highlands', tier: 2 } } : {}),
+      };
+      return cs.put(made) ? made : 'no loaded save';
+    },
     /** A free dinghy: under you on the sea, else next to your coast hex. `false` removes the ship. */
     giveShip(give = true) {
       const sh = state.ship;
@@ -596,8 +622,25 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
      * 'state': the save's encounter record; 'battered', n: set Battered; 'calibrate': the cached strengths;
      * 'trophy', ...ids: win those trophy charms (all six when none named); 'rare', kind: the next win's rare find is
      * that kind ('token', 'bankslot', 'signet' or 'trophy'); 'away', n, where: n bands met as if you were away (they
-     * fold into one encounter on the next tick); 'owe', gp, band, ground: a debt; 'debts': what you owe.
+     * fold into one encounter on the next tick); 'owe', gp, band, ground: a debt; 'debts': what you owe; 'age', days:
+     * every debt's dates moved back (7 makes its raid due); 'raids': where each band would raid and when; 'raid': the
+     * raids due run now; 'rival': his record; 'rival', 'out': he sails (10 sea bands met); 'rival', 'next': the next band
+     * met at sea is him; 'rival', 'cards', n: he holds n gained cards; 'rival', 'reset': a fresh record.
      */
+    /**
+     * Road moments (round 5): voyageDev.moments() lists the Folks on the road and the moments that fit each;
+     * voyageDev.moments(folkId, 'ShortCut' | 'Farmhouse' | 'Traveller') opens one on that Folk now (Worker Folks' dev
+     * hook, skipping its gap and the moment's fit).
+     */
+    moments(folkId, name) {
+      const m = state.roadMoments;
+      if (m === undefined) return 'road moments not loaded';
+      if (folkId === undefined) return { registered: m.registered(), folks: m.fitting() };
+      const h = game.skills.getObjectByID('worker_folks:Hiring');
+      const f = h?.crew?.all?.find((x) => x.id === folkId);
+      if (f === undefined || typeof h.moments?.force !== 'function') return 'no such Folk, or Worker Folks without moments';
+      return h.moments.force(f, `voyage:${name ?? 'Traveller'}`);
+    },
     encounter(what = 'sim', ...args) {
       const e = state.encounters;
       if (e === undefined) return 'encounters not loaded';
@@ -620,7 +663,11 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       if (what === 'away') return e.awayNow(...args);
       if (what === 'owe') return e.oweNow(...args);
       if (what === 'debts') return e.debts();
-      return 'sim, sample, you, meet, force, state, battered, calibrate, trophy, rare, away, owe or debts';
+      if (what === 'age') return e.ageDebts(...args);
+      if (what === 'raids') return state.raids?.targets?.() ?? 'raids not loaded';
+      if (what === 'raid') { if (state.raids === undefined) return 'raids not loaded'; state.raids.now(); return e.debts(); }
+      if (what === 'rival') return e.rivalDev(...args);
+      return 'sim, sample, you, meet, force, state, battered, calibrate, trophy, rare, away, owe, debts, age, raids, raid or rival';
     },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },

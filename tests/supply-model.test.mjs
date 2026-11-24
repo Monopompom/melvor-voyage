@@ -133,3 +133,14 @@ test('road food is all or nothing: short of either kind, or of the place\'s stoc
   assert.equal(planPack(S, lots, { food: 50, fuel: 0 }, [{ ...port, stock: { food: 20, fuel: 0 } }]).ok, false);
   assert.equal(planPack(S, lots, { food: 50, fuel: 0 }, []).ok, false);
 });
+
+test('with a minimum, road food takes as much as the place has up to the want, and fails only below the minimum', () => {
+  const lots = [{ item: 'shrimp', kind: 'food', unit: 10, qty: 99 }];
+  const port = { key: '0,0', place: 'port', food: 1, fuel: 1, stock: { food: 30, fuel: 0 } };
+  const some = planPack(S, lots, { food: 50, fuel: 0 }, [port], { food: 20, fuel: 0 });
+  assert.equal(some.ok, true);
+  assert.equal(some.food, 30);
+  assert.equal(planPack(S, lots, { food: 50, fuel: 0 }, [port], { food: 40, fuel: 0 }).ok, false);
+  assert.equal(planPack(S, lots, { food: 50, fuel: 0 }, [], { food: 0, fuel: 0 }).ok, true, 'nothing needed yet: it goes on');
+});
+

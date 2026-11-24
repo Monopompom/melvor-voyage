@@ -20,9 +20,9 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-24.705';
+export const BUILD = '2026-11-24.720';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
-const DEV = false;
+const DEV = true;
 
 export async function setup(ctx) {
   const log = DEV ? (...args) => console.log('[Voyage]', ...args) : () => {};
@@ -186,6 +186,11 @@ export async function setup(ctx) {
   // The game heads each section of the Mod Settings popup with the section's name, and saves the values under it, so the
   // name stays English and the heading is put in the player's language as the popup is drawn. The game builds the popup
   // anew on every open and hands it to Swal.fire as an element, so only that call carries our settings' inputs.
+  /** Each setting text as first read, to its key (see the Swal.fire patch below). */
+  const SETTING_FIRST = new Map();
+  /** Each popup text node once matched, to its key. */
+  const SETTING_NODE = new WeakMap();
+  const settingText = (key) => { const text = getLangString(key); if (!SETTING_FIRST.has(text)) SETTING_FIRST.set(text, key); return text; };
   const SECTION_TEXT = { Rules: 'MOD_VOY_SETTING_SECTION_RULES', Travel: 'MOD_VOY_SETTING_SECTION_TRAVEL', Display: 'MOD_VOY_SETTING_SECTION_DISPLAY', Keys: 'MOD_VOY_SETTING_SECTION_KEYS' };
   try {
     const fire = Swal.fire;
@@ -196,6 +201,24 @@ export async function setup(ctx) {
           for (const h of html.querySelectorAll(':scope > h2.content-heading')) {
             const key = SECTION_TEXT[h.textContent.trim()];
             if (key !== undefined) h.textContent = getLangString(key);
+          }
+          // The labels, hints and choices were read when the mod loaded, which can be before the game has the
+          // player's language (after the reload a language change makes): each one still showing that first text is
+          // put in the language now.
+          // The game shows the same popup nodes again after a language change without a reload, so a node once
+          // matched keeps its key here and is read in the language of each opening.
+          const walker = document.createTreeWalker(html, NodeFilter.SHOW_TEXT);
+          for (let n = walker.nextNode(); n !== null; n = walker.nextNode()) {
+            const text = n.nodeValue.trim();
+            if (text === '') continue;
+            let key = SETTING_NODE.get(n);
+            if (key === undefined) {
+              key = SETTING_FIRST.get(text);
+              if (key === undefined) continue;
+              SETTING_NODE.set(n, key);
+            }
+            const now = getLangString(key);
+            if (now !== text) n.nodeValue = n.nodeValue.replace(text, now);
           }
         }
       } catch (e) { console.error('[Voyage] settings headings not translated', e); }
@@ -244,29 +267,29 @@ export async function setup(ctx) {
   // class lets css/voyage.css space the dropdown below it.
   const strictnessHint = document.createElement('span');
   strictnessHint.className = 'voyage-setting-hint';
-  strictnessHint.append(getLangString('MOD_VOY_SETTING_STRICTNESS_HINT_STRICT'), document.createElement('br'), getLangString('MOD_VOY_SETTING_STRICTNESS_HINT_RELAXED'));
+  strictnessHint.append(settingText('MOD_VOY_SETTING_STRICTNESS_HINT_STRICT'), document.createElement('br'), settingText('MOD_VOY_SETTING_STRICTNESS_HINT_RELAXED'));
   const entries = [
-    { type: 'switch', name: 'rules', label: getLangString('MOD_VOY_SETTING_RULES'), hint: getLangString('MOD_VOY_SETTING_RULES_HINT'), default: true, onChange: onChange('rules') },
-    { type: 'dropdown', name: 'strictness', label: getLangString('MOD_VOY_SETTING_STRICTNESS'), hint: strictnessHint,
-      options: [{ value: 'strict', display: getLangString('MOD_VOY_SETTING_STRICTNESS_STRICT') }, { value: 'relaxed', display: getLangString('MOD_VOY_SETTING_STRICTNESS_RELAXED') }], default: 'strict', onChange: onChange('strictness') },
-    { type: 'switch', name: 'zones', label: getLangString('MOD_VOY_SETTING_ZONES'), hint: getLangString('MOD_VOY_SETTING_ZONES_HINT'), default: true, onChange: onChange('zones') },
-    { type: 'switch', name: 'combat', label: getLangString('MOD_VOY_SETTING_COMBAT'), hint: getLangString('MOD_VOY_SETTING_COMBAT_HINT'), default: true, onChange: onChange('combat') },
-    { type: 'switch', name: 'trade', label: getLangString('MOD_VOY_SETTING_TRADE'), hint: getLangString('MOD_VOY_SETTING_TRADE_HINT'), default: true, onChange: onChange('trade') },
-    { type: 'switch', name: 'provisions', label: getLangString('MOD_VOY_SETTING_PROVISIONS'), hint: getLangString('MOD_VOY_SETTING_PROVISIONS_HINT'), default: true, onChange: onChange('provisions') },
-    { type: 'switch', name: 'supply', label: getLangString('MOD_VOY_SETTING_SUPPLY'), hint: getLangString('MOD_VOY_SETTING_SUPPLY_HINT'), default: true, onChange: onChange('supply') },
-    { type: 'switch', name: 'spoilage', label: getLangString('MOD_VOY_SETTING_SPOILAGE'), hint: getLangString('MOD_VOY_SETTING_SPOILAGE_HINT'), default: true, onChange: onChange('spoilage') },
-    { type: 'switch', name: 'haul', label: getLangString('MOD_VOY_SETTING_HAUL'), hint: getLangString('MOD_VOY_SETTING_HAUL_HINT'), default: true, onChange: onChange('haul') },
-    { type: 'switch', name: 'timedTravel', label: getLangString('MOD_VOY_SETTING_TIMED'), hint: getLangString('MOD_VOY_SETTING_TIMED_HINT'), default: true, onChange: onChange('timedTravel') },
-    { type: 'switch', name: 'weather', label: getLangString('MOD_VOY_SETTING_WEATHER'), hint: getLangString('MOD_VOY_SETTING_WEATHER_HINT'), default: true, onChange: onChange('weather') },
-    { type: 'switch', name: 'night', label: getLangString('MOD_VOY_SETTING_NIGHT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
-    { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
-    { type: 'switch', name: 'mapMotion', label: getLangString('MOD_VOY_SETTING_MAP_MOTION'), hint: getLangString('MOD_VOY_SETTING_MAP_MOTION_HINT'), default: true, onChange: onChange('mapMotion') },
-    { type: 'switch', name: 'bookOpening', label: getLangString('MOD_VOY_SETTING_BOOK_OPENING'), hint: getLangString('MOD_VOY_SETTING_BOOK_OPENING_HINT'), default: false, onChange: onChange('bookOpening') },
-    { type: 'text', name: 'journalKey', label: getLangString('MOD_VOY_SETTING_JOURNAL_KEY'), hint: getLangString('MOD_VOY_SETTING_JOURNAL_KEY_HINT'), default: 'J', maxLength: 1, onChange: keyChange('journalKey') },
-    { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: keyChange('centreKey') },
-    { type: 'text', name: 'mapKey', label: getLangString('MOD_VOY_SETTING_MAP_KEY'), hint: getLangString('MOD_VOY_SETTING_MAP_KEY_HINT'), default: 'M', maxLength: 1, onChange: keyChange('mapKey') },
-    { type: 'text', name: 'quayKey', label: getLangString('MOD_VOY_SETTING_QUAY_KEY'), hint: getLangString('MOD_VOY_SETTING_QUAY_KEY_HINT'), default: 'Q', maxLength: 1, onChange: keyChange('quayKey') },
-    { type: 'text', name: 'placesKey', label: getLangString('MOD_VOY_SETTING_PLACES_KEY'), hint: getLangString('MOD_VOY_SETTING_PLACES_KEY_HINT'), default: 'P', maxLength: 1, onChange: keyChange('placesKey') },
+    { type: 'switch', name: 'rules', label: settingText('MOD_VOY_SETTING_RULES'), hint: settingText('MOD_VOY_SETTING_RULES_HINT'), default: true, onChange: onChange('rules') },
+    { type: 'dropdown', name: 'strictness', label: settingText('MOD_VOY_SETTING_STRICTNESS'), hint: strictnessHint,
+      options: [{ value: 'strict', display: settingText('MOD_VOY_SETTING_STRICTNESS_STRICT') }, { value: 'relaxed', display: settingText('MOD_VOY_SETTING_STRICTNESS_RELAXED') }], default: 'strict', onChange: onChange('strictness') },
+    { type: 'switch', name: 'zones', label: settingText('MOD_VOY_SETTING_ZONES'), hint: settingText('MOD_VOY_SETTING_ZONES_HINT'), default: true, onChange: onChange('zones') },
+    { type: 'switch', name: 'combat', label: settingText('MOD_VOY_SETTING_COMBAT'), hint: settingText('MOD_VOY_SETTING_COMBAT_HINT'), default: true, onChange: onChange('combat') },
+    { type: 'switch', name: 'trade', label: settingText('MOD_VOY_SETTING_TRADE'), hint: settingText('MOD_VOY_SETTING_TRADE_HINT'), default: true, onChange: onChange('trade') },
+    { type: 'switch', name: 'provisions', label: settingText('MOD_VOY_SETTING_PROVISIONS'), hint: settingText('MOD_VOY_SETTING_PROVISIONS_HINT'), default: true, onChange: onChange('provisions') },
+    { type: 'switch', name: 'supply', label: settingText('MOD_VOY_SETTING_SUPPLY'), hint: settingText('MOD_VOY_SETTING_SUPPLY_HINT'), default: true, onChange: onChange('supply') },
+    { type: 'switch', name: 'spoilage', label: settingText('MOD_VOY_SETTING_SPOILAGE'), hint: settingText('MOD_VOY_SETTING_SPOILAGE_HINT'), default: true, onChange: onChange('spoilage') },
+    { type: 'switch', name: 'haul', label: settingText('MOD_VOY_SETTING_HAUL'), hint: settingText('MOD_VOY_SETTING_HAUL_HINT'), default: true, onChange: onChange('haul') },
+    { type: 'switch', name: 'timedTravel', label: settingText('MOD_VOY_SETTING_TIMED'), hint: settingText('MOD_VOY_SETTING_TIMED_HINT'), default: true, onChange: onChange('timedTravel') },
+    { type: 'switch', name: 'weather', label: settingText('MOD_VOY_SETTING_WEATHER'), hint: settingText('MOD_VOY_SETTING_WEATHER_HINT'), default: true, onChange: onChange('weather') },
+    { type: 'switch', name: 'night', label: settingText('MOD_VOY_SETTING_NIGHT'), hint: settingText('MOD_VOY_SETTING_NIGHT_HINT'), default: true, onChange: onChange('night') },
+    { type: 'number', name: 'nightShift', label: settingText('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: settingText('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
+    { type: 'switch', name: 'mapMotion', label: settingText('MOD_VOY_SETTING_MAP_MOTION'), hint: settingText('MOD_VOY_SETTING_MAP_MOTION_HINT'), default: true, onChange: onChange('mapMotion') },
+    { type: 'switch', name: 'bookOpening', label: settingText('MOD_VOY_SETTING_BOOK_OPENING'), hint: settingText('MOD_VOY_SETTING_BOOK_OPENING_HINT'), default: false, onChange: onChange('bookOpening') },
+    { type: 'text', name: 'journalKey', label: settingText('MOD_VOY_SETTING_JOURNAL_KEY'), hint: settingText('MOD_VOY_SETTING_JOURNAL_KEY_HINT'), default: 'J', maxLength: 1, onChange: keyChange('journalKey') },
+    { type: 'text', name: 'centreKey', label: settingText('MOD_VOY_SETTING_CENTRE_KEY'), hint: settingText('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: keyChange('centreKey') },
+    { type: 'text', name: 'mapKey', label: settingText('MOD_VOY_SETTING_MAP_KEY'), hint: settingText('MOD_VOY_SETTING_MAP_KEY_HINT'), default: 'M', maxLength: 1, onChange: keyChange('mapKey') },
+    { type: 'text', name: 'quayKey', label: settingText('MOD_VOY_SETTING_QUAY_KEY'), hint: settingText('MOD_VOY_SETTING_QUAY_KEY_HINT'), default: 'Q', maxLength: 1, onChange: keyChange('quayKey') },
+    { type: 'text', name: 'placesKey', label: settingText('MOD_VOY_SETTING_PLACES_KEY'), hint: settingText('MOD_VOY_SETTING_PLACES_KEY_HINT'), default: 'P', maxLength: 1, onChange: keyChange('placesKey') },
   ];
   // "Folks hold what they make" is added only once a Worker Folks with the haul is found (haul.mjs, on mods loaded), so
   // a player without one never sees a switch that does nothing. It is the last of Rules, so it keeps its place. The
@@ -519,8 +542,21 @@ export async function setup(ctx) {
   // Couriers (round 4): the job that carries between Folks and the bank. A failure: no such job.
   try {
     state.couriers = (await ctx.loadModule('src/courier.mjs')).install(ctx, { state, M: await ctx.loadModule('src/courier-model.mjs'), W: await ctx.loadModule('src/walk-model.mjs'), H: await ctx.loadModule('src/haul-model.mjs'), N: await ctx.loadModule('src/number-format.mjs'), rules, log });
-    state.routeEditor = (await ctx.loadModule('src/route-editor.mjs')).install(ctx, { state, M: await ctx.loadModule('src/courier-model.mjs'), N: await ctx.loadModule('src/number-format.mjs'), helpLayout, log });
+    state.routeEditor = (await ctx.loadModule('src/route-editor.mjs')).install(ctx, { state, M: await ctx.loadModule('src/courier-model.mjs'), W: await ctx.loadModule('src/walk-model.mjs'), N: await ctx.loadModule('src/number-format.mjs'), helpLayout, log });
   } catch (e) { console.error('[Voyage] couriers failed to load; no Courier job', e); state.couriers = undefined; state.routeEditor = undefined; }
+  // Cairns (round 5): what a Folk dying on the road had stays on its hex, through Worker Folks' death keeper.
+  try {
+    state.cairns = (await ctx.loadModule('src/cairns.mjs')).install(ctx, { state, C: await ctx.loadModule('src/cairn-model.mjs'), log });
+  } catch (e) { console.error('[Voyage] cairns failed to load; Worker Folks keeps its own rule', e); state.cairns = undefined; }
+  // Raids (round 5): a debt unpaid for 7 days brings its band to your tents and Folks on that ground once a day.
+  try {
+    state.raids = (await ctx.loadModule('src/raids.mjs')).install(ctx, { state, R: await ctx.loadModule('src/encounter-rules-model.mjs'), shortNumber, log });
+    { const s = voyageSkill(); if (s !== undefined) s.raidTick = () => state.raids?.tick?.(); }
+  } catch (e) { console.error('[Voyage] raids failed to load; debts bring no raids', e); state.raids = undefined; }
+  // Road moments (round 5): small questions from couriers and walkers, through Worker Folks' moments. A failure: none.
+  try {
+    state.roadMoments = (await ctx.loadModule('src/road-moments.mjs')).install(ctx, { state, RM: await ctx.loadModule('src/road-moments-model.mjs'), W: await ctx.loadModule('src/walk-model.mjs'), M: await ctx.loadModule('src/courier-model.mjs'), log });
+  } catch (e) { console.error('[Voyage] road moments failed to load; Folks on the road ask nothing', e); state.roadMoments = undefined; }
   // Outposts (phase 6e): a Tent pitched where a Folk works makes the hex a camp with a store. A failure: no tents.
   try {
     (await ctx.loadModule('src/outposts.mjs')).install(ctx, { state, O: outpostModel, terrainMod, helpLayout, log });
@@ -570,7 +606,7 @@ export async function setup(ctx) {
   // Encounters (4.33): bandits and pirates as a card game. A failure: no encounters.
   try {
     const F = (await ctx.loadModule('src/encounter-fight.mjs')).install(ctx, { state, decimal, log });
-    const encounters = (await ctx.loadModule('src/encounters.mjs')).install(ctx, { state, E: await ctx.loadModule('src/encounter-model.mjs'), R: await ctx.loadModule('src/encounter-rules-model.mjs'), L: await ctx.loadModule('src/encounter-loot-model.mjs'), D: await ctx.loadModule('src/deck-model.mjs'), F, EM: await ctx.loadModule('src/events-model.mjs'), S: storesModel, terrainMod, shortNumber, log });
+    const encounters = (await ctx.loadModule('src/encounters.mjs')).install(ctx, { state, E: await ctx.loadModule('src/encounter-model.mjs'), R: await ctx.loadModule('src/encounter-rules-model.mjs'), L: await ctx.loadModule('src/encounter-loot-model.mjs'), D: await ctx.loadModule('src/deck-model.mjs'), V: await ctx.loadModule('src/rival-model.mjs'), F, EM: await ctx.loadModule('src/events-model.mjs'), S: storesModel, terrainMod, shortNumber, log });
     const s = voyageSkill();
     if (s !== undefined) s.encounters = encounters;
     // The Deck block on the Voyage page (slice 3): the deck, presets, charms and the trick book.

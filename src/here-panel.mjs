@@ -351,13 +351,23 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const enc = state.encounters;
     const total = enc?.debtTotal?.() ?? 0;
     if (!(total > 0)) return '';
-    const list = enc.debts().map((d) => templateLangString('MOD_VOY_ENC_DEBT_ROW', { who: d.name, gp: shortNumber(d.gp) })).join('\n');
+    // Each band's raid (build .715): "Raid in 3 days" (the 7 days, then a day between raids), "Raid due" at 0. The
+    // soonest stands in the row, each band's in the tooltip.
+    const raidText = (ms) => (ms === undefined ? '' : ms <= 0 ? getLangString('MOD_VOY_ENC_DEBT_RAID_DUE')
+      : templateLangString('MOD_VOY_ENC_DEBT_RAID_IN', { time: state.clock?.duration?.(ms) ?? '' }));
+    const rows = enc.debts().map((d) => ({ d, ms: enc.raidIn?.(d.key) }));
+    const list = rows.map(({ d, ms }) => (ms === undefined
+      ? templateLangString('MOD_VOY_ENC_DEBT_ROW', { who: d.name, gp: shortNumber(d.gp) })
+      : templateLangString('MOD_VOY_ENC_DEBT_ROW_RAID', { who: d.name, gp: shortNumber(d.gp), raid: raidText(ms) }))).join('\n');
+    const soon = rows.filter((x) => x.ms !== undefined).sort((a, b) => a.ms - b.ms)[0];
+    const soonText = soon === undefined ? '' : raidText(soon.ms);
+    const raidSpan = soonText === '' ? '' : ` <span class="text-danger font-size-sm voyage-debt-raid"><i class="fa fa-skull-crossbones mr-1" aria-hidden="true"></i>${esc(soonText)}</span>`;
     const why = enc.payOffWhy();
     const btn = why === ''
       ? `<button type="button" class="btn btn-sm btn-success voyage-row-btn voyage-debt-pay">${esc(getLangString('MOD_VOY_ENC_DEBT_PAY'))}</button>`
       : `<button type="button" class="btn btn-sm btn-outline-secondary disabled voyage-row-btn voyage-debt-pay" aria-disabled="true" title="${esc(getLangString(DEBT_WHY[why] ?? 'MOD_VOY_ENC_DEBT_WHY_TRADE'))}">${esc(getLangString('MOD_VOY_ENC_DEBT_PAY'))}</button>`;
     return `<div class="voyage-here-ship voyage-debt-row"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_ENC_DEBT_LABEL'))}</span> ` +
-      `<span class="text-warning" title="${esc(list)}"><i class="fa fa-file-invoice-dollar mr-1" aria-hidden="true"></i>${esc(templateLangString('MOD_VOY_ENC_GP', { gp: shortNumber(total) }))}</span></span>${btn}</div>`;
+      `<span class="text-warning" title="${esc(list)}"><i class="fa fa-file-invoice-dollar mr-1" aria-hidden="true"></i>${esc(templateLangString('MOD_VOY_ENC_GP', { gp: shortNumber(total) }))}</span>${raidSpan}</span>${btn}</div>`;
   };
 
   /**
@@ -597,12 +607,13 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const n = state.active() && state.folksGuarded
       ? (state.folksApi?.()?.folks() ?? []).filter((f) => f.travel !== 'with' && f.place !== null && f.place.q === pos.q && f.place.r === pos.r).length : 0;
     if (n > 0) parts.push(n === 1 ? getLangString('MOD_VOY_PANEL_PLACE_SUM_FOLK') : templateLangString('MOD_VOY_PANEL_PLACE_SUM_FOLKS', { count: `${n}` }));
+    if ((state.cairns?.near?.() ?? []).length > 0) parts.push(getLangString('MOD_VOY_PANEL_PLACE_SUM_CAIRN'));
     if ((state.outposts?.list?.() ?? []).some((o) => o.q === pos.q && o.r === pos.r)) parts.push(getLangString('MOD_VOY_PANEL_PLACE_SUM_OUTPOST'));
     if (state.planner?.homeHere?.() === 'home') parts.push(getLangString('MOD_VOY_PANEL_PLACE_SUM_HOME'));
     return parts.join(' · ');
   };
   const placeBox = (status, pos) => {
-    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + folksLine(pos) + (state.haul?.panelHtml?.() ?? '') + signLine() + homeLine() + pilotLine(pos) + (state.outposts?.panelHtml?.() ?? '');
+    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + folksLine(pos) + (state.cairns?.panelHtml?.() ?? '') + (state.haul?.panelHtml?.() ?? '') + signLine() + homeLine() + pilotLine(pos) + (state.outposts?.panelHtml?.() ?? '');
     if (inner === '') return '';
     const toggle = `<button type="button" class="voyage-legend-toggle voyage-place-toggle" aria-expanded="${placeOpen}">` +
       `<i class="fa fa-caret-${placeOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_PLACE_TITLE'))}</button>`;
@@ -1130,6 +1141,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       // Outposts (6e): pitch, the store and Strike camp.
       const outpostBtn = e.target instanceof Element ? e.target.closest('.voyage-outpost-btn') : null;
       if (outpostBtn !== null) { e.preventDefault(); state.outposts?.click(outpostBtn); return; }
+      // A cairn (round 5): Collect, or its guard's fight.
+      const cairnBtn = e.target instanceof Element ? e.target.closest('.voyage-cairn-btn') : null;
+      if (cairnBtn !== null) { e.preventDefault(); state.cairns?.click(cairnBtn); render(); return; }
       // The haul: Restock a Folk's room.
       const haulBtn = e.target instanceof Element ? e.target.closest('.voyage-haul-btn') : null;
       if (haulBtn !== null) { e.preventDefault(); state.haul?.click(haulBtn); return; }

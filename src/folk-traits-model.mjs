@@ -15,7 +15,8 @@ export const shortId = (full) => (typeof full === 'string' && full.startsWith(`$
  * Every travel trait in display order (the user, 20 Oct 2026, the canvases "Voyage 6e–6f" and "Worker Folks: earned
  * traits"). `learn.on` names the progress source the game side reports and `learn.target` how much of it teaches the
  * trait; `learn.resetOn` a source that sends the count back to zero (a condition in a row). `fade` is how a bad trait
- * goes, the same way. Effects are percentages: walk (a walk alone, any ground), rough* (on rough, snow or lava
+ * goes, the same way; `fade.also` a second source that fades it too, counted on its own and never reset (Footsore:
+ * a courier's bank stops, round 5; [BALANCE] its target). Effects are percentages: walk (a walk alone, any ground), rough* (on rough, snow or lava
  * ground, on foot), night/day (walking by night or day), roadFood (food on a walk), seaFood (food at sea, its share as crew), sales (your sales at a market within a hex of it), sellAtOutpost (you
  * can sell at the outpost it stands on, at that share of the trader's price). `folks` are the ones Worker Folks
  * applies itself (wage; homeXP is skill XP on the hex it learned Homebody on).
@@ -30,7 +31,7 @@ export const TRAITS = [
   { id: 'Haggler', kind: 'mixed', icon: 'trait_haggler', learn: { on: 'saleNear', target: 50 }, effects: { sales: 5 }, folks: { wage: 20 } },
   { id: 'Stargazer', kind: 'mixed', icon: 'trait_stargazer', learn: { on: 'nightRoad', target: 24 * HOUR }, effects: { night: 25, day: -10 } },
   { id: 'Seasick', kind: 'bad', icon: 'trait_seasick', learn: { on: 'storm', target: 1 }, effects: { seaFood: 50 }, fade: { on: 'calmSea', target: 100, resetOn: 'storm' } },
-  { id: 'Footsore', kind: 'bad', icon: 'trait_footsore', learn: { on: 'hungryLand', target: 10 }, effects: { walk: -25 }, fade: { on: 'oneHexRest', target: 3 * DAY, resetOn: 'moved' } },
+  { id: 'Footsore', kind: 'bad', icon: 'trait_footsore', learn: { on: 'hungryLand', target: 10 }, effects: { walk: -25 }, fade: { on: 'oneHexRest', target: 3 * DAY, resetOn: 'moved', also: { on: 'bankRest', target: 10 } } },
 ];
 
 const BY_ID = new Map(TRAITS.map((t) => [t.id, t]));
@@ -49,17 +50,23 @@ export function traitVars(id) {
   const vars = {};
   for (const [k, x] of Object.entries({ ...def.effects, ...def.folks })) vars[k] = `${Math.abs(x)}`;
   if (def.fade !== undefined) vars.fade = `${def.fade.target >= DAY ? Math.round(def.fade.target / DAY) : def.fade.target}`;
+  if (def.fade?.also !== undefined) vars.fadeAlso = `${def.fade.also.target}`;
   return vars;
 }
 
 /** The sources the game side reports, each once. */
-export const SOURCES = [...new Set(TRAITS.flatMap((t) => [t.learn.on, t.learn.resetOn, t.fade?.on, t.fade?.resetOn]).filter((s) => s !== undefined))];
+export const SOURCES = [...new Set(TRAITS.flatMap((t) => [t.learn.on, t.learn.resetOn, t.fade?.on, t.fade?.resetOn, t.fade?.also?.on]).filter((s) => s !== undefined))];
 
 export function emptyFolkTraits() {
   return { counts: {}, home: '' };
 }
 
 const fadeKey = (id) => `${id}.fade`;
+/**
+ * A bad trait's second way to fade, counted apart and never reset by the first one's condition (round 5: a courier's
+ * bank stops rest Footsore, though it never stands on one hex).
+ */
+const alsoKey = (id) => `${id}.rest`;
 const HEX_RE = /^-?\d{1,4},-?\d{1,4}$/;
 
 /**
@@ -73,6 +80,7 @@ export function addProgress(rec, source, amount, { has }) {
   for (const t of TRAITS) {
     if (t.learn.on === source && !has(t.id)) rec.counts[t.id] = (rec.counts[t.id] ?? 0) + n;
     if (t.fade?.on === source && has(t.id)) rec.counts[fadeKey(t.id)] = (rec.counts[fadeKey(t.id)] ?? 0) + n;
+    if (t.fade?.also?.on === source && has(t.id)) rec.counts[alsoKey(t.id)] = (rec.counts[alsoKey(t.id)] ?? 0) + n;
   }
 }
 
@@ -90,7 +98,8 @@ export function due(rec, { has }) {
   const fade = [];
   for (const t of TRAITS) {
     if (!has(t.id) && (rec.counts[t.id] ?? 0) >= t.learn.target) earn.push(t.id);
-    if (t.fade !== undefined && has(t.id) && (rec.counts[fadeKey(t.id)] ?? 0) >= t.fade.target) fade.push(t.id);
+    if (t.fade !== undefined && has(t.id) && ((rec.counts[fadeKey(t.id)] ?? 0) >= t.fade.target
+      || (t.fade.also !== undefined && (rec.counts[alsoKey(t.id)] ?? 0) >= t.fade.also.target))) fade.push(t.id);
   }
   return { earn, fade };
 }
@@ -102,6 +111,7 @@ export function due(rec, { has }) {
 export function earned(rec, id, { hex = '' } = {}) {
   delete rec.counts[id];
   delete rec.counts[fadeKey(id)];
+  delete rec.counts[alsoKey(id)];
   if (id === 'Homebody' && HEX_RE.test(hex)) rec.home = hex;
 }
 
@@ -109,6 +119,7 @@ export function earned(rec, id, { hex = '' } = {}) {
 export function lost(rec, id) {
   delete rec.counts[id];
   delete rec.counts[fadeKey(id)];
+  delete rec.counts[alsoKey(id)];
   if (id === 'Homebody') rec.home = '';
 }
 
@@ -278,7 +289,7 @@ export function knownTraits(folks) {
 
 /** Folks the most a save keeps counts for: Worker Folks never hires more than there are skills to hold. */
 export const FOLK_TRAITS_MAX = 64;
-const COUNT_KEYS = new Set(TRAITS.flatMap((t) => (t.fade === undefined ? [t.id] : [t.id, fadeKey(t.id)])));
+const COUNT_KEYS = new Set(TRAITS.flatMap((t) => (t.fade === undefined ? [t.id] : [t.id, fadeKey(t.id), ...(t.fade.also === undefined ? [] : [alsoKey(t.id)])])));
 
 /** The save's `folkTraits`: { folkId: { counts, home } }, junk dropped, never thrown on. */
 export function cleanFolkTraits(raw) {

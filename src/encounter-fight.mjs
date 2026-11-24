@@ -29,7 +29,7 @@ export function install(ctx, { state, decimal, log }) {
 
   // ---- pieces ------------------------------------------------------------------------------------------------------
   /** Whether your GP is at stake: not in a walking Folk's fight, nor in a fold of bands that met only walking Folks. */
-  const gpAtStake = (api, f) => f.folk === undefined && (f.away === undefined || api.R.foldMine(f.away.parts));
+  const gpAtStake = (api, f) => (f.folk === undefined || f.folk.courier === true) && (f.away === undefined || api.R.foldMine(f.away.parts));
   /** Whose Resolve the board shows: yours, or the walking Folk's the band met (6c). */
   const resolveOf = (f) => (f.folk !== undefined ? t('MOD_VOY_ENC_FOLK_RESOLVE', { name: f.folk.name }) : t('MOD_VOY_ENC_YOUR_RESOLVE'));
   const head = (api, f) => {
@@ -184,10 +184,21 @@ export function install(ctx, { state, decimal, log }) {
     const charms = (f.opt.charms ?? []).map((id) => `<span class="voyage-enc-chip">${fa('fa-gem', 'voyage-enc-s-wits')}${esc(t(E.charmKey(id)))}</span>`).join('');
     // A walking Folk (6c) stakes the food it carries for the road ahead, never your GP.
     const folk = f.folk;
+    // A courier (round 5) stakes a share of its load, paid from your GP, and its HP.
+    const courier = folk?.courier === true;
+    const gpNow = Math.max(0, Math.floor(game.gp.amount));
+    const courierShort = courier ? Math.max(0, folk.claim - gpNow) : 0;
+    const claimPct = `${Math.round(R.COURIER_CLAIM[sea ? 'sea' : 'land'] * 100) + (f.debt > 0 ? R.DEBT_PCT : 0)}`;
     // A fold of bands that met only your walking Folks (offline, 6c): nothing of your GP at stake, their packs instead.
     const folksMet = away !== undefined ? R.foldFolks(away.parts) : [];
+    const metLine = (list, icon, one, many) => (list.length === 0 ? ''
+      : `<div class="voyage-enc-owed">${fa(icon)} ${esc(t(list.length === 1 ? one : many, { names: list.map((x) => x.name).join(getLangString('MOD_VOY_GATE_LIST_SEP')), wound: `${Math.round(R.FOLK_WOUND * 100)}` }))}</div>`);
     const noGp = !gpAtStake(api, f);
-    const carry = folk !== undefined
+    // A fold only your couriers' bands made: their claims at stake, not a tenth of what you carry, and you aren't Battered.
+    const couriersOnly = away !== undefined && !noGp && !R.foldYou(away.parts);
+    const carry = courier
+      ? `<span class="voyage-enc-chip voyage-enc-num">${fa('fa-box')}${esc(t('MOD_VOY_ENC_COURIER_LOAD', { gp: api.text(folk.worth) }))}</span>`
+      : folk !== undefined
       ? `<span class="voyage-enc-chip voyage-enc-num">${fa('fa-utensils')}${esc(t('MOD_VOY_ENC_FOLK_PACK', { food: api.text(folk.pack) }))}</span>`
       : noGp ? charms : `<span class="voyage-enc-chip voyage-enc-num"><img class="voyage-enc-gp" src="${esc(game.gp.media)}" alt="">${esc(t('MOD_VOY_ENC_GP', { gp: api.text(f.opt.gp) }))}</span>${charms}`;
     const you = sideHtml('you', 'fa-heart', 'voyage-enc-sea', resolveOf(f), 'voyage-enc-resolve', s.you.max, s.you.max,
@@ -198,18 +209,23 @@ export function install(ctx, { state, decimal, log }) {
       `<div class="voyage-enc-habit">${esc(t(`${def.key}_HABIT`))}</div>${traits(api, def)}`);
     const blows = outcome('fa-trophy', 'voyage-enc-good', t('MOD_VOY_ENC_STAKE_WIN'), t(folk !== undefined || noGp ? 'MOD_VOY_ENC_STAKE_FOLK_WIN_LINE' : 'MOD_VOY_ENC_STAKE_WIN_LINE', { gp: api.text(f.purse) }))
       + outcome('fa-gem', 'voyage-enc-rare', t('MOD_VOY_ENC_STAKE_LOOT'), lootLine(api, f))
-      + outcome('fa-heart-broken', 'voyage-enc-bad', t('MOD_VOY_ENC_STAKE_LOSE'), folk !== undefined
+      + outcome('fa-heart-broken', 'voyage-enc-bad', t('MOD_VOY_ENC_STAKE_LOSE'), courier
+        ? t('MOD_VOY_ENC_STAKE_COURIER_LOSE_LINE', { gp: api.text(folk.claim), name: folk.name, wound: `${Math.round(R.FOLK_WOUND * 100)}` })
+        : folk !== undefined
         ? t('MOD_VOY_ENC_STAKE_FOLK_LOSE_LINE', { pct: tollPct, name: folk.name, wound: `${Math.round(R.FOLK_WOUND * 100)}` })
         : noGp ? t('MOD_VOY_ENC_STAKE_LOSE_LINE_FOLKS', { wound: `${Math.round(R.FOLK_WOUND * 100)}` })
+          : couriersOnly ? t('MOD_VOY_ENC_STAKE_LOSE_LINE_COURIERS', { gp: api.text(f.opt.toll), wound: `${Math.round(R.FOLK_WOUND * 100)}` })
           : t('MOD_VOY_ENC_STAKE_LOSE_LINE', { gp: api.text(stake) }))
       + (def.flee ? outcome('fa-running', 'voyage-enc-mid', t('MOD_VOY_ENC_STAKE_FLEE'), t(def.keepGrabs ? 'MOD_VOY_ENC_STAKE_FLEE_LINE_GRABS' : 'MOD_VOY_ENC_STAKE_FLEE_LINE', { pct: `${Math.round(def.flee * 100)}` })) : '')
-      + outcome('fa-hourglass-end', 'voyage-enc-muted', t('MOD_VOY_ENC_STAKE_DRAW'), t(folk !== undefined ? 'MOD_VOY_ENC_STAKE_FOLK_DRAW_LINE' : noGp ? 'MOD_VOY_ENC_STAKE_DRAW_LINE_FOLKS' : 'MOD_VOY_ENC_STAKE_DRAW_LINE', { n: `${E.MAX_ROUNDS}`, pct: tollPct }));
-    const payText = folk !== undefined ? t('MOD_VOY_ENC_STAKE_FOLK_PAY', { pct: tollPct, food: api.text(Math.round(folk.pack * (R.FOLK_TOLL_PCT[f.opt.tier] ?? 0) / 100)) })
+      + outcome('fa-hourglass-end', 'voyage-enc-muted', t('MOD_VOY_ENC_STAKE_DRAW'), t(courier ? 'MOD_VOY_ENC_STAKE_COURIER_DRAW_LINE' : folk !== undefined ? 'MOD_VOY_ENC_STAKE_FOLK_DRAW_LINE' : noGp ? 'MOD_VOY_ENC_STAKE_DRAW_LINE_FOLKS' : 'MOD_VOY_ENC_STAKE_DRAW_LINE', { n: `${E.MAX_ROUNDS}`, pct: tollPct, gp: api.text(folk?.claim ?? 0) }));
+    const payText = courier ? t('MOD_VOY_ENC_STAKE_COURIER_PAY', { gp: api.text(folk.claim), pct: claimPct, name: folk.name })
+        + (courierShort > 0 ? ` ${t('MOD_VOY_ENC_STAKE_PAY_SHORT', { gp: api.text(courierShort) })}` : '')
+      : folk !== undefined ? t('MOD_VOY_ENC_STAKE_FOLK_PAY', { pct: tollPct, food: api.text(Math.round(folk.pack * (R.FOLK_TOLL_PCT[f.opt.tier] ?? 0) / 100)) })
       : noGp ? t('MOD_VOY_ENC_STAKE_PAY_AWAY_FOLKS')
       : t(payLine, { gp: api.text(f.opt.toll), pct: `${R.TOLL_PCT[f.opt.tier] + (f.debt > 0 ? R.DEBT_PCT : 0)}`, n: `${Math.min(R.AWAY_CAP, away?.n ?? 1)}` })
         + (short > 0 ? ` ${t('MOD_VOY_ENC_STAKE_PAY_SHORT', { gp: api.text(short) })}` : '');
-    const lastHex = folk !== undefined && api.folkAhead(folk.id) === 0;
-    const runText = folk !== undefined ? t(lastHex ? 'MOD_VOY_ENC_STAKE_FOLK_RUN_LAST' : 'MOD_VOY_ENC_STAKE_FOLK_RUN', { pct: runPct })
+    const lastHex = folk !== undefined && !courier && api.folkAhead(folk.id) === 0;
+    const runText = courier ? t('MOD_VOY_ENC_STAKE_COURIER_RUN', { pct: runPct }) : folk !== undefined ? t(lastHex ? 'MOD_VOY_ENC_STAKE_FOLK_RUN_LAST' : 'MOD_VOY_ENC_STAKE_FOLK_RUN', { pct: runPct })
       : sea ? t('MOD_VOY_ENC_STAKE_RUN_SEA', { wear: `${api.runWear()}` }) : t('MOD_VOY_ENC_STAKE_RUN_LAND', { pct: runPct });
     const settle = outcome('fa-dice', 'voyage-enc-s-steel', t('MOD_VOY_ENC_BTN_AUTO'), t('MOD_VOY_ENC_AUTO_NOTE', { win: pct(o.win), fled: pct(o.fled), draw: pct(o.draw), lose: pct(o.lose) }))
       + outcome('fa-coins', 'voyage-enc-s-coin', t('MOD_VOY_ENC_STAKE_PAY'), payText)
@@ -217,10 +233,16 @@ export function install(ctx, { state, decimal, log }) {
     const others = (away?.n ?? 1) - 1;
     const lead = away !== undefined
       ? t(others === 0 ? 'MOD_VOY_ENC_MEET_AWAY_ONE' : others === 1 ? 'MOD_VOY_ENC_MEET_AWAY_TWO' : 'MOD_VOY_ENC_MEET_AWAY', { band: api.bandName(f.opt.band), n: `${others}`, nerve: `${s.band.max}` })
+      : f.cairn !== undefined ? t('MOD_VOY_ENC_MEET_CAIRN', { band: api.bandName(f.opt.band), name: f.cairn.name, nerve: `${s.band.max}` })
+      : courier ? t(sea ? 'MOD_VOY_ENC_MEET_COURIER_SEA' : 'MOD_VOY_ENC_MEET_COURIER', { band: api.bandName(f.opt.band), name: folk.name, nerve: `${s.band.max}` })
       : folk !== undefined ? t('MOD_VOY_ENC_MEET_FOLK', { band: api.bandName(f.opt.band), name: folk.name, nerve: `${s.band.max}` })
+        : f.opt.band === 'rival' ? t('MOD_VOY_ENC_MEET_RIVAL', { band: api.bandName(f.opt.band), n: `${(f.opt.rival ?? []).length}`, nerve: `${s.band.max}` })
         : t(sea ? 'MOD_VOY_ENC_MEET_SEA' : 'MOD_VOY_ENC_MEET_LAND', { band: api.bandName(f.opt.band), nerve: `${s.band.max}` });
     const owed = (f.debt > 0 ? `<div class="voyage-enc-owed">${fa('fa-file-invoice-dollar')} ${esc(t('MOD_VOY_ENC_MEET_OWED', { gp: api.text(f.debt), pct: `${R.DEBT_PCT}` }))}</div>` : '')
-      + (folksMet.length > 0 ? `<div class="voyage-enc-owed">${fa('fa-walking')} ${esc(t(folksMet.length === 1 ? 'MOD_VOY_ENC_MEET_AWAY_FOLK' : 'MOD_VOY_ENC_MEET_AWAY_FOLKS', { names: folksMet.map((x) => x.name).join(getLangString('MOD_VOY_GATE_LIST_SEP')), wound: `${Math.round(R.FOLK_WOUND * 100)}` }))}</div>` : '');
+      // Walking Folks stake their packs; couriers stake your GP for their loads (round 5, the .712 check: a courier read
+      // as a walker here).
+      + metLine(folksMet.filter((x) => x.courier !== true), 'fa-walking', 'MOD_VOY_ENC_MEET_AWAY_FOLK', 'MOD_VOY_ENC_MEET_AWAY_FOLKS')
+      + metLine(folksMet.filter((x) => x.courier === true), 'fa-box', 'MOD_VOY_ENC_MEET_AWAY_COURIER', 'MOD_VOY_ENC_MEET_AWAY_COURIERS');
     // The very first band you meet offers a practice fight; it waits for you meanwhile.
     const firstBand = state.encounterPractice !== undefined && folk === undefined && api.enc().met <= (away?.n ?? 1);
     return head(api, f) + '<div class="voyage-enc-body"><div class="voyage-enc-stage">'
@@ -235,7 +257,7 @@ export function install(ctx, { state, decimal, log }) {
       + `<div class="voyage-enc-dock"><div class="voyage-enc-choices${away !== undefined ? ' voyage-enc-choices-3' : ''}">`
       + btn('fight', t('MOD_VOY_ENC_BTN_FIGHT'), { cls: 'btn-primary', icon: 'fa-khanda', sub: t('MOD_VOY_ENC_BTN_FIGHT_SUB', { n: `${deckN}` }) })
       + btn('auto', t('MOD_VOY_ENC_BTN_AUTO'), { cls: 'btn-info', icon: 'fa-dice', sub: t('MOD_VOY_ENC_BTN_AUTO_SUB', { pct: pct(o.win + o.fled) }) })
-      + btn('pay', t('MOD_VOY_ENC_BTN_PAY'), { cls: 'btn-warning', icon: 'fa-coins', sub: folk !== undefined ? t('MOD_VOY_ENC_BTN_PAY_FOLK', { pct: tollPct }) : noGp ? t('MOD_VOY_ENC_BTN_PAY_FOLKS') : short > 0 ? t('MOD_VOY_ENC_BTN_PAY_SHORT', { gp: api.text(f.opt.gp), owed: api.text(short) }) : t('MOD_VOY_ENC_GP', { gp: api.text(f.opt.toll) }) })
+      + btn('pay', t('MOD_VOY_ENC_BTN_PAY'), { cls: 'btn-warning', icon: 'fa-coins', sub: courier ? (courierShort > 0 ? t('MOD_VOY_ENC_BTN_PAY_SHORT', { gp: api.text(gpNow), owed: api.text(courierShort) }) : t('MOD_VOY_ENC_GP', { gp: api.text(folk.claim) })) : folk !== undefined ? t('MOD_VOY_ENC_BTN_PAY_FOLK', { pct: tollPct }) : noGp ? t('MOD_VOY_ENC_BTN_PAY_FOLKS') : short > 0 ? t('MOD_VOY_ENC_BTN_PAY_SHORT', { gp: api.text(f.opt.gp), owed: api.text(short) }) : t('MOD_VOY_ENC_GP', { gp: api.text(f.opt.toll) }) })
       + (away !== undefined ? '' : btn('run', t('MOD_VOY_ENC_BTN_RUN'), { cls: 'btn-danger', icon: 'fa-running', sub: t(folk !== undefined ? (lastHex ? 'MOD_VOY_ENC_BTN_RUN_SUB_FOLK_LAST' : 'MOD_VOY_ENC_BTN_RUN_SUB_FOLK') : sea ? 'MOD_VOY_ENC_BTN_RUN_SUB_SEA' : 'MOD_VOY_ENC_BTN_RUN_SUB_LAND') }))
       + '</div></div>';
   };
@@ -382,7 +404,7 @@ export function install(ctx, { state, decimal, log }) {
   // The result on the same board (the user, 30 Oct 2026: every screen of the card game keeps the board's size): a
   // banner with the outcome, the two sides as the fight left them, the reckoning beside the spoils, the buttons docked.
   const FIND_KEYS = { MOD_VOY_ENC_RES_TRICK: 'fa-magic', MOD_VOY_ENC_RES_CARD: 'fa-gem' };
-  const HARM_KEYS = { MOD_VOY_ENC_RES_BATTERED: 'fa-user-injured', MOD_VOY_ENC_RES_RUN_HULL: 'fa-ship', MOD_VOY_ENC_RES_RUN_CRATES: 'fa-box-open', MOD_VOY_ENC_RES_RUN_STORES: 'fa-utensils', MOD_VOY_ENC_RES_RUN_TIME: 'fa-hourglass-half', MOD_VOY_ENC_RES_OWED: 'fa-file-invoice-dollar', MOD_VOY_ENC_RES_USED: 'fa-flask',
+  const HARM_KEYS = { MOD_VOY_ENC_RES_BATTERED: 'fa-user-injured', MOD_VOY_ENC_RES_RUN_HULL: 'fa-ship', MOD_VOY_ENC_RES_RUN_CRATES: 'fa-box-open', MOD_VOY_ENC_RES_RUN_STORES: 'fa-utensils', MOD_VOY_ENC_RES_COURIER_RUN_PACK: 'fa-utensils', MOD_VOY_ENC_RES_RUN_TIME: 'fa-hourglass-half', MOD_VOY_ENC_RES_OWED: 'fa-file-invoice-dollar', MOD_VOY_ENC_RES_USED: 'fa-flask',
     MOD_VOY_ENC_RES_FOLK_TAKE_HUNGRY: 'fa-utensils', MOD_VOY_ENC_RES_FOLK_TAKE_HUNGRY_ONE: 'fa-utensils', MOD_VOY_ENC_RES_FOLK_WOUND: 'fa-user-injured', MOD_VOY_ENC_RES_FOLK_DIED: 'fa-skull', MOD_VOY_ENC_RES_FOLK_RUN_TIME: 'fa-hourglass-half' };
   // Lines that undo a harm, in the reckoning's good colour (Patch up on the result).
   const CURE_KEYS = { MOD_VOY_ENC_RES_PATCHED: 'fa-utensils' };

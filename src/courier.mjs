@@ -213,9 +213,16 @@ export function install(ctx, { state, M, W, H, N, rules, log }) {
     const a = api();
     const list = couriers();
     if (a === undefined || list === undefined || state.walks === undefined) return '';
-    const c = list[f.id];
+    let c = list[f.id];
     if (c === undefined) return t('MOD_VOY_COURIER_NO_ROUTE');
     if (f.travel === 'idle') a.setTravel(f.id, 'walking');
+    // Stopped by a band (round 5): it stands until the fight is answered. A hold no open fight answers any more (a
+    // restored backup, say) lets it go.
+    if (c.held !== undefined && state.encounters?.courierMet?.()?.id !== f.id) {
+      const { held: _gone, ...rest } = c;
+      c = rest;
+      list[f.id] = c;
+    }
     // Until its first whole round its fares come from the route. Worked out here, so the net GP/h never has to search.
     if (c.last === undefined && !(Date.now() - (loops.get(f.id)?.at ?? -Infinity) < LOOP_MS)) loopOf(f);
     const wait = held.get(f.id);
@@ -228,6 +235,23 @@ export function install(ctx, { state, M, W, H, N, rules, log }) {
     }
     const offline = info?.offline === true;
     let shortOf;
+    // Healing on its round (round 5): each bank stop gives back a share of max HP; a hex walked hurt eats double road
+    // food for a little more. Worker Folks clamps and saves (API v13 `heal`); without it nothing heals here.
+    const provisions = state.stores?.enabled?.() === true;
+    const canHeal = typeof a.heal === 'function' && f.maxHp > 0;
+    let hp = f.hp ?? f.maxHp;
+    let fed = 0;
+    const healNow = (n, cause) => {
+      if (!(n > 0)) return;
+      try { const got = a.heal(f.id, n, { cause }); hp = Number.isFinite(got) ? got : hp; } catch (e) { log('courier heal failed', e); }
+    };
+    const flushFed = () => { const n = fed; fed = 0; if (n > 0) { hp -= n; healNow(n, 'food'); } };
+    const atBank = () => {
+      flushFed();
+      if (canHeal) healNow(M.bankHeal(hp, f.maxHp), 'rest');
+      // A bank stop rests Footsore (it never stands on one hex long enough otherwise).
+      try { state.folkTraits?.report?.(f.id, 'bankRest', 1); } catch (e) { log('courier rest count failed', e); }
+    };
     const out = M.walkOn(c, ms, {
       stopHex,
       road: roadFor(f),
@@ -236,12 +260,25 @@ export function install(ctx, { state, M, W, H, N, rules, log }) {
       board: (boat) => payFare(f.id, boat, offline),
       pack: (cur) => {
         const got = packRoadFood(f, cur);
-        if (got.pack === undefined) shortOf = got.need;
+        if (got.pack === undefined) shortOf = { need: got.min ?? got.need, hex: M.hexOf(cur), have: cur.pack };
         return got.pack;
       },
-      eat: state.stores?.enabled?.() === true ? (p, s) => state.stores.packAfter(p, s, state.walks.stepCost(s, f)) : undefined,
-      visit: (stop, here) => { standOn(a, f.id, here); return visit(a, f.id, stop, offline); },
+      topUp: provisions ? (p, at) => topUpFood(f, p, at, (x) => { shortOf = x; }) : undefined,
+      eat: provisions ? (p, s) => {
+        const cost = state.walks.stepCost(s, f);
+        const h = canHeal ? M.roadHeal(p, cost, hp, f.maxHp) : { cost, heal: 0 };
+        hp += h.heal;
+        fed += h.heal;
+        return state.stores.packAfter(p, s, h.cost);
+      } : undefined,
+      visit: (stop, here) => { standOn(a, f.id, here); if (stop.kind === 'bank') atBank(); return visit(a, f.id, stop, offline); },
+      // A band may stop it on a hex it enters, on land or on its packet's deep sea (round 5): online its walk holds
+      // there, offline it walks on.
+      meet: (step) => (state.encounters?.rollCourier?.(step, bandInfo(a, f, c)) === true ? now() : 0),
     });
+    // With Provisions off a hurt courier heals as it walks, with no food to count.
+    if (canHeal && !provisions) for (const _s of out.entered) { const h = M.roadHeal(undefined, { food: 0, fuel: 0 }, hp, f.maxHp).heal; hp += h; fed += h; }
+    flushFed();
     if (out.done) delete list[f.id];
     else list[f.id] = out.courier;
     if (!out.done && out.courier.stops !== c.stops) loops.delete(f.id);
@@ -255,12 +292,77 @@ export function install(ctx, { state, M, W, H, N, rules, log }) {
     }
     if (out.done) return t('MOD_VOY_COURIER_NO_ROUTE');
     const hold = (holdMs, text, search = false) => { held.set(f.id, { ms: holdMs, text, search }); return text; };
+    if (out.wait === 'band') return t('MOD_VOY_COURIER_BAND');
     if (out.wait === 'noRoad') return hold(NO_ROAD_MS, t('MOD_VOY_COURIER_NO_ROAD'), true);
     if (out.wait === 'fare') return hold(NO_FARE_MS, t('MOD_VOY_COURIER_NO_FARE', { gp: N.shortNumber(out.fare) }), true);
-    if (out.wait === 'food') return hold(NO_FOOD_MS, t('MOD_VOY_COURIER_NO_FOOD', { amounts: state.stores.amounts(shortOf?.food ?? 0, shortOf?.fuel ?? 0) }));
+    if (out.wait === 'food') return hold(NO_FOOD_MS, foodWaitText(shortOf));
     // Every stop within reach: the next round in a minute. Nothing is wrong, so the card shows no reason.
     if (out.wait === 'standing') return hold(M.STANDING_MS, '');
     return '';
+  };
+
+  /**
+   * Why it waits for road food (round 5): the places in reach refill in a while, or can never hold enough (its route
+   * needs a change), or your bank is short.
+   */
+  const foodWaitText = (x) => {
+    const left = { food: Math.max(0, (x?.need?.food ?? 0) - (x?.have?.food ?? 0)), fuel: Math.max(0, (x?.need?.fuel ?? 0) - (x?.have?.fuel ?? 0)) };
+    // Only what is short: food alone reads "113 HP of food", not "…, 0 fuel" (seen in game, build .719).
+    const amounts = left.fuel <= 0 && left.food > 0 ? t('MOD_VOY_STORES_AMOUNT_FOOD', { food: state.stores.hp(left.food) })
+      : left.food <= 0 && left.fuel > 0 ? t('MOD_VOY_UNIT_FUEL', { n: state.stores.fuelText(left.fuel) })
+        : state.stores.amounts(left.food, left.fuel);
+    let why = { place: false };
+    try { if (x?.hex !== undefined) why = state.stores.roadShort(x.hex, x.need, x.have); } catch (e) { log('courier food wait not read', e); }
+    if (why.place && why.ms === Infinity) return t('MOD_VOY_COURIER_NO_FOOD_NEVER', { amounts });
+    if (why.place) return t('MOD_VOY_COURIER_NO_FOOD_PLACE', { amounts, time: state.clock?.duration?.(why.ms) ?? '' });
+    return t('MOD_VOY_COURIER_NO_FOOD', { amounts });
+  };
+
+  // ---- bands on the road (round 5) -----------------------------------------------------------------------------------
+  /** The load's sale value: what its room holds (haul, stock, town goods) at the game's prices, and its GP. */
+  const loadWorth = (a, id) => {
+    const room = a.room?.(id);
+    if (room == null) return 0;
+    let sum = 0;
+    for (const part of [room.haul, room.stock, room.town]) for (const x of part ?? []) sum += state.encounters?.saleGp?.(x.itemId, x.qty) ?? 0;
+    for (const x of room.purse ?? []) if (x.currencyId === 'melvorD:GP' && Number.isFinite(x.amount)) sum += x.amount;
+    return sum;
+  };
+  /** Who the band meets: its deck comes from its rank and travel traits, plus the card you lent it (else your last lent). */
+  const bandInfo = (a, f, c) => ({
+    id: f.id, name: f.name, tier: f.tier, traits: f.traits ?? [],
+    lent: c.lent ?? state.encounters?.enc?.()?.lent,
+    worth: () => loadWorth(a, f.id),
+  });
+  /** A band beat the courier: a share of its max HP, as a walking Folk; { hp, dead }, undefined when it is gone. */
+  const bandWound = (id) => {
+    const a = api();
+    const f = a?.folkById(id);
+    if (f === undefined) return undefined;
+    const hp = state.encounters?.R?.folkWound?.(f.maxHp) ?? 1;
+    const r = a.hurt(id, hp, { cause: 'band' });
+    if (r === undefined) return undefined;
+    log(`courier ${f.name} wounded by a band: -${hp} HP${r.dead ? ', died' : ''}`);
+    return { hp, dead: r.dead === true };
+  };
+  /**
+   * The band was answered: the courier goes on. A Run stands it still for the next hex's time and drops a share of its
+   * road food (the land run's share, as yours).
+   */
+  const bandDone = (id, done) => {
+    const list = couriers();
+    const c = list?.[id];
+    if (c === undefined || c.held === undefined) return;
+    const { held: _gone, ...rest } = c;
+    let next = rest;
+    if (done === 'run') {
+      const drop = state.encounters?.R?.RUN_LAND_DROP ?? 0;
+      const hexMs = c.crossing !== undefined ? M.PACKET_HEX_MS : c.road[c.reached]?.ms ?? c.road[c.road.length - 1]?.ms ?? 0;
+      next = { ...next, lag: (next.lag ?? 0) + hexMs };
+      if (next.pack !== undefined) next = { ...next, pack: { food: Math.floor(next.pack.food * (1 - drop)), fuel: next.pack.fuel * (1 - drop) } };
+    }
+    list[id] = M.cleanCourier(next) ?? next;
+    log(`courier ${id} goes on after the band (${done})`);
   };
 
   /** Why this Folk can't set off now: only one with you, while you are under way or on the water. */
@@ -289,7 +391,47 @@ export function install(ctx, { state, M, W, H, N, rules, log }) {
     }
     return undefined;
   };
-  const forgetRoads = () => { roadMemo.clear(); packetMemo.clear(); };
+  const forgetRoads = () => { roadMemo.clear(); packetMemo.clear(); supplyMemo.clear(); };
+  /**
+   * Hexes where a courier can top up its road food (round 5): a place to load in reach, as for your stores. Kept a
+   * while, as the roads are: the places you know grow as the map fills in.
+   */
+  const supplyMemo = new Map();
+  const isSupply = (hex) => {
+    const key = `${hex.q},${hex.r}`;
+    const was = supplyMemo.get(key);
+    const at = Date.now();
+    if (was !== undefined && at - was.at < LOOP_MS) return was.on;
+    let on = false;
+    try { on = (state.stores?.sourcesAt?.(hex) ?? []).length > 0; } catch {}
+    if (supplyMemo.size > 4096) supplyMemo.clear();
+    supplyMemo.set(key, { on, at });
+    return on;
+  };
+  const stretchOpts = (f) => ({ stopHex, road: roadFor(f), packet: packetFor, distance });
+  /**
+   * Whether a route's road food can ever be packed (round 5, the .711 check: Milo stood at its bank stop for good): for
+   * each bank stop, the way to the next one split where it can top up, against what the places there hold when full.
+   * Undefined, or { at, short, hex }: the bank stop it could never leave, by how much, and where it would stand.
+   */
+  const foodCheck = (id, stops) => {
+    if (state.stores?.enabled?.() !== true || !Array.isArray(stops) || stops.length < 2) return undefined;
+    const f = folksApi()?.folkById(id);
+    if (f === undefined) return undefined;
+    for (let i = 0; i < stops.length; i++) {
+      if (stops[i].kind !== 'bank') continue;
+      const hex = stopHex(stops[i]);
+      if (hex === undefined) continue;
+      const from = landFor(hex) ?? hex;
+      const steps = M.stretchSteps({ stops, next: (i + 1) % stops.length, from, road: [], reached: 0, into: 0 }, stretchOpts(f));
+      if (steps.length === 0) continue;
+      const parts = M.stretchParts(steps, isSupply);
+      const points = parts.map((part, k) => ({ need: state.walks.packFor(part, f), stock: state.stores.fullStockAt(k === 0 ? from : parts[k - 1][parts[k - 1].length - 1]) }));
+      const miss = M.stretchFits(points);
+      if (miss !== undefined) return { at: i, short: miss.short, hex: miss.at === 0 ? from : parts[miss.at - 1][parts[miss.at - 1].length - 1] };
+    }
+    return undefined;
+  };
   const preview = (id, stops) => {
     const f = folksApi()?.folkById(id);
     if (f === undefined) return undefined;
@@ -302,8 +444,40 @@ export function install(ctx, { state, M, W, H, N, rules, log }) {
   const packRoadFood = (f, c) => {
     const none = { food: 0, fuel: 0 };
     if (state.stores?.enabled?.() !== true) return { pack: c.pack ?? none, need: none };
-    const need = state.walks.packFor(M.stretchSteps(c, { stopHex, road: roadFor(f), packet: packetFor, distance }), f);
-    return { pack: state.stores.packRoad(M.hexOf(c), need, c.pack), need };
+    const steps = M.stretchSteps(c, stretchOpts(f));
+    const need = state.walks.packFor(steps, f);
+    // As much as the bank and the places give for the whole way, but at least to the first hex where it can top up
+    // (round 5: a stretch longer than the places here hold no longer keeps it at the bank for good).
+    const min = state.walks.packFor(M.stretchParts(steps, isSupply)[0], f);
+    // Hurt, it packs the extra food its healing eats on the first hexes (round 5); a bank short of that packs the plain
+    // road food, so healing never keeps it waiting.
+    const a = api();
+    const now = a?.folkById(f.id) ?? f;
+    const n = typeof a?.heal === 'function' && Array.isArray(steps) ? M.roadHealHexes(now.hp ?? now.maxHp, now.maxHp) : 0;
+    if (n > 0) {
+      const extra = state.walks.packFor(steps.slice(0, n), f);
+      const more = state.stores.packRoad(M.hexOf(c), { ...need, food: need.food + extra.food * (M.ROAD_HEAL_FOOD - 1) }, c.pack);
+      if (more !== undefined) return { pack: more, need, min };
+    }
+    return { pack: state.stores.packRoad(M.hexOf(c), need, c.pack, min), need, min };
+  };
+  /**
+   * On a hex where it can load (round 5), it tops its pack up to what the rest of the way to its next bank stop needs,
+   * from the bank at the places' rates and stocks. Undefined when it can't get at least to the next such hex: it waits
+   * there. `at` the courier standing on the hex.
+   */
+  const topUpFood = (f, p, at, short) => {
+    const here = M.hexOf(at);
+    if (!isSupply(here)) return p;
+    const rest = [...at.road.slice(at.reached), ...M.stretchSteps({ ...at, reached: at.road.length, into: 0 }, stretchOpts(f))];
+    if (rest.length === 0) return p;
+    const need = state.walks.packFor(rest, f);
+    if (p.food >= need.food - 1e-6 && p.fuel >= need.fuel - 0.005) return p;
+    const min = state.walks.packFor(M.stretchParts(rest, isSupply)[0], f);
+    const got = state.stores.packRoad(here, need, p, min);
+    if (got === undefined) { short({ need: min, hex: here, have: p }); return undefined; }
+    if (got.food > p.food + 0.5 || got.fuel > p.fuel + 0.005) log(`courier ${f.name} topped up its road food at (${here.q},${here.r}): ${Math.round(p.food)} -> ${Math.round(got.food)} food`);
+    return got;
   };
   /** Folk id → its last worked-out round trip. Worked out again when a stop moves, or after a while as the map fills in. */
   const loops = new Map();
@@ -531,6 +705,20 @@ export function install(ctx, { state, M, W, H, N, rules, log }) {
     linksChanged();
     return undefined;
   };
+  /**
+   * The card you lend a courier for the bands of its road (round 5): one of your deck's that a Folk may carry, offered
+   * first next time. Refused while a band holds it: that fight was dealt its deck already.
+   */
+  const setLent = (id, card) => {
+    const list = couriers();
+    const c = list?.[id];
+    if (c === undefined || c.held !== undefined || c.lent === card) return false;
+    if (!(state.encounters?.lendables?.().cards ?? []).some((x) => x.id === card)) return false;
+    list[id] = { ...c, lent: card };
+    try { state.encounters?.rememberLent?.(card); } catch {}
+    log(`courier ${id} carries ${card} for its bands`);
+    return true;
+  };
   /** Deletes a route: on the job it goes to the nearest of its bank stops and unloads; off it, the route is just gone. */
   const deleteRoute = (id) => {
     const list = couriers();
@@ -597,7 +785,20 @@ export function install(ctx, { state, M, W, H, N, rules, log }) {
 
   return {
     kept,
-    holds, hasRoute, whereText, standDown, setRoute, deleteRoute, all: () => couriers(), usable,
-    rows, routes, stopName, stopsHere, editRefusal, preview, forgetRoads, onPacket, carries, servesBoth,
+    holds, hasRoute, whereText, standDown, setRoute, setLent, deleteRoute, all: () => couriers(), usable,
+    rows, routes, stopName, stopsHere, editRefusal, preview, foodCheck, forgetRoads, onPacket, carries, servesBoth,
+    bandWound, bandDone, loadWorth: (id) => { const a = api(); return a === undefined ? 0 : loadWorth(a, id); },
+    /** The sea hex a courier's packet is on (where a band holds it), or undefined ashore: where its cairn is left. */
+    seaHexOf: (id) => { const c = couriers()?.[id]; return c?.crossing === undefined ? undefined : M.crossingAt(c); },
+    /** A road moment's answer (round 5): `fn(courier)` gives the changed courier, kept when the save can read it. */
+    edit: (id, fn) => {
+      const all = couriers();
+      const c = all?.[id];
+      if (c === undefined) return false;
+      const next = M.cleanCourier(fn(c));
+      if (next === undefined) return false;
+      all[id] = next;
+      return true;
+    },
   };
 }

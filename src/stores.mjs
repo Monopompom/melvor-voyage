@@ -816,12 +816,14 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
   /**
    * A courier's road food (round 4): tops `have` up to `need` from the bank at the rates and local stock in reach of
    * `hex`, the Never load foods left alone. The new pack, or undefined with nothing taken when the bank or the place is short.
+   * With `min` (round 5: a pack it can top up on the way) it takes as much as there is up to `need`, at least `min`.
    */
-  const packRoad = (hex, need, have) => {
+  const packRoad = (hex, need, have, min) => {
     const now0 = { food: have?.food ?? 0, fuel: have?.fuel ?? 0 };
     const want = { food: Math.max(0, need.food - now0.food), fuel: S.roundFuel(Math.max(0, need.fuel - now0.fuel)) };
     if (!(want.food > 0) && !(want.fuel > 0)) return now0;
-    const plan = SM.planPack(S, loadable(), want, sourcesAt(hex));
+    const floor = min === undefined ? undefined : { food: Math.max(0, min.food - now0.food), fuel: S.roundFuel(Math.max(0, min.fuel - now0.fuel)) };
+    const plan = SM.planPack(S, loadable(), want, sourcesAt(hex), floor);
     if (!plan.ok) return undefined;
     const now = gameNow();
     for (const p of plan.picks) {
@@ -829,6 +831,48 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
       draw(p.kind, p.parts, now);
     }
     return { food: now0.food + plan.food, fuel: S.roundFuel(now0.fuel + plan.fuel) };
+  };
+  /**
+   * The most the places in reach of `hex` hold when full (round 5, a courier's route check): { food, fuel } in stores
+   * units, Infinity where they never run out (supply off, an island), 0 with nowhere to load.
+   */
+  const fullStockAt = (hex) => {
+    const out = { food: 0, fuel: 0 };
+    const cap = capacity();
+    for (const p of sourcesAt(hex)) {
+      for (const kind of ['food', 'fuel']) {
+        if (!(p[kind] > 0)) continue;
+        out[kind] += p.stock[kind] === Infinity ? Infinity : SM.dayOf(p.place, cap)[kind];
+      }
+    }
+    return out;
+  };
+  /**
+   * Why a courier can't pack `min` ({ food, fuel }, on top of `have`) at `hex`: { place: true, ms } when the places in
+   * reach hold too little (`ms` until they do, Infinity when even full they can't), else { place: false } (your bank is
+   * short).
+   */
+  const roadShort = (hex, min, have) => {
+    const want = { food: Math.max(0, (min?.food ?? 0) - (have?.food ?? 0)), fuel: Math.max(0, (min?.fuel ?? 0) - (have?.fuel ?? 0)) };
+    const src = sourcesAt(hex);
+    const cap = capacity();
+    const sup = supplyOn() ? supplyOf() : undefined;
+    const now = gameNow();
+    const total = (kind, t) => src.filter((p) => p[kind] > 0)
+      .reduce((a, p) => a + (p.stock[kind] === Infinity ? Infinity : Math.max(0, SM.stockOf(sup?.[p.key], p.place, cap, now + t)[kind])), 0);
+    let ms = 0;
+    for (const kind of ['food', 'fuel']) {
+      const need = want[kind] - (kind === 'fuel' ? 0.005 : 1e-6);
+      if (!(need > 0) || total(kind, 0) >= need) continue;
+      // Full in at most a day past empty, and empty at most DEBT_MAX days under.
+      const longest = 3 * SM.DAY_MS;
+      if (total(kind, longest) < need) return { place: true, ms: Infinity };
+      let lo = 0;
+      let hi = longest;
+      for (let i = 0; i < 40 && hi - lo > 1000; i++) { const mid = (lo + hi) / 2; if (total(kind, mid) >= need) hi = mid; else lo = mid; }
+      ms = Math.max(ms, hi);
+    }
+    return ms > 0 ? { place: true, ms: Math.ceil(ms) } : { place: false };
   };
   /** A courier's pack after walking into `step`: what the hex's walk spoils, then what it eats (`cost`). */
   const packAfter = (pack, step, cost) => {
@@ -962,7 +1006,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
   const lightTip = (tip, light) => (light >= 0.005 ? t('MOD_VOY_STORES_PATH_FUEL_LIGHT', { tip, fuel: fuelText(light), bonus: `${Math.round(model.STAR_XP * 100)}` }) : tip);
   const api = {
     enabled, stores, planFor, forage, forageAhead, forageFood, forageFlush, foundWords, forageIcons, amountIcons: forageIcons, forageTip, forageModel: FM, lightTip, priceSteps, loadingAtHex, afterMove, refuse, rescue,
-    supplyOn, sourcesAt, supplyAt, supplyHere, placeSupply, loadPlan, supplyVersion: () => supplyVersion,
+    supplyOn, sourcesAt, supplyAt, supplyHere, fullStockAt, roadShort, placeSupply, loadPlan, supplyVersion: () => supplyVersion,
     spoilOn, spoilTick, settleSpoil, spoilRate, spoilFactors, spoilAhead, tentRate, spoilText, packWith, packRoad, packAfter, casks, cureLeft, spoilModel: P,
     /** Offers the trader's share when the stores can't reach safe ground (the panel's Stranded? button). */
     offer() {
