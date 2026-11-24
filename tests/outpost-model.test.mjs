@@ -8,6 +8,7 @@ import {
   YOU, byYou, yourStep,
 } from '../src/outpost-model.mjs';
 import { allowedAt, rateAt } from '../src/rules.mjs';
+import { readAmount } from '../src/outpost-model.mjs';
 
 const land = { q: 5, r: 7, t: 'grasslands', f: [] };
 const ok = { tents: 1, outposts: {}, level: 30, rec: land };
@@ -204,4 +205,11 @@ test('you put a tent up yourself: it goes on while you stay on its hex and stops
   assert.deepEqual(cleanOutposts({ '5,7': o }), { '5,7': o }, 'the save keeps it');
   // A Voyage from before reads the builder as a Folk that is gone: the Tent goes back.
   assert.equal(buildStep(o, '5,7', undefined, 10), 'stop');
+});
+
+test('a typed store amount: grouped thousands in any locale, and anything else refused', () => {
+  for (const [raw, n] of [['1938', 1938], ['1,938', 1938], ['1.938', 1938], ['1 938', 1938], ['1\u00a0938', 1938], ["1'938", 1938], ['1,000,000', 1000000], ['１２', 12]]) assert.equal(readAmount(raw, true), n, raw);
+  for (const raw of ['', 'abc', '1.5', '1,5', '-3', '1e3', '1,93', '1.000,000', 'Infinity']) assert.equal(readAmount(raw, true), undefined, raw);
+  for (const [raw, n] of [['1.5', 1.5], ['1,5', 1.5], ['40', 40]]) assert.equal(readAmount(raw, false), n, raw);
+  for (const raw of ['', 'abc', '1.2.3', '-1', '1e3']) assert.equal(readAmount(raw, false), undefined, raw);
 });

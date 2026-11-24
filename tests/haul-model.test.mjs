@@ -28,15 +28,22 @@ test('a bank place is a city, capital, port or market, or the hex next to one', 
   assert.equal(isBankPlace(undefined, [], isTradePlace), true, 'no record fails open');
 });
 
-test('a Folk in the wild works from its room; at a bank place, with you, walking or the haul off, from the bank', () => {
+test('a Folk in the wild works from its room; at a bank place, with you or the haul off, from the bank', () => {
   assert.equal(accessFor(folk('a', { q: 5, r: 5 }), opts), 'room');
   assert.equal(accessFor(folk('a', { q: 0, r: 0 }), opts), 'bank', 'next to the port');
   assert.equal(accessFor(folk('a', { q: 1, r: 0 }), opts), 'bank');
   assert.equal(accessFor(folk('a', { q: 5, r: 5 }, 'with'), opts), 'bank');
-  assert.equal(accessFor(folk('a', { q: 5, r: 5 }, 'walking'), opts), 'bank');
   assert.equal(accessFor(folk('a', null), opts), 'bank');
   assert.equal(accessFor(folk('a', { q: 9, r: 9 }), opts), 'bank', 'a hex off the map fails open');
   assert.equal(accessFor(folk('a', { q: 5, r: 5 }), { ...opts, on: false }), 'bank');
+});
+
+test('a walking Folk keeps its room wherever the road goes, until the haul is off', () => {
+  assert.equal(accessFor(folk('a', { q: 5, r: 5 }, 'walking'), opts), 'room', 'in the wild');
+  assert.equal(accessFor(folk('a', { q: 0, r: 0 }, 'walking'), opts), 'room', 'passing a port');
+  assert.equal(accessFor(folk('a', null, 'walking'), opts), 'room', 'no place');
+  assert.equal(accessFor(folk('a', { q: 9, r: 9 }, 'walking'), opts), 'room', 'a hex off the map');
+  assert.equal(accessFor(folk('a', { q: 5, r: 5 }, 'walking'), { ...opts, on: false }), 'bank', 'the haul off');
 });
 
 test('a room has something to collect when it holds items or a purse', () => {
@@ -55,9 +62,12 @@ test('collect from idle Folks within a hex that hold something, nearest first', 
 
 test('a Folk coming aboard or reaching a bank place empties its room; a walk or the wild keeps it', () => {
   assert.equal(lifeStep({ travel: 'idle', access: 'room' }, { travel: 'with', access: 'bank' }), 'empty');
-  assert.equal(lifeStep({ travel: 'walking', access: 'bank' }, { travel: 'idle', access: 'bank' }), undefined, 'a walker\'s access was the bank rule already');
+  assert.equal(lifeStep({ travel: 'walking', access: 'room' }, { travel: 'idle', access: 'bank' }), 'empty', 'a walker reaching a bank place');
+  assert.equal(lifeStep({ travel: 'walking', access: 'room' }, { travel: 'idle', access: 'bank' }, { line: true }), undefined, 'a supplier on a carried line keeps its room at a bank place');
+  assert.equal(lifeStep({ travel: 'idle', access: 'room' }, { travel: 'with', access: 'bank' }, { line: true }), 'empty', 'coming aboard still empties it');
+  assert.equal(lifeStep({ travel: 'walking', access: 'room' }, { travel: 'idle', access: 'room' }), undefined, 'a walker stopping in the wild');
   assert.equal(lifeStep({ travel: 'idle', access: 'room' }, { travel: 'idle', access: 'bank' }), 'empty', 'a tent struck nearby, the haul turned off');
-  assert.equal(lifeStep({ travel: 'idle', access: 'room' }, { travel: 'walking', access: 'bank' }), undefined, 'the room walks along');
+  assert.equal(lifeStep({ travel: 'idle', access: 'room' }, { travel: 'walking', access: 'room' }), undefined, 'the room walks along');
   assert.equal(lifeStep({ travel: 'idle', access: 'room' }, { travel: 'idle', access: 'room' }), undefined);
   assert.equal(lifeStep({ travel: 'with', access: 'bank' }, { travel: 'with', access: 'bank' }), undefined);
 });
@@ -119,4 +129,12 @@ test('tent depots: the nearest tent within a hex, the hook answer, and what to r
   const off = depotSync([t1, t2], reg, false);
   assert.deepEqual(off.register, []);
   assert.deepEqual(off.drop.sort(), ['1,1', '5,5']);
+});
+
+test('a supplier held back for a courier is not collected from', () => {
+  const dist = (a, b) => Math.abs(a.q - b.q) + Math.abs(a.r - b.r);
+  const folks = [{ id: 'a', travel: 'idle', place: { q: 0, r: 0 } }, { id: 'b', travel: 'idle', place: { q: 0, r: 0 } }];
+  const rooms = () => ({ haul: [{ itemId: 'x', qty: 1 }] });
+  const out = collectFrom(folks, { q: 0, r: 0 }, { distance: dist, rooms, keep: (f) => f.id === 'a' });
+  assert.deepEqual(out.map((f) => f.id), ['b']);
 });

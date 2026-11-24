@@ -1,6 +1,54 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as B from '../src/backup-model.mjs';
+import { SAVE_VERSION, defaultSave, loadSave, serializeSave } from '../src/voyage-model.mjs';
+import { cleanCouriers, newCourier, startLeg } from '../src/courier-model.mjs';
+
+const SEA = new Set(['1,0', '2,0', '3,0', '9,9']);
+const seaOpts = { isSea: (h) => SEA.has(`${h.q},${h.r}`), coast: () => ({ q: 9, r: 9 }) };
+const walk = [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }, { q: 3, r: 0 }, { q: 4, r: 0 }];
+
+test('a copy at sea on the hex you stand on comes back as it is', () => {
+  const rec = { voyage: { walk, at: 1 }, adrift: null, ship: null, boat: { q: 1, r: 0, hull: 'dinghy' } };
+  assert.equal(B.settleAtSea(rec, { q: 1, r: 0 }, seaOpts), rec);
+});
+
+test('you sailed on after the copy: your vessel comes to your hex', () => {
+  const rec = { voyage: { walk, at: 1 }, adrift: null, ship: null, boat: { q: 1, r: 0, hull: 'dinghy' } };
+  const out = B.settleAtSea(rec, { q: 3, r: 0 }, seaOpts);
+  assert.deepEqual([out.boat.q, out.boat.r], [3, 0]);
+  assert.deepEqual(rec.boat, { q: 1, r: 0, hull: 'dinghy' }, 'the copy is not changed');
+});
+
+test('the big ship brings the boat on its deck', () => {
+  const rec = { voyage: { walk, at: 1 }, adrift: null, ship: { q: 1, r: 0 }, boat: { q: 1, r: 0, aboard: true } };
+  const out = B.settleAtSea(rec, { q: 2, r: 0 }, seaOpts);
+  assert.deepEqual([out.ship.q, out.boat.q, out.boat.aboard], [2, 2, true]);
+});
+
+test('stepped ashore on the way: the vessel waits on the last sea hex', () => {
+  const rec = { voyage: { walk, at: 1 }, adrift: null, ship: null, boat: { q: 1, r: 0 } };
+  const out = B.settleAtSea(rec, { q: 4, r: 0 }, seaOpts);
+  assert.deepEqual([out.boat.q, out.boat.r], [3, 0]);
+});
+
+test('on land off the way: the vessel comes to a coast', () => {
+  const rec = { voyage: { walk, at: 1 }, adrift: null, ship: null, boat: { q: 1, r: 0 } };
+  const out = B.settleAtSea(rec, { q: 7, r: 7 }, seaOpts);
+  assert.deepEqual([out.boat.q, out.boat.r], [9, 9]);
+});
+
+test('an Adrift spell left behind ends and its vessel follows', () => {
+  const rec = { voyage: null, adrift: { q: 1, r: 0 }, ship: null, boat: { q: 1, r: 0 } };
+  const out = B.settleAtSea(rec, { q: 2, r: 0 }, seaOpts);
+  assert.equal(out.adrift, null);
+  assert.equal(out.boat.q, 2);
+});
+
+test('ashore in the copy nothing is moved', () => {
+  const rec = { voyage: null, adrift: null, ship: null, boat: { q: 1, r: 0 } };
+  assert.equal(B.settleAtSea(rec, { q: 2, r: 0 }, seaOpts), rec);
+});
 
 const record = JSON.stringify({ v: 27, landHexes: 10, journal: { found: { 'melvorD:Normal': ['14,10'] } } });
 const sample = () => B.make({
@@ -146,4 +194,53 @@ test('with a Worker Folks that backs itself up, its whole code rides along uncha
 test('Worker Folks\' own code pasted here is told apart: it is restored on the Hiring page', async () => {
   assert.deepEqual(await B.decode('FOLKS-BACKUP:z:AbCd', 27), { why: 'folks' });
   assert.deepEqual(await B.decode(' FOLKS-BACKUP:j:\nAbCd ', 27), { why: 'folks' });
+});
+
+test('a safety copy taken mid-route brings back couriers, the walks and the route choice', async () => {
+  const step = (q, r) => ({ q, r, cls: 'grasslands', ms: 100 });
+  const stops = [{ kind: 'bank', q: 0, r: 0 }, { kind: 'folk', id: 'lark' }];
+  const courier = {
+    ...startLeg(newCourier(stops, { q: 0, r: 0 }), { q: 0, r: 0 }, [step(1, 0), step(2, 0)]),
+    reached: 1, into: 40, pending: [{ kind: 'bank', q: 3, r: 0 }, { kind: 'folk', id: 'ingrid' }],
+    pack: { food: 12, fuel: 3 },
+    round: { carried: { 'f:lark': 2000 }, ms: 5000, fares: 10, trips: 1 },
+    last: { carried: { 'f:lark': 9000 }, ms: 20000, fares: 40, trips: 2 },
+  };
+  const walk = { to: { q: 5, r: 5 } };
+  const record = {
+    ...defaultSave(), routeBy: 'fast', couriers: { rolf: courier }, walks: { jory: walk },
+    voyage: { walk: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }], at: 1 }, boat: { q: 1, r: 0, hull: 'dinghy' },
+  };
+  const b = B.make({
+    record: serializeSave(record), xp: 500, name: 'A', mode: 'melvorD:Standard', save: SAVE_VERSION, at: 1,
+    folks: [{ id: 'rolf', name: 'Rolf', place: { q: 1, r: 0 }, travel: 'walking', traits: [] }, { id: 'jory', name: 'Jory', place: { q: 2, r: 2 }, travel: 'walking', traits: [] }],
+  });
+  const { backup } = await B.decode(await B.encode(b), SAVE_VERSION);
+  const raw = loadSave(backup.record).save;
+  const save = B.settleAtSea(raw, { q: 2, r: 0 }, seaOpts);
+  assert.equal(save.routeBy, 'fast');
+  assert.deepEqual(cleanCouriers(save.couriers), { rolf: courier });
+  assert.deepEqual(save.walks, { jory: walk });
+  assert.deepEqual([save.boat.q, save.boat.r], [2, 0], 'the vessel comes to where the game has you');
+  const now = [
+    { id: 'rolf', name: 'Rolf', place: { q: 9, r: 9 }, travel: 'idle', traits: [] },
+    { id: 'jory', name: 'Jory', place: { q: 9, r: 8 }, travel: 'idle', traits: [] },
+    { id: 'new', name: 'New', place: { q: 7, r: 7 }, travel: 'walking', traits: [] },
+  ];
+  const plan = B.folksPlan(backup, now, { ...save.walks, ...save.couriers });
+  assert.deepEqual(plan.moves.map((m) => [m.id, m.travel]), [['rolf', 'walking'], ['jory', 'walking']], 'a courier and a walker stay on the road');
+  assert.deepEqual(plan.halt.map((h) => h.id), ['new']);
+});
+
+test('a loaded file must start like a code, and an oversized or bomb code is refused', async () => {
+  assert.equal(B.looksLikeCode('  VOYAGE-BACKUP:z:abc'), true);
+  assert.equal(B.looksLikeCode('hello'), false);
+  assert.equal(B.looksLikeCode(''), false);
+  assert.deepEqual(await B.decode('x'.repeat(B.MAX_CODE + 1), SAVE_VERSION), { why: 'broken' });
+  const zero = new Uint8Array(B.MAX_UNPACKED + 1024);
+  const w = new CompressionStream('deflate-raw');
+  const packed = new Uint8Array(await new Response(new Blob([zero]).stream().pipeThrough(w)).arrayBuffer());
+  const code = `VOYAGE-BACKUP:z:${Buffer.from(packed).toString('base64')}`;
+  assert.ok(code.length < B.MAX_CODE);
+  assert.deepEqual(await B.decode(code, SAVE_VERSION), { why: 'broken' });
 });

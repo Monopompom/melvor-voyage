@@ -23,7 +23,7 @@ const ROOT_ID = 'voyage-journal';
 /** Skills that work anywhere, named on the crafts page. */
 const ANYWHERE = ['melvorD:Agility', 'melvorD:Prayer', 'melvorAoD:Cartography', 'melvorD:Astrology'];
 
-export function install(ctx, { state, model, journalModel: jm, figures, shipModel, storesModel, rules, terrainMod, shortNumber, decimal, log }) {
+export function install(ctx, { state, model, journalModel: jm, courierModel, figures, shipModel, storesModel, rules, terrainMod, shortNumber, decimal, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const iconUrl = ctx.getResourceUrl('assets/journal.webp');
@@ -343,11 +343,12 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     if (b.kind === 'p') return `<p class="vj-p">${rich(b.text)}</p>`;
     // A table of figures this section draws as a chart (journal-figures-model.mjs); its words and numbers stay.
     const spec = figs?.[nth++];
-    if (spec !== undefined) return figures.figureTable(spec, b.head.map((c) => rich(c)), b.rows.map((r) => ({ cells: b.head.map((_, i) => ({ html: rich(r[i] ?? ''), text: r[i] ?? '', cls: '' })) })));
+    if (spec !== undefined && spec.kind !== 'stack') return figures.figureTable(spec, b.head.map((c) => rich(c)), b.rows.map((r) => ({ cells: b.head.map((_, i) => ({ html: rich(r[i] ?? ''), text: r[i] ?? '', cls: '' })) })));
     const num = b.head.map((_, i) => i > 0 && b.rows.length > 0 && b.rows.every((r) => FIGURE.test(r[i] ?? '')));
     const end = (i) => (i > 0 && i === b.head.length - 1 && !num[i] && num.some(Boolean) ? 'vj-end' : '');
-    return `<table class="vj-ledger"><thead><tr>${b.head.map((c, i) => `<th class="${num[i] ? 'vj-num' : end(i)}">${rich(c)}</th>`).join('')}</tr></thead>`
-      + `<tbody>${b.rows.map((r) => `<tr>${b.head.map((_, i) => `<td class="${i === 0 ? 'vj-first' : ''}${num[i] ? ' vj-num' : end(i) ? ' vj-end' : ''}">${rich(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    const stack = spec?.kind === 'stack';
+    return `<table class="vj-ledger${stack ? ' vj-stack vj-stack-words' : ''}"><thead><tr>${b.head.map((c, i) => `<th class="${num[i] ? 'vj-num' : end(i)}">${rich(c)}</th>`).join('')}</tr></thead>`
+      + `<tbody>${b.rows.map((r) => `<tr>${b.head.map((_, i) => `<td class="${i === 0 ? 'vj-first' : ''}${num[i] ? ' vj-num' : end(i) ? ' vj-end' : ''}"${stack ? ` data-th="${esc(b.head[i])}"` : ''}>${rich(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   }).join(''); };
   const dropCap = (text) => { const s = String(text); return `<p class="vj-p vj-lead"><span class="vj-dropcap">${esc(s.slice(0, 1))}</span>${rich(s.slice(1))}</p>`; };
   const mapButton = (kind, id) => `<button type="button" class="vj-btn" data-vj-map="${esc(kind)}" data-vj-id="${esc(id)}">`
@@ -372,7 +373,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
       if (it.table !== undefined) {
         const spec = d?.figs?.[nth++];
         if (spec !== undefined) return figures.figureTable(spec, it.table.cols.map((c) => esc(c)), it.table.rows.map((r) => ({ cells: r.cells.map((c, i) => ({ html: esc(c), text: c, cls: i === 0 ? '' : r.cls?.[i - 1] ?? '' })) })));
-        const rows = it.table.rows.map((r) => r.cells.map((c, i) => (i === 0 ? { text: c } : { text: c, cls: `vj-num ${r.cls?.[i - 1] ?? ''}` })));
+        const rows = it.table.rows.map((r) => r.cells.map((c, i) => (i === 0 ? { text: c } : { text: c, cls: `vj-num${FIGURE.test(c) ? '' : ' vj-wraps'} ${r.cls?.[i - 1] ?? ''}` })));
         rows.numeric = it.table.cols.map((_, i) => i > 0);
         return ledger(it.table.cols, rows);
       }
@@ -486,7 +487,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     const em = state.events?.model;
     const num = (x) => (Number.isFinite(x) ? `${Math.round(x)}` : '');
     return { key: state.settings.centreKey?.() || '', journal: state.settings.journalKey?.() || '',
-      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, recent: `${model.RECENT_MAX}`, gp: nav === undefined ? '' : shortNumber(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
+      level: `${nav?.level ?? ''}`, planLevel: `${state.planner?.PLAN_LEVEL ?? ''}`, courierStops: `${courierModel.STOPS_MAX}`, courierLoad: `${courierModel.LOAD_SCALE}`, packetMinutes: `${courierModel.PACKET_HEX_MS / 60000}`, courierLinkLevel: `${courierModel.CARRIED_LINK_HIRING}`, inputShare: `${Math.round(courierModel.INPUT_BANK_SHARE * 100)}`, recent: `${model.RECENT_MAX}`, gp: nav === undefined ? '' : shortNumber(nav.gp), pitch: `${nav?.items?.[0]?.quantity ?? ''}`,
       signLevel: `${state.landModel?.SIGN.level ?? 35}`, map: state.settings.mapKey?.() || '',
       quay: state.settings.quayKey?.() || '', places: state.settings.placesKey?.() || '',
       stowShare: num(em?.STOWAWAY_PRICE_SHARE * 100), hungryPct: num(storesModel?.HUNGRY_GP * 100),
@@ -695,6 +696,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
       if (id === 'road' && sec === 'MOUNTS') html += mountsTable() + unicorn();
       if (id === 'road' && sec === 'SIGN') html += signLedger();
       if (id === 'crew_hire' && sec === 'START') html += crewAboard();
+      if (id === 'crew_hire' && sec === 'WORKER') html += crewQual(vars);
       if (id === 'crew_ranks' && sec === 'TIERS') html += crewTiers();
       if (id === 'crew_ranks' && sec === 'LICENCES') html += crewLicences();
       if (id === 'adventure' && sec === 'FIRST') { try { const band = state.compass?.firstSteps?.(0); if (band !== undefined) html += bookSections([{ ...band, head: undefined }]); } catch (e) { log('journal first steps failed', e); } }
@@ -843,6 +845,14 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     rows.numeric = [false, false, true, true];
     rows.stack = true;
     return ledger([t('MOD_VOY_JOURNAL_CREW_COL_RANK'), t('MOD_VOY_JOURNAL_CREW_COL_RATE'), t('MOD_VOY_JOURNAL_CREW_COL_WAGE'), t('MOD_VOY_JOURNAL_CREW_COL_HIRE')], rows);
+  };
+  /** The level of yours each rank needs, under the rule's line; nothing while Worker Folks doesn't report it. */
+  const crewQual = (vars) => {
+    if (!folksOn() || vars.wfHas?.qual !== true) return '';
+    const q = folksRules().qualification;
+    const rows = jm.CREW_TIERS.map((x, i) => [{ text: roleName(x.tier) }, { text: shortNumber(q[i]), cls: 'vj-num' }]);
+    rows.numeric = [false, true];
+    return ledger([t('MOD_VOY_JOURNAL_CREW_COL_RANK'), t('MOD_VOY_JOURNAL_CREW_COL_QUAL')], rows);
   };
   const crewLicences = () => {
     const dungeon = (id) => { try { return game.dungeons.getObjectByID(id)?.name; } catch { return undefined; } };
@@ -1042,7 +1052,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     return `<div class="vj-section"><h3 class="vj-h3 vj-pilot-head">${fa('fa-award', 'vj-h3-icon')}<span>${esc(t('MOD_VOY_JOURNAL_LEVELS_HEAD'))}</span><small class="vj-pilot-count">${esc(t('MOD_VOY_JOURNAL_LEVELS_COUNT', { n: `${reached}`, max: `${ms.length}` }))}</small></h3><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_BODY'))}</p>`
       + `<ol class="vj-trail" data-no-skill-names>${rows}</ol>`
       // The balance pass: the reward every level gives (model.travelDiscount).
-      + `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_DISCOUNT', { per: `${model.TRAVEL_DISCOUNT_PER_LEVEL}`, pct: `${model.travelDiscount(sk.level)}` }))}</p></div>`;
+      + `<p class="vj-p">${esc(t('MOD_VOY_JOURNAL_LEVELS_DISCOUNT', { per: decimal(model.TRAVEL_DISCOUNT_PER_LEVEL, 2), pct: decimal(model.travelDiscount(sk.level), 2) }))}</p></div>`;
   };
   /**
    * The last voyages' receipts (save v30, the clock's tally filed when a voyage ends, online or offline): the newest in
@@ -1142,7 +1152,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
    */
   const searchBox = (id, labelKey, value) => `<div class="vj-search"><label for="${id}">${esc(t(labelKey))}</label><div class="vj-search-box">`
     + '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg>'
-    + `<input id="${id}" type="search" autocomplete="off" value="${esc(value)}">`
+    + `<input id="${id}" type="search" autocomplete="off" maxlength="60" value="${esc(value)}">`
     + `<button type="button" class="vj-search-clear" data-vj-clear="${id}" aria-label="${esc(t('MOD_VOY_JOURNAL_SEARCH_CLEAR'))}"${value === '' ? ' hidden' : ''}>`
     + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"></path></svg></button></div></div>';
   // The list a page was drawn from and its search index (made on the first query), kept while you type in its search
@@ -1159,7 +1169,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
   };
   /** The ids that `query` finds in a kept list ({ all, index? }, entries the search takes), or undefined for no query. */
   const hitsIn = (idx, query, entry) => {
-    if (jm.fold(query) === '') return undefined;
+    if (jm.fold(query) === '') return String(query ?? '').trim() === '' ? undefined : new Set(); // only marks or an emoji: no match, not the whole list
     idx.index ??= jm.searchIndex(entry === undefined ? idx.all : idx.all.map(entry));
     return new Set(jm.searchIn(idx.index, query));
   };
@@ -1764,7 +1774,7 @@ export function install(ctx, { state, model, journalModel: jm, figures, shipMode
     const shown = jm.folksLines(points, folksOn());
     const right = runningHead(t('MOD_VOY_JOURNAL_TAB_GUIDE'), guideTitle(view.guide))
       + `<h2 class="vj-h1">${esc(guideTitle(view.guide))}</h2>` + dropCap(lead) + prose(rest)
-      + (shown.length > 0 ? `<ul class="vj-points">${shown.map((p) => `<li>${rich(p)}</li>`).join('')}</ul>` : '') + guideSections(view.guide)
+      + prose(shown.map((p) => (/^\s*\|/.test(p) ? p : `- ${p}`))) + guideSections(view.guide)
       + (view.back !== null ? `<div class="vj-foot vj-foot-end"><button type="button" class="vj-btn" data-vj-back="1">${esc(t('MOD_VOY_JOURNAL_BACK'))}</button></div>` : '');
     return { left, right };
   };

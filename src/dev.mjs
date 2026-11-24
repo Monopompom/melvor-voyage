@@ -231,6 +231,26 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       return { from, to, hexes: road.length, minutes: Math.round(ms / 60000), classes: road.map((s) => s.cls).join(' '), canWalk: state.walks.canWalk() };
     },
     /**
+     * A courier's route by the Folk's name: courier('Ingrid', [{ kind: 'bank', q, r }, { kind: 'folk', id }]) sets it, with
+     * no stops it reads it, with null it deletes it. Answers the route problem, if any.
+     */
+    courier(name, stops) {
+      const a = state.folksApi?.();
+      const f = a?.folks().find((x) => x.name.startsWith(name));
+      if (f === undefined || state.couriers === undefined) return 'no such Folk, or couriers not loaded';
+      if (stops === null) return state.couriers.deleteRoute(f.id);
+      if (stops !== undefined) { const problem = state.couriers.setRoute(f.id, stops); if (problem !== undefined) return problem; }
+      return { id: f.id, job: f.job, travel: f.travel, place: f.place, courier: state.couriers.all()?.[f.id], room: a.room(f.id) };
+    },
+    /**
+     * What the courier code keeps between looks: roads and packets found, its per-courier maps, the saved routes' size.
+     * `problems` is empty when everything is within its cap and no entry is left for a Folk that is gone. Read it before
+     * and after a long Welcome Back: voyageDev.courierKept()
+     */
+    courierKept() {
+      return state.couriers?.kept?.() ?? 'couriers not loaded';
+    },
+    /**
      * The Folks walking alone (6d), or with `minutes` every walk moved that far along (its start set back), so the
      * next tick steps it on or ends it. voyageDev.walks(10)
      */

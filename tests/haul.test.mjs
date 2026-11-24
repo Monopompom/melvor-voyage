@@ -109,6 +109,31 @@ test('a Folk coming aboard empties its room to the bank; one walking keeps it', 
   assert.ok(fake.calls.includes('empty:a'));
 });
 
+test('a walking Folk answers its room on the road, joins no tent depot, and empties on reaching a bank place', () => {
+  const fake = fakeFolks();
+  fake.api.registerDepot = () => true;
+  fake.api.depot = () => ({ state: 'ok', haul: [], stock: [], purse: [] });
+  const { out, state } = setup(fake);
+  state.outposts = { list: () => [{ key: 'camp', name: 'Camp', q: 1, r: 0 }] };
+  out.syncDepots();
+  assert.deepEqual(fake.api.hook({ id: 'a', travel: 'idle', place: { q: 1, r: 0 } }), { access: 'room', depot: 'camp' }, 'standing by the tent');
+  assert.equal(fake.api.hook({ id: 'a', travel: 'walking', place: { q: 1, r: 0 } }), 'room', 'passing the tent');
+  assert.equal(fake.api.hook({ id: 'a', travel: 'walking', place: { q: 6, r: 0 } }), 'room', 'passing a port');
+  fake.emit('folkAssigned', { folk: { id: 'a', travel: 'walking', place: { q: 1, r: 0 } } });
+  fake.emit('folkMoved', { folk: { id: 'a', name: 'Ada', travel: 'walking', place: { q: 6, r: 0 } } });
+  assert.ok(!fake.calls.includes('empty:a'), 'walking past keeps it');
+  fake.emit('folkMoved', { folk: { id: 'a', name: 'Ada', travel: 'idle', place: { q: 6, r: 0 } } });
+  assert.ok(fake.calls.includes('empty:a'), 'arrived at the port');
+});
+
+test('a walking Folk with a full room reads no stop word: it is on the road, not stopped', () => {
+  const fake = fakeFolks();
+  fake.rooms.a = { ...fake.rooms.a, state: 'full' };
+  const { out } = setup(fake);
+  assert.equal(out.folkWord({ id: 'a', travel: 'idle' }), 'MOD_VOY_HAUL_STATE_FULL');
+  assert.equal(out.folkWord({ id: 'a', travel: 'walking' }), '');
+});
+
 test('turning the setting off refreshes the access and empties every room; the hook then answers the bank', () => {
   const fake = fakeFolks();
   let on = true;
@@ -267,4 +292,26 @@ test('on load, before offline progress: the tents registered and every answer as
   assert.deepEqual(fake.calls.filter((c) => c.startsWith('depot+')), ['depot+:1,0:48']);
   assert.ok(fake.calls.includes('refresh'));
   assert.deepEqual(fake.api.hook({ id: 'a', travel: 'idle', place: { q: 1, r: 0 } }), { access: 'room', depot: '1,0' });
+});
+
+test('a settings change while Voyage is still loading empties nothing: a reload leaves every haul where it is', () => {
+  const fake = fakeFolks(11);
+  const { state } = setup(fake);
+  let stoodDown = 0;
+  state.couriers = { standDown: () => { stoodDown += 1; } };
+  const active = state.active;
+  state.mode = 'dormant';
+  state.active = () => false;
+  fake.calls.length = 0;
+  state.listeners.forEach((fn) => fn());
+  assert.ok(!fake.calls.some((c) => c.startsWith('empty:')), 'no room emptied');
+  assert.equal(stoodDown, 0, 'no courier taken off its job');
+  state.mode = 'strict';
+  state.active = active;
+  state.listeners.forEach((fn) => fn());
+  assert.ok(!fake.calls.some((c) => c.startsWith('empty:')), 'the rules coming up empties nothing either');
+  state.settings.haul = () => false;
+  state.listeners.forEach((fn) => fn());
+  assert.ok(fake.calls.includes('empty:all'), 'a real switch-off still empties');
+  assert.equal(stoodDown, 1, 'and takes couriers off first');
 });

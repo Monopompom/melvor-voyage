@@ -13,7 +13,7 @@ export const wordTest = (w) => (/\p{Script=Han}/u.test(w) ? (x) => x.includes(w)
 /** True when every word of `query` starts a word of `name` ("fro dri" finds Frost Drift Port). An empty query finds all. */
 export function matches(name, query) {
   const words = fold(query).split(' ').filter((w) => w !== '');
-  if (words.length === 0) return true;
+  if (words.length === 0) return String(query ?? '').trim() === ''; // only marks or an emoji match nothing
   const have = fold(name).split(' ');
   return words.map(wordTest).every((hit) => have.some(hit));
 }

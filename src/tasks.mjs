@@ -10,6 +10,9 @@ const BRING_SKILLS = ['melvorD:Mining', 'melvorD:Woodcutting', 'melvorD:Fishing'
 const NO_TASKS = ['FakePort'];
 const PIN = '<svg aria-hidden="true" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 44s14-13 14-24a14 14 0 0 0-28 0c0 11 14 24 14 24z"></path><circle cx="24" cy="20" r="5"></circle></svg>';
 
+/** Chinese breaks between any two characters: a place name stays whole on its line. */
+const tieCjk = (x) => String(x).replace(/[\u4e00-\u9fff](?=[\u4e00-\u9fff])/g, '$&\u2060');
+
 export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded, hexes, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -139,11 +142,12 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     notify(`${t(why, { gp: shortNumber(task.gp), xp: shortNumber(task.xp) })}${extra}`);
     log(`task ${task.id} done: ${task.gp} GP, ${task.xp} XP${extra}`);
   };
+  const waitText = (ms) => state.clock?.duration?.(ms) ?? `${Math.ceil(ms / 60000)}m`;
   const take = (id, poi) => {
     const d = data();
     if (d === undefined || here() !== poi || d.cur !== null) return false;
     const wait = TM.waitLeft(d.wait, Date.now());
-    if (wait > 0) { notify(t('MOD_VOY_TASK_WAIT', { m: `${Math.ceil(wait / 60000)}` }), 'danger'); return false; }
+    if (wait > 0) { notify(t('MOD_VOY_TASK_WAIT', { time: waitText(wait) }), 'danger'); return false; }
     const list = board(poi);
     const n = list.find((x) => x.id === id);
     if (n === undefined) return false;
@@ -239,7 +243,7 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
   const what = (n) => {
     if (n.k === 'reach') return `<b>${esc(t('MOD_VOY_TASK_REACH'))}</b>`;
     const item = game.items.getObjectByID(n.item);
-    return t('MOD_VOY_TASK_BRING', { n: qty(n.n), item: `<b>${esc(item?.name ?? n.item)}</b>`, port: `<b>${esc(portName(n.to))}</b>` });
+    return t('MOD_VOY_TASK_BRING', { n: qty(n.n), item: `<b>${esc(item?.name ?? n.item)}</b>`, port: `<b>${esc(tieCjk(portName(n.to)))}</b>` });
   };
   const payBlock = (n) => `<div class="voyage-cargo-pay"><div>${icon(game.gp.media)}${t('MOD_VOY_ENC_GP', { gp: `<b class="text-success">${shortNumber(n.gp)}</b>` })}</div>` +
     `<div>${icon(skill()?.media)}<b class="text-success">${shortNumber(n.xp)}</b> <span data-no-skill-names>${esc(t('MOD_VOY_CARGO_XP'))}</span></div></div>`;
@@ -258,7 +262,7 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
       lines.push(`<div>${esc(way(cur, true))}</div>`, `<div class="text-muted">${esc(t('MOD_VOY_TASK_REACH_NOTE'))}</div>`);
     } else {
       const got = TM.progressOf(cur, found(cur.item));
-      const pct = Math.round((100 * got) / cur.n);
+      const pct = cur.n > 0 ? Math.max(0, Math.min(100, Math.round((100 * got) / cur.n))) : 0;
       lines.push(`<div class="voyage-task-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${cur.n}" aria-valuenow="${got}"><div style="width:${pct}%"></div></div>`);
       lines.push(`<div class="text-muted">${esc(t('MOD_VOY_TASK_GOT', { got: qty(got), n: qty(cur.n) }))}</div>`);
       if (poi === cur.to) {
@@ -272,7 +276,7 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
       lines.push(`<div class="text-warning">${esc(t('MOD_VOY_TASK_DROP_SURE'))}</div>`);
       // A pair: Keep it first, Drop it last.
       acts.push(button('btn-outline-info', t('MOD_VOY_CARGO_DROP_NO'), 'data-task="drop-no"'), button('btn-danger', t('MOD_VOY_CARGO_DROP_YES'), 'data-task="drop-yes"'));
-    } else acts.push(button('btn-outline-danger btn-sm', t('MOD_VOY_CARGO_DROP'), 'data-task="drop"'));
+    } else acts.push(button('btn-outline-danger', t('MOD_VOY_CARGO_DROP'), 'data-task="drop"'));
     return row(TM.isLate(cur, Date.now()) ? { ...cur, gp: TM.lateGp(cur), xp: 0 } : cur, lines, acts.join(''), 'voyage-task-cur');
   };
   const noticeRow = (n, poi, why) => {
@@ -293,7 +297,7 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     out += `<div class="voyage-cargo-head">${esc(t('MOD_VOY_TASK_POSTED'))}</div>`;
     const list = board(poi);
     const wait = TM.waitLeft(d.wait, Date.now());
-    const why = d.cur !== null ? t('MOD_VOY_TASK_ONE') : wait > 0 ? t('MOD_VOY_TASK_WAIT', { m: `${Math.ceil(wait / 60000)}` }) : undefined;
+    const why = d.cur !== null ? t('MOD_VOY_TASK_ONE') : wait > 0 ? t('MOD_VOY_TASK_WAIT', { time: waitText(wait) }) : undefined;
     out += list.length === 0 ? `<div class="voyage-cargo-empty">${esc(t('MOD_VOY_TASK_NONE'))}</div>` : list.map((n) => noticeRow(n, poi, why)).join('');
     if (why !== undefined && list.length > 0) out += `<div class="text-warning text-center">${esc(why)}</div>`;
     return `${out}<div class="voyage-cargo-foot text-muted">${esc(t('MOD_VOY_TASK_FOOT', { when: state.cargo?.untilNext?.() ?? '' }))}</div>`;

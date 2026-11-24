@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../src/stores-model.mjs';
-import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs, legPath, worthLoading, travelHandover, addDrawn } from '../src/plan-model.mjs';
+import { NAVIGATOR, navigatorBlocker, simulateLoad, splitLegs, legPath, worthLoading, travelHandover, addDrawn, routeChoices, routeByNow, pickRoute } from '../src/plan-model.mjs';
 import { planLoad } from '../src/supply-model.mjs';
 
 test('Navigator\'s Charts: owned, level, port, cost, then buyable', () => {
@@ -114,7 +114,7 @@ test('save v9: Navigator\'s Charts start unbought and stay bought', async () => 
   const old = { ...defaultSave(), v: 8 };
   delete old.navigator;
   const { save, report } = loadSave(JSON.stringify(old));
-  assert.deepEqual(report.applied, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]);
+  assert.deepEqual(report.applied, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]);
   assert.equal(save.navigator, false);
   const bought = loadSave(serializeSave({ ...save, navigator: true })).save;
   assert.equal(bought.navigator, true);
@@ -158,4 +158,27 @@ test('the map\'s Travel keeps the plan: the route on the plan\'s own way, the pi
   assert.equal(travelHandover(planHexes, [hex(4, 5), hex(3, 5), hex(2, 5)], planPath), 'none');
   assert.equal(travelHandover(planHexes, [], planPath), 'none');
   assert.equal(travelHandover(planHexes, undefined, planPath), 'none');
+});
+
+test('route choices: none with the rules off, no fastest without Timed travel', () => {
+  assert.deepEqual(routeChoices({ rules: false, timed: true }), []);
+  assert.deepEqual(routeChoices({ rules: true, timed: false }), ['cheap', 'hexes']);
+  assert.deepEqual(routeChoices({ rules: true, timed: true }), ['cheap', 'fast', 'hexes']);
+});
+test('a saved route choice not on offer falls back to the cheapest', () => {
+  assert.equal(routeByNow('fast', { rules: true, timed: true }), 'fast');
+  assert.equal(routeByNow('fast', { rules: true, timed: false }), 'cheap');
+  assert.equal(routeByNow('hexes', { rules: false, timed: true }), 'cheap');
+  assert.equal(routeByNow(undefined, { rules: true, timed: true }), 'cheap');
+});
+test('the chosen route replaces the cheapest only when it really beats it', () => {
+  const cheap = { dest: 'a', path: [1, 2, 3], ms: 100 };
+  const faster = { dest: 'b', path: [1, 2, 3, 4], ms: 90 };
+  const tied = { dest: 'c', path: [1, 2], ms: 100 };
+  const slower = { dest: 'd', path: [1], ms: 120 };
+  const byMs = (r) => r.ms;
+  assert.deepEqual(pickRoute(cheap, faster, byMs), { ...faster, same: false });
+  assert.deepEqual(pickRoute(cheap, tied, byMs), { ...cheap, same: true });
+  assert.deepEqual(pickRoute(cheap, slower, byMs), { ...cheap, same: true });
+  assert.deepEqual(pickRoute(cheap, undefined, byMs), { ...cheap, same: true });
 });

@@ -23,7 +23,7 @@
         "category": "Voyage",
         "type": "Misc",
         "media": "assets/pitch.webp",
-        "customDescription": "With logs, it repairs a ship's hull on the Voyage page. Any log burned in the Melvor realm, mods' logs too, has a chance to make it: the better the log, the more often. Abyssal logs never do.",
+        "customDescription": "With logs, it repairs a ship’s hull on the Voyage page. Any log burned in the Melvor realm, mods' logs too, has a chance to make it: the better the log, the more often. Abyssal logs never do.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
@@ -192,7 +192,7 @@
         "category": "Voyage",
         "type": "Misc",
         "media": "assets/grapeshot.webp",
-        "customDescription": "A canvas bag of iron balls round a wooden spindle: a heavy hit that costs you 1 Resolve. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up.",
+        "customDescription": "A canvas bag of iron balls round a wooden spindle: a heavy hit that costs you 1 Resolve. A Supply card for your deck, used up when played.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
@@ -205,7 +205,7 @@
         "category": "Voyage",
         "type": "Misc",
         "media": "assets/smoke_pot.webp",
-        "customDescription": "A clay pot of smouldering pitch, coal and sourweed. Their Strike, Charge or Board this round misses. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up.",
+        "customDescription": "A clay pot of smouldering pitch, coal and sourweed. Their Strike, Charge or Board this round misses. A Supply card for your deck, used up when played.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
@@ -218,7 +218,7 @@
         "category": "Voyage",
         "type": "Misc",
         "media": "assets/hot_meal.webp",
-        "customDescription": "Salmon and potato stew, seasoned with garum: it heals your Resolve. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up.",
+        "customDescription": "Salmon and potato stew, seasoned with garum: it heals your Resolve. A Supply card for your deck, used up when played.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
@@ -244,7 +244,7 @@
         "category": "Herblore",
         "type": "Potion",
         "media": "assets/bitter_draught_i.webp",
-        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up. Not a potion you drink at a skill.",
+        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card for your deck, used up when played. Not a potion you drink at a skill.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
@@ -261,7 +261,7 @@
         "category": "Herblore",
         "type": "Potion",
         "media": "assets/bitter_draught_ii.webp",
-        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up. Not a potion you drink at a skill.",
+        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card for your deck, used up when played. Not a potion you drink at a skill.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
@@ -278,7 +278,7 @@
         "category": "Herblore",
         "type": "Potion",
         "media": "assets/bitter_draught_iii.webp",
-        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up. Not a potion you drink at a skill.",
+        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card for your deck, used up when played. Not a potion you drink at a skill.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
@@ -295,7 +295,7 @@
         "category": "Herblore",
         "type": "Potion",
         "media": "assets/bitter_draught_iv.webp",
-        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card in your encounter deck (Voyage page, Deck): each one played is used up. Not a potion you drink at a skill.",
+        "customDescription": "Tar water with sourweed: their hits are weaker for the rest of the fight, the more the higher its tier. A Supply card for your deck, used up when played. Not a potion you drink at a skill.",
         "ignoreCompletion": true,
         "obtainFromItemLog": false,
         "golbinRaidExclusive": false,
@@ -812,6 +812,82 @@
         "showBuyLimit": false
       },
       {
+        "id": "Couriers_Licence",
+        "customName": "Courier's Licence",
+        "customDescription": "Lets a Folk take the Courier job: it walks a route of stops and carries what the Folks there hold to your bank.",
+        "media": "assets/couriers_licence.webp",
+        "category": "voyage:Voyage",
+        "contains": {
+          "items": [],
+          "modifiers": {}
+        },
+        "cost": {
+          "items": [],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 10000000
+            }
+          ]
+        },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          {
+            "type": "SkillLevel",
+            "skillID": "voyage:Voyage",
+            "level": 45
+          },
+          {
+            "type": "ShopPurchase",
+            "purchaseID": "voyage:Walking_Orders",
+            "count": 1
+          }
+        ],
+        "defaultBuyLimit": 1,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      },
+      {
+        "id": "Supply_Contracts",
+        "customName": "Supply Contracts",
+        "customDescription": "Couriers also bring your Folks their inputs from the bank, a quarter of a stack a trip, and from Hiring 60 carry supply lines along a route.",
+        "media": "assets/supply_contracts.webp",
+        "category": "voyage:Voyage",
+        "contains": {
+          "items": [],
+          "modifiers": {}
+        },
+        "cost": {
+          "items": [],
+          "currencies": [
+            {
+              "currency": "melvorD:GP",
+              "type": "Fixed",
+              "cost": 40000000
+            }
+          ]
+        },
+        "allowQuantityPurchase": false,
+        "unlockRequirements": [],
+        "purchaseRequirements": [
+          {
+            "type": "SkillLevel",
+            "skillID": "voyage:Voyage",
+            "level": 75
+          },
+          {
+            "type": "ShopPurchase",
+            "purchaseID": "voyage:Couriers_Licence",
+            "count": 1
+          }
+        ],
+        "defaultBuyLimit": 1,
+        "buyLimitOverrides": [],
+        "showBuyLimit": false
+      },
+      {
         "id": "Tent",
         "media": "assets/tent.webp",
         "category": "voyage:Voyage",
@@ -858,7 +934,7 @@
       {
         "id": "Dry_Casks",
         "customName": "Dry Casks",
-        "customDescription": "Pitch-sealed casks for your stores, a tent's store and a walking Folk's pack: everything you carry spoils at half the rate, for good.",
+        "customDescription": "Pitch-sealed casks for your stores, a tent’s store and a walking Folk’s pack: everything you carry spoils at half the rate, for good.",
         "media": "assets/dry_casks.webp",
         "category": "voyage:Voyage",
         "contains": {
@@ -909,6 +985,8 @@
           "voyage:Unicorn",
           "voyage:Crossroads_Sign",
           "voyage:Walking_Orders",
+          "voyage:Couriers_Licence",
+          "voyage:Supply_Contracts",
           "voyage:Tent",
           "voyage:Dry_Casks"
         ]

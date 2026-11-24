@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 32;
+export const SAVE_VERSION = 33;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -132,9 +132,11 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * contracts taken, checked by slayer-model.mjs cleanSlayer where it is read.
  * `pilotage` (save v32) is the hexes travelled in each sea and land region, { [area]: hexes }, checked by
  * pilotage-model.mjs cleanPilotage where it is read.
+ * `couriers` (save v33) is each courier's route and where it is on it, { [folkId]: courier }; the goods it carries stay
+ * in its Worker Folks room. Checked by courier-model.mjs cleanCouriers where it is read.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [], receipts: [], slayer: { near: false, taken: {} }, pilotage: {} };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, couriers: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [], receipts: [], slayer: { near: false, taken: {} }, pilotage: {}, routeBy: 'cheap' };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
@@ -241,6 +243,8 @@ export const MIGRATIONS = {
   30: (rec) => ({ ...rec, v: 31, slayer: { near: false, taken: {} } }),
   // Pilotage: nothing travelled yet (the hexes before it don't count).
   31: (rec) => ({ ...rec, v: 32, pilotage: {} }),
+  // round 4: no courier on a route yet
+  32: (rec) => ({ ...rec, v: 33, couriers: {}, routeBy: 'cheap' }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -394,6 +398,8 @@ function clean(rec) {
     jobs: cleanJobs(rec.jobs),
     // Folks walking alone (phase 6d): { folkId: walk }, checked by walk-model.mjs cleanWalks where it is read.
     walks: plainObject(rec.walks) ?? {},
+    // Couriers' routes (round 4): { folkId: courier }, checked by courier-model.mjs cleanCouriers where it is read.
+    couriers: plainObject(rec.couriers) ?? {},
     // Pitched tents (phase 6e): { "q,r": { food, fuel, at } }, checked by outpost-model.mjs cleanOutposts where it is read.
     outposts: plainObject(rec.outposts) ?? {},
     // Travel traits counted (phase 6f): { folkId: { counts, home } }, checked by folk-traits-model.mjs cleanFolkTraits where it is read.
@@ -412,6 +418,8 @@ function clean(rec) {
     // Spoilage (save v27): { at, cure, debt, tents, away }, checked by spoil-model.mjs cleanSpoil where it is read.
     spoil: plainObject(rec.spoil) ?? {},
     neverLoad: cleanNeverLoad(rec.neverLoad),
+    // The planner's route choice (round 4): cheapest, fastest or fewest hexes.
+    routeBy: cleanRouteBy(rec.routeBy),
     home: cleanHome(rec.home),
     recent: cleanRecent(rec.recent),
     receipts: cleanReceipts(rec.receipts),
@@ -436,6 +444,9 @@ const PICK = /^(none|go|m:[\w]+:[\w]+)$/;
 const hexOk = (h) => h !== null && typeof h === 'object' && Number.isInteger(h.q) && Number.isInteger(h.r) && Math.abs(h.q) < 10000 && Math.abs(h.r) < 10000;
 
 /** The home as saved: { q, r } of the place set as home, or null. */
+/** The planner's saved route choice: 'fast' or 'hexes', anything else the cheapest (the game's own way). */
+export const cleanRouteBy = (raw) => (raw === 'fast' || raw === 'hexes' ? raw : 'cheap');
+
 export function cleanHome(raw) {
   return hexOk(raw) ? { q: raw.q, r: raw.r } : null;
 }

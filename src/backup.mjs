@@ -1,15 +1,19 @@
 // Voyage backups on the page's foot (the user, 5 Nov 2026: "Export code only"): Back up shows a code to copy or
 // download; Restore takes a pasted code or a file, shows what it holds and, once confirmed, writes it back, saves and
-// reloads the game, as the game itself does after changing a save. Nothing runs by itself. The shape, the code and the
-// restore's arithmetic are src/backup-model.mjs.
+// reloads the game, as the game itself does after changing a save. These two run only when pressed; the automatic
+// safety copies are src/safety.mjs, using `safety` below. The shape, the code and the restore's arithmetic are
+// src/backup-model.mjs.
 
-const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
+const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1', validationMessage: 'text-warning' };
 const SWAL_WARN = { ...SWAL_CLASS, confirmButton: 'btn btn-warning m-1' };
 
-export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, log }) {
+export function install(ctx, { state, model, B, shipModel, helpLayout, BUILD, settingsIO, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const swalClass = (c) => (typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c);
+  // These titles name the mod, so the skill's icon stays off them.
+  const restoreTitle = () => `<span data-no-skill-names>${esc(t('MOD_VOY_RESTORE_TITLE'))}</span>`;
+  const backupTitle = () => `<span data-no-skill-names>${esc(t('MOD_VOY_BACKUP_TITLE'))}</span>`;
   const skill = () => state.voyageSkill?.();
   const STORAGE_KEYS = ['save'];
   /** Why a pasted code was refused (backup-model decode's reasons). */
@@ -24,8 +28,8 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
   const level = (xp) => { try { return exp.xpToLevel(xp); } catch { return 1; } };
   const nameOf = (id, list) => { try { return list.getObjectByID(id)?.name ?? id; } catch { return id; } };
   /** A refusal or a failure: one sentence under the Swal sign, OK green, as the mod's other refusals (gate, fog). */
-  const tell = (title, line, icon = 'info') => SwalLocale.fire({
-    customClass: swalClass(SWAL_CLASS), icon, title, html: helpLayout.msgHtml([esc(line)]), confirmButtonText: t('MOD_VOY_BUTTON_OK'), didRender: state.popupDidRender,
+  const tell = (title, line, icon = 'info', button = 'MOD_VOY_BUTTON_OK') => SwalLocale.fire({
+    customClass: swalClass(SWAL_CLASS), icon, title, html: helpLayout.msgHtml([esc(line)]), confirmButtonText: t(button), didRender: state.popupDidRender,
   });
 
   // ---- the popups' look: the help bands, a heading each, amber-edged where something is lost (help-layout.mjs) -----
@@ -96,27 +100,30 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     return out;
   };
 
+  /** The game now as a backup; `whole` all of Worker Folks as its own code, or null. */
+  const current = (s, whole) => B.make({
+    record: model.serializeSave(s.record), xp: s.xp, items: bankItems(), buys: shopBuys(),
+    settings: settingsIO?.read?.() ?? {}, storage: storage(), whole,
+    folks: (() => { const api = folksApi(); return api === undefined ? null : folksNow(api) ?? null; })(),
+    name: game.characterName, mode: game.currentGamemode?.id, mod: ctx.version, build: BUILD, save: model.SAVE_VERSION, at: Date.now(),
+  });
+
   // ---- Back up ----------------------------------------------------------------------------------------------------
   const backUp = async () => {
     const s = skill();
     if (s === undefined) return;
-    if (s.futureRaw !== undefined) { tell(t('MOD_VOY_BACKUP_TITLE'), t('MOD_VOY_BACKUP_FUTURE'), 'warning'); return; }
+    if (s.futureRaw !== undefined) { tell(backupTitle(), t('MOD_VOY_BACKUP_FUTURE'), 'warning'); return; }
     const why = B.blockedBy(s.record);
-    if (why === 'voyage' || why === 'adrift') { tell(t('MOD_VOY_BACKUP_TITLE'), t(why === 'voyage' ? 'MOD_VOY_BACKUP_NOT_AT_SEA' : 'MOD_VOY_BACKUP_NOT_ADRIFT'), 'warning'); return; }
+    if (why === 'voyage' || why === 'adrift') { tell(backupTitle(), t(why === 'voyage' ? 'MOD_VOY_BACKUP_NOT_AT_SEA' : 'MOD_VOY_BACKUP_NOT_ADRIFT'), 'warning'); return; }
     // All of Worker Folks too when it backs itself up; if it can't now, Voyage's backup goes on with its Folks half.
     let whole = null;
     const wa = wholeApi();
     if (wa !== undefined) {
       try { const r = await wa.backup(); if (r?.ok === true) whole = r.code; else log(`backup: Worker Folks' backup refused (${r?.why})`); } catch (e) { log('backup: Worker Folks\' backup failed', e); }
     }
-    const backup = B.make({
-      record: model.serializeSave(s.record), xp: s.xp, items: bankItems(), buys: shopBuys(),
-      settings: settingsIO?.read?.() ?? {}, storage: storage(), whole,
-      folks: (() => { const api = folksApi(); return api === undefined ? null : folksNow(api) ?? null; })(),
-      name: game.characterName, mode: game.currentGamemode?.id, mod: ctx.version, build: BUILD, save: model.SAVE_VERSION, at: Date.now(),
-    });
+    const backup = current(s, whole);
     let code;
-    try { code = await B.encode(backup); } catch (e) { log('backup: encode failed', e); tell(t('MOD_VOY_BACKUP_TITLE'), t('MOD_VOY_BACKUP_FAILED'), 'error'); return; }
+    try { code = await B.encode(backup); } catch (e) { log('backup: encode failed', e); tell(backupTitle(), t('MOD_VOY_BACKUP_FAILED'), 'error'); return; }
     const file = B.fileName(backup.name, backup.at);
     const html = body([
       { head: t('MOD_VOY_BACKUP_IN_HEAD'), body: [holdsRows(backup), t('MOD_VOY_BACKUP_ALSO')] },
@@ -129,7 +136,7 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     SwalLocale.fire({
       customClass: swalClass(SWAL_CLASS),
       width: H.HELP_WIDTH,
-      title: t('MOD_VOY_BACKUP_TITLE'),
+      title: backupTitle(),
       html,
       confirmButtonText: t('MOD_VOY_BACKUP_DONE'),
       didRender: (el) => {
@@ -167,8 +174,8 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
   };
 
   // ---- Restore ----------------------------------------------------------------------------------------------------
-  /** The restored record's walks, for the Folks plan. */
-  const walksOf = (b) => { try { return model.loadSave(b.record).save?.walks ?? {}; } catch { return {}; } };
+  /** The restored record's walks and courier routes (both keep a Folk on the road), for the Folks plan. */
+  const walksOf = (b) => { try { const s = model.loadSave(b.record).save; return { ...(s?.walks ?? {}), ...(s?.couriers ?? {}) }; } catch { return {}; } };
   const planFolks = (b) => {
     const api = folksApi();
     if (api === undefined) return undefined;
@@ -208,12 +215,13 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     }
     try { applyVoyage(b); } catch (e) { throw Object.assign(e, { folksDone: whole?.plan !== undefined }); }
   };
-  const applyVoyage = (b) => {
+  /** Voyage's part written back in memory: no save, no reload. `place` adjusts the record to the map as it is now. */
+  const writeVoyage = (b, place = (save) => save) => {
     const s = skill();
     applyFolks(b);
     const { save } = model.loadSave(b.record);
     s.futureRaw = undefined;
-    s.record = save;
+    s.record = place(save);
     s.setXP(b.xp);
     const plan = B.restorePlan(b, { items: bankItems(), buys: shopBuys() });
     for (const [id, n] of plan.add) { try { game.bank.addItemByID(id, n, false, false, true); } catch (e) { log(`backup: ${id} not added`, e); } }
@@ -223,6 +231,9 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     try { settingsIO?.write?.(b.settings); } catch (e) { log('backup: settings not restored', e); }
     for (const [k, v] of Object.entries(b.storage)) { if (STORAGE_KEYS.includes(k)) { try { ctx.characterStorage.setItem(k, v); } catch (e) { log('backup: storage not restored', e); } } }
     log(`backup restored: Voyage ${level(b.xp)}, ${plan.add.length} items topped up, ${plan.buys.length} purchases`);
+  };
+  const applyVoyage = (b) => {
+    writeVoyage(b);
     saveData();
     setTimeout(() => location.reload(), 300);
   };
@@ -294,7 +305,7 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     SwalLocale.fire({
       customClass: swalClass(SWAL_WARN),
       width: H.HELP_WIDTH,
-      title: t('MOD_VOY_RESTORE_TITLE'),
+      title: restoreTitle(),
       html: body(sections, t('MOD_VOY_RESTORE_RELOAD')),
       showCancelButton: true,
       confirmButtonText: t(goKey),
@@ -305,7 +316,7 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
       try { await apply(b, whole); } catch (e) {
         log('backup: restore failed', e);
         // With Worker Folks restored in memory and Voyage's part broken, the game reloads unsaved: nothing is half done.
-        const told = tell(t('MOD_VOY_RESTORE_TITLE'), t(e?.folksDone === true ? 'MOD_VOY_RESTORE_FAILED_RELOAD' : 'MOD_VOY_RESTORE_FAILED'), 'error');
+        const told = tell(restoreTitle(), t(e?.folksDone === true ? 'MOD_VOY_RESTORE_FAILED_RELOAD' : 'MOD_VOY_RESTORE_FAILED'), 'error');
         if (e?.folksDone === true) told.then(() => location.reload());
       }
     });
@@ -315,17 +326,17 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     const s = skill();
     if (s === undefined) return;
     // A save from a newer Voyage is kept untouched by this one; a restore would overwrite it.
-    if (s.futureRaw !== undefined) { tell(t('MOD_VOY_RESTORE_TITLE'), t('MOD_VOY_BACKUP_FUTURE'), 'warning'); return; }
+    if (s.futureRaw !== undefined) { tell(restoreTitle(), t('MOD_VOY_BACKUP_FUTURE'), 'warning'); return; }
     const why = B.blockedBy(s.record);
-    if (why === 'voyage' || why === 'adrift') { tell(t('MOD_VOY_RESTORE_TITLE'), t(why === 'voyage' ? 'MOD_VOY_RESTORE_NOT_AT_SEA' : 'MOD_VOY_RESTORE_NOT_ADRIFT'), 'warning'); return; }
+    if (why === 'voyage' || why === 'adrift') { tell(restoreTitle(), t(why === 'voyage' ? 'MOD_VOY_RESTORE_NOT_AT_SEA' : 'MOD_VOY_RESTORE_NOT_ADRIFT'), 'warning'); return; }
     const html = body([{ head: t('MOD_VOY_BACKUP_CODE_HEAD'), body: [t('MOD_VOY_RESTORE_PASTE'), { raw: `${codeBox('id="voyage-restore-code"')}></textarea>`
-      + `<div class="voyage-backup-acts"><label class="btn btn-outline-info mb-0">${esc(t('MOD_VOY_RESTORE_FILE'))}`
-      + `<input type="file" accept=".txt,text/plain" class="d-none" data-voyage-backup="file"></label></div>`
+      + `<div class="voyage-backup-acts"><button type="button" class="btn btn-outline-info" data-voyage-backup="pick">${esc(t('MOD_VOY_RESTORE_FILE'))}</button>`
+      + `<input type="file" accept=".txt,text/plain" class="d-none" data-voyage-backup="file" tabindex="-1" aria-hidden="true"></div>`
       + '<p class="voyage-help-p voyage-backup-note text-success" data-voyage-backup="loaded" aria-live="polite"></p>' }] }]);
     SwalLocale.fire({
       customClass: swalClass(SWAL_CLASS),
       width: H.HELP_WIDTH,
-      title: t('MOD_VOY_RESTORE_TITLE'),
+      title: restoreTitle(),
       html,
       showCancelButton: true,
       confirmButtonText: t('MOD_VOY_RESTORE_NEXT'),
@@ -335,6 +346,7 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
         const input = el?.querySelector?.('[data-voyage-backup="file"]');
         if (input == null || input.dataset.voyageBound === '1') return;
         input.dataset.voyageBound = '1';
+        el.querySelector('[data-voyage-backup="pick"]')?.addEventListener('click', () => input.click());
         // A new code or file clears the last refusal under the field: it was about the code before.
         const fresh = () => { try { Swal.resetValidationMessage(); } catch {} };
         el.querySelector('#voyage-restore-code')?.addEventListener('input', fresh);
@@ -343,8 +355,15 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
           if (f === undefined) return;
           fresh();
           const loaded = el.querySelector('[data-voyage-backup="loaded"]');
+          input.value = '';
           try {
-            document.getElementById('voyage-restore-code').value = await f.text();
+            // A picture or a zip stays out of the box: only a file that starts like a backup code is loaded.
+            const text = f.size > B.MAX_CODE ? '' : await f.text();
+            if (!B.looksLikeCode(text)) {
+              if (loaded !== null) { loaded.textContent = t('MOD_VOY_RESTORE_WHY_NOTCODE'); loaded.className = 'voyage-help-p voyage-backup-note text-warning'; }
+              return;
+            }
+            document.getElementById('voyage-restore-code').value = text;
             if (loaded !== null) { loaded.textContent = t('MOD_VOY_RESTORE_LOADED', { file: f.name }); loaded.className = 'voyage-help-p voyage-backup-note text-success'; }
           } catch (e) {
             log('backup: file read failed', e);
@@ -365,8 +384,8 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
   const mount = (container) => {
     const foot = container?.querySelector?.('[data-voyage="backup-foot"]');
     if (foot == null || foot.firstChild !== null) return;
-    foot.innerHTML = `<button type="button" class="btn btn-sm btn-outline-secondary" data-voyage-backup="out">${esc(t('MOD_VOY_BACKUP_BUTTON'))}</button>`
-      + `<button type="button" class="btn btn-sm btn-outline-secondary" data-voyage-backup="in">${esc(t('MOD_VOY_RESTORE_BUTTON'))}</button>`;
+    foot.innerHTML = `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-backup="out">${esc(t('MOD_VOY_BACKUP_BUTTON'))}</button>`
+      + `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-backup="in">${esc(t('MOD_VOY_RESTORE_BUTTON'))}</button>`;
     const [out, inn] = foot.querySelectorAll('button');
     const tip = (el, key) => { if (state.tips !== undefined) state.tips.set(el, t(key)); else el.title = t(key); };
     tip(out, 'MOD_VOY_BACKUP_HINT');
@@ -375,5 +394,32 @@ export function install(ctx, { state, model, B, helpLayout, BUILD, settingsIO, l
     inn.onclick = () => restore();
   };
 
-  return { mount, backUp, restore };
+  // ---- the automatic safety copies (src/safety.mjs) ------------------------------------------------------------------
+  /** A copy made at sea, its vessel brought to where the game has you now (backup-model settleAtSea). */
+  const settle = (save) => {
+    try {
+      const p = game.cartography?.activeMap?.playerPosition;
+      const terrain = state.terrain;
+      if (p == null || terrain === undefined) return save;
+      const recOf = (h) => terrain.get(h.q, h.r);
+      return B.settleAtSea(save, { q: p.q, r: p.r }, {
+        isSea: (h) => { const r = recOf(h); return r !== undefined && shipModel.isSea(r); },
+        // Any landmass counts here: no start to compare it with.
+        coast: (h) => shipModel.freeBoatSpot(recOf(h), { q: Infinity, r: Infinity }, terrain, shipModel.hexDist),
+      });
+    } catch (e) { log('safety copy: the vessel stays where the copy has it', e); return save; }
+  };
+  const safety = {
+    /**
+     * The game as a copy, at sea and Adrift too: both count in game ticks, kept in the record, so they go on from where
+     * the copy stood. None over a newer save. Worker Folks keeps its own copies of its whole self.
+     */
+    take: () => { const s = skill(); return s === undefined || s.futureRaw !== undefined || B.blockedBy(s.record) === 'empty' ? undefined : current(s, null); },
+    encode: (b) => B.encode(b),
+    decode: (code) => B.decode(code, model.SAVE_VERSION),
+    writeBack: (b) => writeVoyage(b, settle),
+    notify: ({ xp, at }) => tell(t('MOD_VOY_SAFETY_TITLE'), t('MOD_VOY_SAFETY_BACK', { level: num(level(xp)), when: when(at) }), 'success', 'MOD_VOY_BUTTON_GOT_IT'),
+  };
+
+  return { mount, backUp, restore, safety };
 }

@@ -162,6 +162,26 @@ export function install(ctx, { log }) {
     run();
   };
 
+  /**
+   * A Voyage popup's tooltips, now and after each redraw of it while it stays ours. Swal reuses its popup element for the
+   * game's own dialogs, so the watch ends as soon as the element stops being a `.voyage-ui` one.
+   */
+  const watchedPopups = new WeakSet();
+  const popup = (el) => {
+    if (el == null) return;
+    apply(el);
+    if (watchedPopups.has(el) || typeof MutationObserver !== 'function') return;
+    watchedPopups.add(el);
+    let queued = false;
+    const obs = new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(run); } });
+    function run() {
+      queued = false;
+      if (!el.isConnected || !el.classList.contains('voyage-ui')) { obs.disconnect(); watchedPopups.delete(el); return; }
+      try { apply(el); } catch (e) { log('popup tooltips failed', e); }
+    }
+    obs.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['title'] });
+  };
+
   /** One element's tooltip: `text` ('' removes it); falls back to `title` without tippy. */
   const set = (el, text, opts) => {
     if (el == null) return;
@@ -198,5 +218,5 @@ export function install(ctx, { log }) {
   };
   const hideAt = () => { try { floater?.hide(); } catch {} };
 
-  return { apply, watch, set, showAt, hideAt };
+  return { apply, watch, popup, set, showAt, hideAt };
 }

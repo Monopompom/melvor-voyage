@@ -36,6 +36,7 @@ export function install(ctx, { state, C, log }) {
   let drawnKey;
   let readAt = 0;
   let listRead = [];
+  let editRead;
   let failed = false;
 
   const ensure = () => {
@@ -76,12 +77,17 @@ export function install(ctx, { state, C, log }) {
       if (layer?.parent !== cartographyMap.viewport) ensure();
       // Each read cleans every walk record and slices its road (build .401): ten times a second, not per frame.
       const now = performance.now();
-      if (now - readAt >= READ_MS) { readAt = now; listRead = state.walks?.routes?.() ?? []; }
+      if (now - readAt >= READ_MS) {
+        readAt = now;
+        listRead = [...(state.walks?.routes?.() ?? []), ...(state.couriers?.routes?.() ?? [])];
+        editRead = state.routeEditor?.line?.();
+      }
       const list = listRead;
+      const edit = editRead;
       const map = game.cartography?.activeMap;
-      if (list.length === 0 || map === undefined || cartographyMap.lastDrawnMap !== map) { clear(); return; }
+      if ((list.length === 0 && edit === undefined) || map === undefined || cartographyMap.lastDrawnMap !== map) { clear(); return; }
       const vp = cartographyMap.viewport;
-      const key = `${map.id}|${vp.scaled}|${list.map((w) => `${w.id}:${w.at.q},${w.at.r}:${w.ahead.length}`).join(';')}`;
+      const key = `${map.id}|${vp.scaled}|${list.map((w) => `${w.id}:${w.at.q},${w.at.r}:${w.ahead.length}`).join(';')}|${edit?.key ?? ''}`;
       if (key === drawnKey) return;
       drawnKey = key;
       const origin = (h) => { const hex = map.getHex(new HexCoords(h.q, h.r)); return hex === undefined ? undefined : map.getHexOrigin(hex); };
@@ -96,6 +102,23 @@ export function install(ctx, { state, C, log }) {
       const width = Math.min(ROAD_WIDTH_PX * px, unit * ROAD_MAX_SHARE);
       roads.clear();
       badges.clear();
+      // The route being edited: its legs as a solid line (a courier's road ahead is dashed), a dot on each stop.
+      if (edit !== undefined) {
+        for (const hexes of edit.lines) {
+          const pts = hexes.map(origin).filter(Boolean);
+          if (pts.length < 2) continue;
+          roads.lineStyle(style(width + 2 * px, ROAD_EDGE, 0.55));
+          stroke(roads, pts);
+          roads.lineStyle(style(width, ROAD_COLOUR, 0.95));
+          stroke(roads, pts);
+        }
+        for (const h of edit.marks) {
+          const o = origin(h);
+          if (o === undefined) continue;
+          roads.lineStyle(style(1.5 * px, ROAD_EDGE, 0.7));
+          roads.beginFill(ROAD_COLOUR, 1).drawCircle(o.x, o.y, width * 1.6).endFill();
+        }
+      }
       // Folks on the same hex share it: each badge a little further along.
       const onHex = new Map();
       for (const w of list) {

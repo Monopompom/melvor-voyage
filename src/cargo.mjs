@@ -19,6 +19,9 @@ const DUSTS = ['melvorF:Stardust', 'melvorF:Golden_Stardust'];
 /** Goods that go in sacks: crops and herbs (Farming), runes, ash and stardust. Everything else: crates. */
 const SOFT_SKILLS = ['melvorD:Farming'];
 
+/** Chinese breaks between any two characters: a place name stays whole on its line. */
+const tieCjk = (x) => String(x).replace(/[\u4e00-\u9fff](?=[\u4e00-\u9fff])/g, '$&\u2060');
+
 export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -491,7 +494,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
       acts.push(button('btn-outline-info', t('MOD_VOY_CARGO_DROP_NO'), 'data-cargo="drop-no"'));
       if (d.why === undefined) acts.push(button('btn-danger', t('MOD_VOY_CARGO_DROP_YES'), `data-cargo="drop-yes" data-run="${esc(run.id)}"`));
     } else {
-      acts.push(button('btn-outline-danger btn-sm', t('MOD_VOY_CARGO_DROP'), `data-cargo="drop" data-run="${esc(run.id)}"`));
+      acts.push(button('btn-outline-danger', t('MOD_VOY_CARGO_DROP'), `data-cargo="drop" data-run="${esc(run.id)}"`));
     }
     // Late, what is left pays the goods once (cargo-model latePer), no XP.
     return row(art(run.c, item), lines.join(''), payBlock(M.isLate(run, Date.now()) ? { ...run, gp: M.latePer(run), xp: 0 } : run), acts.join(''), cls);
@@ -659,7 +662,7 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
       }
       const prog = progress(run, aboard, toLoad);
       return `<div class="voyage-errand">${art(run.c, item, 'voyage-cargo-art voyage-cargo-art-sm')}<div class="voyage-cargo-mid">` +
-        `<div>${t('MOD_VOY_CARGO_ERRAND', { item: `<b>${esc(item?.name ?? run.item)}</b>`, n: qty(run.n * M.PER_CONTAINER), k: `${run.n}`, what: containerWord(run.c, run.n), port: `<b>${esc(portName(run.to))}</b>` })}</div>` +
+        `<div>${t('MOD_VOY_CARGO_ERRAND', { item: `<b>${esc(item?.name ?? run.item)}</b>`, n: qty(run.n * M.PER_CONTAINER), k: `${run.n}`, what: containerWord(run.c, run.n), port: `<b>${esc(tieCjk(portName(run.to)))}</b>` })}</div>` +
         `${line}${toLoad ? '' : hullWarning(run.from, run.to)}${dueLine(run)}<div class="text-muted">${esc(prog)}</div></div>${act}</div>`;
     });
     const task = state.tasks?.errandHtml?.() ?? '';

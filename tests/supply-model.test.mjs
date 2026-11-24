@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { DAY_MS, SHARES, dayOf, shareAt, stockOf, drawn, msUntil, msUntilFull, planLoad, totalStock, pruned, cleanSupply, islandKeys } from '../src/supply-model.mjs';
+import { DAY_MS, SHARES, dayOf, shareAt, stockOf, drawn, msUntil, msUntilFull, planLoad, planPack, totalStock, pruned, cleanSupply, islandKeys } from '../src/supply-model.mjs';
 import * as S from '../src/stores-model.mjs';
 
 const CAP50 = S.capacity(50); // 2,400 HP and 60 fuel
@@ -112,4 +112,24 @@ test('islands with no easy ground: their places never run out; on the real map t
   const places = table.hexes.filter((h) => keys.has(`${h.q},${h.r}`) && S.loadingAt(h) !== undefined).map((h) => h.poi).sort();
   assert.deepEqual(places, ['AerisDungeonRuins', 'CastleRuins', 'FrostDriftPort', 'GlaciaDungeonRuins', 'SnowCoveredPier']);
   assert.equal(keys.size, 65); // the 50 hexes of the Snowlands island and the 15 of the Cursedlands one
+});
+
+test('road food takes the plainest food first, at the place\'s rate, and only what it needs', () => {
+  const items = [{ item: 'lobster', kind: 'food', unit: 100, qty: 9 }, { item: 'shrimp', kind: 'food', unit: 10, qty: 3 }, { item: 'log', kind: 'fuel', unit: 1, qty: 9 }];
+  const sources = [{ key: '0,0', place: 'port', food: 1, fuel: 1, stock: { food: Infinity, fuel: Infinity } }];
+  const out = planPack(S, items, { food: 120, fuel: 2 }, sources);
+  assert.equal(out.ok, true);
+  assert.deepEqual(out.picks.map((p) => [p.item, p.n]), [['shrimp', 3], ['lobster', 1], ['log', 2]]);
+  assert.equal(out.food, 130);
+  assert.equal(out.fuel, 2);
+});
+
+test('road food is all or nothing: short of either kind, or of the place\'s stock, nothing is taken', () => {
+  const food = [{ item: 'shrimp', kind: 'food', unit: 10, qty: 3 }];
+  const port = { key: '0,0', place: 'port', food: 1, fuel: 1, stock: { food: Infinity, fuel: Infinity } };
+  assert.deepEqual(planPack(S, food, { food: 40, fuel: 0 }, [port]), { ok: false, short: 'food' });
+  assert.deepEqual(planPack(S, food, { food: 10, fuel: 1 }, [port]), { ok: false, short: 'fuel' });
+  const lots = [{ item: 'shrimp', kind: 'food', unit: 10, qty: 99 }];
+  assert.equal(planPack(S, lots, { food: 50, fuel: 0 }, [{ ...port, stock: { food: 20, fuel: 0 } }]).ok, false);
+  assert.equal(planPack(S, lots, { food: 50, fuel: 0 }, []).ok, false);
 });

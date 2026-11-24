@@ -73,7 +73,7 @@ test('the thermometer bolds the word for each band', () => {
 });
 
 test('every figure names a kind it can draw and every icon is a Font Awesome name', () => {
-  const kinds = ['bars', 'pivot', 'odds', 'pips', 'crates', 'tiles', 'thermo', 'words'];
+  const kinds = ['bars', 'pivot', 'odds', 'pips', 'crates', 'tiles', 'thermo', 'words', 'stack'];
   const specs = [...Object.values(HELP_DRESS).flatMap((d) => d.figs ?? []), ...Object.values(WRITTEN_FIGS).flatMap((c) => Object.values(c).flat())];
   for (const s of specs) assert.ok(kinds.includes(s.kind), s.kind);
   const icons = [...Object.values(HELP_DRESS).map((d) => d.icon), ...Object.values(SECTION_ICONS).flatMap((c) => Object.values(c)), ...Object.values(LIST_CARDS).flat()];

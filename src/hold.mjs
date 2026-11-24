@@ -46,6 +46,8 @@ export function install(ctx, { state, shipModel, helpLayout, log }) {
   };
   const write = (kind, next) => { state.ship.setVessel(kind, { ...vessel(kind), hold: next }); changed(); };
 
+  /** Take or Sell with no usable amount in the box. */
+  const refuseAmount = () => notifyPlayer(skill(), t('MOD_VOY_HOLD_AMOUNT_TAKE'), 'danger');
   /** Moves `qty` of a bank item into the hold. Returns how many went in, or 0 with a notice saying why. */
   const stowItem = (item, qty, kind = defaultKind()) => {
     const why = blocker(kind);
@@ -85,7 +87,7 @@ export function install(ctx, { state, shipModel, helpLayout, log }) {
     if (why !== undefined) { notifyPlayer(skill(), why, 'danger'); return; }
     const aboard = hold(kind).find((e) => e.id === item.id && e.cargo === undefined)?.qty ?? 0;
     const n = Math.min(Math.floor(qty), aboard);
-    if (!(n > 0)) { notifyPlayer(skill(), t('MOD_VOY_HOLD_AMOUNT'), 'danger'); return; }
+    if (!(n > 0)) { refuseAmount(); return; }
     try {
       if (!game.tutorial.complete && game.tutorial.bannedItemSales.has(item)) { notifyPlayer(skill(), getLangString('MENU_TEXT_ITEM_SALE_LOCKED'), 'danger'); return; }
     } catch {}
@@ -275,7 +277,7 @@ export function install(ctx, { state, shipModel, helpLayout, log }) {
     log(`${dropped.length} crate(s) overboard from the ${kind}'s hold: ${dropped.map((e) => `${e.qty} ${e.id}`).join(', ')}`);
     return dropped.map((e) => ({ item: game.items.getObjectByID(e.id), qty: e.qty, cargo: e.cargo }));
   };
-  const api = { hold, slots, contents, blocker, stow: stowItem, take: takeItem, sell: sellItem, jettison, kinds, reachable, defaultKind, hullName };
+  const api = { hold, slots, contents, blocker, stow: stowItem, take: takeItem, sell: sellItem, jettison, kinds, reachable, defaultKind, hullName, refuseAmount };
   state.hold = api;
   return api;
 }

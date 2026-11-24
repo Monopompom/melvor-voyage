@@ -70,7 +70,7 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 #voyage-here { min-width: min(300px, 100%); max-width: 480px; pointer-events: auto; } /* 480: a full Locked row (12 icons, Astrology included) fits on one line */
 /* Under the search bar: exactly its width (left and right edges of the bar's box), so it follows the bar's own
    responsive sizing (user feedback, build .69). The min/max widths above only apply to the bottom-left fallback. */
-#voyage-here.voyage-here-top { position: absolute; top: 100%; left: 0; right: 0; min-width: 0; max-width: none; margin-top: 6px; text-align: left; }
+#voyage-here.voyage-here-top { position: absolute; top: 100%; left: 0; right: 0; z-index: 4; min-width: 0; max-width: none; margin-top: 6px; text-align: left; } /* over the map's buttons; the Legend and Places cards (5) and the route editor (5) open over it */
 /* The map's zoom and centre buttons, moved to the right edge under the top bar (here-panel.mjs moveMapControls). */
 .voyage-map-controls { position: absolute; right: 0; top: 62px; display: flex; flex-direction: column; align-items: flex-end; }
 /* Day or night, centred on top of the ship and stores band. */
@@ -80,6 +80,10 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
 .voyage-legend-item { white-space: nowrap; }
 /* Text that moves to the next line whole (the Here panel's place and coordinates, build .286). */
 .voyage-keep { display: inline-block; max-width: 100%; }
+/* Parts of a line with a dot between them: the dot of a part that starts a new line falls outside and is cut off. */
+.voyage-dots { display: flex; flex-wrap: wrap; column-gap: .8em; overflow: hidden; }
+.voyage-dots > .voyage-keep { position: relative; }
+.voyage-dots > .voyage-keep::before { content: '·'; position: absolute; left: -.55em; }
 .voyage-skills { margin-top: 4px; }
 /* Message popups (refusals, trader, skill tip; build .94): body size, one or two lines centred, more left-aligned;
    the one picture sits on top (Swal image or icon). */
@@ -110,6 +114,8 @@ body.darkMode.superDark .voyage-skill-locked { opacity: .6; filter: grayscale(.6
 /* Popup titles break into even lines, never a word or "8)?" alone, never cut (builds .261-.262; the ties and the
    whole-name fit are in skill-names.mjs fitTitle). */
 .voyage-ui .swal2-title { text-wrap: balance; }
+/* A paragraph's last line never holds one word alone, in any language. */
+.voyage-ui { text-wrap: pretty; }
 .voyage-here-place { margin-top: 1px; }
 /* Two text rows as far apart as a text row and a button row (the user, 6 Nov 2026: Folks here sat close under Combat):
    a line's middle 33-34px under the last one's, as Trade over Owed. */
@@ -220,7 +226,7 @@ div.form-inline:has(> .dropdown > [id="voyage:strictness"]) > .dropdown { width:
 .voyage-places-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .voyage-places-dist { flex: 0 0 auto; font-size: .85rem; white-space: nowrap; }
 .voyage-places-plan { flex: 0 0 auto; }
-.voyage-places-empty { max-width: 18rem; }
+.voyage-places-empty { max-width: 18rem; overflow-wrap: break-word; }
 @media (max-width: 575.98px) { .voyage-places-show, .voyage-places-plan { min-height: 40px; } }
 .voyage-legend-card .voyage-legend { margin-top: 2px; grid-template-columns: repeat(2, max-content); }
 /* Locked here, at the panel's foot under a rule (build .296). */
@@ -234,6 +240,7 @@ div.form-inline:has(> .dropdown > [id="voyage:strictness"]) > .dropdown { width:
 
 /* phase 3c: stores on the Voyage page, the panel's Load button, the hex overview cost line */
 .voyage-store-items { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 575.98px) { .voyage-store-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } } /* even rows on a phone */
 /* The Stores picker (build .149): food | fuel wells, exactly four 40px chip rows (6px gaps, 6px padding) tall, scrolling. */
 .voyage-store-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .voyage-store-col { min-width: 0; }
@@ -337,6 +344,9 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 .voyage-help:focus-visible, #voyage-container .btn:focus-visible, #voyage-here .btn:focus-visible, .voyage-ui .btn:focus-visible, .voyage-chip-btn:focus-visible { outline: 2px solid var(--voyage-help) !important; outline-offset: 2px; } /* a ring the keyboard can see (.308, C-22/C2-12) */
 @media (hover: hover) { .voyage-help:hover { color: var(--voyage-hover); } }
 /* Help popups (build .87): one grey band per idea, a heading, short paragraphs, tables for numbers. */
+/* A refusal under a field is an amber line on the popup, not the library's light band. */
+.voyage-ui .swal2-validation-message { background: transparent; }
+.voyage-ui .swal2-validation-message::before { display: none; }
 .voyage-ui .swal2-html-container { font-size: 1rem; line-height: 1.5; max-height: calc(100vh - 14rem); overflow-y: auto; scrollbar-width: thin; } /* one body size (.308, C-08/B-68); a long popup scrolls inside, its buttons stay on screen (A2-23/C2-03); at its end the wheel goes on to the modal, not stopped by overscroll-behavior (.310, the user) */
 .voyage-help-body .voyage-help-head { color: var(--voyage-label); font-weight: 600; margin-bottom: 4px; }
 .voyage-help-body .voyage-help-p { margin: 0; }
@@ -630,7 +640,7 @@ body.vj-locked { overflow: hidden; scrollbar-gutter: stable; } /* no page-wide r
 .vj-h3 { font-family: 'Voyage Fell', Georgia, serif; font-weight: 400; font-size: 22px; line-height: 1.2; margin: 6px 0 0; color: var(--vj-ink); }
 /* The game's dark mode sets h2, h4 and h5 to whitesmoke !important (game.css); the book's headings stay ink. */
 #voyage-journal .vj-h1, #voyage-journal .vj-h3 { color: var(--vj-ink) !important; }
-.vj-p { margin: 0; }
+.vj-p { margin: 0; overflow-wrap: break-word; }
 .vj-lead::after { content: ''; display: block; clear: both; }
 .vj-dropcap { float: left; font-family: 'Voyage Fell', Georgia, serif; font-size: 52px; line-height: .9; padding: 4px 8px 0 0; color: var(--vj-red); }
 .vj-italic { font-style: italic; }
@@ -1064,6 +1074,17 @@ body #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 .voyage-plan-label { color: var(--voyage-label); font-weight: 600; }
 .voyage-plan-value { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0; }
 .voyage-plan-value > ol { width: 100%; }
+/* The route choice: three buttons that wrap, the pressed one filled. */
+.voyage-plan-by { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.voyage-plan-by .btn { min-height: 32px; flex: 0 1 auto; }
+.voyage-plan-by .btn.btn-outline-info:not(:disabled):not(.disabled).active { color: #10212e; } /* white on the game's light blue is too faint to read */
+@media (max-width: 767.98px) {
+  /* One even row on a phone, a long label on two lines. */
+  .voyage-plan-by { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .voyage-plan-by .btn { padding: 4px 6px; white-space: normal; line-height: 1.2; text-wrap: balance; }
+}
+.voyage-plan-by-note { width: 100%; font-size: .875rem; margin-top: 4px; }
+@media (pointer: coarse) { .voyage-plan-by .btn { min-height: 40px; } }
 .voyage-plan-bit { display: inline-flex; align-items: center; margin-right: 16px; white-space: nowrap; }
 .voyage-plan-bit i { width: 1.2em; margin-right: 6px; color: var(--voyage-label); text-align: center; }
 .voyage-plan-ico { width: 20px; height: 20px; margin-right: 6px; }
@@ -1078,12 +1099,10 @@ body #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 .voyage-plan-arrival .dropdown-menu { width: 100%; max-height: 60vh; font-size: 1rem; }
 .voyage-plan-arrival .dropdown-item { display: flex; align-items: center; min-height: 40px; white-space: normal; }
 /* A choice the game would refuse (build .130): the name greyed, the reason in amber under it, not pickable. */
-.voyage-plan-arrival .voyage-plan-refused { flex-direction: column; align-items: flex-start; cursor: default; padding-top: 6px; padding-bottom: 6px; }
+.voyage-plan-arrival .voyage-plan-refused { cursor: default; padding-top: 6px; padding-bottom: 6px; }
 .voyage-plan-arrival .voyage-plan-refused:focus { background: transparent; }
 @media (hover: hover) { .voyage-plan-arrival .voyage-plan-refused:hover { background: transparent; } } /* .308: hover only where there is one (C-21) */
 .voyage-plan-refused-name { display: flex; align-items: center; opacity: .55; }
-.voyage-plan-refused-why { font-size: .9rem; padding-left: 34px; }
-.voyage-plan-refused-why img { width: 18px; height: 18px; }
 .voyage-plan-pick-ico { width: 24px; height: 24px; margin-right: 10px; flex: none; object-fit: contain; text-align: center; line-height: 24px; }
 /* Home port: the recent places as a row of buttons that wraps. */
 .voyage-plan-recent { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1223,7 +1242,7 @@ body #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 .voyage-crate-picked { border-color: var(--voyage-pick); box-shadow: inset 0 3px 7px var(--voyage-crate-shade), 0 0 0 2px var(--voyage-pick); }
 .voyage-crate-qty { position: absolute; right: 2px; bottom: 3px; padding: 0 4px; border-radius: 4px; background: var(--voyage-qty-chip); font-size: .9rem; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000; } /* a dark chip on Light's pale crates, none on the dark themes */
 /* A count with a whole word for its unit ("23,4 Mio.") stays inside the crate. */
-.voyage-crate-qty-wide { right: 1px; max-width: calc(100% - 2px); padding: 0 2px; font-size: .7rem; line-height: 1.35; white-space: nowrap; }
+.voyage-crate-qty-wide { right: 1px; max-width: calc(100% - 2px); padding: 0 2px; font-size: .8rem; letter-spacing: -.02em; line-height: 1.35; white-space: nowrap; }
 
 /* The market line in the bank's Sell block (phase 4). */
 .voyage-market-box { margin: 6px 0; padding: 6px 10px; border-radius: 4px; background: var(--voyage-band); font-size: .9rem; line-height: 1.45; }
@@ -1245,7 +1264,9 @@ body #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 .voyage-cargo-sub { margin: 0 0 .75rem; }
 /* The screen's width on a phone; the rows scroll inside, the title and the × stay in reach. */
 .voyage-board-popup { max-width: 96vw; }
-.voyage-board-popup .voyage-cargo { max-height: 62vh; min-height: min(62vh, 26rem); overflow-y: auto; padding-right: 2px; } /* a steady height, so the tab bar stays put on a switch (.309, B-25) */
+.voyage-board-popup .swal2-html-container { display: flex !important; flex-direction: column; overflow: hidden; } /* one scrollbar: the list's */
+.voyage-board-popup .voyage-cargo-sub { flex: none; }
+.voyage-board-popup .voyage-cargo { flex: 1 1 auto; max-height: 62vh; min-height: min(62vh, 26rem, calc(100vh - 19rem)); overflow-y: auto; padding-right: 2px; } /* a steady height, so the tab bar stays put on a switch (.309, B-25) */
 /* The mod's scroll areas get a thin scrollbar in the page's colours, not the browser's white one (the user, build .205):
    light on the dark board, Here panel and every popup's body (the Send dialog's showed white, 20 Oct 2026), ink-brown
    on the journal's paper. */
@@ -1294,7 +1315,7 @@ body #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 /* The harbour board's tabs: Cargo, Notices, Sea charts (build .210). */
 /* Padded inside the board's scroll box, which would clip the buttons' top border at some zooms (the user, 18 Oct 2026). */
 .voyage-board-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding-top: 4px; margin-bottom: 2px; }
-.voyage-board-tabs > .btn { min-width: 7rem; min-height: 32px; } /* (.308, B-19) */
+.voyage-board-tabs > .btn { min-width: 7rem; min-height: 32px; font-size: 1rem; } /* (.308, B-19) */
 /* A phone: the three tabs share one row instead of wrapping one under. */
 /* On a phone the tabs share one row, each as wide as its label needs (equal widths cut "Sea charts" once the Slayer
    tab came, pre-release pass 11 Nov 2026); a screen too narrow for the four wraps them. */
@@ -1471,6 +1492,13 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 /* Its height cap goes with the scrolling: on a short window the body ran past the cap, under the buttons, and above
    them by its z-index, so Set off and Cancel could not be clicked (.410). The whole popup scrolls instead. */
 .voyage-ui .swal2-html-container.voyage-swal-menus, .voyage-swal-menus { overflow: visible; max-height: none; position: relative; z-index: 2; }
+/* The Send popup never outgrows the screen: title and buttons stay in the normal flow and the body is its one scroll area.
+   Its menus stand over the body at their button's place, so the body's edge can't cut them. */
+.voyage-walk-send:not([style*="display: none"]) { display: flex !important; flex-direction: column; max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px); }
+.voyage-walk-send > * { flex: none; }
+.voyage-ui.voyage-walk-send .swal2-html-container { flex: 1 1 auto; min-height: 7rem; max-height: none; overflow-y: auto; }
+.voyage-walk-send .dropdown-menu.voyage-menu-fixed { position: fixed; top: var(--voyage-menu-top); left: var(--voyage-menu-left); right: auto; bottom: auto; width: var(--voyage-menu-width); max-height: var(--voyage-menu-height); margin: 0; transform: none; }
+@media (max-height: 560px) { .voyage-walk-send .swal2-icon { display: none !important; } } /* a phone held sideways keeps its room for the choices */
 .voyage-clock-pick-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
   border: 1px solid var(--voyage-ring); color: var(--voyage-gold); font-size: .9rem; font-weight: 700; } /* (.308, C-26) */
 .voyage-clock-pick-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--voyage-ring-bg); }
@@ -1544,15 +1572,16 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-walk-folk-where { color: var(--voyage-label); font-size: .9rem; margin-left: 4px; }
 .voyage-walk-one { display: flex; align-items: center; min-height: 40px; padding: 0 calc(.75rem + 1px); font-size: 1rem; }
 .voyage-walk-note:not(:empty) { margin-top: 8px; }
-.voyage-walk-places { display: flex; flex-direction: column; gap: 8px; max-width: 420px; max-height: 320px; margin: 0 auto; overflow-y: auto; padding-right: 2px; scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; }
+.voyage-walk-places { display: flex; flex-direction: column; gap: 8px; max-width: 420px; margin: 0 auto; } /* the popup is the one scroll area */
 .voyage-walk-place { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; white-space: normal; padding: 8px 12px; }
 .voyage-walk-place-name { font-weight: 600; }
 .voyage-walk-place-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; font-size: .9rem; }
 .voyage-walk-dot { opacity: .6; }
+.voyage-walk-place .voyage-stores-icons { display: inline-flex; flex-wrap: wrap; column-gap: 8px; row-gap: 2px; max-width: 100%; } /* the fuel drops under the food when both don't fit */
+.voyage-walk-place .voyage-stores-pair img:first-child { margin-left: 0; }
 .voyage-walk-place .voyage-stores-icons img { width: 16px; height: 16px; }
 /* A place it can't go to: a grey outline, as every disabled button, but its reason stays readable (no faded text). */
 .voyage-walk-place:disabled { opacity: 1; color: var(--voyage-dis-text); border-color: var(--voyage-dis-line); cursor: default; }
-.voyage-walk-place-why { font-size: .9rem; }
 
 /* The Here panel's Folks lines (phase 6c): the names or the count on the left, the Crew button on the right. */
 .voyage-here-folks { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -1891,7 +1920,7 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .voyage-deck-preset { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 6px 8px; border: 1px solid var(--voyage-rule); border-radius: 6px; }
 .voyage-deck-preset-on { border-color: var(--voyage-good); background: var(--voyage-good-tint); }
 .voyage-deck-preset-name { font-weight: 600; overflow-wrap: anywhere; }
-.voyage-deck-preset-sum { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .85rem; grid-column: 1; }
+.voyage-deck-preset-sum { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .9rem; grid-column: 1; }
 .voyage-deck-preset-act { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: flex-end; }
 .voyage-deck-save { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
 .voyage-deck-save input { flex: 1 1 10rem; max-width: 18rem; margin-left: auto; } /* the box and its button on the right (the user) */
@@ -1966,6 +1995,8 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 }
 .voyage-deck-cancel { margin-left: auto; } /* red as the game's own Cancel, on the right (the user) */
 .voyage-deck-stepper .btn { min-width: 2rem; }
+/* A shop requirement wraps evenly, so its skill icon stays beside the last words instead of alone on a line. */
+#new-shop div:has(> small > img.skill-icon-xs) { text-wrap: balance; }
 /* A shop card's price (GP and goods, each with its icon) and its Buy, under the stepper. */
 .voyage-deck-buy { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 8px; font-size: .8rem; }
 .voyage-deck-buy-btn { width: 150px; }
@@ -2179,3 +2210,50 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
 .vj-step, .vj-step-rounds { gap: 8px; }
 .vj-pilot-next .fa, .vj-step .fa, .vj-step-rounds .fa, .vj-pilot-rule-head .fa, .vj-pilot-items .fa { flex: none; min-width: 1.35em; text-align: center; }
 .vj-tierband-lab .fa, .vj-band-where .fa, .vj-pilot-gain-text b .fa { display: inline-block; min-width: 1.35em; margin-right: 6px; text-align: center; }
+
+/* The courier route editor (round 4): a tool panel on the map beside the zoom buttons; on a phone along the bottom. */
+#voyage-route { position: absolute; top: 62px; right: 66px; z-index: 5; width: min(360px, calc(100% - 82px)); max-height: calc(100% - 78px); margin: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--voyage-thumb) transparent; pointer-events: auto; text-align: left; }
+.voyage-route-title { margin: 0 0 .5rem; }
+.voyage-route-count, .voyage-route-grab { display: none; }
+.voyage-route-stops { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 8px 0 0; padding: 0; }
+.voyage-route-stop { display: flex; align-items: center; gap: 8px; }
+.voyage-route-num { flex: 0 0 1.5rem; height: 1.5rem; line-height: 1.5rem; border-radius: 50%; text-align: center; font-weight: 600; background: var(--voyage-well); }
+.voyage-route-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.voyage-route-btns { display: flex; flex: none; gap: 6px; }
+.voyage-route-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; }
+.voyage-route-leg { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 2px 0 2px 2rem; font-size: .9rem; }
+.voyage-route-round { margin-top: 8px; font-weight: 600; }
+.voyage-route-pick { margin-top: 8px; }
+.voyage-route-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.voyage-route-why { flex: 0 0 100%; }
+.voyage-route-foot { position: sticky; bottom: -.5rem; z-index: 1; display: flex; flex-wrap: wrap; align-items: stretch; justify-content: space-between; gap: 8px; margin: 8px -.5rem -.5rem; padding: .5rem; background: inherit; border-top: 1px solid var(--voyage-rule-soft); } /* Save and its reason stay in view while the stops scroll */
+.voyage-spoil-line { font-size: .9rem; }
+.voyage-route-foot .btn, .voyage-route-chips .btn { font-size: 1rem; }
+.voyage-route-foot .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; } /* one height for the row, even when one label wraps */
+.voyage-route-pair { display: flex; align-items: stretch; gap: 8px; margin-left: auto; }
+@media (max-width: 575.98px) {
+  #voyage-route { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 50%; }
+  .voyage-route-open #voyage-here { visibility: hidden; } /* on a phone the map must stay free to tap; it keeps its size, so it comes back clear of the map's buttons */
+  /* The pinned footer stays short, so a long reason in any language leaves the stops in view: three lines, then it scrolls. */
+  .voyage-route-why { max-height: 3.9em; overflow-y: auto; font-size: .9rem; line-height: 1.3; scrollbar-width: thin; }
+  .voyage-route-foot { gap: 6px; }
+  .voyage-route-foot > .btn { flex: 1 1 0; min-width: 0; }
+  .voyage-route-pair { flex: 2 1 0; min-width: 0; gap: 6px; margin-left: 0; }
+  .voyage-route-pair .btn { flex: 1 1 0; min-width: 0; }
+  .voyage-route-foot .btn { padding-left: .25rem; padding-right: .25rem; line-height: 1.15; white-space: normal; text-wrap: balance; } /* two-line labels break at the same word */
+  /* The title row is the sheet's grip: tap it or swipe down to leave the map free, swipe up to bring the stops back. */
+  .voyage-route-head { position: sticky; top: -.5rem; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-height: 40px; margin: -.5rem -.5rem 4px; padding: 14px .5rem 2px; background: inherit; touch-action: none; }
+  .voyage-route-title { flex: 0 1 auto; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+  .voyage-route-grab { position: absolute; inset: 0; z-index: 1; display: flex; justify-content: center; align-items: flex-start; width: 100%; padding: 4px 0 0; color: var(--voyage-label); background: none; border: 0; cursor: pointer; touch-action: none; }
+  .voyage-route-grab svg { width: 36px; height: 10px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  #voyage-route:not(.voyage-route-folded) .voyage-route-grab svg { transform: scaleY(-1); } /* open, a tap folds it down */
+  .voyage-route-grab:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+  #voyage-route.voyage-route-folded { overflow: hidden; }
+  #voyage-route.voyage-route-folded .voyage-section, #voyage-route.voyage-route-folded .voyage-route-foot { display: none; }
+  .voyage-route-folded .voyage-route-head { margin-bottom: 0; }
+  .voyage-route-folded .voyage-route-count { display: inline-flex; flex: none; align-items: center; gap: 4px; white-space: nowrap; }
+}
+@media (pointer: coarse) {
+  .voyage-route-icon { width: 40px; height: 40px; }
+  #voyage-route .btn { min-height: 40px; }
+}

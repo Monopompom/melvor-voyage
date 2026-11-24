@@ -106,7 +106,7 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
       (skills.length === 0 ? `<small class="d-block text-muted mt-1">${esc(t('MOD_VOY_CREW_WORK_NONE'))}</small>` : '');
     SwalLocale.fire({
       didRender: state.popupDidRender,
-      // The dropdown's menu reaches past the popup's body, as the Send… popup's (voyage-swal-menus).
+      // The dropdown's menu reaches past the popup's body (Swal clips its html container).
       customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' }) : { ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' },
       title: t('MOD_VOY_CREW_ASHORE_TITLE'),
       html,
@@ -149,7 +149,7 @@ export function install(ctx, { state, CM, shipModel, terrainMod, helpLayout, log
       const r = api().hurt(f.id, each * hungry, { cause: 'hunger' });
       if (r === undefined) continue;
       log(`${f.name} goes hungry for ${hungry} hex(es): -${each * hungry} HP${r.dead ? ', died' : ''}`);
-      if (!r.dead) notify(t('MOD_VOY_CREW_HUNGRY', { name: f.name, hp: `${each * hungry}` }), 'warning');
+      if (!r.dead) notify(t('MOD_VOY_CREW_HUNGRY', { name: f.name, hp: numberWithCommas(each * hungry) }), 'warning');
     }
   };
 

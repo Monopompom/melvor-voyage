@@ -48,8 +48,10 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       SwalLocale.fire({
         didRender: state.popupDidRender,
         title: skill?.name ?? '',
+        imageUrl: skill?.media,
+        ...helpLayout.MSG_IMAGE,
         html: helpLayout.msgHtml((button.dataset.tip ?? '').split('\n').map(esc)),
-        confirmButtonText: getLangString('MOD_VOY_BUTTON_OK'),
+        confirmButtonText: getLangString('MOD_VOY_BUTTON_GOT_IT'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       });
     } catch (e) { log('skill popup failed', e); }
@@ -73,8 +75,10 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     try {
       SwalLocale.fire({
         didRender: state.popupDidRender,
+        icon: 'info',
+        title: getLangString('MOD_VOY_PANEL_TIP_TITLE'),
         html: helpLayout.msgHtml([esc(text)]),
-        confirmButtonText: getLangString('MOD_VOY_BUTTON_OK'),
+        confirmButtonText: getLangString('MOD_VOY_BUTTON_GOT_IT'),
         customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
       });
     } catch (e) { log('tip popup failed', e); }
@@ -350,7 +354,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     const list = enc.debts().map((d) => templateLangString('MOD_VOY_ENC_DEBT_ROW', { who: d.name, gp: shortNumber(d.gp) })).join('\n');
     const why = enc.payOffWhy();
     const btn = why === ''
-      ? `<button type="button" class="btn btn-sm btn-warning voyage-row-btn voyage-debt-pay">${esc(getLangString('MOD_VOY_ENC_DEBT_PAY'))}</button>`
+      ? `<button type="button" class="btn btn-sm btn-success voyage-row-btn voyage-debt-pay">${esc(getLangString('MOD_VOY_ENC_DEBT_PAY'))}</button>`
       : `<button type="button" class="btn btn-sm btn-outline-secondary disabled voyage-row-btn voyage-debt-pay" aria-disabled="true" title="${esc(getLangString(DEBT_WHY[why] ?? 'MOD_VOY_ENC_DEBT_WHY_TRADE'))}">${esc(getLangString('MOD_VOY_ENC_DEBT_PAY'))}</button>`;
     return `<div class="voyage-here-ship voyage-debt-row"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_ENC_DEBT_LABEL'))}</span> ` +
       `<span class="text-warning" title="${esc(list)}"><i class="fa fa-file-invoice-dollar mr-1" aria-hidden="true"></i>${esc(templateLangString('MOD_VOY_ENC_GP', { gp: shortNumber(total) }))}</span></span>${btn}</div>`;
@@ -1355,7 +1359,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       // The place's name and its coordinates move to the next line as one, never split (build .286, the user: "if name +
       // cords don't fit in line it goes on next line as whole"); a name wider than the panel still wraps inside.
       // The name in the body's ink; the terrain's features and the coordinates stay muted (.309, scan B-31).
-      const where = place ? ` · <span class="voyage-keep">${place} <small class="text-muted">${coordsOf(pos)}</small></span>` : ` <small class="text-muted"><span class="voyage-keep">${coordsOf(pos)}</span></small>`;
+      const where = place ? `<span class="voyage-keep">${place} <small class="text-muted">${coordsOf(pos)}</small></span>` : ` <small class="text-muted"><span class="voyage-keep">${coordsOf(pos)}</span></small>`;
       const swatch = d.css ? `<span class="voyage-swatch" style="background:${d.css}"></span>` : '';
       const features = d.features.length > 0 ? ` · ${esc(d.features.join(getLangString('MOD_VOY_GATE_LIST_SEP')))}` : '';
       const mode = state.mode === 'relaxed' ? `<div><small class="text-warning">${esc(getLangString('MOD_VOY_PANEL_TABLE_MISMATCH'))}</small></div>` : '';
@@ -1383,7 +1387,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         // crew, folding; what the place offers (trade, harbour, combat, the Folks on it, the sign); then what works and
         // what is locked here. The planned voyage stands under the vessel group, outside its fold.
         strandedLines(status) +
-        `<div>${swatch}${esc(d.label)}<small class="text-muted">${features}</small>${where}</div>` +
+        `<div${place ? ' class="voyage-dots"' : ''}><span>${swatch}${esc(d.label)}<small class="text-muted">${features}</small></span>${where}</div>` +
         mode +
         weatherBlock(rec) +
         vesselGroup() +

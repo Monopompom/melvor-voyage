@@ -99,7 +99,7 @@ export function install(ctx, { state, SM, M, rules, shipModel, hexes, log }) {
         didRender: state.popupDidRender,
         title: esc(t('MOD_VOY_START_TITLE')),
         html: popupHtml(),
-        width: '36rem',
+        width: '36em',
         allowOutsideClick: false,
         allowEscapeKey: false,
         confirmButtonText: t('MOD_VOY_START_GO'),

@@ -509,7 +509,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, terrainMod, shortNum
       try { game.bank.removeItemQuantity(game.items.getObjectByID(x.id), x.qty, true); } catch (err) { log(`encounters: ${x.id} not used up`, err); }
     }
     f.usedDone = { ...(s.used ?? {}) };
-    if (taken.length > 0) lines.push(k('MOD_VOY_ENC_RES_USED', { what: taken.map((x) => t('MOD_VOY_ENC_SUPPLY_COUNT', { name: t(E.cardKey(x.card)), n: `${x.qty}` })).join(getLangString('MOD_VOY_GATE_LIST_SEP')) }));
+    if (taken.length > 0) lines.push(k('MOD_VOY_ENC_RES_USED', { what: taken.map((x) => t('MOD_VOY_ENC_SUPPLY_COUNT', { name: t(E.cardKey(x.card)), n: numberWithCommas(x.qty) })).join(getLangString('MOD_VOY_GATE_LIST_SEP')) }));
   };
   // ---- a walking Folk's stakes (6c): its pack and its HP, never your GP ---------------------------------------------
   /** A band takes `share` of the food left in the Folk's pack: the road's last hexes it can no longer feed go hungry. */

@@ -17,7 +17,7 @@
 // yourself"): the same time, counted while you stay on the hex, where you may work meanwhile; leaving it stops the work
 // and the Tent goes back to the bank, as a builder Folk leaving does.
 
-const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
+const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1', validationMessage: 'text-warning' };
 const SWAL_DANGER = { ...SWAL_CLASS, confirmButton: 'btn btn-danger m-1' };
 
 export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
@@ -308,25 +308,20 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     const boxText = (kind, n) => (kind === 'food' ? state.stores.hp(n) : state.stores.fuelText(n));
     const exact = {};
     for (const kind of ['food', 'fuel']) {
-      exact[kind] = new Map([[boxText(kind, most[kind]), most[kind]], [boxText(kind, have[kind]), have[kind]], ['0', 0]]);
+      exact[kind] = new Map([[O.cleanAmount(boxText(kind, most[kind])), most[kind]], [O.cleanAmount(boxText(kind, have[kind])), have[kind]], ['0', 0]]);
     }
     const readBox = (kind) => {
-      const raw = String(document.getElementById(`voyage-outpost-${kind}`)?.value ?? '').trim().replace(/[\s\u00a0']/g, '');
-      if (exact[kind].has(raw)) return exact[kind].get(raw);
-      // Food is whole HP: every separator is grouping. Fuel (75 at most, never grouped): the last ',' or '.' is the point.
-      const last = Math.max(raw.lastIndexOf(','), raw.lastIndexOf('.'));
-      const plain = kind === 'food' ? raw.replace(/[.,]/g, '')
-        : last < 0 ? raw : `${raw.slice(0, last).replace(/[.,]/g, '')}.${raw.slice(last + 1)}`;
-      const n = Number(plain);
-      return plain === '' || !Number.isFinite(n) ? have[kind] : Math.max(0, n);
+      const raw = document.getElementById(`voyage-outpost-${kind}`)?.value;
+      const shown = O.cleanAmount(raw);
+      return exact[kind].has(shown) ? exact[kind].get(shown) : O.readAmount(raw, kind === 'food');
     };
     const row = (kind) => {
       const label = t(kind === 'food' ? 'MOD_VOY_OUTPOST_STORE_FOOD' : 'MOD_VOY_OUTPOST_STORE_FUEL');
       return `<div class="voyage-outpost-row"><label for="voyage-outpost-${kind}" class="font-w600">${esc(label)}</label>`
-        + `<input id="voyage-outpost-${kind}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" class="form-control voyage-outpost-qty" value="${boxText(kind, have[kind])}">`
+        + `<input id="voyage-outpost-${kind}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" class="form-control voyage-outpost-qty" maxlength="16" value="${boxText(kind, have[kind])}">`
         + `<span class="voyage-outpost-of text-muted">${esc(t('MOD_VOY_OUTPOST_STORE_OF', { n: kind === 'food' ? state.stores.hp(most[kind]) : state.stores.fuelText(most[kind]) }))}</span>`
-        + `<span class="voyage-outpost-quick"><button type="button" class="btn btn-sm btn-outline-info" data-outpost-fill="${kind}" data-value="${boxText(kind, most[kind])}">${esc(t('MOD_VOY_OUTPOST_STORE_TAKE_ALL'))}</button>`
-        + `<button type="button" class="btn btn-sm btn-outline-info" data-outpost-fill="${kind}" data-value="0">${esc(t('MOD_VOY_OUTPOST_STORE_LEAVE_ALL'))}</button></span></div>`;
+        + `<span class="voyage-outpost-quick"><button type="button" class="btn btn-sm btn-info" data-outpost-fill="${kind}" data-value="${boxText(kind, most[kind])}">${esc(t('MOD_VOY_OUTPOST_STORE_TAKE_ALL'))}</button>`
+        + `<button type="button" class="btn btn-sm btn-info" data-outpost-fill="${kind}" data-value="0">${esc(t('MOD_VOY_OUTPOST_STORE_LEAVE_ALL'))}</button></span></div>`;
     };
     const html = helpLayout.msgHtml([
       // One sentence a line (build .367, the user): the tent's half no longer wraps in after yours.
@@ -351,12 +346,21 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
         });
       },
       customClass: swalClass(SWAL_CLASS),
+      imageUrl: game.items.getObjectByID(`voyage:${O.TENT.id}`)?.media,
+      ...helpLayout.MSG_IMAGE,
       title: o.name,
       html,
       showCancelButton: true,
       confirmButtonText: t('MOD_VOY_OUTPOST_STORE_BUTTON'),
       cancelButtonText: t('MOD_VOY_OUTPOST_CANCEL'),
-      preConfirm: () => ({ food: readBox('food'), fuel: readBox('fuel') }),
+      preConfirm: () => {
+        const value = { food: readBox('food'), fuel: readBox('fuel') };
+        const bad = value.food === undefined ? 'food' : value.fuel === undefined ? 'fuel' : undefined;
+        if (bad === undefined) return value;
+        Swal.showValidationMessage(t(bad === 'food' ? 'MOD_VOY_OUTPOST_STORE_BAD_FOOD' : 'MOD_VOY_OUTPOST_STORE_BAD_FUEL'));
+        document.getElementById(`voyage-outpost-${bad}`)?.focus();
+        return false;
+      },
     }).then((res) => {
       if (!res.isConfirmed || res.value == null) return;
       try { if (share(key, res.value)) done?.(); } catch (e) { log('outpost store failed', e); }
@@ -380,7 +384,7 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
     notify(t('MOD_VOY_OUTPOST_STRUCK', { name: o.name }));
     // Its depot goes to the bank, and two Folks the tent joined may stand too far apart for their supply line now.
     try { state.haul?.syncDepots?.(); } catch {}
-    try { state.haul?.checkLinks?.(); } catch {}
+    try { state.haul?.tentsChanged?.(); } catch {}
     return true;
   };
   const askStrike = (key, done) => {
@@ -485,8 +489,9 @@ export function install(ctx, { state, O, terrainMod, helpLayout, log }) {
       SwalLocale.fire({
         didRender: state.popupDidRender,
         customClass: swalClass({ ...SWAL_CLASS, confirmButton: 'btn btn-danger m-1' }),
+        icon: 'warning',
         title: t('MOD_VOY_OUTPOST_BUILD_STOP'),
-        html: `<div class="text-center">${esc(t('MOD_VOY_OUTPOST_BUILD_STOP_ASK', { place: b.name }))}</div>`,
+        html: helpLayout.msgHtml([esc(t('MOD_VOY_OUTPOST_BUILD_STOP_ASK', { place: b.name }))]),
         showCancelButton: true,
         confirmButtonText: t('MOD_VOY_OUTPOST_BUILD_STOP'),
         cancelButtonText: t('MOD_VOY_OUTPOST_CANCEL'),

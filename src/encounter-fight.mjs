@@ -158,10 +158,12 @@ export function install(ctx, { state, decimal, log }) {
     return t(at.draws === 1 ? 'MOD_VOY_ENC_STAKE_LOOT_ONE' : 'MOD_VOY_ENC_STAKE_LOOT_MANY', vars)
       + t(at.stash ? 'MOD_VOY_ENC_STAKE_LOOT_STASH' : 'MOD_VOY_ENC_STAKE_LOOT_RARE', vars);
   };
+  /** A bar's width in percent, 0 to 100 whatever the numbers. */
+  const barPct = (now, max) => (max > 0 ? Math.max(0, Math.min(100, 100 * now / max)).toFixed(1) : '0');
   /** The board's two sides at a glance, as the fight has them: you on the left, the band on the right. */
   const sideHtml = (who, icon, iconCls, label, cls, now, max, extra) => `<div class="voyage-enc-vs-side voyage-enc-vs-${who}">`
     + `<div class="voyage-enc-who">${fa(icon, iconCls)}${esc(label)}</div>`
-    + `<div class="voyage-enc-bar ${cls}"><i style="width:${(100 * now / max).toFixed(1)}%"></i><span>${now} / ${max}</span></div>`
+    + `<div class="voyage-enc-bar ${cls}"><i style="width:${barPct(now, max)}%"></i><span>${numberWithCommas(now)} / ${numberWithCommas(max)}</span></div>`
     + extra + '</div>';
   /** One outcome or choice spelled out: an icon in its colour, a word and what it means. */
   const outcome = (icon, cls, word, text) => `<div class="voyage-enc-out">${fa(icon, cls)}<div><b class="${cls}">${esc(word)}</b> ${esc(text)}</div></div>`;
@@ -246,7 +248,7 @@ export function install(ctx, { state, decimal, log }) {
     const c = api.cost();
     const def = E.BANDS[p.band];
     const choice = (act, v, label, on, icon) => `<button type="button" class="btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'} voyage-enc-btn voyage-enc-pick" data-act="${act}" data-v="${esc(v)}" aria-pressed="${on}"><span>${icon ? `${fa(icon)} ` : ''}${esc(label)}</span></button>`;
-    const row = (key, inner) => `<div class="voyage-enc-pick-row"><span class="voyage-enc-pick-label">${esc(t(key))}</span>${inner}</div>`;
+    const row = (key, inner) => `<div class="voyage-enc-pick-row" role="group" aria-label="${esc(t(key))}"><span class="voyage-enc-pick-label" aria-hidden="true">${esc(t(key))}</span>${inner}</div>`;
     const picks = row('MOD_VOY_ENC_PRACTICE_WHERE', choice('pr-where', 'land', t('MOD_VOY_ENC_ON_LAND'), p.where === 'land', 'fa-mountain') + choice('pr-where', 'sea', t('MOD_VOY_ENC_AT_SEA'), p.where === 'sea', 'fa-ship'))
       + row('MOD_VOY_ENC_PRACTICE_TIER', [1, 2, 3, 4].map((n) => choice('pr-tier', n, `${n}`, p.tier === n)).join(''))
       + row('MOD_VOY_ENC_PRACTICE_BAND', E.bandsOf(p.where).map((id) => choice('pr-band', id, api.bandName(id), p.band === id)).join(''));
@@ -346,12 +348,12 @@ export function install(ctx, { state, decimal, log }) {
       + '<div class="voyage-enc-side">'
       + `<div class="voyage-enc-who">${fa('fa-heart', 'voyage-enc-sea')}${esc(resolveOf(f))}</div>`
       + `<div class="voyage-enc-guard" title="${esc(t('MOD_VOY_ENC_YOUR_GUARD_TIP'))}">${y.guard ? `${fa('fa-shield-alt')} ${y.guard}${y.carry ? ` ${esc(t('MOD_VOY_ENC_GUARD_KEPT'))}` : ''}` : ''}</div>`
-      + `<div class="voyage-enc-bar voyage-enc-resolve${rFlash ? ' voyage-enc-flash' : ''}"><i style="width:${(100 * y.resolve / y.max).toFixed(1)}%"></i><span>${y.resolve} / ${y.max}</span></div>`
+      + `<div class="voyage-enc-bar voyage-enc-resolve${rFlash ? ' voyage-enc-flash' : ''}"><i style="width:${barPct(y.resolve, y.max)}%"></i><span>${numberWithCommas(y.resolve)} / ${numberWithCommas(y.max)}</span></div>`
       + `<div class="voyage-enc-status">${status}</div>`
       + '</div><div class="voyage-enc-side">'
       + `<div class="voyage-enc-who">${fa('fa-skull-crossbones', 'voyage-enc-hot')}${esc(t(s.phase === 'press' ? 'MOD_VOY_ENC_CAPTAIN_NERVE' : 'MOD_VOY_ENC_THEIR_NERVE'))}</div>`
       + `<div class="voyage-enc-guard" title="${esc(t('MOD_VOY_ENC_THEIR_GUARD_TIP'))}">${b.guard ? `${fa('fa-shield-alt')} ${b.guard}` : ''}</div>`
-      + `<div class="voyage-enc-bar voyage-enc-nerve${nFlash ? ' voyage-enc-flash' : ''}"><i style="width:${(100 * b.nerve / b.max).toFixed(1)}%"></i><span>${b.nerve} / ${b.max}</span></div>`
+      + `<div class="voyage-enc-bar voyage-enc-nerve${nFlash ? ' voyage-enc-flash' : ''}"><i style="width:${barPct(b.nerve, b.max)}%"></i><span>${numberWithCommas(b.nerve)} / ${numberWithCommas(b.max)}</span></div>`
       + `<div class="voyage-enc-intent${hidden ? ' voyage-enc-hidden-move' : off ? ' voyage-enc-off' : ''}"><div class="voyage-enc-ico">${fa(hidden ? 'fa-question' : MOVE_ICON[it.kind] ?? 'fa-fist-raised')}</div>`
       + `<div><div class="voyage-enc-move">${esc(mt.head)}</div><div class="voyage-enc-sub">${esc(mt.sub)}</div>${lv ? `<div class="voyage-enc-live voyage-enc-live-${lv[0]}">${esc(lv[1])}</div>` : ''}</div></div>`
       + nxt

@@ -24,12 +24,14 @@ export function isBankPlace(rec, neighbours, isTradePlace) {
 
 /**
  * What a Folk uses: 'bank' or 'room'. `on` is the haul turned on (the setting, the rules, Voyage's map trusted).
- * A Folk with you, walking, or with no place uses the bank's rule (it works nowhere meanwhile); a Folk on a hex the map
- * doesn't know uses the bank too (it fails open). `recordAt(place)` gives the record, `neighboursOf(rec)` the records
- * around it.
+ * A Folk walking alone keeps its room wherever the road goes: 'bank' would hand its haul to the bank from afar. A Folk
+ * with you or with no place uses the bank's rule (it works nowhere meanwhile); a Folk on a hex the map doesn't know uses
+ * the bank too (it fails open). `recordAt(place)` gives the record, `neighboursOf(rec)` the records around it.
  */
 export function accessFor(folk, { on, recordAt, neighboursOf, isTradePlace }) {
-  if (on !== true || folk == null || folk.travel !== 'idle' || folk.place == null) return 'bank';
+  if (on !== true || folk == null) return 'bank';
+  if (folk.travel === 'walking') return 'room';
+  if (folk.travel !== 'idle' || folk.place == null) return 'bank';
   const rec = recordAt?.(folk.place);
   if (rec === undefined) return 'bank';
   return isBankPlace(rec, neighboursOf?.(rec) ?? [], isTradePlace) ? 'bank' : 'room';
@@ -45,12 +47,13 @@ export function hasHaul(room) {
 
 /**
  * The Folks to collect from where you stand: idle on a hex within REACH of `pos`, nearest first, then by slot. `rooms`
- * maps a Folk id to its room view (undefined: no room to read). Folks with nothing to collect are left out.
+ * maps a Folk id to its room view (undefined: no room to read). Folks with nothing to collect are left out, and so are
+ * those `keep(folk)` holds back for a courier.
  */
-export function collectFrom(folks, pos, { distance, rooms }) {
+export function collectFrom(folks, pos, { distance, rooms, keep }) {
   if (pos == null || !Array.isArray(folks) || typeof distance !== 'function') return [];
   return folks
-    .filter((f) => f?.travel === 'idle' && f.place != null && distance(pos, f.place) <= REACH && hasHaul(rooms?.(f.id)))
+    .filter((f) => f?.travel === 'idle' && f.place != null && distance(pos, f.place) <= REACH && hasHaul(rooms?.(f.id)) && keep?.(f) !== true)
     .sort((a, b) => distance(pos, a.place) - distance(pos, b.place) || (a.slot ?? 0) - (b.slot ?? 0));
 }
 
@@ -58,12 +61,13 @@ export function collectFrom(folks, pos, { distance, rooms }) {
  * What a Folk's change means for its room. `before` and `after` are { travel, access } (access from accessFor).
  * - 'empty': it came aboard with you (you are there), or it reached a bank place: everything to the bank but the stock
  *   of a Folk on its own stock (Worker Folks keeps that by the inputs flag).
- * - undefined: nothing to do (a walk takes its room along, a Folk that stays in the wild keeps it).
+ * - undefined: nothing to do (a walk takes its room along, a Folk that stays in the wild keeps it). `line`: a supplier
+ *   on a carried line reaching a bank place keeps its room for the courier; the bank's buffer takes what isn't the line's.
  */
-export function lifeStep(before, after) {
+export function lifeStep(before, after, { line = false } = {}) {
   if (after == null) return undefined;
   if (after.travel === 'with' && before?.travel !== 'with') return 'empty';
-  if (after.travel === 'idle' && after.access === 'bank' && before?.access === 'room') return 'empty';
+  if (after.travel === 'idle' && after.access === 'bank' && before?.access === 'room') return line ? undefined : 'empty';
   return undefined;
 }
 

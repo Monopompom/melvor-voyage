@@ -642,7 +642,10 @@ export const BOAT_EPSILON = 1e-3;
  *   neighbours(node): [[node, cost, hop]] (hop: a fast-travel jump between ports);
  *   heuristic(node): a lower bound to the goal (0 is fine);
  *   boat, ship: the vessel records ({ hull, q, r, aboard }) or null; geo: seaIndex();
- *   dockOf(node): where a vessel ties up at the port `node` after a hop, { q, r } or undefined.
+ *   dockOf(node): where a vessel ties up at the port `node` after a hop, { q, r } or undefined;
+ *   goals: optional, several nodes, the first reached ends the search (`goal` alone otherwise);
+ *   stepCost(from, to, cost): optional, what a step weighs instead of the game's `cost`. `from` and `to` are search
+ *   states ({ node, mode, hop, g }); from.g is what the route has weighed so far, the elapsed time for a timed route.
  * }
  * Each vessel is 'h' (where it was), 'w' (with you: you are in it), 'a' (the boat, aboard the ship you are on) or 'l'
  * (left behind on this route: not boarded again, a cheapest route never needs it). Returns { path: nodes start to
@@ -703,11 +706,12 @@ export function routeSearch(o) {
     return top;
   };
   const best = new Map();
-  const goalKey = o.key(o.goal);
+  const goalKeys = new Set((o.goals ?? [o.goal]).map((n) => o.key(n)));
   best.set(stateKey(first), 0);
   push(first);
   const offer = (from, node, cost, patch) => {
-    const st = { ...from, ...patch, node, g: from.g + cost, prev: from };
+    const st = { ...from, ...patch, node, prev: from };
+    st.g = from.g + (o.stepCost === undefined ? cost : o.stepCost(from, st, cost));
     const k = stateKey(st);
     const old = best.get(k);
     if (old !== undefined && old <= st.g) return;
@@ -721,7 +725,7 @@ export function routeSearch(o) {
     if (done.has(ck) || best.get(ck) < cur.g) continue;
     done.add(ck);
     if (o.stats !== undefined) o.stats.expanded = done.size;
-    if (o.key(cur.node) === goalKey) {
+    if (goalKeys.has(o.key(cur.node))) {
       const states = [];
       for (let st = cur; st !== undefined; st = st.prev) states.push(st);
       states.reverse();

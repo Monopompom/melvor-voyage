@@ -13,6 +13,8 @@ const CARTOGRAPHY_PAGE_ID = 'melvorAoD:Cartography';
 export function install(ctx, { state, model, shipModel, storesModel, supplyModel, rules, pageLayout, helpLayout, helpHtml, HELP_WIDTH, shortNumber, decimal, wideCount, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  /** A name of three words or more never leaves its last word alone on a line. */
+  const keepEnd = (x) => String(x).replace(/^(\S+ .*\S) (\S+)$/, '$1\u00a0$2');
   const part = (name) => document.querySelector(`#${CONTAINER_ID} [data-voyage="${name}"]`);
   const skill = () => { try { return game.skills.getObjectByID(model.SKILL_ID); } catch { return undefined; } };
   const pageOf = (id) => { try { return game.pages.getObjectByID(id); } catch { return undefined; } };
@@ -135,12 +137,14 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         else if (target.dataset.voyageAction === 'hold-fold') { holdOpen[target.dataset.kind] = target.getAttribute('aria-expanded') !== 'true'; render(); }
         else if (target.dataset.voyageAction === 'take') {
           const item = game.items.getObjectByID(holdPicked[kind] ?? '');
-          const n = typed(`take-${kind}`);
-          if (item !== undefined && n > 0 && state.hold?.take(item, n, kind) > 0) { delete amounts[`take-${kind}`]; render(); }
+          const n = wholeTyped(`take-${kind}`);
+          if (item !== undefined && n === 0) { state.hold?.refuseAmount(); return; }
+          if (item !== undefined && state.hold?.take(item, n, kind) > 0) { delete amounts[`take-${kind}`]; render(); }
         } else if (target.dataset.voyageAction === 'sell') {
           const item = game.items.getObjectByID(holdPicked[kind] ?? '');
-          const n = typed(`take-${kind}`);
-          if (item !== undefined && n > 0) state.hold?.sell(item, n, kind, () => { delete amounts[`take-${kind}`]; render(); });
+          const n = wholeTyped(`take-${kind}`);
+          if (item !== undefined && n === 0) { state.hold?.refuseAmount(); return; }
+          if (item !== undefined) state.hold?.sell(item, n, kind, () => { delete amounts[`take-${kind}`]; render(); });
         }
       });
       // The Crew (phase 6c): Come with me, and Put ashore with its work dialog.
@@ -152,10 +156,15 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         if (target.dataset.voyageAction === 'crew-come') { if (state.crew.comeAlong(id)) render(); }
         else if (target.dataset.voyageAction === 'crew-ashore') state.crew.askAshore(id, render);
         // A stowaway aboard (the flat mechanics): hired at the usual price.
-        else if (target.dataset.voyageAction === 'stow-hire') { if (state.events?.hire?.()) render(); }
+        else if (target.dataset.voyageAction === 'stow-hire') {
+          if (target.getAttribute('aria-disabled') === 'true') state.refused?.(target.dataset.why);
+          else if (state.events?.hire?.()) render();
+        }
         // Walking alone (6d): Send… and Stop here.
         else if (target.dataset.voyageAction === 'crew-send') state.walks?.askSend(id, render);
         else if (target.dataset.voyageAction === 'walk-stop') state.walks?.askStop(id, render);
+        // Couriers (round 4): the route editor, on the map.
+        else if (target.dataset.voyageAction === 'courier-route') state.routeEditor?.open(id);
       });
       part('stores')?.addEventListener('click', (e) => {
         const target = e.target instanceof Element ? e.target.closest('[data-voyage-action], [data-voyage-preset]') : null;
@@ -202,6 +211,11 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     const max = Number(input.max) || 0;
     const n = Math.floor(Number(input.value) || 0);
     return n <= 0 ? 0 : Math.min(max, n);
+  };
+  /** The same box for Take and Sell: only plain whole digits count, so "1.5" or "1e9" never moves a surprising amount. */
+  const wholeTyped = (action) => {
+    const input = document.querySelector(`#${CONTAINER_ID} [data-voyage-amount="${action}"]`);
+    return input !== null && /^\d+$/.test(input.value.trim()) ? typed(action) : 0;
   };
   /** A blue preset puts its amount in the box (it never acts on its own). */
   const preset = (button, action) => {
@@ -336,7 +350,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     };
     const row = (f, extra, button, along = false, skillIcon = '', note = '') => `<div class="voyage-crew-row">`
       + (f.portrait ? `<img class="voyage-crew-face" src="${esc(f.portrait)}" alt="">` : '')
-      + `<div class="voyage-crew-who"><div><span class="font-w600">${esc(f.name)}</span> <small class="text-muted">(${esc(rankName(f.tier))}${skillIcon}${extra})</small></div>${hpBlock(f, along)}${note}</div>`
+      + `<div class="voyage-crew-who"><div>${nameWithBracket(f.name, `<small class="text-muted">(${esc(rankName(f.tier))}${skillIcon}${extra})</small>`, Boolean(extra))}</div>${hpBlock(f, along)}${note}</div>`
       + `${button}</div>`;
     // Berths: each vessel you own, the one you are in marked.
     const inV = c.inVessel();
@@ -348,7 +362,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     // Send… (6d): with Walking Orders, for a Folk with you or within a hex; the dialog says where and what it costs.
     const wk = state.walks;
     const sendBtn = (f) => (wk === undefined || wk.sendRefusal(f) !== undefined ? ''
-      : `<button type="button" class="btn btn-sm btn-outline-success" data-voyage-action="crew-send" data-folk="${esc(f.id)}">${esc(t('MOD_VOY_WALK_SEND_OPEN'))}</button>`);
+      : `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="crew-send" data-folk="${esc(f.id)}">${esc(t('MOD_VOY_WALK_SEND_OPEN'))}</button>`);
     const buttons = (...parts) => { const b = parts.filter((x) => x !== ''); return b.length > 1 ? `<div class="voyage-crew-buttons">${b.join('')}</div>` : b.join(''); };
     const ashoreBtn = (f) => buttons(ashoreWhy !== undefined ? ''
       : `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="crew-ashore" data-folk="${esc(f.id)}">${esc(t('MOD_VOY_CREW_ASHORE_BUTTON'))}</button>`, sendBtn(f));
@@ -363,8 +377,9 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       // The Hire button stays, greyed with its reason under it (licence, slot or coin, build .386), so the price shows.
       const why = state.events.hireRefusal();
       const gp = shortNumber(state.events.price() ?? 0);
-      const btn = `<button type="button" class="btn btn-sm btn-success" data-voyage-action="stow-hire"${why !== undefined ? ' disabled' : ''}>${esc(t('MOD_VOY_STOW_HIRE', { name: stow.name, gp }))}</button>`;
-      const note = `<small class="d-block text-muted">${esc(t('MOD_VOY_STOW_LATER_LINE', { name: stow.name }))}</small>` + (why !== undefined && why !== '' ? `<small class="d-block text-warning">${esc(why)}</small>` : '');
+      const off = why !== undefined;
+      const btn = `<button type="button" class="btn btn-sm ${off ? 'btn-outline-secondary disabled' : 'btn-success'}" data-voyage-action="stow-hire"${off ? ` aria-disabled="true" data-why="${esc(why)}" title="${esc(why)}"` : ''}>${esc(t('MOD_VOY_STOW_HIRE', { name: stow.name, gp }))}</button>`;
+      const note = `<small class="d-block text-muted">${esc(t('MOD_VOY_STOW_LATER_LINE', { name: stow.name }))}</small>`;
       html += `<div class="voyage-big-head">${esc(t('MOD_VOY_STOW_HEAD'))}</div>${row({ name: stow.name, tier: stow.tier, portrait: stow.portrait }, '', btn, false, '', note)}`;
     }
     if (near.length > 0) {
@@ -397,6 +412,13 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         false, '', `<small class="d-block text-muted voyage-walk-line">${esc(t('MOD_VOY_WALK_CARD', { to: walk.to, left: walk.leftText }))}</small>`
           // What it foraged on the way (round 2), kept for a hungry hex.
           + (walk.found > 0 && state.stores?.hp ? `<small class="d-block text-muted voyage-walk-line">${esc(t('MOD_VOY_WALK_CARD_FOUND', { amount: t('MOD_VOY_UNIT_FOOD', { n: state.stores.hp(walk.found) }) }))}</small>` : ''))).join('')}`;
+    }
+    // Couriers (round 4): where each is heading, and its route.
+    const couriers = state.couriers?.rows?.() ?? [];
+    if (couriers.length > 0) {
+      html += `<div class="voyage-big-head">${esc(t('MOD_VOY_COURIER_HEAD'))}</div>${couriers.map(({ folk, line, warn }) => row(folk, '',
+        `<button type="button" class="btn btn-sm btn-outline-info" data-voyage-action="courier-route" data-folk="${esc(folk.id)}">${esc(t('MOD_VOY_COURIER_ROUTE_BUTTON'))}</button>`,
+        false, '', `<small class="d-block ${warn ? 'text-warning' : 'text-muted'} voyage-walk-line">${esc(line)}</small>`)).join('')}`;
     }
     return section(html) + section(`<div class="text-muted">${esc(t('MOD_VOY_CREW_HINT'))}</div>`); // its own band (build .386)
   };
@@ -538,7 +560,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     }
     if (!open && empty > 0) {
       cells.push(`<button type="button" class="voyage-crate voyage-crate-more" data-voyage-action="hold-fold" data-kind="${kind}" aria-expanded="false" aria-label="${esc(t('MOD_VOY_HOLD_MORE_SLOTS', { n: `${empty}` }))}">`
-        + `${CRATE_SVG}<span class="voyage-crate-more-n">${empty}</span><span class="voyage-crate-more-word">${esc(t('MOD_VOY_HOLD_EMPTY_WORD'))}</span></button>`);
+        + `${CRATE_SVG}<span class="voyage-crate-more-n">${numberWithCommas(empty)}</span><span class="voyage-crate-more-word">${esc(t('MOD_VOY_HOLD_EMPTY_WORD'))}</span></button>`);
     }
     const fold = open && empty > 1 ? `<button type="button" class="voyage-hold-fold" data-voyage-action="hold-fold" data-kind="${kind}" aria-expanded="true"><i class="fa fa-caret-up mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_HOLD_FOLD_SLOTS'))}</button>` : ''; // up: the slots above fold away (the user, 29 Oct 2026)
     return `<div class="voyage-crates">${cells.join('')}</div>${fold}`;
@@ -702,7 +724,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     } catch {}
     row(img(ctx.getResourceUrl('assets/chart_mining.webp')), 'MOD_VOY_PAGE_STAT_CHARTS', numberWithCommas((j.charted ?? []).length));
     const cut = model.travelDiscount(skill()?.level ?? 1);
-    if (cut > 0) { try { row(img(game.gp.media), 'MOD_VOY_PAGE_STAT_DISCOUNT', t('MOD_VOY_PAGE_STAT_DISCOUNT_VALUE', { pct: `${cut}` }), 'text-success'); } catch {} }
+    if (cut > 0) { try { row(img(game.gp.media), 'MOD_VOY_PAGE_STAT_DISCOUNT', t('MOD_VOY_PAGE_STAT_DISCOUNT_VALUE', { pct: decimal(cut, 2) }), 'text-success'); } catch {} }
     return `<div class="voyage-stats">${rows.join('')}</div>`;
   };
   /** The Travels head: the hexes behind you, large, with on foot and under sail as two coloured chips. */
@@ -720,7 +742,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
    */
   const signTile = (L) => {
     const face = (lines) => `<div class="voyage-land-face" data-tip-lines="${esc(JSON.stringify(lines))}"><div class="voyage-land-ring voyage-sign-ring"><img src="${L.signMedia()}" alt=""></div>` +
-      `<div class="voyage-land-name">${esc(L.signName())}</div></div>`;
+      `<div class="voyage-land-name">${esc(keepEnd(L.signName()))}</div></div>`;
     const plain = (lines) => lines.map((l) => (typeof l === 'string' ? l : l.text)).join('. ');
     if (!L.signOwned()) {
       const lines = [t('MOD_VOY_PAGE_SIGN_IN_SHOP', { level: `${state.landModel?.SIGN.level ?? 35}` })];
@@ -794,6 +816,13 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
 
   /** A Folk's rank as Worker Folks names it (Trainee … Foreman). */
   const rankName = (tier) => state.rankName?.(tier) ?? tier;
+  /** A Folk's name and its bracket: the name's last word moves with the bracket, so the bracket is never alone on a line. */
+  const nameWithBracket = (name, bracket, several = false) => {
+    if (several) return `<span class="font-w600">${esc(name)}</span> <span class="voyage-keep">${bracket}</span>`;
+    const words = String(name).trim().split(/\s+/);
+    const last = words.pop();
+    return `${words.length > 0 ? `<span class="font-w600">${esc(words.join(' '))}</span> ` : ''}<span class="voyage-keep"><span class="font-w600">${esc(last)}</span> ${bracket}</span>`;
+  };
   const helpSections = (topic) => {
     const R = shipModel.REPAIR;
     const st = state.stores;
@@ -832,7 +861,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
           t('MOD_VOY_HELP_REPAIR_WHERE'),
           t('MOD_VOY_HELP_CAREEN', { step: `${R.step}`, time: state.clock?.duration?.(shipModel.CAREEN_STEP_MS) ?? '' }),
           t('MOD_VOY_HELP_REPAIR_LOGS'),
-          t('MOD_VOY_HELP_PITCH', { chance: `${shipModel.pitchChance(1)}` }),
+          t('MOD_VOY_HELP_PITCH', { chance: decimal(shipModel.pitchChance(1), 2) }),
         ] },
         // Bands at sea (4.33): the big ship on deep sea; the toll, or run. The fight itself is the Journal's.
         ...(state.encounters?.R === undefined ? [] : [(() => {
@@ -1005,7 +1034,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
           const casksOn = st.casks?.() === true;
           const band = (b) => ({ cells: [t(`MOD_VOY_WX_BAND_${b.toUpperCase()}`), x(SP.WARMTH[b]), one] });
           out.push({ head: t('MOD_VOY_HELP_HEAD_SPOIL'), body: [
-            t('MOD_VOY_HELP_SPOIL_WHAT', { food: `${SP.RATE.food * 100}`, fuel: `${SP.RATE.fuel * 100}` }),
+            t('MOD_VOY_HELP_SPOIL_WHAT', { food: decimal(SP.RATE.food * 100, 2), fuel: decimal(SP.RATE.fuel * 100, 2) }),
             { table: { cols: [t('MOD_VOY_HELP_COL_SPOIL'), t('MOD_VOY_HELP_COL_FOOD'), t('MOD_VOY_HELP_COL_FUEL')], rows: [
               { cells: [t('MOD_VOY_HELP_SPOIL_PLACE'), x(SP.AT_FOOD_PLACE), x(SP.AT_FOOD_PLACE)] },
               { cells: [t('MOD_VOY_HELP_SPOIL_TENT'), x(SP.IN_TENT), x(SP.IN_TENT)] },
@@ -1040,11 +1069,11 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         ] });
       }
       if (st !== undefined) {
-        const rows = [skillRow('melvorD:Firemaking', 'Firemaking', st.fmLevel(), t('MOD_VOY_HELP_BUFF_FUEL', { cut: `${cutOf(storesModel.fuelFactor(st.fmLevel()))}` }))];
-        if (night) rows.push(skillRow('melvorD:Astrology', 'Astrology', st.astroLevel(), t('MOD_VOY_HELP_BUFF_LIGHT', { cut: `${cutOf(storesModel.lightFactor(st.astroLevel()))}` })));
+        const rows = [skillRow('melvorD:Firemaking', 'Firemaking', st.fmLevel(), t('MOD_VOY_HELP_BUFF_FUEL', { cut: decimal(cutOf(storesModel.fuelFactor(st.fmLevel())), 1) }))];
+        if (night) rows.push(skillRow('melvorD:Astrology', 'Astrology', st.astroLevel(), t('MOD_VOY_HELP_BUFF_LIGHT', { cut: decimal(cutOf(storesModel.lightFactor(st.astroLevel())), 1) })));
         out.push({ head: t('MOD_VOY_HELP_HEAD_SKILLS'), body: [
           { table: { cols: [t('MOD_VOY_HELP_COL_SKILL'), t('MOD_VOY_HELP_COL_BONUS')], rows } },
-          t('MOD_VOY_HELP_SKILLS_PER_LEVEL', { cut: `${Math.round(storesModel.FIREMAKING_CUT * 1000) / 10}` }),
+          t('MOD_VOY_HELP_SKILLS_PER_LEVEL', { cut: decimal(Math.round(storesModel.FIREMAKING_CUT * 1000) / 10, 1) }),
           ...gearLine('MOD_VOY_HELP_GEAR_STORES', 'rationCut', { fuel: `${ge().fuelCut ?? 0}` }),
         ] });
       }
@@ -1063,7 +1092,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
           ...(gear === undefined ? [] : [t(relicsOn() ? 'MOD_VOY_HELP_XP_GEAR' : 'MOD_VOY_HELP_XP_GEAR_NR')]),
         ] },
         { head: t('MOD_VOY_HELP_HEAD_DISCOUNT'), body: [
-          t('MOD_VOY_HELP_DISCOUNT', { per: `${model.TRAVEL_DISCOUNT_PER_LEVEL}`, pct: `${model.travelDiscount(skill()?.level ?? 1)}`, max: `${model.travelDiscount(99)}` }),
+          t('MOD_VOY_HELP_DISCOUNT', { per: decimal(model.TRAVEL_DISCOUNT_PER_LEVEL, 2), pct: decimal(model.travelDiscount(skill()?.level ?? 1), 2), max: decimal(model.travelDiscount(99), 2) }),
         ] },
         { head: t('MOD_VOY_HELP_HEAD_NO_XP'), body: [
           { text: t('MOD_VOY_HELP_NO_XP_HUNGRY', { pct: `${Math.round(storesModel.HUNGRY_GP * 100)}` }), cls: 'text-warning' },
@@ -1117,7 +1146,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     const line = words === '' ? t('MOD_VOY_PAGE_SPOIL_TINY') : t('MOD_VOY_PAGE_SPOIL', { amounts: words });
     // The curing left beside it (Curing Salt), so the tooltip is not the only place it shows.
     const cured = rot.cure > 0 ? ` · ${t('MOD_VOY_PAGE_SPOIL_CURED', { time: state.clock?.duration?.(Math.max(60000, rot.cure)) ?? '' })}` : '';
-    return `<div class="voyage-spoil-line small text-warning mt-1" title="${esc(tip)}"><i class="fa fa-hourglass-half mr-1" aria-hidden="true"></i>${esc(line + cured)}</div>`;
+    return `<div class="voyage-spoil-line text-warning mt-1" title="${esc(tip)}"><i class="fa fa-hourglass-half mr-1" aria-hidden="true"></i>${esc(line + cured)}</div>`;
   };
 
   const storesHtml = () => {
@@ -1157,7 +1186,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     // Curing Salt (4.4b) loads at any loading place, in its own strip under the wells (the user, 4 Nov 2026: "Salt in
     // fuel slots? Where are the kegs, then?"), beside the Dry Casks.
     const items = api.loadable({ all: true }).filter((x) => x.kind === 'cure' || rates[x.kind] > 0);
-    const unit = (x) => `${x.item.name}, ${x.kind === 'food' ? t('MOD_VOY_PAGE_STORES_UNIT_FOOD', { hp: `${x.unit}` }) : x.kind === 'cure' ? t('MOD_VOY_PAGE_STORES_UNIT_CURE', { h: `${x.unit}` }) : t('MOD_VOY_PAGE_STORES_UNIT_FUEL', { fuel: `${x.unit}` })}`;
+    const unit = (x) => `${x.item.name}, ${x.kind === 'food' ? t('MOD_VOY_PAGE_STORES_UNIT_FOOD', { hp: numberWithCommas(x.unit) }) : x.kind === 'cure' ? t('MOD_VOY_PAGE_STORES_UNIT_CURE', { h: decimal(x.unit, 2) }) : t('MOD_VOY_PAGE_STORES_UNIT_FUEL', { fuel: decimal(x.unit, 2) })}`;
     // The first pick is the best food not marked Never load (food priority).
     if (items.length > 0 && !items.some((x) => x.item.id === picked)) picked = (items.find((x) => x.never !== true) ?? items[0]).item.id;
     // Two wells, food | fuel, four chip rows tall, scrolling past that (build .149, the user; DESIGN "The Stores
@@ -1524,7 +1553,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         : [m === undefined || m.cut === 0 ? t('MOD_VOY_PAGE_LAND_NO_CUT') : { text: t('MOD_VOY_PAGE_LAND_CUT', { pct: `${Math.round(m.cut * 100)}` }), cls: 'text-success' }];
       const tipText = lines.map((l) => (typeof l === 'string' ? l : l.text)).join('. ');
       const inner = `<div class="voyage-land-face" data-tip-lines="${esc(JSON.stringify(lines))}"><div class="voyage-land-ring"><img src="${m === undefined ? ctx.getResourceUrl('assets/marker_traveller_figure.webp') : L.mediaOf(m)}" alt=""></div>` +
-        `<div class="voyage-land-name"><small class="voyage-land-kicker text-muted">${esc(t('MOD_VOY_PAGE_LAND_KICKER'))}</small>${esc(name)}</div></div>`;
+        `<div class="voyage-land-name"><small class="voyage-land-kicker text-muted">${esc(t('MOD_VOY_PAGE_LAND_KICKER'))}</small>${esc(keepEnd(name))}</div></div>`;
       const shopHint = next === undefined ? '' : `. ${t('MOD_VOY_PAGE_LAND_NEXT', { name: L.nameOf(next), level: `${next.level}` })}. ${t('MOD_VOY_PAGE_LAND_SHOP')}`;
       const label = `${t('MOD_VOY_PAGE_LAND_TIP', { mount: m === undefined ? t('MOD_VOY_PAGE_LAND_TIP_ON_FOOT') : name })}. ${tipText}${shopHint}`;
       put(land, next === undefined

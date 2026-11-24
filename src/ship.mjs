@@ -100,6 +100,11 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
    * big ship. The path is the game's (destination first) with `voyageModes` alongside.
    */
   ctx.patch(WorldMap, 'computePath').replace(function (original, start, goal) {
+    // The planned place by the planner's chosen route, so the map draws and travels the way the plan shows.
+    try {
+      const planned = state.planner?.pathFor?.(this, start, goal);
+      if (planned !== undefined) return planned;
+    } catch (e) { log('planned route failed; the game\'s route', e); }
     let g;
     try { if (enabled() && big() != null) g = geoNow(); } catch (e) { log('ship route check failed open', e); }
     if (g === undefined) return original(start, goal);
@@ -122,6 +127,41 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
       return path;
     } catch (e) { rawNeighbours = false; log('route search failed; vanilla path', e); return original(start, goal); }
   });
+
+  /**
+   * The route to the nearest of `goals` by another measure than the game's cost: `by` 'fast' (the voyage's own time,
+   * wind, ground and storms) or 'hexes' (fewest steps, a hop one). Ties go to the cheaper way, and to the big ship over
+   * the boat. { dest, path (destination first) } or undefined.
+   */
+  const searchRoute = (map, start, goals, by) => {
+    if (!enabled() || goals.length === 0) return undefined;
+    const g = geoNow();
+    if (g === undefined) return undefined;
+    const pricer = by === 'fast' ? state.clock?.routePricer?.() : undefined;
+    if (by === 'fast' && pricer === undefined) return undefined;
+    const costModifier = map.cartography.travelCostMultiplier;
+    const nudge = (st, cost) => Math.min(cost, 1e6) * 1e-9 + (st.mode === 'boat' ? 1e-6 : 0);
+    const stepCost = by === 'fast'
+      ? (from, st, cost) => pricer.ms(from.node, st.node, st.hop === undefined ? { m: st.mode } : { m: st.mode, hop: st.hop }, from.g) + nudge(st, cost)
+      : (from, st, cost) => 1 + nudge(st, cost);
+    // A hop counts one hex whatever its length, so only the timed search has a distance floor.
+    const heuristic = by === 'fast'
+      ? (h) => { let d = Infinity; for (const x of goals) d = Math.min(d, terrainMod.hexDistance(h, x)); return d * pricer.floor; }
+      : () => 0;
+    rawNeighbours = true;
+    let found;
+    try {
+      found = shipModel.routeSearch({
+        start, goal: goals[0], goals, key: (h) => `${h.q},${h.r}`, rec: recOf,
+        neighbours: (h) => map.getHexNeighboursAndCosts(h, costModifier).map(([n, c]) => [n, c, isHop(h, n)]),
+        heuristic, stepCost, boat: ship(), ship: big(), geo: g, dockOf,
+      });
+    } finally { rawNeighbours = false; }
+    if (found === undefined || found.path.length < 2) return undefined;
+    const path = [...found.path].reverse();
+    if (big() != null) path.voyageModes = [...found.modes].reverse();
+    return { dest: path[0], path };
+  };
 
   /** A fast-travel hop between two game hexes (the game's port network; getTravelCosts skips these). */
   /**
@@ -656,7 +696,7 @@ export function install(ctx, { state, model, shipModel, terrainMod, helpLayout, 
   const demoNotice = (kind = 'overseas') => notice(noticeSections(kind));
   const api = {
     boat: ship, big, vessel, inVessel, aboard, enabled, setShip, setVessel, demoNotice,
-    hullName: (s) => hullWord(HULLS[s?.hull]), stepsOf, afterMove, homeOf, dockOf, isHop, build, buildBlocker, buildCosts, canFish, launchSpot, whereIs, recOf,
+    hullName: (s) => hullWord(HULLS[s?.hull]), stepsOf, searchRoute, afterMove, homeOf, dockOf, isHop, build, buildBlocker, buildCosts, canFish, launchSpot, whereIs, recOf,
     startOverseas, cond, setCond, repairInfo, repair, stopCareen, careenTick, careenRefusal, careenWhy, refuseCareen, upgradeInfo, upgrade, buyInfo, buy, buyCosts: () => costsOf(BIG_SHIPS.brig),
     upgradeCosts: (kind = 'boat') => { const i = upgradeInfo(kind); return i === undefined ? undefined : costsOf(i.upgrade); },
     onChange: (fn) => listeners.push(fn),

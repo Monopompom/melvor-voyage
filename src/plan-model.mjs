@@ -140,6 +140,24 @@ export function legPath(walk, from, to, modes) {
   return path;
 }
 
+/** The route choices on offer: none with the ship rules off, no fastest without Timed travel (nothing to time). */
+export function routeChoices({ rules, timed }) {
+  if (rules !== true) return [];
+  return timed === true ? ['cheap', 'fast', 'hexes'] : ['cheap', 'hexes'];
+}
+/** The choice in force: the saved one while it is on offer, else the cheapest. */
+export function routeByNow(saved, on) {
+  return routeChoices(on).includes(saved) ? saved : 'cheap';
+}
+/**
+ * The route to take: `other` (the search for the chosen measure) only when it really beats `cheap`, so a choice never
+ * lands on a worse way than the game's. `measure(route)` is the time or the hex count. `same` marks the cheapest kept.
+ */
+export function pickRoute(cheap, other, measure) {
+  if (other === undefined) return { ...cheap, same: true };
+  return measure(other) < measure(cheap) ? { ...other, same: false } : { ...cheap, same: true };
+}
+
 /**
  * What a trip set off with the map's Travel takes from the plan (build .420, the user: "inherit those actions"):
  * 'none' when it doesn't end on one of the plan's hexes, 'route' when it is the plan's own route (its stops apply

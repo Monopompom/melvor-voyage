@@ -57,22 +57,38 @@ export const isSailed = (step) => step != null && (step.fastTravel === true || s
  * Storms (phase 5c-3): `stormOf(step, ms, i)` for a sailed step `i` entered at `ms` gives { x (its time factor), push }
  * when a storm is on that hex then, else undefined; a push adds one calm sea hex of the step's vessel (sailing back).
  */
+export function stepTicksAt(s, opts, at, windOf, stormOf, i = 0) {
+  let ms = stepMs(s, opts);
+  if (typeof windOf === 'function' && isSailed(s)) {
+    const f = windOf(s, at);
+    if (Number.isFinite(f) && f > 0) ms *= f;
+  }
+  if (typeof stormOf === 'function' && isSailed(s)) {
+    const st = stormOf(s, at + ms, i);
+    if (st !== undefined && Number.isFinite(st.x) && st.x > 0) ms = ms * st.x + (st.push ? seaMs((opts?.hullOf ?? (() => undefined))(s.vessel ?? 'boat')) : 0);
+  }
+  return ticksOf(ms);
+}
+/**
+ * The least one hex can take for these vessels and this mount, in the best wind and with the best Pilotage: a floor
+ * that lets a timed route search head for its goal and still find the fastest way.
+ */
+export const BEST_WIND = 0.7;
+export const BEST_PILOT = 0.9;
+export function fastestHexMs(hulls, { mountSpeed = 1, pace = 1 } = {}) {
+  const speed = Number.isFinite(mountSpeed) && mountSpeed > 0 ? mountSpeed : 1;
+  const g = Number.isFinite(pace) && pace > 0 ? pace : 1;
+  const land = LAND_MS * BEST_PILOT / speed;
+  const sea = hulls.filter(Boolean).map((h) => seaMs(h) * BEST_WIND * BEST_PILOT);
+  return Math.min(land, ...sea) * g;
+}
 export function routeTicks(steps, opts, t0, windOf, stormOf) {
   const out = [];
   let at = Number.isFinite(t0) ? t0 : 0;
   let i = -1;
   for (const s of steps ?? []) {
     i += 1;
-    let ms = stepMs(s, opts);
-    if (typeof windOf === 'function' && isSailed(s)) {
-      const f = windOf(s, at);
-      if (Number.isFinite(f) && f > 0) ms *= f;
-    }
-    if (typeof stormOf === 'function' && isSailed(s)) {
-      const st = stormOf(s, at + ms, i);
-      if (st !== undefined && Number.isFinite(st.x) && st.x > 0) ms = ms * st.x + (st.push ? seaMs((opts?.hullOf ?? (() => undefined))(s.vessel ?? 'boat')) : 0);
-    }
-    const ticks = ticksOf(ms);
+    const ticks = stepTicksAt(s, opts, at, windOf, stormOf, i);
     out.push(ticks);
     at += ticks * TICK_MS;
   }
@@ -96,8 +112,17 @@ export const routeMs = (steps, opts) => (steps ?? []).reduce((sum, s) => sum + s
 
 /** { h, m } of a duration, minutes rounded up (a minute and a second reads "2 min"), at least one minute. */
 export function durationParts(ms) {
-  const total = Math.max(1, Math.ceil(Math.max(0, ms) / MIN));
+  const total = Math.max(1, Math.ceil(Math.max(0, Number.isFinite(ms) ? ms : 0) / MIN));
   return { h: Math.floor(total / 60), m: total % 60 };
+}
+/**
+ * The language key and numbers of a compact duration: "5m", "72h 0m", and from 100 hours "4d 4h", where a count of hours
+ * stops being readable. `count` formats the day count for the player's locale.
+ */
+export function durationText(ms, count = String) {
+  const { h, m } = durationParts(ms);
+  if (h >= 100) return { key: 'MOD_VOY_CLOCK_D_H', vars: { d: count(Math.floor(h / 24)), h: `${h % 24}` } };
+  return h > 0 ? { key: 'MOD_VOY_CLOCK_H_M', vars: { h: `${h}`, m: `${m}` } } : { key: 'MOD_VOY_CLOCK_M', vars: { m: `${m}` } };
 }
 /** "m:ss" of a duration (the hex in progress). */
 export function clockText(ms) {

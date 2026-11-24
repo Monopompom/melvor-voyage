@@ -24,6 +24,20 @@ export function findRoad(from, to, ground, { limit = 20000 } = {}) {
   if (from == null || to == null || typeof ground !== 'function') return undefined;
   if (from.q === to.q && from.r === to.r) return [];
   if (ground(to.q, to.r) === undefined) return undefined;
+  const end = key(to.q, to.r);
+  return searchRoad(from, (k) => k === end, ground, limit);
+}
+
+/** The quickest road to whichever of `ends` ({ q, r }) comes first, in one search; otherwise as findRoad. */
+export function findRoadToAny(from, ends, ground, { limit = 20000 } = {}) {
+  if (from == null || typeof ground !== 'function') return undefined;
+  const wanted = new Set((ends ?? []).filter((h) => ground(h.q, h.r) !== undefined).map((h) => key(h.q, h.r)));
+  if (wanted.size === 0) return undefined;
+  if (wanted.has(key(from.q, from.r))) return [];
+  return searchRoad(from, (k) => wanted.has(k), ground, limit);
+}
+
+function searchRoad(from, isEnd, ground, limit) {
   const best = new Map([[key(from.q, from.r), 0]]);
   const prev = new Map();
   const cls = new Map();
@@ -34,7 +48,7 @@ export function findRoad(from, to, ground, { limit = 20000 } = {}) {
     const cur = open.shift();
     const k = key(cur.q, cur.r);
     if (cur.t > best.get(k)) continue;
-    if (cur.q === to.q && cur.r === to.r) {
+    if (isEnd(k)) {
       const road = [];
       for (let at = k; at !== key(from.q, from.r); at = prev.get(at)) {
         const [q, r] = at.split(',').map(Number);
@@ -240,4 +254,16 @@ export function cleanWalks(walks) {
     if (c !== undefined) out[id] = c;
   }
   return out;
+}
+
+/**
+ * Where an open menu stands on the screen: under its button, or above it when it doesn't fit below and there is more room
+ * above. `toggle` the button's { top, bottom }, `wanted` the menu's height: { top, height }, the height cut to the room.
+ */
+export function menuPlace(toggle, wanted, viewHeight, gap = 4, edge = 8) {
+  const below = viewHeight - toggle.bottom - gap - edge;
+  const above = toggle.top - gap - edge;
+  const up = wanted > below && above > below;
+  const height = Math.max(0, Math.min(wanted, up ? above : below));
+  return { top: up ? toggle.top - gap - height : toggle.bottom + gap, height };
 }

@@ -532,6 +532,8 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, s
       const s = skill();
       if (this.isGolbinRaid || s === undefined || action === s) return original(action);
       if (cur() !== null && action !== game.fishing) {
+        // Adrift holds the player, not a Folk's start, whichever mod loaded first.
+        if (state.startGoesToFolk?.(action) === true) return original(action);
         if (typeof action?.id === 'string' && state.skillLockedHere?.(action.id)) return original(action);
         if (!offlineNow()) refuseStart(action);
         return true;
@@ -603,7 +605,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, s
     const short = tow !== undefined && game.gp.amount < tow.gp;
     const payBtn = tow === undefined ? ''
       : short
-        ? `<button type="button" class="btn btn-outline-secondary" disabled>${esc(t('MOD_VOY_ADRIFT_TOW_PAY_BTN'))}</button>` // the red price on the Tow line says why (build .386: no title on a disabled button)
+        ? `<button type="button" class="btn btn-outline-secondary disabled" aria-disabled="true" data-voyage-adrift-do="tow-short" data-why="${esc(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: shortNumber(tow.gp), have: shortNumber(game.gp.amount) }))}" title="${esc(t('MOD_VOY_ADRIFT_TOW_SHORT', { gp: shortNumber(tow.gp), have: shortNumber(game.gp.amount) }))}">${esc(t('MOD_VOY_ADRIFT_TOW_PAY_BTN'))}</button>`
         : `<button type="button" class="btn btn-success" data-voyage-adrift-do="tow">${esc(t('MOD_VOY_ADRIFT_TOW_PAY_BTN'))}</button>`; // the price is on the Tow line above (main buttons have one width)
     return `<div class="voyage-clock-top"><img class="voyage-clock-pic" src="${esc(hullArt())}" alt="">`
       + `<div><h5 class="font-w600 mb-0 text-warning"><i class="fa fa-water mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_ADRIFT_TITLE'))}</h5>`
@@ -639,6 +641,7 @@ export function install(ctx, { state, A, C, shipModel, terrainMod, helpLayout, s
     const what = b.dataset.voyageAdriftDo;
     if (what === 'fish') goFishing();
     else if (what === 'tow') offerTow();
+    else if (what === 'tow-short') state.refused?.(b.dataset.why);
     else if (what === 'close') { const e = lastEnd(); if (e !== null) setEnd({ ...e, closed: true }); changed(); }
   });
   /** The Here panel's amber row and chip while Adrift: { text, tip } or undefined. */

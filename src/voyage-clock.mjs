@@ -419,6 +419,35 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     try { hungryGp = S.hungryRouteGp((i) => stepGpOf(path, i), plan?.plan?.hungry ?? []); } catch (e) { log('hungry GP failed', e); }
     return { hexes: steps.length, land: steps.length - sea, sea, ms, calm, stepMs, gp: gpOf(path), hungryGp, plan, storms, stormMs };
   };
+  /** How long the route takes set off now, wind and storms counted. */
+  const routeMs = (path) => C.routeTicks(stepsOf(path), timeOpts(), state.gameNow(), windOf(), stormOf()).reduce((a, b) => a + b, 0) * C.TICK_MS;
+  /**
+   * For a route search that weighs time: `ms(prev, next, mode, g)` is the step into `next` begun `g` ms after setting
+   * off, by the voyage's own formula; `floor` the least any hex can take. Each edge's step is read once per search.
+   */
+  const routePricer = () => {
+    const o = timeOpts();
+    const wind = windOf();
+    const storm = stormOf();
+    const t0 = state.gameNow();
+    const seen = new Map();
+    const stepOf = (prev, next, mode) => {
+      const kind = mode.hop ?? (mode.m === 'ship' ? 'ship' : 'boat');
+      const key = `${prev.q},${prev.r}>${next.q},${next.r}|${kind}`;
+      let s = seen.get(key);
+      if (s === undefined) {
+        const path = [next, prev];
+        path.voyageModes = [mode];
+        s = stepsOf(path)[0];
+        seen.set(key, s);
+      }
+      return s;
+    };
+    return {
+      floor: C.fastestHexMs([hullOf('boat'), hullOf('ship')], o),
+      ms: (prev, next, mode, g) => C.stepTicksAt(stepOf(prev, next, mode), o, t0 + g, wind, storm) * C.TICK_MS,
+    };
+  };
   // ---- waiting out a storm (the flat mechanics; the user, 21 Oct 2026: the wind alone never made a wait pay) ---------
   /**
    * When the route set off now meets a storm (a plain voyage from where you stand, Timed travel and storms on): the
@@ -559,7 +588,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       + `${esc(t('MOD_VOY_PILOT_BANDS', { list: parts.join(t('MOD_VOY_PILOT_BANDS_AND')) }))}</span></div>`;
   };
   // Compact durations everywhere, "72h 0m" / "5m" (the user, build .298; lower case with a space since .301).
-  const duration = (ms) => { const p = C.durationParts(ms); return p.h > 0 ? t('MOD_VOY_CLOCK_H_M', { h: `${p.h}`, m: `${p.m}` }) : t('MOD_VOY_CLOCK_M', { m: `${p.m}` }); };
+  const duration = (ms) => { const d = C.durationText(ms, numberWithCommas); return t(d.key, d.vars); };
   const clockAt = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
   /**
@@ -717,9 +746,10 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       ? (n === 1 ? `<div class="voyage-clock-pick-none text-muted"><span class="voyage-clock-pick-icon">${NOTHING_ICON}</span><span>${esc(t('MOD_VOY_CLOCK_DO_NOTHING'))}</span></div>` : '')
       : `<div class="voyage-clock-pick"><span class="voyage-clock-pick-num" aria-hidden="true">${n}</span>`
       + `<span class="voyage-clock-pick-label" id="${id}-label">${esc(t(labelKey))}</span><span class="voyage-clock-pick-icon" data-voyage-pick-icon="${id}">${pickIcon(pick)}</span>`
-      + `<div class="dropdown voyage-plan-arrival voyage-clock-dd"><input type="hidden" id="${id}" value="${pick}">`
-      + `<button type="button" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-labelledby="${id}-label" data-voyage-dd="${id}"><span>${esc(pickLabel(pick))}</span></button>`
-      + `<div class="dropdown-menu overflow-y-auto">${[-1, ...opts.keys()].map((i) => `<a class="dropdown-item pointer-enabled${i === pick ? ' active' : ''}" role="button" data-voyage-dd-for="${id}" data-pick="${i}">${pickFace(i)}</a>`).join('')}</div></div></div>`);
+      + helpLayout.dropdownHtml({
+        id, labelId: `${id}-label`, face: `<span>${esc(pickLabel(pick))}</span>`, before: `<input type="hidden" id="${id}" value="${pick}">`, attrs: ` data-voyage-dd="${id}"`,
+        items: [-1, ...opts.keys()].map((i) => `<a class="dropdown-item pointer-enabled${i === pick ? ' active' : ''}" role="button" data-voyage-dd-for="${id}" data-pick="${i}">${pickFace(i)}</a>`).join(''),
+      }) + '</div>');
     // The defaults: what you were doing, if it works there, then the first crafts there. A fight or a dungeon only
     // when it is what you were doing or the plan's pick (build .233: with nothing running, a battle camp's first two
     // fights were picked, and a Combat 10 character landed in one and died).
@@ -835,8 +865,9 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       const level = c.need > 0
         ? (c.by >= 0 ? t('MOD_VOY_FOG_LEVEL_REACH', { level: `${c.need}`, n: `${c.at}`, have: `${c.have}`, m: `${c.by}` }) : t('MOD_VOY_FOG_LEVEL_HAVE', { level: `${c.need}`, n: `${c.at}` }))
         : t('MOD_VOY_FOG_LEVEL_OK');
-      const radio = (w, label, extra, allowed, time) => `<label class="voyage-fog-opt${allowed ? '' : ' voyage-fog-opt-off'}"><input type="radio" name="voyage-fog-side" value="${w}"${w === 0 ? ' checked' : ''}${allowed ? '' : ' disabled'}>`
-        + `<span><b>${esc(label)}</b>${extra ? `<span class="text-muted">${esc(extra)}</span>` : ''}</span><span class="text-muted voyage-fog-opt-time">${esc(time)}</span></label>`;
+      // A side out of reach is greyed: its reason on hover and in a toast.
+      const radio = (w, label, extra, allowed, time) => `<label class="voyage-fog-opt${allowed ? '' : ' voyage-fog-opt-off'}"${allowed ? '' : ` data-why="${esc(extra)}" title="${esc(extra)}"`}><input type="radio" name="voyage-fog-side" value="${w}"${w === 0 ? ' checked' : ''}${allowed ? '' : ' disabled'}>`
+        + `<span><b>${esc(label)}</b>${allowed && extra ? `<span class="text-muted">${esc(extra)}</span>` : ''}</span><span class="text-muted voyage-fog-opt-time">${esc(time)}</span></label>`;
       const opts = [radio(0, t('MOD_VOY_FOG_SIDE_NONE'), t('MOD_VOY_FOG_SIDE_NONE_NOTE'), true, duration(totalFor(0)))];
       for (const sd of fog.sides) {
         const label = t(sd.width === 1 ? 'MOD_VOY_FOG_SIDE_ONE' : 'MOD_VOY_FOG_SIDE_MANY', { n: `${sd.width}` });
@@ -916,6 +947,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
           if (box !== null) box.innerHTML = pickIcon(i);
           el.querySelectorAll(`[data-voyage-dd-for="${id}"]`).forEach((b) => b.classList.toggle('active', b === a));
         }));
+        el.querySelectorAll('.voyage-fog-opt-off').forEach((o) => o.addEventListener('click', () => state.refused?.(o.dataset.why)));
         // The hexes beside: the time and the arrival follow the pick.
         el.querySelectorAll('input[name="voyage-fog-side"]').forEach((r) => r.addEventListener('change', () => {
           const w = Number(r.value);
@@ -984,13 +1016,13 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
         html: helpLayout.msgHtml([marked(t, dest ? 'MOD_VOY_FOG_CANT_LEVEL_DEST' : c.reach > c.have ? 'MOD_VOY_FOG_CANT_LEVEL' : c.first ? 'MOD_VOY_FOG_CANT_LEVEL_FIRST' : 'MOD_VOY_FOG_CANT_LEVEL_NOW',
           { n: `${c.at}`, have: `${c.have}`, reach: `${c.reach}` }, { at: mark.name(hex === undefined ? '' : at(hex)), level: `<b class="text-danger">${c.need}</b>` })]),
         icon: 'warning',
-        showCancelButton: hex !== undefined && !selected,
+        showDenyButton: hex !== undefined && !selected,
         confirmButtonText: t('MOD_VOY_FOG_OK'),
-        cancelButtonText: t('MOD_VOY_FOG_SHOW_HEX'),
+        denyButtonText: t('MOD_VOY_FOG_SHOW_HEX'),
         didRender: state.popupDidRender,
-        customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_CLASS) : SWAL_CLASS,
+        customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ ...SWAL_CLASS, denyButton: 'btn btn-outline-info m-1' }) : { ...SWAL_CLASS, denyButton: 'btn btn-outline-info m-1' },
       }).then((r) => {
-        if (r.dismiss === 'cancel' && hex !== undefined) { try { state.ship?.centreOn?.(hex); } catch (e) { log('map centre failed', e); } }
+        if (r.isDenied && hex !== undefined) { try { state.ship?.centreOn?.(hex); } catch (e) { log('map centre failed', e); } }
       });
       return;
     }
@@ -1385,6 +1417,8 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     try {
       const s = skill();
       if (forcing || s === undefined || action === s || this.activeAction !== s || cur() === null || this.isGolbinRaid) return original(action);
+      // A start a Folk takes leaves the player's voyage alone, whichever mod loaded first.
+      if (state.startGoesToFolk?.(action) === true) return original(action);
       if (typeof action?.id === 'string' && state.skillLockedHere?.(action.id)) return original(action);
       // Under tow (5b part two) nothing else starts: no Stop here, you go where the tow goes.
       if (cur()?.tow !== undefined) { if (!offlineNow()) state.adrift?.refuseUnderTow?.(); return true; }
@@ -1667,7 +1701,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     } catch (e) { log('voyage load check failed', e); }
   });
 
-  const api = { on, setOff, changeCourse, tick, stop, tally, paid, shutPay, receipts, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog, confirmSetOff, encDone, holdForEncounter,
+  const api = { routeMs, routePricer, on, setOff, changeCourse, tick, stop, tally, paid, shutPay, receipts, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog, confirmSetOff, encDone, holdForEncounter,
     /** A tow is under way (5b part two). */
     towing: () => cur()?.tow !== undefined,
     msLeft: () => { const v = cur(); return v === null ? 0 : msLeft(v); },

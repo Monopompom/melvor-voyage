@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TOW_KINDS as ADRIFT_TOWS } from '../src/adrift-model.mjs';
+import { durationText } from '../src/clock-model.mjs';
 import {
   TICK_MS, LAND_MS, SEA_MS, groundFactor, seaMs, stepMs, ticksOf, routeMs, durationParts, clockText, clockNow, gameClockSeed,
   cleanChoice, sameChoice, cleanChain, cleanVoyage, cleanEnding, ticksLeft, TOW_KINDS, TALLY_FIELDS, cleanTally, addTally, STORM_WAIT_STEP_MS, STORM_WAIT_MAX_MS, stormWaitMs,
@@ -221,4 +222,38 @@ test('Pilotage cuts a land or sea step by its own factor, never a hop', () => {
   assert.equal(stepMs({ fastTravel: true, hop: 3, pilot: 0.9 }), 3 * seaMs(undefined));
   assert.equal(stepMs({ cls: 'grasslands', pilot: 1.5 }), LAND_MS, 'never slower');
   assert.equal(stepMs({ cls: 'grasslands', pilot: 0 }), LAND_MS);
+});
+
+test('one step by stepTicksAt is what routeTicks gives it, wind and storm counted', async () => {
+  const C = await import('../src/clock-model.mjs');
+  const opts = { hullOf: () => 'brig' };
+  const wind = (s, at) => (at < 200000 ? 0.7 : 1.4);
+  const storm = (s, at) => (at > 300000 ? { x: 1.5, push: true } : undefined);
+  const steps = [{ sea: true, vessel: 'ship' }, { sea: true, vessel: 'ship' }, { sea: false, cls: 'grasslands' }];
+  const whole = C.routeTicks(steps, opts, 0, wind, storm);
+  let at = 0;
+  steps.forEach((s, i) => {
+    const n = C.stepTicksAt(s, opts, at, wind, storm, i);
+    assert.equal(n, whole[i]);
+    at += n * C.TICK_MS;
+  });
+});
+test('the fastest hex is a floor under every step', async () => {
+  const C = await import('../src/clock-model.mjs');
+  const opts = { hullOf: () => 'galleon', mountSpeed: 2, pace: 0.9 };
+  const floor = C.fastestHexMs(['dinghy', 'galleon'], opts);
+  const sea = C.stepMs({ sea: true, vessel: 'ship', pilot: 0.9 }, opts) * 0.7;
+  const land = C.stepMs({ sea: false, cls: 'grasslands', pilot: 0.9 }, opts);
+  assert.ok(floor <= sea && floor <= land);
+  assert.equal(C.fastestHexMs([undefined, undefined], { mountSpeed: 1 }), C.LAND_MS * 0.9);
+});
+
+test('a compact duration turns to days only from 100 hours, and a broken time reads a minute', () => {
+  const H = 60 * 60000;
+  assert.deepEqual(durationText(5 * 60000), { key: 'MOD_VOY_CLOCK_M', vars: { m: '5' } });
+  assert.deepEqual(durationText(72 * H), { key: 'MOD_VOY_CLOCK_H_M', vars: { h: '72', m: '0' } });
+  assert.deepEqual(durationText(99 * H + 59 * 60000), { key: 'MOD_VOY_CLOCK_H_M', vars: { h: '99', m: '59' } });
+  assert.deepEqual(durationText(100 * H), { key: 'MOD_VOY_CLOCK_D_H', vars: { d: '4', h: '4' } });
+  assert.deepEqual(durationText(24000 * H, (n) => n.toLocaleString('en-US')), { key: 'MOD_VOY_CLOCK_D_H', vars: { d: '1,000', h: '0' } });
+  for (const bad of [NaN, Infinity, -5, undefined]) assert.deepEqual(durationText(bad), { key: 'MOD_VOY_CLOCK_M', vars: { m: '1' } });
 });

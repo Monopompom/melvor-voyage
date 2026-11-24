@@ -71,10 +71,10 @@ export function install(ctx, { state, PM, terrainMod, log }) {
   };
   const cardHtml = () => {
     const label = t('MOD_VOY_PLACES_TITLE');
-    const search = `<div class="voyage-places-search"><input type="search" class="form-control form-control-sm voyage-places-query" autocomplete="off" spellcheck="false" placeholder="${esc(t('MOD_VOY_PLACES_SEARCH'))}" aria-label="${esc(t('MOD_VOY_PLACES_SEARCH'))}" value="${esc(query)}"></div>`;
+    const search = `<div class="voyage-places-search"><input type="search" class="form-control form-control-sm voyage-places-query" maxlength="60" autocomplete="off" spellcheck="false" placeholder="${esc(t('MOD_VOY_PLACES_SEARCH'))}" aria-label="${esc(t('MOD_VOY_PLACES_SEARCH'))}" value="${esc(query)}"></div>`;
     // On a phone the card is a full-screen sheet (the user, 1.8.1: under the lowest badge it ran past the map's foot);
     // its × closes it there, where the badge lies under it.
-    const close = `<button type="button" class="btn btn-sm btn-outline-secondary voyage-places-close" aria-label="${esc(t('MOD_VOY_PLACES_CLOSE'))}" title="${esc(t('MOD_VOY_PLACES_CLOSE'))}"><i class="fa fa-times" aria-hidden="true"></i></button>`;
+    const close = `<button type="button" class="btn btn-sm btn-outline-info voyage-places-close" aria-label="${esc(t('MOD_VOY_PLACES_CLOSE'))}" title="${esc(t('MOD_VOY_PLACES_CLOSE'))}"><i class="fa fa-times" aria-hidden="true"></i></button>`;
     return `<div class="voyage-legend-card voyage-places-card voyage-ui block block-rounded bg-combat-inner-dark p-2 mb-0"><div class="voyage-legend-card-title voyage-places-title"><span>${esc(label)}</span>${close}</div>${search}<div class="voyage-places-list">${listHtml()}</div></div>`;
   };
 

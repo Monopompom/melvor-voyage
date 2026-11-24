@@ -18,6 +18,8 @@ const CARTOGRAPHY_PAGE = 'melvorAoD:Cartography';
 const CANDIDATES = 6;
 /** How long a computed plan is trusted without its inputs moving (the page reads it per render). */
 const PLAN_MEMO_MS = 1000;
+/** How long a route chosen by time or hexes is kept while nothing it depends on moves: it searches the whole map. */
+const ROUTE_MEMO_MS = 30000;
 
 export function install(ctx, { state, model, planModel: P, storesModel: S, supplyModel, terrainMod, helpLayout, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
@@ -38,6 +40,22 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   let arrivalPick;
 
   // ---- the route ---------------------------------------------------------------------------------------------------
+  /** The route choice in force (round 4): 'cheap' (the game's own way), 'fast' or 'hexes'. */
+  const routeBy = () => P.routeByNow(model.cleanRouteBy(skill()?.record?.routeBy), { rules: state.ship?.enabled?.() === true, timed: state.clock?.on?.() === true });
+  /** True while the planner asks the game for its cheapest route: computePath then answers it, not the plan. */
+  let cheapest = false;
+  let routeMemo;
+  /** What a chosen route depends on: the place, the target, the vessels, the charts, the mount and the winds. */
+  const routeKey = (by) => {
+    const map = live();
+    const from = map?.playerPosition;
+    const sh = state.ship;
+    const b = sh?.boat?.();
+    const g = sh?.big?.();
+    let surveyed = 0;
+    for (const h of target.hexes) if (liveHex(h.q, h.r)?.isFullySurveyed === true) surveyed++;
+    return `${by}|${map?.id}|${from?.q},${from?.r}|${targetId(target)}|${surveyed}|${b?.q},${b?.r},${b?.cond},${b?.aboard}|${g?.q},${g?.r},${g?.cond}|${state.terrain?.version}|${state.knowledge?.version}|${state.land?.speed?.()}|${state.gear?.pace?.()}|${state.weather?.key?.() ?? ''}|${state.weather?.windKey?.() ?? ''}`;
+  };
   /** The nearest of the target's hexes by route: { dest, path (game order: destination first) } or a reason. */
   const route = () => {
     const map = live();
@@ -45,16 +63,58 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     if (map === undefined || from === undefined) return { why: 'noway' };
     const hexes = target.hexes.map((h) => liveHex(h.q, h.r)).filter((h) => h !== undefined);
     if (hexes.some((h) => h === from)) return { why: 'here', dest: from };
+    const by = routeBy();
+    const key = by === 'cheap' ? undefined : routeKey(by);
+    if (key !== undefined && routeMemo?.key === key && performance.now() - routeMemo.at < ROUTE_MEMO_MS) return routeMemo.value;
     const near = hexes.filter((h) => h.isFullySurveyed)
       .sort((a, b) => terrainMod.hexDistance(from, a) - terrainMod.hexDistance(from, b)).slice(0, CANDIDATES);
     let best;
-    for (const h of near) {
-      let path;
-      try { path = map.computePath(from, h); } catch (e) { log('plan path failed', e); }
-      if (Array.isArray(path) && path.length > 1 && (best === undefined || path.length < best.path.length)) best = { dest: h, path };
-    }
+    const was = cheapest;
+    cheapest = true;
+    try {
+      for (const h of near) {
+        let path;
+        try { path = map.computePath(from, h); } catch (e) { log('plan path failed', e); }
+        if (Array.isArray(path) && path.length > 1 && (best === undefined || path.length < best.path.length)) best = { dest: h, path };
+      }
+    } finally { cheapest = was; }
     if (best === undefined) return { why: hexes.length > 0 && near.length === 0 ? 'uncharted' : 'noway' };
-    return best;
+    if (by === 'cheap') return best;
+    let other;
+    try { other = state.ship.searchRoute(map, from, near, by); } catch (e) { log('chosen route failed; the cheapest', e); }
+    const value = P.pickRoute(best, other, by === 'fast' ? (r) => state.clock.routeMs(r.path) : (r) => r.path.length);
+    routeMemo = { key, at: performance.now(), value };
+    return value;
+  };
+  /**
+   * The game's computePath asking for the way to the planned place: the chosen route (a copy, the game keeps it), so
+   * the map draws and travels what the plan shows. Undefined leaves the question to the game.
+   */
+  const pathFor = (map, start, goal) => {
+    if (cheapest || target === undefined || map !== live() || start !== map.playerPosition || routeBy() === 'cheap') return undefined;
+    if (!target.hexes.some((h) => h.q === goal.q && h.r === goal.r)) return undefined;
+    const r = route();
+    if (r.path === undefined || r.dest !== goal) return undefined;
+    const path = [...r.path];
+    if (r.path.voyageModes !== undefined) path.voyageModes = [...r.path.voyageModes];
+    return path;
+  };
+  /** Sets the route choice; the map's selected way follows when it shows the planned place. */
+  const chooseRoute = (by) => {
+    const r = record();
+    if (r === undefined || !P.routeChoices({ rules: state.ship?.enabled?.() === true, timed: state.clock?.on?.() === true }).includes(by)) return;
+    r.routeBy = by;
+    planMemo = undefined;
+    routeMemo = undefined;
+    try {
+      const plan = compute();
+      const map = live();
+      if (plan?.dest?.isSelected === true) {
+        map._pathToSelected = map.computePath(map.playerPosition, plan.dest);
+        game.cartography.renderQueue.hexPath = true;
+      }
+    } catch (e) { log('selected route not updated', e); }
+    refresh();
   };
 
   /**
@@ -86,7 +146,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     for (const h of target.hexes) if (liveHex(h.q, h.r)?.isFullySurveyed === true) surveyed++;
     const bank = st?.enabled?.() === true ? st.loadable().map((x) => `${x.item.id}:${x.qty}`).join(',') : '';
     const have = st?.stores?.();
-    return `${map?.id}|${from?.q},${from?.r}|${targetId(target)}|${surveyed}|${b?.q},${b?.r},${b?.cond},${b?.aboard}|${g?.q},${g?.r},${g?.cond}|${state.terrain?.version}|${state.knowledge?.version}|${have?.food},${have?.fuel}|${bank}|${state.crew?.count?.()}|${state.land?.tier?.()}|${sh?.enabled?.()}|${st?.supplyVersion?.() ?? 0}`;
+    return `${map?.id}|${from?.q},${from?.r}|${targetId(target)}|${surveyed}|${b?.q},${b?.r},${b?.cond},${b?.aboard}|${g?.q},${g?.r},${g?.cond}|${state.terrain?.version}|${state.knowledge?.version}|${have?.food},${have?.fuel}|${bank}|${state.crew?.count?.()}|${state.land?.tier?.()}|${sh?.enabled?.()}|${st?.supplyVersion?.() ?? 0}|${routeBy()}`;
   };
   // The last plan, kept while its key stands and for PLAN_MEMO_MS (build .401): the page computed it per render, up to
   // six route searches each, and a GP tick redrew the page.
@@ -243,6 +303,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   const refusal = (fn) => { try { return fn(); } catch (e) { log('arrival check failed', e); return undefined; } };
   /** A reason as a sentence of its own: first letter up (build .386; CSS ::first-letter bit a name's first letter). */
   const capFirst = (s) => (typeof s === 'string' ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  /** A refusal's words without its marks and icons, for a tooltip and a toast. */
+  const plainWhy = (html) => { const d = document.createElement('div'); d.innerHTML = capFirst(String(html ?? '')); return d.textContent.trim(); };
   /** What can be started on arrival: [{ value, label, media?, why? }], 'none' first; `why`: the game would refuse it. */
   const arrivalOptions = () => {
     const out = [{ value: 'none', label: t('MOD_VOY_PLAN_ARRIVAL_NONE') }];
@@ -492,7 +554,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   const html = () => {
     if (!open()) return '';
     // The empty block gives a way to a plan: the journal's pages have Plan voyage (.308, scan A-06/A2-09).
-    if (target === undefined) return homeSection() + recentSection() + section(`<div class="voyage-empty text-muted">${esc(t('MOD_VOY_PLAN_EMPTY'))}</div><div class="voyage-hold-main"><button type="button" class="btn btn-sm btn-outline-info" data-voyage-plan="journal">${esc(t('MOD_VOY_PLAN_OPEN_JOURNAL'))}</button></div>`); // the one empty-state form (.309, scan A-21)
+    if (target === undefined) return homeSection() + recentSection() + section(`<div class="voyage-empty text-muted">${esc(t('MOD_VOY_PLAN_EMPTY'))}</div><div class="voyage-hold-main"><button type="button" class="btn btn-outline-info" data-voyage-plan="journal">${esc(t('MOD_VOY_PLAN_OPEN_JOURNAL'))}</button></div>`); // the one empty-state form (.309, scan A-21)
     const plan = compute();
     const media = target.media ? `<img class="voyage-plan-icon mr-2" src="${esc(target.media)}" alt="">` : '';
     // Not after a bare hex: its name already is the coordinates (.308, scan A2-17).
@@ -522,7 +584,15 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     const parts = [`<span class="voyage-plan-bit"><i class="fa fa-shoe-prints"></i>${esc(t('MOD_VOY_PLAN_LAND', { count: `${c.land}` }))}</span>`,
       `<span class="voyage-plan-bit"><i class="fa fa-water"></i>${esc(t('MOD_VOY_PLAN_SEA', { count: `${c.sea}` }))}</span>`];
     if (c.hops > 0) parts.push(`<span class="voyage-plan-bit"><i class="fa fa-ship"></i>${esc(t(c.hops === 1 ? 'MOD_VOY_PLAN_HOP' : 'MOD_VOY_PLAN_HOPS', { count: `${c.hops}` }))}</span>`); // one hop, singular (.308, A-23)
-    let rows = row(t('MOD_VOY_PLAN_ROW_ROUTE'), parts.join(''));
+    // The route choice (round 4): the ship rules' own; the pressed one filled, the game's cheapest way by default.
+    const choices = P.routeChoices({ rules: state.ship?.enabled?.() === true, timed: state.clock?.on?.() === true });
+    const by = routeBy();
+    const BY_LABEL = { cheap: 'MOD_VOY_PLAN_BY_CHEAP', fast: 'MOD_VOY_PLAN_BY_FAST', hexes: 'MOD_VOY_PLAN_BY_HEXES' };
+    const BY_SAME = { fast: 'MOD_VOY_PLAN_BY_SAME_FAST', hexes: 'MOD_VOY_PLAN_BY_SAME_HEXES' };
+    const byNote = by !== 'cheap' && plan.same === true ? `<div class="voyage-plan-by-note text-muted">${esc(t(BY_SAME[by]))}</div>` : '';
+    let rows = choices.length === 0 ? '' : row(t('MOD_VOY_PLAN_ROW_BY'), `<div class="voyage-plan-by" role="group" aria-label="${esc(t('MOD_VOY_PLAN_ROW_BY'))}">${choices.map((c) =>
+      `<button type="button" class="btn btn-sm btn-outline-info${c === by ? ' active' : ''}" aria-pressed="${c === by}" data-voyage-plan="by" data-by="${c}">${esc(t(BY_LABEL[c]))}</button>`).join('')}</div>${byNote}`);
+    rows += row(t('MOD_VOY_PLAN_ROW_ROUTE'), parts.join(''));
     // Timed travel (phase 5a): how long the route takes and when you arrive.
     const clock = state.clock;
     let stepMs;
@@ -535,9 +605,9 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
       } catch (e) { log('plan time failed', e); }
     }
     const legs = [];
-    if (sp.depart !== undefined) legs.push(`<li>${esc(t('MOD_VOY_PLAN_DEPART'))} <span class="text-success">${esc(loadText(sp.depart))}</span></li>`);
+    if (sp.depart !== undefined) legs.push(`<li>${esc(t('MOD_VOY_PLAN_DEPART'))} <span class="text-success d-block">${esc(loadText(sp.depart))}</span></li>`);
     sp.legs.forEach((leg) => {
-      if (leg.load !== undefined) legs.push(`<li>${esc(t('MOD_VOY_PLAN_STOP', { place: stopName(plan.walk[leg.to], leg.load.place) }))} <span class="text-success">${esc(loadText(leg.load))}</span></li>`);
+      if (leg.load !== undefined) legs.push(`<li>${esc(t('MOD_VOY_PLAN_STOP', { place: stopName(plan.walk[leg.to], leg.load.place) }))} <span class="text-success d-block">${esc(loadText(leg.load))}</span></li>`);
     });
     rows += row(t('MOD_VOY_PLAN_ROW_STOPS'), legs.length === 0 ? `<span class="text-muted">${esc(t('MOD_VOY_PLAN_ONE_GO'))}</span>` : `<ol class="voyage-plan-legs mb-0">${legs.join('')}</ol>`);
     // Costs: the game's travel costs.
@@ -571,7 +641,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
         const cond = sh.cond(kind);
         const after = Math.max(0, cond - wear);
         // "Galleon hull", as the Stores block names it (.308, scan A2-19).
-        const label = two ? t('MOD_VOY_PLAN_ROW_HULL_OF', { hull: sh.hullName(sh.vessel(kind)) }) : t('MOD_VOY_PLAN_ROW_HULL');
+        const label = two ? t('MOD_VOY_PLAN_ROW_HULL_OF', { hull: capFirst(sh.hullName(sh.vessel(kind))) }) : t('MOD_VOY_PLAN_ROW_HULL');
         rows += row(label, `${icon('assets/hull_condition.webp', t('MOD_VOY_PLAN_ROW_HULL'))}${cond}%${arrow}<span class="${after <= 0 ? 'text-danger' : after < 50 ? 'text-warning' : ''}">${after}%</span> <span class="text-muted ml-1">${esc(t('MOD_VOY_PLAN_WEAR', { wear: `${wear}` }))}</span>`);
       }
     }
@@ -599,14 +669,13 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
       // The game's own dropdown (Bootstrap's data-toggle, as the game's menus), not the browser's select: each choice
       // with its icon, the picked one shown on the toggle. A choice the game would refuse is greyed out, can't be
       // picked and says why.
-      const face = (o) => `${o.media === undefined ? '<i class="fa fa-flag voyage-plan-pick-ico"></i>' : `<img class="voyage-plan-pick-ico" src="${esc(o.media)}" alt="">`}<span>${esc(o.label)}</span>`;
+      const face = (o) => `${o.media === undefined ? '<i class="fa fa-flag voyage-plan-pick-ico" aria-hidden="true"></i>' : `<img class="voyage-plan-pick-ico" src="${esc(o.media)}" alt="">`}<span>${esc(o.label)}</span>`;
       const item = (o) => o.why === undefined
         ? `<a class="dropdown-item pointer-enabled${o.value === pick ? ' active' : ''}" role="button" data-voyage-plan="pick" data-pick="${esc(o.value)}">${face(o)}</a>`
-        : `<div class="dropdown-item voyage-plan-refused" aria-disabled="true"><div class="voyage-plan-refused-name">${face(o)}</div><div class="voyage-plan-refused-why text-warning">${capFirst(o.why)}</div></div>`;
+        : `<a class="dropdown-item voyage-plan-refused" role="button" aria-disabled="true" data-voyage-plan="refused" data-why="${esc(plainWhy(o.why))}" title="${esc(plainWhy(o.why))}"><span class="voyage-plan-refused-name">${face(o)}</span></a>`;
       const cur = opts.find((o) => o.value === pick) ?? opts[0];
       out += section(`<div class="font-w600 mb-1" id="voyage-plan-arrival-label">${esc(t('MOD_VOY_PLAN_ARRIVAL'))}</div>` +
-        `<div class="dropdown voyage-plan-arrival"><button type="button" id="voyage-plan-arrival" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-describedby="voyage-plan-arrival-label">${face(cur)}</button>` +
-        `<div class="dropdown-menu overflow-y-auto" aria-labelledby="voyage-plan-arrival">${opts.map(item).join('')}</div></div>`);
+        helpLayout.dropdownHtml({ id: 'voyage-plan-arrival', labelId: 'voyage-plan-arrival-label', face: face(cur), items: opts.map(item).join('') }));
     }
     const sailBtn = owned() && good ? `<button type="button" class="btn btn-success" data-voyage-plan="sail">${esc(t('MOD_VOY_PLAN_SAIL'))}</button>` : '';
     // A pair: right-aligned, the outline first and the green last.
@@ -634,6 +703,8 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
     const what = b.dataset.voyagePlan;
     if (what === 'clear') { target = undefined; refresh(); }
     else if (what === 'pick') { arrivalPick = b.dataset.pick; refresh(); }
+    else if (what === 'refused') state.refused?.(b.dataset.why);
+    else if (what === 'by') chooseRoute(b.dataset.by);
     else if (what === 'sail') sail();
     else if (what === 'map') showMap();
     else if (what === 'buy') buy();
@@ -774,7 +845,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   };
 
   // The refusals are in it, so gear or a damage type change redraws the block.
-  const signature = () => `${target?.name}|${target?.hexes?.length}|${arrivalPick}|${owned()}|${JSON.stringify(record()?.home ?? null)}|${recent().map((e) => e.name).join(',')}|${target === undefined ? '' : arrivalOptions().map((o) => o.why === undefined ? 1 : 0).join('')}`;
+  const signature = () => `${target?.name}|${target?.hexes?.length}|${arrivalPick}|${routeBy()}|${owned()}|${JSON.stringify(record()?.home ?? null)}|${recent().map((e) => e.name).join(',')}|${target === undefined ? '' : arrivalOptions().map((o) => o.why === undefined ? 1 : 0).join('')}`;
   /** For the mini panel: the target and its straight distance from you, or undefined. */
   const summary = () => {
     if (!open() || target === undefined) return undefined;
@@ -785,7 +856,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
   };
   const reopen = () => { if (target === undefined) return false; showBlock(); return true; };
   // startAction and startable: a Folk arriving from a walk (6d) starts its resource the same way.
-  const api = { planTo, forAction, forArea, home, homeHere, setHome, planHome, recent, fromRecent, forTravel, travelInstant, html, onClick, signature, open, owned, summary, reopen, navHtml, startAction, startable, isRunning, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
+  const api = { pathFor, planTo, forAction, forArea, home, homeHere, setHome, planHome, recent, fromRecent, forTravel, travelInstant, html, onClick, signature, open, owned, summary, reopen, navHtml, startAction, startable, isRunning, navReady: () => navBlocker() === undefined, NAV: P.NAVIGATOR, PLAN_LEVEL: model.PLAN_LEVEL };
   state.planner = api;
   return api;
 }

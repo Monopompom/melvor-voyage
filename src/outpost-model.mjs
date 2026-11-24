@@ -2,6 +2,22 @@
 // then counts as a camp, and the tent keeps a store of rations and fuel outside your carry limit. Pure: where a tent may go,
 // how many stand at a Voyage level, the store's sums and the save's outposts. The game side is src/outposts.mjs.
 
+/** A typed amount without spaces and thousands marks of any locale; full-width digits become plain ones. */
+export const cleanAmount = (raw) => String(raw ?? '').normalize('NFKC').trim().replace(/[\s\u00a0\u202f'\u2019]/g, '');
+/**
+ * A typed store amount, or undefined when it isn't one. Food is whole (a "." or "," only groups thousands, so 1,938 is
+ * 1938 and 1.5 is refused); fuel may have one decimal mark, either kind.
+ */
+export function readAmount(raw, whole) {
+  const s = cleanAmount(raw);
+  let n;
+  if (whole) {
+    if (/^\d+$/.test(s)) n = Number(s);
+    else if (/^\d{1,3}([.,])\d{3}(?:\1\d{3})*$/.test(s)) n = Number(s.replace(/[.,]/g, ''));
+  } else if (/^\d+(?:[.,]\d+)?$/.test(s)) n = Number(s.replace(',', '.'));
+  return n !== undefined && Number.isFinite(n) ? n : undefined;
+}
+
 /** The Tent: its item and shop purchase (local id) and the Voyage level that sells it. */
 export const TENT = { id: 'Tent', level: 30 };
 /** Voyage levels that each allow one more tent pitched: one at 30, up to four at 90. */

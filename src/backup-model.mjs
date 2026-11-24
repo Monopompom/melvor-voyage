@@ -43,6 +43,41 @@ export function blockedBy(record) {
   return undefined;
 }
 
+/**
+ * A safety copy made at sea, going back on a map that went on without it. The game keeps your hex in its own save, so
+ * you can stand ahead of the copy. The vessel you were in comes to you: on your sea hex, or on land to the last sea hex
+ * of the way there, or to `coast(here)` when you left that way. An Adrift spell left behind ends, and the game starts a
+ * new one if you still are. A voyage off its route is ended where you stand by its own load check. `isSea({ q, r })`.
+ * Returns the same record when you stand where the copy has you.
+ */
+export function settleAtSea(rec, here, { isSea, coast }) {
+  const v = isObj(rec?.voyage) && Array.isArray(rec.voyage.walk) ? rec.voyage : null;
+  const from = v?.walk[v.at] ?? (isObj(rec?.adrift) ? rec.adrift : undefined);
+  if (!isHex(from) || !isHex(here) || sameHex(from, here)) return rec;
+  const lastSeaOnWay = () => {
+    if (v === null) return undefined;
+    let end = -1;
+    for (let i = v.at; i < v.walk.length; i++) if (sameHex(v.walk[i], here)) end = i;
+    for (let i = end; i >= v.at && end >= 0; i--) if (isSea(v.walk[i])) return v.walk[i];
+    return undefined;
+  };
+  const out = rec.adrift == null ? { ...rec } : { ...rec, adrift: null };
+  const target = isSea(here) ? here : lastSeaOnWay() ?? coast(here);
+  if (!isHex(target) || sameHex(target, from)) return out;
+  const to = { q: target.q, r: target.r };
+  const ship = isObj(rec.ship) ? rec.ship : null;
+  const boat = isObj(rec.boat) ? rec.boat : null;
+  if (ship !== null && sameHex(ship, from)) {
+    out.ship = { ...ship, ...to };
+    // Two vessels share a hex only with the boat on the ship's deck.
+    if (boat?.aboard === true) out.boat = { ...boat, ...to };
+    else if (boat !== null && sameHex(boat, to)) out.boat = { ...boat, aboard: true };
+  } else if (boat !== null && boat.aboard !== true && sameHex(boat, from)) {
+    out.boat = { ...boat, ...to, ...(ship !== null && sameHex(ship, to) ? { aboard: true } : {}) };
+  }
+  return out;
+}
+
 // ---- Worker Folks' side ------------------------------------------------------------------------------------------
 // With Worker Folks loaded, Voyage's save and Folks' own hold two halves of one story: Voyage keeps the walks, the kept
 // jobs, the tents going up and the travel-trait counts by Folk id; Worker Folks keeps each Folk's hex, its travel
@@ -196,12 +231,28 @@ const fromB64 = (b64) => {
   for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
   return out;
 };
-const pipe = async (bytes, stream) => {
+/** The longest code read, and the most it may unpack to: real ones are far smaller, and a crafted one stops here. */
+export const MAX_CODE = 16 * 1024 * 1024;
+export const MAX_UNPACKED = 64 * 1024 * 1024;
+const pipe = async (bytes, stream, cap = Infinity) => {
   const w = stream.writable.getWriter();
   // A cut code rejects these too; the read below reports it, so they are only quieted here.
   w.write(bytes).catch(() => {});
   w.close().catch(() => {});
-  return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+  const reader = stream.readable.getReader();
+  const parts = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > cap) { reader.cancel().catch(() => {}); throw new Error('too large'); }
+    parts.push(value);
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
 };
 const canZip = () => typeof CompressionStream === 'function' && typeof DecompressionStream === 'function';
 
@@ -218,6 +269,7 @@ export async function encode(backup) {
  * open()'s reasons. Spaces and line breaks in it are ignored.
  */
 export async function decode(text, saveVersion) {
+  if (String(text ?? '').length > MAX_CODE) return { why: 'broken' };
   const s = String(text ?? '').replace(/\s+/g, '');
   if (s === '') return { why: 'empty' };
   if (s.startsWith(`${FOLKS_PREFIX}:`)) return { why: 'folks' };
@@ -227,12 +279,18 @@ export async function decode(text, saveVersion) {
   try { bytes = fromB64(m[2]); } catch { return { why: 'broken' }; }
   if (m[1] === 'z') {
     if (!canZip()) return { why: 'cantUnzip' };
-    try { bytes = await pipe(bytes, new DecompressionStream('deflate-raw')); } catch { return { why: 'broken' }; }
+    try { bytes = await pipe(bytes, new DecompressionStream('deflate-raw'), MAX_UNPACKED); } catch { return { why: 'broken' }; }
   }
   let sealed;
   try { sealed = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { return { why: 'broken' }; }
   return open(sealed, saveVersion);
 }
+
+/** Whether a loaded file starts like a backup code, Voyage's or Worker Folks' (`decode` then says which). */
+export const looksLikeCode = (text) => {
+  const s = String(text ?? '').trimStart();
+  return s.startsWith(`${PREFIX}:`) || s.startsWith(`${FOLKS_PREFIX}:`);
+};
 
 /** The download's name: voyage-backup-<character>-<yyyy-mm-dd>.txt, the name cut to safe letters. */
 export function fileName(name, at) {

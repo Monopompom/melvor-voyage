@@ -124,15 +124,17 @@ export const HELP_DRESS = {
 /** The written chapters' tables, by chapter and section, in the order the text has them. */
 export const WRITTEN_FIGS = {
   clock: { PACE: [{ kind: 'bars', cols: [1] }, { kind: 'bars', cols: [1] }] },
+  // Three columns of words: on a phone each row stacks under its first cell.
+  crew_couriers: { STOPS: [{ kind: 'stack' }] },
   weather: { BANDS: [{ kind: 'thermo' }], WIND: [{ kind: 'pivot', cols: [1], at: 1 }], STORMS: [{ kind: 'odds', cols: [1] }] },
 };
 /** The written chapters' and guide accounts' heading icons. */
 export const SECTION_ICONS = {
-  map: { TINT: 'fa-palette', PANEL: 'fa-crosshairs', PLACES: 'fa-map-marker-alt', KEYS: 'fa-keyboard', MARKS: 'fa-bookmark' },
+  map: { TINT: 'fa-palette', PANEL: 'fa-crosshairs', FOLDED: 'fa-compress-alt', PLACES: 'fa-map-marker-alt', KEYS: 'fa-keyboard', MARKS: 'fa-bookmark' },
   lands: { KINDS: 'fa-mountain', FEATURES: 'fa-landmark' },
   tricks: { STORES: 'fa-drumstick-bite', BOAT: 'fa-ship', TRADE: 'fa-coins', NIGHT: 'fa-moon', WAY: 'fa-search', PAGE: 'fa-book-open' },
   settings: { EASIER: 'fa-sliders-h', KEYS: 'fa-keyboard', WHY: 'fa-question-circle' },
-  leaving: { WHAT: 'fa-exclamation-triangle', KEEP: 'fa-save', HOW: 'fa-sign-out-alt' },
+  leaving: { WHAT: 'fa-exclamation-triangle', KEEP: 'fa-save', SAFETY: 'fa-life-ring', HOW: 'fa-sign-out-alt' },
   adventure: { FIRST: 'fa-flag', NEXT: 'fa-route' },
   road: { MOUNTS: 'fa-horse', SIGN: 'fa-map-signs' },
   clock: { PACE: 'fa-stopwatch', WAY: 'fa-route', LAND: 'fa-flag-checkered', ASK: 'fa-random', FOG: 'fa-smog', AWAY: 'fa-bed', OFF: 'fa-power-off' },
@@ -140,11 +142,12 @@ export const SECTION_ICONS = {
   crew_hire: { START: 'fa-file-signature', WORKER: 'fa-hammer', PORT: 'fa-anchor' },
   crew_ranks: { TIERS: 'fa-layer-group', LICENCES: 'fa-id-card', PROMOTE: 'fa-arrow-up' },
   crew_pay: { WAGES: 'fa-coins', GRACE: 'fa-hourglass-half', STRIKE: 'fa-fist-raised', DISMISS: 'fa-user-times', EASIER: 'fa-hand-holding-usd' },
+  crew_couriers: { JOB: 'fa-id-badge', ROUTE: 'fa-route', PACKETS: 'fa-ship', FOOD: 'fa-drumstick-bite', CONTRACTS: 'fa-file-contract', COMMISSIONS: 'fa-scroll', STOPS: 'fa-exclamation-triangle' },
   crew_tips: { OWN: 'fa-lightbulb' },
   CARGO: { BOARD: 'fa-clipboard-list', TRADE: 'fa-exchange-alt', LOAD: 'fa-box', DELIVER: 'fa-ship', DROP: 'fa-trash-alt' },
   NOTICES: { TASKS: 'fa-clipboard-list', ONE: 'fa-hand-point-up', CHARTS: 'fa-map', RUMOURS: 'fa-comment-dots' },
   MARKETS: { PRICES: 'fa-balance-scale', LEARN: 'fa-book' },
-  PLANNING: { WHERE: 'fa-map-marked-alt', STOPS: 'fa-drumstick-bite', CHARTS: 'fa-map' },
+  PLANNING: { WHERE: 'fa-map-marked-alt', PREFER: 'fa-directions', STOPS: 'fa-drumstick-bite', CHARTS: 'fa-map' },
 };
 /** Lists drawn as cards, an icon for each point in order: the answers to a band and what a fight can end in. */
 export const LIST_CARDS = {

@@ -184,7 +184,8 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   fares, food, fuel, spoilage, hull wear and encounter tolls against the XP, foraging, encounter purses and loot, and
   the cargo pay collected where it ended.
 - **Plan a voyage.** From Voyage 15, Plan voyage (on a journal page, a cargo run, your Slayer task or a popup that sends you elsewhere)
-  shows the route, the stops to stock up and the cost. With Navigator's Charts (Voyage 50, bought once at a port for
+  shows the route, the stops to stock up and the cost. Choose the cheapest way, the fastest (it weighs the wind, storms and
+  the ground; with Timed travel on) or the fewest hexes (a hop between ports counts as one). With Navigator's Charts (Voyage 50, bought once at a port for
   10,000,000 GP and 100 Pitch) Set off makes the whole trip in one go (in time, with Timed travel on), and On arrival starts the work you planned.
   Make a place your home from the map's panel and Plan home is one click away; the last places you set off for wait
   under Recent places.
@@ -268,6 +269,14 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   A move or a strike that takes them apart cuts the line, with a notice.
   **The Quartermaster** (Worker Folks 1.11.0) has to come along with you: give the job to a Folk in your crew (Come
   with me first). Put it ashore or send it walking and it is no longer the Quartermaster.
+  **Couriers** (needs Worker Folks 1.12.0 or later). With the Courier's Licence from the Voyage shop (Voyage 45), give a
+  Folk the Courier job: it takes a Shift Slot and draws its rank's wage. Press Route in the Crew block and pick up to 12
+  stops on the map (Folks, tent depots and bank places, at least one bank stop). The courier walks them in order, takes
+  what your Folks hold and brings it to your bank. It packs its food at bank stops, crosses water by packet for a fare,
+  carries Township commission goods, and earns travel traits, Hiring XP and mastery. You can change a route at any bank
+  place or within a hex of the courier; the change starts at its next bank stop. With **Supply Contracts** (Voyage 75) it
+  also brings your Folks their inputs from the bank, and from Hiring 60 carries supply links between two Folks on its
+  route who stand too far apart to hand over.
   Now and then on a long crossing a stowaway climbs out of the hold, when there is a berth for one more: hire it as a
   Trainee at half the Shop's price while it is aboard, if you have the licence and a free crew slot (it still counts as
   a hire, so the Shop's next one costs more), or it goes ashore at the next port or land you stop at. Until then it
@@ -295,6 +304,11 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   off.
 
 ## Backups
+
+**Safety copies.** Voyage keeps a few automatic copies of its progress in this browser, outside the game's save, about
+every 10 minutes and when you leave the tab, at sea too. If the game ever saves without the mod, the next load with the
+mod brings the highest copy back for the same character, saves and reloads. They stay on this device, so a backup code
+is still the way to move or keep your progress for good.
 
 The game drops a mod's skill, items and shop purchases the first time it saves without the mod: turned off, removed,
 or failing to load after a game update. **Back up Voyage**, at the foot of the Voyage page, gives you a code to copy or
@@ -338,9 +352,6 @@ the mod drops all of its data: make a backup first (see Backups), or take your i
   one: the level from the hexes you have surveyed, the starter kit, the start choice, the welcome and its 2,500 GP
   once more. Make a backup before you remove the mod (see Backups): Restore Voyage brings it all back. Without one,
   take your goods out of the holds first, and don't save with the mod off if you mean to come back to your voyage.
-- **The route is the shortest, not the fastest.** The planner and Set off take the way with the fewest hexes; the
-  wind is not weighed when the way is chosen. The time Set off shows does count the wind, so a long leg against it
-  is told before you go.
 - **Balanced by simulation.** The pace of Timed travel over weeks of play comes from the mod's own simulation of a
   captain's week, not from a week at the keyboard; sea chart drops from gathering and the Ancient Relics drops are
   rare enough that they were checked by their numbers, not seen in play. If your game tells another story, say so on

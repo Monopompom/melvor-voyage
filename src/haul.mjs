@@ -5,7 +5,7 @@
 // place, lets you restock from the Here panel, and marks a room that stopped on the map. Without Worker Folks 10 or with
 // the setting off, every Folk works from the bank as before. The rules are pure (src/haul-model.mjs).
 
-const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-outline-info m-1' };
+const SWAL_CLASS = { popup: 'voyage-ui' };
 
 export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
@@ -125,12 +125,14 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
 
   // ---- collecting where you stand ------------------------------------------------------------------------------------
   let collecting = false;
+  // A supplier on a carried line keeps its room for the courier, or the line's goods would go to the bank.
+  const onCarriedLine = (f) => f?.supplies != null && state.couriers?.carries?.(f.id, f.supplies) === true;
   /** Collects every Folk within a hex of you that holds something. */
   const collectHere = ({ quiet = false } = {}) => {
     const a = api();
     if (a === undefined || !on() || collecting) return;
     const pos = state.position();
-    const folks = H.collectFrom(a.folks(), pos, { distance, rooms: roomOf });
+    const folks = H.collectFrom(a.folks(), pos, { distance, rooms: roomOf, keep: onCarriedLine });
     const depots = depotsNear(pos).filter((d) => H.hasHaul(d.view));
     if (folks.length === 0 && depots.length === 0) return;
     collecting = true;
@@ -163,7 +165,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     const before = seen.get(folk.id);
     const after = { travel: folk.travel, access: accessOf(folk) };
     seen.set(folk.id, after);
-    if (H.lifeStep(before, after) !== 'empty') return;
+    if (H.lifeStep(before, after, { line: onCarriedLine(folk) }) !== 'empty') return;
     try { tell([a.emptyToBank(folk.id)], { one: 'MOD_VOY_HAUL_EMPTIED_ONE', many: 'MOD_VOY_HAUL_EMPTIED_MANY', names: [folk.name] }); } catch (e) { log(`empty ${folk.name} failed`, e); }
   };
 
@@ -183,6 +185,9 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   const settingsChanged = () => {
     const a = api();
     if (a === undefined) return;
+    // Voyage is still loading: the rules only read as off. Nothing was turned off, so no room is emptied and no courier
+    // leaves its job; the load's own steps below set things up once the save is checked.
+    if (state.mode === 'dormant') return;
     // The depots first, every time: on a load this is where the rules first apply (the table checked), before offline
     // progress; registering again is a no-op.
     try { syncDepots(); } catch (e) { log('depots sync failed', e); }
@@ -192,8 +197,10 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     try { a.refreshBankAccess?.(); } catch (e) { log('bank access refresh failed', e); }
     for (const f of a.folks()) remember(f);
     if (!now) {
-      // Off: every room's haul to the bank at once (what finds no slot stays held, as the buffer has it).
+      // Off: every room's haul to the bank at once (what finds no slot stays held, as the buffer has it). Couriers leave
+      // their job first, or the inputs they carry would stay on them.
       try {
+        state.couriers?.standDown?.();
         const all = a.emptyToBank() ?? [];
         // Named by the Folks that gave something, so one Folk reads as its name, never "1 Folks".
         const names = all.filter((r) => !H.emptySummary(H.mergeCollected([r]))).map((r) => a.folkById?.(r.id)?.name).filter((n) => typeof n === 'string');
@@ -246,6 +253,8 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     if (a === undefined) return;
     try { syncDepots(); } catch (e) { log('depots failed to register', e); }
     try { a.refreshBankAccess?.(); } catch (e) { log('bank access refresh failed', e); }
+    // Which lines are carried is settled here too, or the first catch-up would hand far goods straight to the receiver.
+    try { a.refreshLinks?.(); } catch (e) { log('supply line refresh failed', e); }
   };
   ctx.onCharacterLoaded(() => setTimeout(() => {
     const a = api();
@@ -301,8 +310,8 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
         + `<span class="voyage-haul-bar" role="img" aria-label="${esc(fill)}"><span class="voyage-haul-bar-in${word ? ' voyage-haul-bar-stop' : ''}" style="width:${pct}%"></span></span>`
         + `<small class="text-muted voyage-haul-fill" aria-label="${esc(fill)}">${fillCell}</small>`
         + (anyWord ? `<small class="text-warning voyage-haul-word">${word ? esc(t(word)) : ''}</small>` : '')
-        + (canRestock ? `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-haul-btn" data-haul-act="restock" data-haul-folk="${esc(f.id)}">${esc(t('MOD_VOY_HAUL_RESTOCK'))}</button>` : '')
-        + (depot !== undefined && depot.members > 0 ? `<button type="button" class="btn btn-sm btn-outline-info voyage-row-btn voyage-haul-btn" data-haul-act="depot" data-haul-depot="${esc(depot.key)}">${esc(t('MOD_VOY_HAUL_RESTOCK_ALL'))}</button>` : '')
+        + (canRestock ? `<button type="button" class="btn btn-sm btn-success voyage-row-btn voyage-haul-btn" data-haul-act="restock" data-haul-folk="${esc(f.id)}">${esc(t('MOD_VOY_HAUL_RESTOCK'))}</button>` : '')
+        + (depot !== undefined && depot.members > 0 ? `<button type="button" class="btn btn-sm btn-success voyage-row-btn voyage-haul-btn" data-haul-act="depot" data-haul-depot="${esc(depot.key)}">${esc(t('MOD_VOY_HAUL_RESTOCK_ALL'))}</button>` : '')
         + '</div>';
     }
     return `<div class="voyage-haul-rows${anyWord ? ' voyage-haul-w' : ''}${anyBtn ? ' voyage-haul-b' : ''}">${html}${extra}</div>`;
@@ -331,7 +340,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   const modalHtml = (rows) => {
     if (rows.length === 0) return `<div class="text-center text-muted">${esc(t('MOD_VOY_HAUL_NONE'))}</div>`;
     const all = rows.some((r) => r.canRestock)
-      ? `<div class="voyage-here-ship voyage-haul-row voyage-haul-all"><button type="button" class="btn btn-sm btn-outline-info voyage-row-btn" data-haul-act="all">${esc(t('MOD_VOY_HAUL_RESTOCK_ALL'))}</button></div>`
+      ? `<div class="voyage-here-ship voyage-haul-row voyage-haul-all"><button type="button" class="btn btn-sm btn-success voyage-row-btn" data-haul-act="all">${esc(t('MOD_VOY_HAUL_RESTOCK_ALL'))}</button></div>`
       : '';
     return rowsHtml(rows, all);
   };
@@ -348,7 +357,9 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
       customClass: swalClass,
       title: t('MOD_VOY_HAUL_TITLE'),
       html: `<div class="voyage-haul-modal">${modalHtml(modalRows())}</div>`,
-      confirmButtonText: t('MOD_VOY_HAUL_CLOSE'),
+      showConfirmButton: false,
+      showCloseButton: true,
+      closeButtonAriaLabel: t('MOD_VOY_HAUL_CLOSE'),
       didOpen: (el) => {
         modalBox = el.querySelector('.voyage-haul-modal') ?? undefined;
         if (modalBox === undefined) return;
@@ -413,8 +424,8 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     for (const f of a.folks()) if (f.travel === 'idle' && f.place?.q === q && f.place?.r === r) { const m = markOf(f.id); if (m !== undefined) return m; }
     return undefined;
   };
-  /** A word for a Folk's tooltip: "Haul full", "Out of inputs" or ''. */
-  const folkWord = (f) => { const m = on() ? markOf(f.id) : undefined; return m === undefined ? '' : t(stateWord[m]); };
+  /** A word for a Folk's tooltip: "Haul full", "Out of inputs" or ''. A Folk on the road has not stopped: none. */
+  const folkWord = (f) => { const m = on() && f.travel !== 'walking' ? markOf(f.id) : undefined; return m === undefined ? '' : t(stateWord[m]); };
 
   // ---- tent depots (Worker Folks API v11, round 3) ------------------------------------------------------------------
   // A pitched tent keeps a depot of 48 h of work, shared by the Folks within a hex of it that work from their rooms:
@@ -430,7 +441,8 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   /** Worker Folks' answer for a Folk: its access, with the depot of the nearest tent within a hex when it works from its room. */
   const hookAnswer = (folk) => {
     const access = accessOf(folk);
-    if (access !== 'room' || depotIds.size === 0) return access;
+    // A Folk on the road only passes a tent: it shares no depot.
+    if (access !== 'room' || depotIds.size === 0 || folk.travel !== 'idle') return access;
     return H.depotAccess(access, H.depotFor(folk.place, depotTents(), distance)?.key);
   };
   /** Registers the standing tents' depots and drops those gone; Worker Folks asks every Folk's access again after. */
@@ -491,7 +503,8 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
   // ---- supply lines (Worker Folks' links, API v11) -------------------------------------------------------------------
   // A line is direct under Voyage only while its two Folks stand within a hex of each other, or both within a hex of
   // the same tent (the user, 10 Nov 2026: "Refuse and cut", "a tent joins them"). Setting one also needs you within a
-  // hex of the supplier: gate.mjs's staff guard, as for every order. Far lines wait for couriers. Rules on, haul or not.
+  // hex of the supplier: gate.mjs's staff guard, as for every order. A far line rides with a courier whose one route serves
+  // both Folks, with Supply Contracts and Hiring 60. Rules on, haul or not.
   const linksApi = () => {
     const a = state.folksGuarded ? state.folksApi?.() : undefined;
     return a !== undefined && typeof a.setSupply === 'function' && typeof a.supplyLinks === 'function' ? a : undefined;
@@ -504,10 +517,20 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     return H.linkClose(standsAt(s), standsAt(r), tentsUp(), distance);
   };
   const folkOf = (a, id) => a.folks().find((f) => f.id === id);
+  const carried = (s, r) => state.couriers?.carries?.(s.id, r.id) === true;
+  /** For Worker Folks: a line far apart holds its goods for a courier and never hands them over the distance. */
+  const linkReach = (supplier, receiver) => {
+    const a = linksApi();
+    if (a === undefined || !linksOn()) return 'direct';
+    const s = folkOf(a, supplier?.id);
+    const r = folkOf(a, receiver?.id);
+    return s === undefined || r === undefined || linkClose(s, r) ? 'direct' : 'carried';
+  };
   const linkRefusal = ({ action, folk, receiverId }) => {
     if (action !== 'link' || receiverId == null || folk === undefined || !linksOn()) return undefined;
     const r = folkOf(linksApi(), receiverId);
-    if (r === undefined || linkClose(folk, r)) return undefined;
+    if (r === undefined || linkClose(folk, r) || carried(folk, r)) return undefined;
+    if (state.couriers?.servesBoth?.(folk.id, r.id) === true) return { reason: t('MOD_VOY_FOLK_LINK_CONTRACTS', { name: folk.name, receiver: r.name }) };
     return { reason: t('MOD_VOY_FOLK_LINK_APART', { name: folk.name, receiver: r.name }) };
   };
   /** Ends every line whose Folks no longer stand close: after a Folk moves, a tent is struck, the rules come on. */
@@ -519,7 +542,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     for (const l of links) {
       const s = folkOf(a, l.supplierId);
       const r = folkOf(a, l.receiverId);
-      if (s === undefined || r === undefined || linkClose(s, r)) continue;
+      if (s === undefined || r === undefined || linkClose(s, r) || carried(s, r)) continue;
       try {
         if (a.setSupply(s.id, null)) {
           notifyPlayer(game.skills.getObjectByID('worker_folks:Hiring') ?? game.attack, t('MOD_VOY_FOLK_LINK_CUT', { name: s.name, receiver: r.name }), 'info');
@@ -538,7 +561,7 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
       const s = folkOf(a, l.supplierId);
       const r = folkOf(a, l.receiverId);
       if (s === undefined || r === undefined || !linkClose(s, r)) continue;
-      if (s.travel === 'walking' || r.travel === 'walking') continue;
+      if (s.travel === 'walking' || r.travel === 'walking' || carried(s, r)) continue;
       if (!H.linkClose(standsAt(s), standsAt(r), others, distance)) cut.push({ supplier: s.name, receiver: r.name });
     }
     return cut;
@@ -548,8 +571,15 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
     if (a === undefined) return;
     try {
       a.registerGuard('staff', (req) => { try { return linkRefusal(req ?? {}); } catch (e) { console.error('[Voyage] link guard failed open', e); return undefined; } });
+      a.registerLinkReach?.((s, r) => { try { return linkReach(s, r); } catch (e) { console.error('[Voyage] link reach failed', e); return 'direct'; } });
       a.on('folkMoved', () => checkLinks());
-      state.listeners.push(() => checkLinks());
+      // Worker Folks keeps each line's answer: it is asked again when the rules turn on or off.
+      let rulesWere = linksOn();
+      state.listeners.push(() => {
+        const rules = linksOn();
+        if (rules !== rulesWere) { rulesWere = rules; a.refreshLinks?.(); }
+        checkLinks();
+      });
       log('haul: supply line guard registered');
     } catch (e) { console.error('[Voyage] the supply line rule failed to hook Worker Folks', e); }
   });
@@ -557,7 +587,9 @@ export function install(ctx, { state, H, rules, terrainMod, shortNumber, decimal
 
   // listed: the ids of the Folks the haul's rows show (the Folks here row leaves out those it would repeat).
   const listed = () => nearRooms().map((r) => r.f.id);
-  const out = { checkLinks, linksCutBy, syncDepots, depotView, loaded, on, rows: PANEL_ROWS, afterMove: () => { collectHere(); redrawModalSoon(); }, panelHtml, click, markAt, folkWord, accessOf, listed };
+  /** A tent went up or came down: it may join two Folks, or part them. */
+  const tentsChanged = () => { linksApi()?.refreshLinks?.(); checkLinks(); };
+  const out = { checkLinks, tentsChanged, linksCutBy, syncDepots, depotView, loaded, on, rows: PANEL_ROWS, afterMove: () => { collectHere(); redrawModalSoon(); }, panelHtml, click, markAt, folkWord, accessOf, listed };
   state.haul = out;
   return out;
 }

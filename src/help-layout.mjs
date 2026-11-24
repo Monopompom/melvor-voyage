@@ -50,11 +50,19 @@ export const mark = {
  * bindPick.
  */
 const pickFace = (c) => `${c?.media ? `<img class="voyage-plan-pick-ico" src="${esc(c.media)}" alt="">` : '<i class="fa fa-pause-circle voyage-plan-pick-ico" aria-hidden="true"></i>'}<span>${esc(c?.label ?? '')}</span>`;
+/**
+ * The mod's one dropdown: a light toggle showing the pick, named by its label and the pick, over a menu. `before` sits
+ * ahead of the toggle (a hidden value), `attrs` go on the toggle.
+ */
+export const dropdownHtml = ({ id, labelId, face, items, before = '', attrs = '' }) => '<div class="dropdown voyage-plan-arrival voyage-clock-dd">'
+  + `${before}<button type="button" id="${id}-toggle" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-labelledby="${labelId} ${id}-toggle"${attrs}>${face}</button>`
+  + `<div class="dropdown-menu overflow-y-auto" aria-labelledby="${id}-toggle">${items}</div></div>`;
 export const pickHtml = (id, labelId, choices, value) => {
   const on = choices.find((c) => c.value === value) ?? choices[0];
-  return `<div class="dropdown voyage-plan-arrival voyage-clock-dd"><input type="hidden" id="${id}" value="${esc(on?.value ?? '')}">`
-    + `<button type="button" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-labelledby="${labelId}" data-voyage-pick="${id}">${pickFace(on)}</button>`
-    + `<div class="dropdown-menu overflow-y-auto">${choices.map((c) => `<a class="dropdown-item pointer-enabled${c === on ? ' active' : ''}" role="button" data-voyage-pick-for="${id}" data-value="${esc(c.value)}">${pickFace(c)}</a>`).join('')}</div></div>`;
+  return dropdownHtml({
+    id, labelId, face: pickFace(on), before: `<input type="hidden" id="${id}" value="${esc(on?.value ?? '')}">`, attrs: ` data-voyage-pick="${id}"`,
+    items: choices.map((c) => `<a class="dropdown-item pointer-enabled${c === on ? ' active' : ''}" role="button" data-voyage-pick-for="${id}" data-value="${esc(c.value)}">${pickFace(c)}</a>`).join(''),
+  });
 };
 /** Wires a pickHtml inside `el`: a choice sets the hidden value, the toggle's face and the menu's active row. */
 export const bindPick = (el, id) => {

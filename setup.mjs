@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-22.648';
+export const BUILD = '2026-11-24.699';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -203,6 +203,15 @@ export async function setup(ctx) {
     },
   };
   const onChange = (name) => (newValue) => { live[name] = newValue; devSettings.write(name, newValue); state.onSettingsChange(); };
+  // A key shown as typed in capitals, unless that makes two letters of one ("ß" stays "ß").
+  const keyOf = (v) => { const s = String(v ?? '').trim(); const u = s.toUpperCase(); return [...u].length === 1 ? u : s; };
+  const KEY_NAMES = ['journalKey', 'centreKey', 'mapKey', 'quayKey', 'placesKey'];
+  /** A key another Voyage shortcut already uses is refused with a line under the field: only one of the two could work. */
+  const keyChange = (name) => (newValue) => {
+    const k = keyOf(newValue);
+    if (k !== '' && KEY_NAMES.some((n) => n !== name && keyOf(value(n)) === k)) return getLangString('MOD_VOY_SETTING_KEY_TAKEN');
+    return onChange(name)(newValue);
+  };
   // A setting not registered (the haul's, without a Worker Folks that has it) reads as unset, and is never written.
   const stored = (name) => { try { return sectionOf(name).get(name); } catch { return undefined; } };
   const store = (name, v) => { try { sectionOf(name).set(name, v); } catch {} };
@@ -234,11 +243,11 @@ export async function setup(ctx) {
     { type: 'number', name: 'nightShift', label: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT'), hint: getLangString('MOD_VOY_SETTING_NIGHT_SHIFT_HINT'), default: 0, min: -12, max: 12, onChange: onChange('nightShift') },
     { type: 'switch', name: 'mapMotion', label: getLangString('MOD_VOY_SETTING_MAP_MOTION'), hint: getLangString('MOD_VOY_SETTING_MAP_MOTION_HINT'), default: true, onChange: onChange('mapMotion') },
     { type: 'switch', name: 'bookOpening', label: getLangString('MOD_VOY_SETTING_BOOK_OPENING'), hint: getLangString('MOD_VOY_SETTING_BOOK_OPENING_HINT'), default: false, onChange: onChange('bookOpening') },
-    { type: 'text', name: 'journalKey', label: getLangString('MOD_VOY_SETTING_JOURNAL_KEY'), hint: getLangString('MOD_VOY_SETTING_JOURNAL_KEY_HINT'), default: 'J', maxLength: 1, onChange: onChange('journalKey') },
-    { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: onChange('centreKey') },
-    { type: 'text', name: 'mapKey', label: getLangString('MOD_VOY_SETTING_MAP_KEY'), hint: getLangString('MOD_VOY_SETTING_MAP_KEY_HINT'), default: 'M', maxLength: 1, onChange: onChange('mapKey') },
-    { type: 'text', name: 'quayKey', label: getLangString('MOD_VOY_SETTING_QUAY_KEY'), hint: getLangString('MOD_VOY_SETTING_QUAY_KEY_HINT'), default: 'Q', maxLength: 1, onChange: onChange('quayKey') },
-    { type: 'text', name: 'placesKey', label: getLangString('MOD_VOY_SETTING_PLACES_KEY'), hint: getLangString('MOD_VOY_SETTING_PLACES_KEY_HINT'), default: 'P', maxLength: 1, onChange: onChange('placesKey') },
+    { type: 'text', name: 'journalKey', label: getLangString('MOD_VOY_SETTING_JOURNAL_KEY'), hint: getLangString('MOD_VOY_SETTING_JOURNAL_KEY_HINT'), default: 'J', maxLength: 1, onChange: keyChange('journalKey') },
+    { type: 'text', name: 'centreKey', label: getLangString('MOD_VOY_SETTING_CENTRE_KEY'), hint: getLangString('MOD_VOY_SETTING_CENTRE_KEY_HINT'), default: 'G', maxLength: 1, onChange: keyChange('centreKey') },
+    { type: 'text', name: 'mapKey', label: getLangString('MOD_VOY_SETTING_MAP_KEY'), hint: getLangString('MOD_VOY_SETTING_MAP_KEY_HINT'), default: 'M', maxLength: 1, onChange: keyChange('mapKey') },
+    { type: 'text', name: 'quayKey', label: getLangString('MOD_VOY_SETTING_QUAY_KEY'), hint: getLangString('MOD_VOY_SETTING_QUAY_KEY_HINT'), default: 'Q', maxLength: 1, onChange: keyChange('quayKey') },
+    { type: 'text', name: 'placesKey', label: getLangString('MOD_VOY_SETTING_PLACES_KEY'), hint: getLangString('MOD_VOY_SETTING_PLACES_KEY_HINT'), default: 'P', maxLength: 1, onChange: keyChange('placesKey') },
   ];
   // "Folks hold what they make" is added only once a Worker Folks with the haul is found (haul.mjs, on mods loaded), so
   // a player without one never sees a switch that does nothing. It is the last of Rules, so it keeps its place. The
@@ -295,13 +304,13 @@ export async function setup(ctx) {
       night: () => flag('night'),
       weather: () => flag('weather'),
       timedTravel: () => flag('timedTravel'),
-      centreKey: () => String(value('centreKey') ?? '').trim().toUpperCase(),
-      journalKey: () => String(value('journalKey') ?? '').trim().toUpperCase(),
+      centreKey: () => keyOf(value('centreKey')),
+      journalKey: () => keyOf(value('journalKey')),
       mapMotion: () => flag('mapMotion'),
       bookOpening: () => value('bookOpening') === true,
-      mapKey: () => String(value('mapKey') ?? '').trim().toUpperCase(),
-      quayKey: () => String(value('quayKey') ?? '').trim().toUpperCase(),
-      placesKey: () => String(value('placesKey') ?? '').trim().toUpperCase(),
+      mapKey: () => keyOf(value('mapKey')),
+      quayKey: () => keyOf(value('quayKey')),
+      placesKey: () => keyOf(value('placesKey')),
       nightShift: () => { const v = Number(value('nightShift')); return Number.isFinite(v) ? Math.max(-12, Math.min(12, Math.round(v))) : 0; },
     },
     /** The Legend card's Map colours switch. */
@@ -411,7 +420,12 @@ export async function setup(ctx) {
   const { shortNumber, decimal, wideCount } = await ctx.loadModule('src/number-format.mjs');
   // Every popup we open runs this on render: skill names get their icon and bold.
   const skillNamesMod = await ctx.loadModule('src/skill-names.mjs');
-  state.popupDidRender = skillNamesMod.didRender;
+  state.popupDidRender = (popup) => {
+    skillNamesMod.didRender(popup);
+    try { state.tips?.popup(popup); } catch (e) { log('popup tooltips failed', e); }
+  };
+  // A tap on a greyed option says why, on a phone too, where a tooltip needs a long press.
+  state.refused = (text) => { try { if (text) game.notifications.createErrorNotification('voyage:refused', text); } catch (e) { log('refusal notice failed', e); } };
   // Worker Folks' API (phase 6): undefined without Worker Folks or with one older than Voyage drives; said once.
   const folksLink = await ctx.loadModule('src/folks-link.mjs');
   let folksWarned = false;
@@ -464,7 +478,7 @@ export async function setup(ctx) {
     state.landModel = landModel;
   } catch (e) { console.error('[Voyage] land upgrades failed to load; the rest runs', e); state.land = undefined; }
   // Provisions (phase 3c): the stores every move draws on. Inert without the skill, like the ship.
-  const stores = storesMod.install(ctx, { state, model, storesModel, supplyModel, spoilModel, forageModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log });
+  const stores = storesMod.install(ctx, { state, model, storesModel, supplyModel, spoilModel, forageModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, decimal, log });
   // Spoilage settles once a game-minute on the skill's passive tick, online and offline (4.4b).
   { const s = voyageSkill(); if (s !== undefined) s.spoilTick = () => stores.spoilTick(); }
   // Gear, relics and the Albatross (4.31): the effects the stores, the clock, cargo and the bands' tolls read, and the rolls
@@ -483,6 +497,11 @@ export async function setup(ctx) {
     const s = voyageSkill();
     if (s !== undefined) s.walks = state.walks;
   } catch (e) { console.error('[Voyage] walking failed to load; Folks stay put', e); state.walks = undefined; }
+  // Couriers (round 4): the job that carries between Folks and the bank. A failure: no such job.
+  try {
+    state.couriers = (await ctx.loadModule('src/courier.mjs')).install(ctx, { state, M: await ctx.loadModule('src/courier-model.mjs'), W: await ctx.loadModule('src/walk-model.mjs'), H: await ctx.loadModule('src/haul-model.mjs'), N: await ctx.loadModule('src/number-format.mjs'), rules, log });
+    state.routeEditor = (await ctx.loadModule('src/route-editor.mjs')).install(ctx, { state, M: await ctx.loadModule('src/courier-model.mjs'), N: await ctx.loadModule('src/number-format.mjs'), helpLayout, log });
+  } catch (e) { console.error('[Voyage] couriers failed to load; no Courier job', e); state.couriers = undefined; state.routeEditor = undefined; }
   // Outposts (phase 6e): a Tent pitched where a Folk works makes the hex a camp with a store. A failure: no tents.
   try {
     (await ctx.loadModule('src/outposts.mjs')).install(ctx, { state, O: outpostModel, terrainMod, helpLayout, log });
@@ -497,6 +516,8 @@ export async function setup(ctx) {
   // patch took); each patch has its own try, so one failing leaves the other.
   const folksOnly = {
     'voyage:Walking_Orders': () => state.folksGuarded === true && state.walks?.canWalk?.() === true,
+    'voyage:Couriers_Licence': () => state.folksGuarded === true && (state.folksApi?.()?.version ?? 0) >= 12,
+    'voyage:Supply_Contracts': () => state.folksGuarded === true && (state.folksApi?.()?.version ?? 0) >= 12,
   };
   const unusable = (p) => { const ok = folksOnly[p?.id]; return ok !== undefined && !ok(); };
   try {
@@ -547,8 +568,14 @@ export async function setup(ctx) {
         read: () => Object.fromEntries(Object.keys(SECTION_OF).map((n) => [n, stored(n)]).filter(([, v]) => v !== undefined)),
         write: (o) => { for (const [n, v] of Object.entries(o ?? {})) if (SECTION_OF[n] !== undefined && v !== undefined && stored(n) !== undefined && stored(n) !== v) store(n, v); },
       };
-      state.backup = (await ctx.loadModule('src/backup.mjs')).install(ctx, { state, model, B: await ctx.loadModule('src/backup-model.mjs'), helpLayout, BUILD, settingsIO, log });
+      state.backup = (await ctx.loadModule('src/backup.mjs')).install(ctx, { state, model, B: await ctx.loadModule('src/backup-model.mjs'), shipModel, helpLayout, BUILD, settingsIO, log });
     } catch (e) { console.error('[Voyage] backups failed to load; the rest runs', e); state.backup = undefined; }
+    // Automatic safety copies: a save made without this mod loses Voyage, and the next load brings the best copy back.
+    if (state.backup !== undefined) {
+      try {
+        (await ctx.loadModule('src/safety.mjs')).install(ctx, { M: await ctx.loadModule('src/safety-model.mjs'), ns: 'voyage', rank: 1, hadSave: () => voyageSkill()?.saveBlockRead === true, ...state.backup.safety, log });
+      } catch (e) { console.error('[Voyage] safety copies failed to load; the rest runs', e); }
+    }
   }
   const page = voyageSkillOk ? voyagePage.install(ctx, { state, model, shipModel, storesModel, supplyModel, rules, pageLayout, helpLayout, helpHtml: helpLayout.helpHtml, HELP_WIDTH: helpLayout.HELP_WIDTH, shortNumber, decimal, wideCount, log }) : undefined;
   // The Captain's Journal (phase 4): its "How it works" chapters are the page's "?" topics. A failure leaves the "?"
@@ -557,7 +584,7 @@ export async function setup(ctx) {
   try {
     const journalModel = await ctx.loadModule('src/journal-model.mjs');
     const journalFigures = await ctx.loadModule('src/journal-figures-model.mjs');
-    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, figures: journalFigures, shipModel, storesModel, rules, terrainMod, shortNumber, decimal, log });
+    (await ctx.loadModule('src/journal.mjs')).install(ctx, { state, model, journalModel, courierModel: await ctx.loadModule('src/courier-model.mjs'), figures: journalFigures, shipModel, storesModel, rules, terrainMod, shortNumber, decimal, log });
   } catch (e) { console.error('[Voyage] the journal failed to load; the rest runs', e); state.journal = undefined; }
   // The journal's heat maps (build .114); without them the entries simply have no heat map button.
   try { (await ctx.loadModule('src/heatmap.mjs')).install(ctx, { state, terrainMod, log }); } catch (e) { log('heat maps failed to load', e); state.heatmap = undefined; }

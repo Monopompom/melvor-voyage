@@ -241,6 +241,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
    */
   /** Worker Folks' Quartermaster job (API v11): it sails with you or it is not the Quartermaster. */
   const QUARTERMASTER = 'worker_folks:Quartermaster';
+  const COURIER = 'voyage:Courier';
   const yoursAlone = (folk, skillId) => {
     if (folk === undefined || !rules.folkNever(skillId)) return undefined;
     return { reason: line('MOD_VOY_FOLK_YOURS_ALONE', { name: esc(folk.name), skill: esc(skillLabel(skillId, game.skills.getObjectByID(skillId)?.name ?? skillId)) }).text };
@@ -252,6 +253,11 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
   }).text;
   /** True when the gate refuses a gated skill on the player's hex (the ship's clock leaves it to the gate). */
   state.skillLockedHere = (skillId) => lockedHere(skillId) !== undefined;
+  // True when Worker Folks will handle this start itself. Older versions have no answer: the player's rules apply.
+  state.startGoesToFolk = (action) => {
+    if (!state.folksGuarded) return false;
+    try { return state.folksApi?.()?.startGoesToFolk?.(action) === true; } catch (e) { log('folk start check failed', e); return false; }
+  };
 
   const describe = (skill, skillId, { pos, rec }) => {
     const n = need(skillId);
@@ -1165,7 +1171,11 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
       ? { reason: line('MOD_VOY_FOLK_QM_ALONG', { name: esc(folk.name) }).text } : undefined);
     api.registerGuard('staff', guard('staff', ({ action, folk, skillId, jobId }) => {
       if (action === 'hire') return hireRefusal();
+      const aboard = packetRefusal(folk);
+      if (aboard !== undefined) return aboard;
       if (action === 'job' && jobId === QUARTERMASTER) return walkingRefusal(folk) ?? notAlong(folk);
+      // A Folk with a saved route takes the job back from anywhere, as a kept job: a strike far away needs no trip.
+      if (action === 'job' && jobId === COURIER && state.couriers?.hasRoute?.(folk?.id)) return walkingRefusal(folk);
       // A Folk arriving from a walk (6d) is given the work it was sent for: only the hex it reached has to allow it.
       if (action === 'assign' && arriving(folk)) {
         const locked = lockedAt(skillId, folk.place);
@@ -1184,9 +1194,9 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
       const locked = lockedHere(skillId);
       return locked === undefined ? undefined : { reason: describe(game.skills.getObjectByID(skillId), skillId, locked).lines[0].text };
     }, yoursOnAssign));
-    api.registerGuard('gear', guard('gear', ({ folk }) => walkingRefusal(folk) ?? farRefusal(folk)));
+    api.registerGuard('gear', guard('gear', ({ folk }) => packetRefusal(folk) ?? walkingRefusal(folk) ?? farRefusal(folk)));
     api.registerGuard('work', guard('work', ({ folk, skillId, skill, jobId }) => (jobId === QUARTERMASTER ? notAlong(folk)
-      : walkingRefusal(folk) ?? workRefusal(folk, skillId, skill)),
+      : jobId === COURIER ? undefined : walkingRefusal(folk) ?? workRefusal(folk, skillId, skill)),
       ({ folk, skillId }) => yoursAlone(folk, skillId)));
     // A new Folk stands where it was hired; a Folk picked for a skill moves to your hex.
     const placeHere = (folk, why) => {
@@ -1249,7 +1259,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
       const roads = s !== undefined && s.futureRaw === undefined && s.record != null ? state.walks?.walks?.() : undefined;
       if (roads !== undefined) {
         for (const f of api.folks()) {
-          if (f.travel !== 'walking' || roads[f.id] !== undefined) continue;
+          if (f.travel !== 'walking' || roads[f.id] !== undefined || f.job === COURIER) continue;
           api.setTravel(f.id, 'idle');
           console.warn(`[Voyage] ${f.name} was walking with no walk in the save: stopped where it stands`);
         }
@@ -1291,7 +1301,8 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
     if (pos === undefined) return undefined;
     if (hexDistance(pos, folk.place) <= 1) return undefined;
     // No way or distance: the card says where the Folk is already (the user, 29 Oct 2026).
-    return { reason: line('MOD_VOY_FOLK_TOO_FAR', { name: esc(folk.name) }).text };
+    // One text for every refusal: the card's footer drops exact repeats and runs what's left together.
+    return { reason: line(folk.job === COURIER ? 'MOD_VOY_COURIER_TOO_FAR' : 'MOD_VOY_FOLK_TOO_FAR', {}).text };
   };
   /**
    * Why a Folk may not work `skillId` where it stands (6b), resource zones included: the lock ({ pos, rec, folk })
@@ -1326,10 +1337,13 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
     : line('MOD_VOY_FOLK_STOPPED_ZONE', { name: esc(lock.folk.name), here: here(lock.rec).html, action: esc(lock.offAction.name ?? lock.offAction.id) }).text);
   /** A Folk walking alone (6d) takes no orders but Stop here until it arrives. */
   const walkingRefusal = (folk) => {
-    if (folk?.travel !== 'walking' || arriving(folk)) return undefined;
+    if (folk?.travel !== 'walking' || arriving(folk) || folk.job === COURIER) return undefined;
     const w = state.walks?.describe?.(folk.id);
     return { reason: line('MOD_VOY_WALK_BUSY', { name: esc(folk.name), to: w === undefined ? '' : esc(w.to) }).text };
   };
+  /** A courier on a packet takes no orders until it lands: its place is still the hex it boarded from. */
+  const packetRefusal = (folk) => (folk?.job === COURIER && state.couriers?.onPacket?.(folk.id) === true
+    ? { reason: line('MOD_VOY_COURIER_PACKET_BUSY', { name: esc(folk.name) }).text } : undefined);
   const arriving = (folk) => folk !== undefined && state.walks?.arriving?.() === folk.id;
   /** Why a Folk standing on `hex` can't do `action` of `skillId` there (6d's places), or undefined. Plain text. */
   state.folkWorkAt = (folk, skillId, action, hex) => {
@@ -1346,6 +1360,7 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
   /** The card's and Worker box's line: where the Folk stands, from you. */
   const folkWhere = (folk) => {
     if (folk.travel === 'with') return getLangString('MOD_VOY_FOLK_WITH_YOU');
+    if (folk.travel === 'walking' && folk.job === COURIER && state.couriers !== undefined) return state.couriers.whereText(folk);
     if (folk.travel === 'walking') {
       const w = state.walks?.describe?.(folk.id);
       if (w !== undefined) return line('MOD_VOY_WALK_CARD', { to: esc(w.to), left: esc(w.leftText) }).text;

@@ -16,23 +16,33 @@ const CARTOGRAPHY_PAGE = 'melvorAoD:Cartography';
 
 const typing = (el) => el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 
+/**
+ * Whether this key press is the setting `raw`. Shift only counts for a key that needs it ("?" or "+"), never for a
+ * letter; on a non-Latin layout a Latin letter is matched by the key in that place, so J still opens the Journal.
+ */
+const hit = (e, raw) => {
+  const k = `${raw ?? ''}`.trim();
+  if (k === '') return false;
+  if (e.shiftKey && /\p{L}/u.test(k)) return false;
+  if (e.key.toLowerCase() === k.toLowerCase()) return true;
+  return /^[a-z]$/i.test(k) && !/^[a-z]$/i.test(e.key) && e.code === `Key${k.toUpperCase()}`;
+};
+
 export function install(ctx, { key, journalKey, mapKey, quayKey, quay, placesKey, places, openPage, journal, log }) {
   ctx.onInterfaceReady(() => {
     document.addEventListener('keydown', (e) => {
       try {
-        if (e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        if (e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
         if (typing(e.target) || typing(document.activeElement)) return;
         const book = journal?.();
-        const j = `${journalKey?.() ?? ''}`.trim();
-        if (j !== '' && e.key.toLowerCase() === j.toLowerCase() && book !== undefined) {
+        if (hit(e, journalKey?.()) && book !== undefined) {
           if (book.isOpen()) { e.preventDefault(); book.close(); return; }
           if (typeof Swal !== 'undefined' && Swal.isVisible()) return;
           e.preventDefault();
           book.open();
           return;
         }
-        const m = `${mapKey?.() ?? ''}`.trim();
-        if (m !== '' && e.key.toLowerCase() === m.toLowerCase() && typeof game !== 'undefined' && game.openPage?.id !== CARTOGRAPHY_PAGE) {
+        if (hit(e, mapKey?.()) && typeof game !== 'undefined' && game.openPage?.id !== CARTOGRAPHY_PAGE) {
           if (typeof Swal !== 'undefined' && Swal.isVisible()) return;
           const page = game.pages?.getObjectByID(CARTOGRAPHY_PAGE);
           if (page === undefined) return;
@@ -41,8 +51,7 @@ export function install(ctx, { key, journalKey, mapKey, quayKey, quay, placesKey
           openPage(page);
           return;
         }
-        const pk = `${placesKey?.() ?? ''}`.trim();
-        if (pk !== '' && e.key.toLowerCase() === pk.toLowerCase()) {
+        if (hit(e, placesKey?.())) {
           const list = places?.();
           if (list === undefined || list.usable?.() === false || typeof game === 'undefined') return;
           if (typeof Swal !== 'undefined' && Swal.isVisible()) return;
@@ -55,16 +64,14 @@ export function install(ctx, { key, journalKey, mapKey, quayKey, quay, placesKey
           openPage(page);
           return;
         }
-        const qk = `${quayKey?.() ?? ''}`.trim();
-        if (qk !== '' && e.key.toLowerCase() === qk.toLowerCase()) {
+        if (hit(e, quayKey?.())) {
           const board = quay?.();
           if (board === undefined) return;
           if ((typeof Swal !== 'undefined' && Swal.isVisible()) || book?.isOpen()) return;
           if (board.open() === true) e.preventDefault();
           return;
         }
-        const k = `${key() ?? ''}`.trim();
-        if (k === '' || e.key.toLowerCase() !== k.toLowerCase()) return;
+        if (!hit(e, key())) return;
         if (typeof game === 'undefined' || game.openPage?.id !== CARTOGRAPHY_PAGE || game.cartography?.activeMap === undefined) return;
         if (typeof Swal !== 'undefined' && Swal.isVisible()) return;
         e.preventDefault();
@@ -75,9 +82,7 @@ export function install(ctx, { key, journalKey, mapKey, quayKey, quay, placesKey
     // Quay key that closes it again is heard on the way in, before the popup (seen in game, build .607).
     window.addEventListener('keydown', (e) => {
       try {
-        if (e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || typing(e.target)) return;
-        const qk = `${quayKey?.() ?? ''}`.trim();
-        if (qk === '' || e.key.toLowerCase() !== qk.toLowerCase()) return;
+        if (e.repeat || e.altKey || e.ctrlKey || e.metaKey || typing(e.target) || !hit(e, quayKey?.())) return;
         const board = quay?.();
         if (board?.isOpen?.() !== true) return;
         e.preventDefault();

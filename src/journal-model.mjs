@@ -17,7 +17,7 @@ export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores',
  * The Old Man's Crew pages (build .116, the user's ask): a guide to Worker Folks: Hiring in the captain's voice, shown
  * as their own tab only while that mod is loaded. Written chapters like the ones below (MOD_VOY_JOURNAL_CH_CREW_*).
  */
-export const JOURNAL_CREW = ['crew_hire', 'crew_ranks', 'crew_pay', 'crew_tips'];
+export const JOURNAL_CREW = ['crew_hire', 'crew_ranks', 'crew_pay', 'crew_couriers', 'crew_tips'];
 /**
  * The first spread of How it works (build .179): the Old Man's chart and the
  * Manifest face each other before the foreword, so chapter spreads start at 1. Chapters keep their folios (i, ii, ...
@@ -48,12 +48,14 @@ export const JOURNAL_WRITTEN = {
   crew_hire: { sections: ['START', 'WORKER', 'PORT'] },
   crew_ranks: { sections: ['TIERS', 'LICENCES', 'PROMOTE'] },
   crew_pay: { sections: ['WAGES', 'GRACE', 'STRIKE', 'DISMISS', 'EASIER'], warn: ['STRIKE'] },
+  // Couriers (round 4): the job, its route, packets, road food, what Supply Contracts add, and when it stops.
+  crew_couriers: { sections: ['JOB', 'ROUTE', 'PACKETS', 'FOOD', 'CONTRACTS', 'COMMISSIONS', 'STOPS'], warn: ['STOPS'] },
   crew_tips: { sections: ['OWN'], points: true },
-  map: { sections: ['TINT', 'PANEL', 'PLACES', 'KEYS', 'MARKS'] },
+  map: { sections: ['TINT', 'PANEL', 'FOLDED', 'PLACES', 'KEYS', 'MARKS'] },
   lands: { sections: ['KINDS', 'FEATURES'] },
   tricks: { sections: ['STORES', 'BOAT', 'TRADE', 'NIGHT', 'WAY', 'PAGE'], points: true },
   settings: { sections: ['EASIER', 'KEYS', 'WHY'] },
-  leaving: { sections: ['WHAT', 'KEEP', 'HOW'], warn: ['WHAT'] },
+  leaving: { sections: ['WHAT', 'KEEP', 'SAFETY', 'HOW'], warn: ['WHAT'] },
   adventure: { sections: ['FIRST', 'NEXT'] },
   road: { sections: ['MOUNTS', 'SIGN'] },
   // The ship's clock (phase 5a, build .219).
@@ -77,7 +79,7 @@ export const JOURNAL_GUIDE_SECTIONS = {
   board: { from: 'NOTICES', sections: ['TASKS', 'ONE', 'CHARTS'], points: false },
   market: { from: 'MARKETS', sections: ['PRICES', 'LEARN'] },
   rumour: { from: 'NOTICES', sections: ['RUMOURS'] },
-  planning: { from: 'PLANNING', sections: ['WHERE', 'STOPS', 'CHARTS'], points: false },
+  planning: { from: 'PLANNING', sections: ['WHERE', 'PREFER', 'STOPS', 'CHARTS'], points: false },
 };
 
 /**

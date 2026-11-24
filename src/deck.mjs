@@ -3,6 +3,8 @@
 // trick book over it. The kit locks while a trip is under way or a band waits (encounters.mjs kitLocked): presets can still be saved.
 // The rules are src/deck-model.mjs; the save is the encounters' record (`deck`, `presets`, `charms`).
 
+/** A name of three words or more never leaves its last word alone on a line. */
+const keepEnd = (s) => String(s).replace(/^(\S+ .*\S) (\S+)$/, '$1\u00a0$2');
 const GROUP_KEYS = {
   starter: ['MOD_VOY_DECK_GROUP_STARTER', 'MOD_VOY_DECK_GROUP_STARTER_NOTE'],
   milestone: ['MOD_VOY_DECK_GROUP_MILESTONE', 'MOD_VOY_DECK_GROUP_MILESTONE_NOTE'],
@@ -104,7 +106,7 @@ export function install(ctx, { state, F, log }) {
   };
   const charmRow = (id, acts, warn = '') => {
     const { E } = api();
-    return `<div class="voyage-deck-charm">${charmIcon(id)}<div class="voyage-deck-charm-text"><div class="voyage-deck-charm-name${E.CHARMS[id]?.trophy !== undefined ? ' voyage-deck-charm-trophy' : ''}">${esc(t(E.charmKey(id)))}</div>`
+    return `<div class="voyage-deck-charm">${charmIcon(id)}<div class="voyage-deck-charm-text"><div class="voyage-deck-charm-name${E.CHARMS[id]?.trophy !== undefined ? ' voyage-deck-charm-trophy' : ''}">${esc(keepEnd(t(E.charmKey(id))))}</div>`
       + `<small class="d-block">${esc(t(E.charmTextKey(id)))}</small>${warn}</div><div class="voyage-deck-charm-act">${acts}</div></div>`;
   };
   const charmsPart = (e, locked) => {

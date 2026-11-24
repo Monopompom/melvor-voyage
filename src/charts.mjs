@@ -75,7 +75,7 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
   const icon = (src) => (src ? `<img class="voyage-skill-name-icon" src="${src}" alt="">` : '');
   const button = (cls, label, attrs, why) => (why === undefined
     ? `<button type="button" class="btn ${cls}" ${attrs}>${esc(label)}</button>`
-    : `<button type="button" class="btn btn-outline-secondary" disabled title="${esc(why)}">${esc(label)}</button>`);
+    : `<button type="button" class="btn btn-outline-secondary disabled" aria-disabled="true" data-chart="refused" data-why="${esc(why)}" title="${esc(why)}">${esc(label)}</button>`);
   const art = `<span class="voyage-cargo-art"><img class="voyage-cargo-box" src="${ctx.getResourceUrl(CHART_ART)}" alt=""></span>`;
 
   /** The Sea charts tab of the port `poi`'s harbour board. */
@@ -134,7 +134,8 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
     return true;
   };
   const onClick = (b, poi) => {
-    if (b.dataset.chart === 'buy') buy(b.dataset.sea, poi);
+    if (b.dataset.chart === 'refused') state.refused?.(b.dataset.why);
+    else if (b.dataset.chart === 'buy') buy(b.dataset.sea, poi);
   };
   /** A free chart (a rare cargo delivery reward): the fog of `sea` clears, with a notice. False when nothing was left. */
   const grant = (sea) => {

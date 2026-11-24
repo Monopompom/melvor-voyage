@@ -21,6 +21,8 @@ export function createVoyageClass({ model, log }) {
       this.record = model.defaultSave();
       /** A save written by a newer build: kept byte for byte and written back, never downgraded. */
       this.futureRaw = undefined;
+      /** True once a save's Voyage block was read: a character without one was saved without this mod, or is new. */
+      this.saveBlockRead = false;
       /** Set by setup: renders the page body (src/voyage-page.mjs). */
       this.pageRenderer = undefined;
       /** Set by setup: a string that changes when what the open page shows changes (GP, logs, position). */
@@ -75,6 +77,7 @@ export function createVoyageClass({ model, log }) {
     }
 
     decode(reader, version) {
+      this.saveBlockRead = true;
       super.decode(reader, version);
       if (peekUint32(reader) !== model.SAVE_MAGIC) return;
       reader.getUint32();

@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WALK_MS, hexMs, findRoad, roadMs, roadPack, walkAt, nextAt, folkStepCost, sortPlaces, cleanWalk, cleanWalks, WALKS_MAX, ROAD_MAX, repaceRest, holdWalk, resumeWalk, hungryAt, enteredAt, eatFound, FOUND_MAX } from '../src/walk-model.mjs';
+import { WALK_MS, hexMs, findRoad, findRoadToAny, roadMs, roadPack, walkAt, nextAt, folkStepCost, sortPlaces, cleanWalk, cleanWalks, WALKS_MAX, ROAD_MAX, repaceRest, holdWalk, resumeWalk, hungryAt, enteredAt, eatFound, FOUND_MAX, menuPlace } from '../src/walk-model.mjs';
+
+test('an open menu goes under its button, above it when there is more room there, and never past the screen', () => {
+  assert.deepEqual(menuPlace({ top: 100, bottom: 140 }, 200, 667), { top: 144, height: 200 });
+  assert.deepEqual(menuPlace({ top: 500, bottom: 540 }, 200, 667), { top: 296, height: 200 });
+  assert.deepEqual(menuPlace({ top: 500, bottom: 540 }, 600, 667), { top: 8, height: 488 });
+  assert.deepEqual(menuPlace({ top: 200, bottom: 240 }, 600, 667), { top: 244, height: 415 });
+});
 import { stepCost } from '../src/stores-model.mjs';
 import { foodShare } from '../src/crew-model.mjs';
 import { stepMs } from '../src/clock-model.mjs';
@@ -44,6 +51,18 @@ test('walk: an island far away has no road, and the search stops at its limit', 
   const wide = (q, r) => (Math.abs(q) < 60 && Math.abs(r) < 60 ? 'grasslands' : undefined);
   assert.equal(findRoad({ q: 0, r: 0 }, { q: 50, r: 0 }, wide, { limit: 20 }), undefined);
   assert.equal(findRoad({ q: 0, r: 0 }, { q: 50, r: 0 }, wide).length, 50);
+});
+
+test('walk: one search finds the quickest of several ends', () => {
+  const ground = mapOf(['.....', '.~~~.', '..h..']);
+  const near = { q: 2, r: 0 };
+  const far = { q: 4, r: 2 };
+  assert.deepEqual(findRoadToAny({ q: 0, r: 0 }, [far, near], ground).map((s) => [s.q, s.r]), [[1, 0], [2, 0]]);
+  assert.deepEqual(findRoadToAny({ q: 2, r: 0 }, [far, near], ground), [], 'already at one');
+  assert.deepEqual(findRoadToAny({ q: 0, r: 0 }, [{ q: 2, r: 1 }, near], ground).at(-1), findRoad({ q: 0, r: 0 }, near, ground).at(-1), 'water is no end');
+  assert.equal(findRoadToAny({ q: 0, r: 0 }, [{ q: 2, r: 1 }], ground), undefined, 'no end on land');
+  assert.equal(findRoadToAny({ q: 0, r: 0 }, [], ground), undefined);
+  assert.equal(findRoadToAny(mapOf(['...~...'])(0, 0) && { q: 0, r: 0 }, [{ q: 6, r: 0 }], mapOf(['...~...'])), undefined, 'an island has no road');
 });
 
 test('walk: what the road eats is the sum of its hexes', () => {
@@ -117,7 +136,7 @@ test('save v20: nobody walks yet, and a walk survives a save', () => {
   const v19 = { ...JSON.parse(serializeSave(defaultSave())), v: 19 };
   delete v19.walks;
   const { save, report } = loadSave(JSON.stringify(v19));
-  assert.deepEqual(report.applied, [19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]);
+  assert.deepEqual(report.applied, [19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]);
   assert.deepEqual(save.walks, {});
   const walks = { a: { from: { q: 0, r: 0 }, start: 1, road: [{ q: 1, r: 0, cls: 'grasslands', ms: 360000 }], skillId: null } };
   assert.deepEqual(loadSave(serializeSave({ ...defaultSave(), walks })).save.walks, walks);

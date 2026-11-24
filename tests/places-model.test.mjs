@@ -44,3 +44,8 @@ test('the groups keep their order, sort camps and ports, keep home and recent as
   assert.deepEqual(placeGroups(undefined), []);
   assert.deepEqual(GROUPS, ['home', 'camps', 'ports', 'recent']);
 });
+
+test('a search of only marks or an emoji finds nothing, an empty one finds all', () => {
+  for (const q of ['!!!', '...', '🙂']) assert.equal(matches('Frost Drift Port', q), false, q);
+  for (const q of ['', '   ', undefined]) assert.equal(matches('Frost Drift Port', q), true);
+});

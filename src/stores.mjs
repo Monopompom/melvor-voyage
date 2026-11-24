@@ -13,7 +13,7 @@ export const CASKS_ID = 'voyage:Dry_Casks';
 /** Curing Salt (data/package.json, a Cooking recipe): loaded beside fuel, each one keeps the stores cured 6 game-hours. */
 export const SALT_ID = 'voyage:Curing_Salt';
 
-export function install(ctx, { state, model, storesModel, supplyModel, spoilModel, forageModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, log }) {
+export function install(ctx, { state, model, storesModel, supplyModel, spoilModel, forageModel, shipModel, terrainMod, stranded, helpLayout, shortNumber, decimal, log }) {
   const S = storesModel;
   const SM = supplyModel;
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
@@ -798,8 +798,8 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
     const f = perHour && food < 10 ? Math.round(food * 10) / 10 : Math.round(food);
     const u = Math.round(fuel * 100) / 100;
     const parts = [];
-    if (f > 0) parts.push(`${sign}${t('MOD_VOY_UNIT_FOOD', { n: f >= 1000 ? numberWithCommas(f) : `${f}` })}`);
-    if (u > 0) parts.push(`${sign}${t('MOD_VOY_UNIT_FUEL', { n: `${u}` })}`);
+    if (f > 0) parts.push(`${sign}${t('MOD_VOY_UNIT_FOOD', { n: decimal(f, 1) })}`);
+    if (u > 0) parts.push(`${sign}${t('MOD_VOY_UNIT_FUEL', { n: decimal(u, 2) })}`);
     return parts.length === 2 ? t('MOD_VOY_SPOIL_AND', { a: parts[0], b: parts[1] }) : parts[0] ?? '';
   };
   /** What a tent's store (`o`: { q, r, food, fuel }) loses an hour, or undefined with spoilage off or nothing to lose. */
@@ -812,6 +812,29 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
   const packWith = (road, costOf) => {
     if (!spoilOn()) return undefined;
     return P.packWith((road ?? []).map((s) => ({ ...costOf(s), ms: Number.isFinite(s.ms) ? s.ms : 0, f: spoilFactors('pack', { q: s.q, r: s.r }) })));
+  };
+  /**
+   * A courier's road food (round 4): tops `have` up to `need` from the bank at the rates and local stock in reach of
+   * `hex`, the Never load foods left alone. The new pack, or undefined with nothing taken when the bank or the place is short.
+   */
+  const packRoad = (hex, need, have) => {
+    const now0 = { food: have?.food ?? 0, fuel: have?.fuel ?? 0 };
+    const want = { food: Math.max(0, need.food - now0.food), fuel: S.roundFuel(Math.max(0, need.fuel - now0.fuel)) };
+    if (!(want.food > 0) && !(want.fuel > 0)) return now0;
+    const plan = SM.planPack(S, loadable(), want, sourcesAt(hex));
+    if (!plan.ok) return undefined;
+    const now = gameNow();
+    for (const p of plan.picks) {
+      game.bank.removeItemQuantity(p.item, p.n, true);
+      draw(p.kind, p.parts, now);
+    }
+    return { food: now0.food + plan.food, fuel: S.roundFuel(now0.fuel + plan.fuel) };
+  };
+  /** A courier's pack after walking into `step`: what the hex's walk spoils, then what it eats (`cost`). */
+  const packAfter = (pack, step, cost) => {
+    const f = spoilOn() ? spoilFactors('pack', { q: step.q, r: step.r }) : undefined;
+    const kept = (k) => (f === undefined ? 1 : P.keptShare(k, step.ms, f[k]));
+    return { food: Math.max(0, pack.food * kept('food') - cost.food), fuel: S.roundFuel(Math.max(0, pack.fuel * kept('fuel') - cost.fuel)) };
   };
   // Dry Casks bought: the Stores line's rate halves at once.
   try { ctx.patch(Shop, 'buyItemOnClick').after(function (_ret, p) { try { if (p?.id === CASKS_ID) changed(); } catch {} }); } catch (e) { log('spoilage: shop patch failed', e); }
@@ -940,7 +963,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
   const api = {
     enabled, stores, planFor, forage, forageAhead, forageFood, forageFlush, foundWords, forageIcons, amountIcons: forageIcons, forageTip, forageModel: FM, lightTip, priceSteps, loadingAtHex, afterMove, refuse, rescue,
     supplyOn, sourcesAt, supplyAt, supplyHere, placeSupply, loadPlan, supplyVersion: () => supplyVersion,
-    spoilOn, spoilTick, settleSpoil, spoilRate, spoilFactors, spoilAhead, tentRate, spoilText, packWith, casks, cureLeft, spoilModel: P,
+    spoilOn, spoilTick, settleSpoil, spoilRate, spoilFactors, spoilAhead, tentRate, spoilText, packWith, packRoad, packAfter, casks, cureLeft, spoilModel: P,
     /** Offers the trader's share when the stores can't reach safe ground (the panel's Stranded? button). */
     offer() {
       const help = rescue();

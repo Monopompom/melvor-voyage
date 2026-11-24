@@ -104,6 +104,36 @@ export function planLoad(S, unit, qty, room, sources, kind) {
   return { n, added, parts };
 }
 
+/**
+ * A courier's road food (round 4): `want` { food, fuel } from the bank's `items` ([{ item, kind, unit, qty }], the foods
+ * marked Never load already left out), the plainest first, so it never eats your best. Each at the places' own rates and
+ * stocks. All or nothing: { ok: true, picks: [{ item, kind, n, parts }], food, fuel }, or { ok: false, short } naming the
+ * kind that ran out, and nothing is to be taken. `S`: stores-model.mjs.
+ */
+export function planPack(S, items, want, sources) {
+  const src = (sources ?? []).map((s) => ({ ...s, stock: { ...s.stock } }));
+  const picks = [];
+  const got = { food: 0, fuel: 0 };
+  for (const kind of ['food', 'fuel']) {
+    let room = want?.[kind] ?? 0;
+    if (!(room > 0)) continue;
+    for (const x of (items ?? []).filter((y) => y.kind === kind).sort((a, b) => a.unit - b.unit)) {
+      if (!(room > 1e-9)) break;
+      const plan = planLoad(S, x.unit, x.qty, room, src, kind);
+      if (plan.n <= 0) continue;
+      for (const part of plan.parts) {
+        const from = src.find((s) => s.key === part.key);
+        if (from !== undefined) from.stock[kind] -= part.added;
+      }
+      picks.push({ item: x.item, kind, n: plan.n, parts: plan.parts });
+      room -= plan.added;
+      got[kind] += plan.added;
+    }
+    if (room > 1e-9) return { ok: false, short: kind };
+  }
+  return { ok: true, picks, food: got.food, fuel: got.fuel };
+}
+
 /** What the sources hold of `kind` in all, counting only places that load it (stock below 0 counts as none). */
 export function totalStock(sources, kind) {
   return (sources ?? []).reduce((sum, s) => sum + (s[kind] > 0 ? Math.max(0, s.stock?.[kind] ?? Infinity) : 0), 0);

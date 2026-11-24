@@ -13,7 +13,7 @@ export const PURCHASE_ID = 'voyage:Walking_Orders';
 /** The places a dialog offers for one resource at most: the nearest found hexes. */
 const PLACES_MAX = 12;
 // Modal buttons as the rest of Voyage's: confirm green, cancel blue outline.
-const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1' };
+const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', cancelButton: 'btn btn-outline-info m-1', validationMessage: 'text-warning' };
 // Stop here loses the food packed for the rest of the road: red, as the row's button (build .386).
 const SWAL_STOP = { ...SWAL_CLASS, confirmButton: 'btn btn-danger m-1' };
 
@@ -79,7 +79,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
   // With spoilage on (4.4b) the pack carries the extra its road spoils, so the walk arrives as it would without it.
   const packFor = (r, f) => (provisions() ? state.stores?.packWith?.(r, (s) => stepCost(s, f)) ?? W.roadPack(r, (s) => stepCost(s, f)) : { food: 0, fuel: 0 });
   const hexText = (h) => { try { const o = new HexCoords(h.q, h.r).to_oddq(); return `(${o.col},\u00a0${o.row})`; } catch { return `(${h.q},\u00a0${h.r})`; } };
-  const duration = (ms) => { const p = C.durationParts(ms); return p.h > 0 ? t('MOD_VOY_CLOCK_H_M', { h: `${p.h}`, m: `${p.m}` }) : t('MOD_VOY_CLOCK_M', { m: `${p.m}` }); };
+  const duration = (ms) => { const d = C.durationText(ms, numberWithCommas); return t(d.key, d.vars); };
   const hexesText = (n) => t(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });
   const actionOf = (skillId, actionId) => { try { return game.skills.getObjectByID(skillId)?.actions?.getObjectByID(actionId); } catch { return undefined; } };
   /** A place in words: "Iron Ore, Highlands (13, 9)". */
@@ -340,7 +340,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     }
     if (hp > 0) {
       log(`${f.name} walks hungry: -${hp} HP${dead ? ', died' : ''}`);
-      if (!dead) notify(t('MOD_VOY_CREW_HUNGRY', { name: f.name, hp: `${hp}` }));
+      if (!dead) notify(t('MOD_VOY_CREW_HUNGRY', { name: f.name, hp: numberWithCommas(hp) }));
     }
     if (gathered > 0) log(`${f.name} foraged ${gathered} food on the road (${found} kept)`);
     if (fed > 0 && !dead) notify(t(fed === 1 ? 'MOD_VOY_WALK_FED_ONE' : 'MOD_VOY_WALK_FED', { name: f.name, n: `${fed}` }), 'success');
@@ -497,9 +497,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
       return `${lead}<span>${esc(x.name)} <span class="voyage-walk-folk-where">${esc(t(x.travel === 'with' ? 'MOD_VOY_WALK_WHO_WITH' : 'MOD_VOY_WALK_WHO_NEAR'))}</span></span>`;
     };
     const one = (face) => `<div class="voyage-walk-one">${face}</div>`;
-    const dd = (kind, label, face, items) => '<div class="dropdown voyage-plan-arrival voyage-clock-dd">'
-      + `<button type="button" id="voyage-walk-${kind}-toggle" class="btn btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-labelledby="${label}">${face}</button>`
-      + `<div class="dropdown-menu overflow-y-auto" aria-labelledby="voyage-walk-${kind}-toggle">${items}</div></div>`;
+    const dd = (kind, labelId, face, items) => helpLayout.dropdownHtml({ id: `voyage-walk-${kind}`, labelId, face, items, attrs: ' data-display="static"' });
     const item = (attr, value, on, face) => `<a class="dropdown-item pointer-enabled${on ? ' active' : ''}" role="button" ${attr}="${esc(value)}">${face}</a>`;
     const whoHtml = () => (who.length === 1 ? one(folkFace(f))
       : dd('who', 'voyage-walk-who-label', folkFace(f), who.map((x) => item('data-walk-folk', x.id, x.id === f.id, folkFace(x))).join('')));
@@ -526,29 +524,29 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
       if (list.length === 0) { picked = undefined; return `<div class="text-muted">${esc(t('MOD_VOY_WALK_NO_PLACES'))}</div>`; }
       const firstOk = list.find((p) => p.why === undefined);
       picked = firstOk === undefined ? undefined : `${firstOk.q},${firstOk.r}`;
+      const noneOpen = firstOk === undefined ? `<div class="voyage-walk-across text-warning">${esc(t('MOD_VOY_WALK_NONE_OPEN', { name: f.name }))}</div>` : '';
       // "Take it along in a berth" once above the list when more than one place has no road (build .386; it
       // repeated on every entry).
       const acrossText = t('MOD_VOY_WALK_ACROSS_WATER', { name: f.name });
       const across = list.filter((p) => p.why === acrossText).length > 1;
-      return (across ? `<div class="voyage-walk-across text-warning">${esc(acrossText)}</div>` : '') + list.map((p) => {
+      return noneOpen + (across ? `<div class="voyage-walk-across text-warning">${esc(acrossText)}</div>` : '') + list.map((p) => {
         const key = `${p.q},${p.r}`;
         const off = p.why !== undefined;
         const on = key === picked;
         // Where it stands already: the reason alone, no road to count.
         const facts = p.road?.length === 0 ? [] : p.road === undefined ? [esc(hexesText(p.distance))]
           : [esc(hexesText(p.road.length)), helpLayout.timeHtml(duration(p.ms)), ...(provisions() ? [helpLayout.marked(t, 'MOD_VOY_WALK_EATS', {}, { amounts: state.stores.icons(p.pack.food, p.pack.fuel, false) })] : [])];
-        const cls = off ? 'btn-outline-secondary' : on ? 'btn-info' : 'btn-outline-info';
-        return `<button type="button" class="btn ${cls} voyage-walk-place" data-walk-place="${esc(key)}" aria-pressed="${on}"${off ? ' disabled' : ''}>`
+        const cls = off ? 'btn-outline-secondary disabled' : on ? 'btn-info' : 'btn-outline-info';
+        return `<button type="button" class="btn ${cls} voyage-walk-place" data-walk-place="${esc(key)}" aria-pressed="${on}"${off ? ` aria-disabled="true" data-why="${esc(p.why)}" title="${esc(p.why)}"` : ''}>`
           + `<span class="voyage-walk-place-name">${esc(p.outpost ?? `${state.landWords?.(p)?.text ?? ''} ${hexText(p)}`.trim())}</span>`
           + (facts.length === 0 ? '' : `<span class="voyage-walk-place-facts">${facts.join('<span class="voyage-walk-dot" aria-hidden="true">·</span>')}</span>`)
-          + (off && !(across && p.why === acrossText) ? `<span class="voyage-walk-place-why text-warning">${esc(p.why)}</span>` : '')
           + '</button>';
       }).join('');
     };
     const pick = (key) => {
       picked = key;
       for (const b of document.querySelectorAll('#voyage-walk-places [data-walk-place]')) {
-        if (b.disabled) continue;
+        if (b.getAttribute('aria-disabled') === 'true') continue;
         const on = b.dataset.walkPlace === key;
         b.classList.toggle('btn-info', on);
         b.classList.toggle('btn-outline-info', !on);
@@ -570,20 +568,55 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
       + (fixed ? section('voyage-walk-who-label', 'MOD_VOY_WALK_WHO_LABEL', `<div id="voyage-walk-who" data-no-skill-names>${whoHtml()}</div>`, ' mt-3') : '')
       + section('voyage-walk-work-label', 'MOD_VOY_WALK_WORK_LABEL', `<div id="voyage-walk-works" data-no-skill-names>${worksHtml()}</div>`
         + `<div id="voyage-walk-work-note" class="voyage-walk-note text-muted">${workNote()}</div>`, fixed ? '' : ' mt-3')
-      + section('voyage-walk-place-label', 'MOD_VOY_WALK_PLACE_LABEL', `<div id="voyage-walk-places" class="voyage-walk-places">${placesHtml()}</div>`)
+      + section('voyage-walk-place-label', 'MOD_VOY_WALK_PLACE_LABEL', `<div id="voyage-walk-places" class="voyage-walk-places" role="group" aria-labelledby="voyage-walk-place-label">${placesHtml()}</div>`)
       + (lend.cards.length > 0 ? section('voyage-walk-lend-label', 'MOD_VOY_WALK_LEND_LABEL', `<div id="voyage-walk-lend" data-no-skill-names>${lendHtml()}</div>`, ' mt-3') : '')
       + (provisions() ? `<small class="d-block text-muted mt-3">${esc(t('MOD_VOY_WALK_PACK_HINT'))}</small>` : '');
     const body = all.length === 0 ? helpLayout.msgHtml([t('MOD_VOY_WALK_NO_WORKS')]) : `<div id="voyage-walk-body">${bodyHtml()}</div>`;
+    /** Send can't be pressed with no place to go; the amber line over the places says why. */
+    const syncSend = () => { const b = Swal.getConfirmButton?.(); if (b != null) b.disabled = picked === undefined; };
+    // The popup's body scrolls, so an open menu stands over it at its button's place on the screen, where the body's edge
+    // can't cut it. It follows its button while the body scrolls (opening one scrolls a half-hidden button into view) and
+    // closes when the button leaves the body or the window changes size.
+    const placeMenu = (wrap) => {
+      const toggle = wrap.querySelector('[data-toggle="dropdown"]');
+      const menu = wrap.querySelector('.dropdown-menu');
+      if (toggle === null || menu === null) return;
+      menu.classList.remove('voyage-menu-fixed');
+      const r = toggle.getBoundingClientRect();
+      const box = W.menuPlace(r, menu.offsetHeight, window.innerHeight);
+      menu.style.setProperty('--voyage-menu-top', `${box.top}px`);
+      menu.style.setProperty('--voyage-menu-left', `${r.left}px`);
+      menu.style.setProperty('--voyage-menu-width', `${r.width}px`);
+      menu.style.setProperty('--voyage-menu-height', `${box.height}px`);
+      menu.classList.add('voyage-menu-fixed');
+    };
+    let unbindMenus;
     SwalLocale.fire({
+      icon: 'question',
       didRender: (el) => {
         try { state.popupDidRender?.(el); } catch {}
+        syncSend();
         const box = document.getElementById('voyage-walk-body');
         if (box === null || box.dataset.voyageBound === '1') return;
         box.dataset.voyageBound = '1';
+        const closeMenus = () => { for (const t of box.querySelectorAll('.dropdown.show [data-toggle="dropdown"]')) window.jQuery?.(t).dropdown('hide'); };
+        window.jQuery?.(box).on('shown.bs.dropdown', (e) => { try { placeMenu(e.target); } catch (err) { log('send menu not placed', err); } });
+        const followMenus = () => {
+          const area = Swal.getHtmlContainer()?.getBoundingClientRect();
+          for (const wrap of box.querySelectorAll('.dropdown.show')) {
+            const t = wrap.querySelector('[data-toggle="dropdown"]');
+            const r = t?.getBoundingClientRect();
+            if (area !== undefined && r !== undefined && r.bottom > area.top && r.top < area.bottom) placeMenu(wrap);
+            else if (t !== null) window.jQuery?.(t).dropdown('hide');
+          }
+        };
+        Swal.getHtmlContainer()?.addEventListener('scroll', followMenus, { passive: true });
+        window.addEventListener('resize', closeMenus);
+        unbindMenus = () => window.removeEventListener('resize', closeMenus);
         box.addEventListener('click', (e) => {
           const at = e.target instanceof Element ? e.target : null;
           const place = at?.closest('[data-walk-place]');
-          if (place != null) { if (!place.disabled) pick(place.dataset.walkPlace); return; }
+          if (place != null) { if (place.getAttribute('aria-disabled') === 'true') state.refused?.(place.dataset.why); else pick(place.dataset.walkPlace); return; }
           const fk = at?.closest('[data-walk-folk]');
           const sk = at?.closest('[data-walk-skill]');
           const wk = at?.closest('[data-walk-work]');
@@ -602,13 +635,13 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
           else if (wk != null && wk.dataset.walkWork !== workPicked) workPicked = wk.dataset.walkWork;
           else return;
           box.innerHTML = bodyHtml();
+          syncSend();
           // The redrawn body gets its skill names' icons again (the pass is safe to run twice).
           try { state.popupDidRender?.(el); } catch {}
         });
       },
-      // The menus open over the popup's buttons, as the ship's clock's.
-      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' }) : { ...SWAL_CLASS, htmlContainer: 'voyage-swal-menus' },
-      title: fixed ? t('MOD_VOY_WALK_HERE_TITLE', { what: all[0].action.name }) : t('MOD_VOY_WALK_SEND_TITLE', { name: f.name }),
+      customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass({ ...SWAL_CLASS, popup: 'voyage-ui voyage-walk-send' }) : { ...SWAL_CLASS, popup: 'voyage-ui voyage-walk-send' },
+      title: fixed ? t('MOD_VOY_WALK_HERE_TITLE', { what: esc(all[0].action.name) }) : t('MOD_VOY_WALK_SEND_TITLE', { name: esc(f.name) }),
       html: body,
       showConfirmButton: all.length > 0,
       showCancelButton: true,
@@ -620,6 +653,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
         return { id: f.id, actionId: workPicked ?? '', hex: { q, r }, lent };
       },
     }).then((res) => {
+      unbindMenus?.();
       if (!res.isConfirmed || res.value == null) return;
       try { if (send(res.value.id, res.value.actionId, res.value.hex, res.value.lent)) done?.(); } catch (e) { log('walk send failed', e); }
     });
@@ -634,7 +668,8 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
     SwalLocale.fire({
       didRender: state.popupDidRender,
       customClass: typeof createSwalCustomClass === 'function' ? createSwalCustomClass(SWAL_STOP) : SWAL_STOP,
-      title: t('MOD_VOY_WALK_STOP_TITLE', { name: f.name }),
+      icon: 'warning',
+      title: t('MOD_VOY_WALK_STOP_TITLE', { name: esc(f.name) }),
       html: helpLayout.msgHtml([t('MOD_VOY_WALK_STOP_TEXT', { name: `<b>${esc(f.name)}</b>`, to: esc(w.to) })]),
       showCancelButton: true,
       confirmButtonText: t('MOD_VOY_WALK_STOP_BUTTON'),
@@ -646,7 +681,7 @@ export function install(ctx, { state, W, S, C, helpLayout, log }) {
   ctx.patch(Shop, 'buyItemOnClick').after(function (_ret, p) { try { if (p?.id === PURCHASE_ID) changed(); } catch {} });
 
   const out = {
-    ground, road, canWalk, walks, owned, usable, sendRefusal, works, places, send, stopHere, askSend, askStop, tick, describe, walking, routes, repace,
+    ground, road, stepCost, packFor, canWalk, walks, owned, usable, sendRefusal, works, places, send, stopHere, askSend, askStop, tick, describe, walking, routes, repace,
     canSendFor,
     // A band met on the road (encounters.mjs, 6c): what the pack holds, what it takes, the wound, the walk going on.
     packCosts: (id) => packCosts(id), goHungry, bandWound, bandDone, hexesAhead,

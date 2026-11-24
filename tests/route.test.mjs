@@ -125,3 +125,34 @@ test('the real map: from Beginning Port the brig and dinghy reach the Ominous Is
 test('the brig is a tier 3 hull with an 18-crate hold', () => {
   assert.equal(HULLS.brig.tier, 3);
 });
+
+// A diamond on land: the short way over q1 is slow ground, the long way over q2 and q3 is quick.
+const diamond = () => {
+  const n = (q) => ({ q, r: 0, t: 'grasslands' });
+  const nodes = [0, 1, 2, 3, 4].map(n);
+  const links = { 0: [1, 2], 1: [0, 4], 2: [0, 3], 3: [2, 4], 4: [1, 3] };
+  const geo = { islandTier: () => 1, home: () => 0 };
+  return {
+    nodes,
+    run: (extra) => routeSearch({
+      start: nodes[0], goal: nodes[4], key: (x) => `${x.q},${x.r}`, rec: (x) => x,
+      neighbours: (x) => links[x.q].map((q) => [nodes[q], 1, false]),
+      heuristic: () => 0, boat: null, ship: null, geo, dockOf: () => undefined, ...extra,
+    }),
+  };
+};
+test('routeSearch: without a stepCost the game\'s costs decide', () => {
+  assert.deepEqual(diamond().run().path.map((x) => x.q), [0, 1, 4]);
+});
+test('routeSearch: a stepCost changes the way, and from.g is the time so far', () => {
+  const seen = [];
+  const slow = { 1: 100, 4: 1, 2: 2, 3: 2 };
+  const found = diamond().run({ stepCost: (from, to) => { seen.push(from.g); return slow[to.node.q] ?? 1; } });
+  assert.deepEqual(found.path.map((x) => x.q), [0, 2, 3, 4]);
+  assert.ok(seen.includes(2), 'a later step is priced from the time already spent');
+});
+test('routeSearch: with several goals the nearest by weight ends it', () => {
+  const d = diamond();
+  const found = d.run({ goals: [d.nodes[3], d.nodes[1]], stepCost: (from, to) => (to.node.q === 1 ? 10 : 1) });
+  assert.equal(found.path[found.path.length - 1].q, 3);
+});
