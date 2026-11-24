@@ -383,6 +383,16 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       return rec === undefined ? at(hex) : `${getLangString(terrainMod.recKey(rec))} ${at(hex)}`;
     } catch { return at(hex); }
   };
+  /**
+   * A voyage's, ending's or receipt's name as shown (build .703): said again from its hex (`nameAt`) in the player's
+   * language, since the text kept is in the language of the day it was written; the text when it has no hex (the
+   * planner's pick, a tow's port, anything saved before .703) or the hex is gone.
+   */
+  const nameNow = (x) => {
+    const p = x?.nameAt;
+    if (p === undefined) return x?.name ?? '';
+    try { const g = hexAt(p.q, p.r); const nm = g === undefined ? '' : nameOfHex(g); return nm || x.name; } catch { return x.name ?? ''; }
+  };
   /** GP the game charges for a path (Cartography.getTravelCosts, the mounts' cut included). */
   const gpOf = (path) => {
     try { return cart().getTravelCosts(path).getCurrencyQuantityArray().reduce((sum, { currency, quantity }) => sum + (currency === game.gp ? quantity : 0), 0); } catch { return 0; }
@@ -609,7 +619,10 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       walk.push(m === undefined ? { q: h.q, r: h.r } : { q: h.q, r: h.r, m: JSON.parse(JSON.stringify(m)) });
     }
     const fogged = fog !== undefined && state.fog !== undefined;
-    const v = C.cleanVoyage({ walk, at: 0, left: 1, total: 1, name, chain, loads, began: state.gameNow(), xp: s.xp, gp: game.gp.amount, cx: cartXp(), worn: wornNow(),
+    // The destination's own name gets its hex, so it is said in the player's language later (build .703).
+    let nameAt;
+    try { if (tow === undefined && name === nameOfHex(path[0])) nameAt = { q: walk[walk.length - 1].q, r: walk[walk.length - 1].r }; } catch {}
+    const v = C.cleanVoyage({ walk, at: 0, left: 1, total: 1, name, nameAt, chain, loads, began: state.gameNow(), xp: s.xp, gp: game.gp.amount, cx: cartXp(), worn: wornNow(),
       ...(fogged ? { fog: true, side: fog.side ?? 0, sv: [] } : {}), ...(tow !== undefined ? { tow } : {}) });
     if (v === null) return false;
     // A stowaway may be hiding aboard for a long crossing (events.mjs): the hex where it climbs out.
@@ -631,7 +644,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     }
     // Changing course ends the voyage under way where it stands (the hexes reached are kept): its receipt as a stop.
     const old = cur();
-    if (old !== null) fileReceipt(old, { name: old.name, how: 'stopped', ms: sailedMs(old), at: state.clockNow(), xp: Math.max(0, s.xp - old.xp) });
+    if (old !== null) fileReceipt(old, { name: old.name, nameAt: old.nameAt, how: 'stopped', ms: sailedMs(old), at: state.clockNow(), xp: Math.max(0, s.xp - old.xp) });
     // Leaving: the last receipt takes no more cargo pay.
     shutPay();
     setVoyage(v);
@@ -662,11 +675,11 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     const end = v.walk[v.walk.length - 1];
     if (end.q === dest.q && end.r === dest.r) return 'same';
     const here = map()?.playerPosition;
-    const line = marked(t, 'MOD_VOY_CLOCK_CHANGE_WARN', {}, { was: mark.name(v.name), left: mark.time(duration(msLeft(v))), at: mark.name(here === undefined ? '' : at(here)) });
+    const line = marked(t, 'MOD_VOY_CLOCK_CHANGE_WARN', {}, { was: mark.name(nameNow(v)), left: mark.time(duration(msLeft(v))), at: mark.name(here === undefined ? '' : at(here)) });
     const band = `<div class="voyage-clock-change"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i><span>${line}</span></div>`;
     return { v, band, line };
   };
-  const alreadyThere = () => { const v = cur(); notify(t('MOD_VOY_CLOCK_ALREADY', { name: v?.name ?? '', left: duration(v === null ? 0 : msLeft(v)) }), 'info'); };
+  const alreadyThere = () => { const v = cur(); notify(t('MOD_VOY_CLOCK_ALREADY', { name: nameNow(v), left: duration(v === null ? 0 : msLeft(v)) }), 'info'); };
   /**
    * Runs `go` at once when no voyage is under way; otherwise asks first (a short popup: the band, Change course,
    * Cancel keeps the voyage). The planner's Set off comes here; the map's Travel has the whole Set off popup.
@@ -1077,7 +1090,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     if (s === undefined || v.tow !== undefined || v.at < 1) return;
     try {
       const pos = v.walk[v.at];
-      const rec = { ...C.cleanTally(v.rc), name: e.name, how: e.how, hexes: v.at, ms: e.ms, at: e.at, q: pos.q, r: pos.r, xp: e.xp, cx: v.cx >= 0 ? Math.max(0, cartXp() - v.cx) : 0 };
+      const rec = { ...C.cleanTally(v.rc), name: e.name, nameAt: e.nameAt, how: e.how, hexes: v.at, ms: e.ms, at: e.at, q: pos.q, r: pos.r, xp: e.xp, cx: v.cx >= 0 ? Math.max(0, cartXp() - v.cx) : 0 };
       s.record.receipts = model.addReceipt(s.record.receipts, rec);
     } catch (err) { log('receipt failed', err); }
   };
@@ -1293,7 +1306,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     const ms = sailedMs(v);
     const quiet = extra.quiet === true;
     delete extra.quiet;
-    const e = C.cleanEnding({ name: v.name, hexes: v.at, ms, xp: Math.max(0, s.xp - v.xp), at: state.clockNow(), how, started: '', failed: [], ...extra });
+    const e = C.cleanEnding({ name: v.name, nameAt: v.nameAt, hexes: v.at, ms, xp: Math.max(0, s.xp - v.xp), at: state.clockNow(), how, started: '', failed: [], ...extra });
     fileReceipt(v, e);
     setVoyage(null);
     setEnding(e);
@@ -1320,9 +1333,9 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       return;
     }
     // The name as the hex is known on arrival (build .386: a point of interest discovered that second kept its "Hex (q, r)").
-    try { const last = v.walk[v.walk.length - 1]; const g = hexAt(last.q, last.r); const nm = g === undefined ? '' : nameOfHex(g); if (nm) e.name = nm; } catch {}
+    try { const last = v.walk[v.walk.length - 1]; const g = hexAt(last.q, last.r); const nm = g === undefined ? '' : nameOfHex(g); if (nm) { e.name = nm; e.nameAt = { q: last.q, r: last.r }; } } catch {}
     // The receipt under the same name.
-    try { const s = skill(); const r0 = s?.record.receipts?.[0]; if (r0 !== undefined && r0.at === e.at && r0.name !== e.name) r0.name = e.name.slice(0, 200); } catch {}
+    try { const s = skill(); const r0 = s?.record.receipts?.[0]; if (r0 !== undefined && r0.at === e.at) { r0.name = e.name.slice(0, 200); if (e.nameAt !== undefined) r0.nameAt = { ...e.nameAt }; } } catch {}
     const r = chain.length > 0 ? runChain(chain) : { started: '', failed: [] };
     e.started = r.started;
     e.failed = r.failed.slice(0, 3);
@@ -1392,7 +1405,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     if (v === null) return;
     const retry = retryCall ?? (typeof GatheringSkill !== 'undefined' && action instanceof GatheringSkill && action.id !== CARTOGRAPHY_ID ? () => action.start() : undefined);
     const what = action === game.combat ? t('MOD_VOY_CLOCK_ASK_COMBAT') : action?.name ?? t('MOD_VOY_CLOCK_ASK_THAT');
-    const lines = [marked(t, 'MOD_VOY_CLOCK_ASK_BODY', { what }, { time: mark.time(duration(msLeft(v))), name: mark.name(v.name) })];
+    const lines = [marked(t, 'MOD_VOY_CLOCK_ASK_BODY', { what }, { time: mark.time(duration(msLeft(v))), name: mark.name(nameNow(v)) })];
     // The voyage sails on while you read: a start asked on one hex is not tried on the next (its zone may differ).
     const askedAt = map()?.playerPosition;
     SwalLocale.fire({
@@ -1490,14 +1503,14 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
         const key = e.tow !== '' ? 'MOD_VOY_ADRIFT_OFFLINE_TOWED' : e.how === 'adrift' ? 'MOD_VOY_ADRIFT_OFFLINE_VOYAGE' : e.how === 'arrived' ? 'MOD_VOY_CLOCK_OFFLINE_ARRIVED' : e.how !== 'refused' ? 'MOD_VOY_CLOCK_OFFLINE_STOPPED' : e.why !== '' ? 'MOD_VOY_CLOCK_OFFLINE_REFUSED_WHY' : 'MOD_VOY_CLOCK_OFFLINE_REFUSED';
         const why = e.how === 'adrift' ? t(`MOD_VOY_ADRIFT_WHY_${e.why.toUpperCase() || 'FOOD'}`) : e.why;
         // Green only for a gain: hexes above 0; a time is neither (.308, scan C-28). The hourglass as everywhere (A2-32).
-        out.push(icon() + t(key, { name: esc(e.name), time: esc(clockAt(e.at)), hexes: e.hexes > 0 ? pos(hexes(e.hexes)) : esc(hexes(e.hexes)), took: helpLayout.timeHtml(duration(e.ms)), why: neg(why), by: esc(e.tow === '' ? '' : t(`MOD_VOY_ADRIFT_TOW_BY_${e.tow.toUpperCase()}`)) }));
+        out.push(icon() + t(key, { name: esc(nameNow(e)), time: esc(clockAt(e.at)), hexes: e.hexes > 0 ? pos(hexes(e.hexes)) : esc(hexes(e.hexes)), took: helpLayout.timeHtml(duration(e.ms)), why: neg(why), by: esc(e.tow === '' ? '' : t(`MOD_VOY_ADRIFT_TOW_BY_${e.tow.toUpperCase()}`)) }));
         for (const f of e.failed) out.push(`<span class="text-warning">${esc(t('MOD_VOY_CLOCK_COULD_NOT', { name: f.name, why: f.why }))}</span>`);
         if (e.started !== '') out.push(`<span class="text-success">${esc(t('MOD_VOY_CLOCK_OFFLINE_STARTED', { what: e.started, time: clockAt(e.at) }))}</span>`);
         else if (e.tow !== '' || e.how === 'adrift') { /* nothing was set for the arrival */ } else if (e.how === 'arrived' && e.asked) out.push(`<span class="text-warning">${esc(t('MOD_VOY_CLOCK_OFFLINE_IDLE'))}</span>`);
         else if (e.how === 'arrived') out.push(`<span class="font-w400">${esc(t('MOD_VOY_CLOCK_OFFLINE_WAITED'))}</span>`);
         setEnding({ ...e, seen: true });
       } else if (v !== null && !endingOnly) {
-        out.push(icon() + t(v.tow !== undefined ? 'MOD_VOY_ADRIFT_OFFLINE_TOWING' : 'MOD_VOY_CLOCK_OFFLINE_UNDERWAY', { at: v.at > 0 ? pos(`${v.at}`) : esc(`${v.at}`), of: esc(`${v.walk.length - 1}`), time: helpLayout.timeHtml(duration(msLeft(v))), name: esc(v.name) }));
+        out.push(icon() + t(v.tow !== undefined ? 'MOD_VOY_ADRIFT_OFFLINE_TOWING' : 'MOD_VOY_CLOCK_OFFLINE_UNDERWAY', { at: v.at > 0 ? pos(`${v.at}`) : esc(`${v.at}`), of: esc(`${v.walk.length - 1}`), time: helpLayout.timeHtml(duration(msLeft(v))), name: esc(nameNow(v)) }));
       }
       // Bands met on the way wait for your answer (encounters.mjs folds them into one when you are back).
       const met = endingOnly ? '' : state.encounters?.awayNote?.() ?? '';
@@ -1552,7 +1565,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       const chain = v.chain.length === 0 ? `<div>${esc(t('MOD_VOY_CLOCK_DO_NOTHING'))}</div>`
         : `<div class="voyage-chain-line"><b>${labelHtml(v.chain[0])}</b></div>${v.chain.length > 1 ? `<div class="voyage-chain-line text-muted">${marked(t, 'MOD_VOY_CLOCK_THEN', {}, { list: v.chain.slice(1).map(labelHtml).join(' · ') })}</div>` : ''}`;
       return `<div class="voyage-clock-top"><img class="voyage-clock-pic" src="${ctx.getResourceUrl('assets/icon.webp')}" alt="">`
-        + `<div><h5 class="font-w600 mb-0">${esc(t(tow === undefined ? 'MOD_VOY_CLOCK_UNDERWAY' : 'MOD_VOY_ADRIFT_TOW_UNDERWAY', { name: v.name }))}</h5>`
+        + `<div><h5 class="font-w600 mb-0">${esc(t(tow === undefined ? 'MOD_VOY_CLOCK_UNDERWAY' : 'MOD_VOY_ADRIFT_TOW_UNDERWAY', { name: nameNow(v) }))}</h5>`
         // One per line under the title: the ground (its map colour), the hexes behind you, how you go (the user,
         // build .241; icons as the panel on the map's).
         + '<div class="voyage-clock-facts">'
@@ -1588,7 +1601,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     if (e === null || e.closed) return stranded + adrift;
     const key = e.tow !== '' ? 'MOD_VOY_ADRIFT_ENDED_TOWED' : e.how === 'adrift' ? 'MOD_VOY_ADRIFT_ENDED_VOYAGE' : e.how === 'arrived' ? 'MOD_VOY_CLOCK_ENDED_ARRIVED' : e.how !== 'refused' ? 'MOD_VOY_CLOCK_ENDED_STOPPED' : e.why !== '' ? 'MOD_VOY_CLOCK_ENDED_REFUSED_WHY' : 'MOD_VOY_CLOCK_ENDED_REFUSED';
     const why = e.how === 'adrift' ? t(`MOD_VOY_ADRIFT_WHY_${e.why.toUpperCase() || 'FOOD'}`) : e.why;
-    const lines = [t(key, { name: e.name, time: clockAt(e.at), hexes: hexes(e.hexes), took: duration(e.ms), why, by: e.tow === '' ? '' : t(`MOD_VOY_ADRIFT_TOW_BY_${e.tow.toUpperCase()}`) })];
+    const lines = [t(key, { name: nameNow(e), time: clockAt(e.at), hexes: hexes(e.hexes), took: duration(e.ms), why, by: e.tow === '' ? '' : t(`MOD_VOY_ADRIFT_TOW_BY_${e.tow.toUpperCase()}`) })];
     let html = `<div>${esc(lines[0])}</div>`;
     if (e.xp > 0) html += `<div class="text-success">${esc(t('MOD_VOY_CLOCK_OFFLINE_XP', { xp: shortNumber(e.xp) }))}</div>`;
     for (const f of e.failed) html += `<div class="text-warning">${esc(t('MOD_VOY_CLOCK_COULD_NOT', { name: f.name, why: f.why }))}</div>`;
@@ -1680,7 +1693,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     const left = duration(ms);
     // How much of the voyage is behind you, as the page's bar has it (the Here panel's travel bar, build .256).
     const frac = Math.min(1, Math.max(0, v.spent / (Math.max(v.total, v.spent + ms / C.TICK_MS) || 1)));
-    return { text: left, tip: t(v.tow !== undefined ? 'MOD_VOY_ADRIFT_TOW_CHIP' : 'MOD_VOY_CLOCK_CHIP', { left, name: v.name }), tow: v.tow !== undefined, name: v.name, frac };
+    return { text: left, tip: t(v.tow !== undefined ? 'MOD_VOY_ADRIFT_TOW_CHIP' : 'MOD_VOY_CLOCK_CHIP', { left, name: nameNow(v) }), tow: v.tow !== undefined, name: nameNow(v), frac };
   };
 
   // A setting turned off mid-voyage ends it where it stands; a save loaded off its route too.
@@ -1701,7 +1714,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     } catch (e) { log('voyage load check failed', e); }
   });
 
-  const api = { routeMs, routePricer, on, setOff, changeCourse, tick, stop, tally, paid, shutPay, receipts, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog, confirmSetOff, encDone, holdForEncounter,
+  const api = { routeMs, routePricer, on, setOff, placeName: nameNow, changeCourse, tick, stop, tally, paid, shutPay, receipts, iceChanged, offlineMessages, running: () => cur() !== null, render, chip, optionsFor, labelOf, doingNow, routeInfo, duration, clockAt, stopHere, stepping: () => stepping, confirmFog, confirmSetOff, encDone, holdForEncounter,
     /** A tow is under way (5b part two). */
     towing: () => cur()?.tow !== undefined,
     msLeft: () => { const v = cur(); return v === null ? 0 : msLeft(v); },

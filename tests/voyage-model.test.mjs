@@ -480,6 +480,17 @@ test('receipts: cleaned, newest first, at most RECEIPTS_MAX; cargo pay joins the
   assert.deepEqual(receiptGp({ gp: 100 }), { spent: 100, earned: 0, net: -100 });
 });
 
+test('receipts: the hex of a name kept as its own (build .703), so it is said in the language of the day it is read', () => {
+  const base = { name: 'Secret Mines', how: 'arrived', hexes: 2, ms: 1, at: 1, q: 3, r: 4 };
+  assert.deepEqual(cleanReceipt({ ...base, nameAt: { q: 3, r: 4, x: 1 } }).nameAt, { q: 3, r: 4 });
+  assert.equal('nameAt' in cleanReceipt(base), false, 'a receipt from before keeps its text alone');
+  for (const junk of [null, 'x', [], { q: 1 }, { q: 1.5, r: 2 }, { q: '1', r: 2 }]) assert.equal('nameAt' in cleanReceipt({ ...base, nameAt: junk }), false);
+  const kept = { ...cleanReceipt(base), nameAt: { q: -7, r: 12 } };
+  assert.deepEqual(loadSave(serializeSave({ ...defaultSave(), receipts: [kept] })).save.receipts[0].nameAt, { q: -7, r: 12 }, 'kept through a save');
+  assert.deepEqual(payReceipt([kept], { q: 3, r: 4 }, 10)[0].nameAt, { q: -7, r: 12 }, 'pay keeps it');
+  assert.deepEqual(shutReceipt([kept])[0].nameAt, { q: -7, r: 12 }, 'moving on keeps it');
+});
+
 test('receipts: odd data never makes a NaN or a throw', () => {
   const base = { name: 'X', how: 'arrived', hexes: 2, ms: 1, at: 1, q: 0, r: 0 };
   const r = cleanReceipt({ ...base, gp: Infinity, food: NaN, fuel: '3', toll: -Infinity, pay: null, ms: NaN, at: -5 });

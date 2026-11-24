@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-24.699';
+export const BUILD = '2026-11-24.705';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = false;
 
@@ -183,6 +183,25 @@ export async function setup(ctx) {
     mapMotion: 'Display', bookOpening: 'Display', journalKey: 'Keys', centreKey: 'Keys', mapKey: 'Keys', quayKey: 'Keys', placesKey: 'Keys' };
   const sections = Object.fromEntries(['Rules', 'Travel', 'Display', 'Keys'].map((n) => [n, ctx.settings.section(n)]));
   const sectionOf = (name) => sections[SECTION_OF[name]] ?? sections.Rules;
+  // The game heads each section of the Mod Settings popup with the section's name, and saves the values under it, so the
+  // name stays English and the heading is put in the player's language as the popup is drawn. The game builds the popup
+  // anew on every open and hands it to Swal.fire as an element, so only that call carries our settings' inputs.
+  const SECTION_TEXT = { Rules: 'MOD_VOY_SETTING_SECTION_RULES', Travel: 'MOD_VOY_SETTING_SECTION_TRAVEL', Display: 'MOD_VOY_SETTING_SECTION_DISPLAY', Keys: 'MOD_VOY_SETTING_SECTION_KEYS' };
+  try {
+    const fire = Swal.fire;
+    Swal.fire = function (...args) {
+      try {
+        const html = args[0]?.html;
+        if (html instanceof HTMLElement && html.querySelector('[id^="voyage:"]') !== null) {
+          for (const h of html.querySelectorAll(':scope > h2.content-heading')) {
+            const key = SECTION_TEXT[h.textContent.trim()];
+            if (key !== undefined) h.textContent = getLangString(key);
+          }
+        }
+      } catch (e) { console.error('[Voyage] settings headings not translated', e); }
+      return fire.apply(this, args);
+    };
+  } catch (e) { console.error('[Voyage] settings headings hook skipped', e); }
   const live = {};
   // Dev builds only: a Creator Toolkit zip is not in the game save (confirmed with voyageDev.saveCheck(),
   // 15 Oct 2026), so its settings reset on every reload. A mirror in localStorage, one entry per character (save slot + character name), restores

@@ -187,7 +187,8 @@ const cleanMode = (m) => (m != null && typeof m === 'object' ? JSON.parse(JSON.s
  * (5b part two, adrift-model.mjs) adds tow: { kind (TOW_KINDS), port (the port's poi id), find (the port is found on
  * docking: the message in a bottle), gp (what was paid) }: free steps, no Stop here, nothing found on the way.
  * `cx` is the Cartography XP at departure (-1: set off before receipts were kept) and `rc` the running tally of what the voyage has cost and earned so far
- * (TALLY_FIELDS), filed as its receipt when it ends.
+ * (TALLY_FIELDS), filed as its receipt when it ends. `nameAt` { q, r } (build .703): the hex whose own name `name` is,
+ * so a shown name is said again in the player's language; none when the name is the planner's pick, a tow's port.
  */
 export function cleanVoyage(v) {
   if (v == null || typeof v !== 'object' || !Array.isArray(v.walk) || v.walk.length < 2) return null;
@@ -205,6 +206,7 @@ export function cleanVoyage(v) {
     left: isInt(v.left) && v.left > 0 ? v.left : 1,
     total: isInt(v.total) && v.total > 0 ? v.total : 1,
     name: typeof v.name === 'string' ? v.name.slice(0, 200) : '',
+    ...(cleanNameAt(v.nameAt) === undefined ? {} : { nameAt: cleanNameAt(v.nameAt) }),
     chain: cleanChain(v.chain),
     loads: (Array.isArray(v.loads) ? v.loads : []).filter((i) => isInt(i) && i > 0 && i < walk.length),
     began: Number.isFinite(v.began) ? v.began : 0,
@@ -262,7 +264,8 @@ function cleanQueue(sv) {
  * The last voyage's ending, for the Voyage page and the offline summary, or null: { name, hexes, ms, xp, at (ms of
  * arrival or stop), how: 'arrived' | 'stopped' | 'refused' | 'adrift' (5b part two: the next hex could not be paid
  * out at sea; `why` 'food', 'gp' or 'hull'), tow (the kind of tow it was, '' none), started (label of what started, '' none), failed: [labels
- * that could not start, with their reason], seen (the offline summary told it), closed (dismissed on the page) }.
+ * that could not start, with their reason], seen (the offline summary told it), closed (dismissed on the page) }, and
+ * `nameAt` as on a voyage.
  */
 export function cleanEnding(e) {
   if (e == null || typeof e !== 'object') return null;
@@ -270,6 +273,7 @@ export function cleanEnding(e) {
   const str = (s) => (typeof s === 'string' ? s.slice(0, 300) : '');
   return {
     name: str(e.name),
+    ...(cleanNameAt(e.nameAt) === undefined ? {} : { nameAt: cleanNameAt(e.nameAt) }),
     hexes: isInt(e.hexes) && e.hexes >= 0 ? e.hexes : 0,
     ms: Number.isFinite(e.ms) && e.ms >= 0 ? e.ms : 0,
     xp: Number.isFinite(e.xp) && e.xp >= 0 ? Math.floor(e.xp) : 0,
@@ -286,6 +290,14 @@ export function cleanEnding(e) {
     seen: e.seen === true,
     closed: e.closed === true,
   };
+}
+
+/**
+ * The hex a voyage's, ending's or receipt's name belongs to (build .703), or undefined. A name kept as text stays in the
+ * language of the day it was written; the hex lets it be said again in the player's language now.
+ */
+export function cleanNameAt(p) {
+  return p != null && typeof p === 'object' && isInt(p.q) && isInt(p.r) ? { q: p.q, r: p.r } : undefined;
 }
 
 /** Ticks still to sail: the step in progress plus the steps after it (`stepTicks` per step, walking order). */

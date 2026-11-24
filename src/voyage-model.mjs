@@ -527,13 +527,16 @@ export const RECEIPT_HOW = ['arrived', 'stopped', 'refused', 'adrift'];
 const figure = (n) => (Number.isFinite(n) && n > 0 ? Math.round(n * 1000) / 1000 : 0);
 /**
  * One receipt, or undefined: { name, how (RECEIPT_HOW), hexes, ms (time under way), at (ms it ended), q, r (where it
- * ended: cargo pay there joins it), shut (you have moved on since: no more pay joins it), ...RECEIPT_FIELDS }.
+ * ended: cargo pay there joins it), shut (you have moved on since: no more pay joins it), ...RECEIPT_FIELDS }, and
+ * `nameAt` { q, r } (build .703) when `name` is that hex's own name, said again in the player's language when shown.
  */
 export function cleanReceipt(raw) {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   if (typeof raw.name !== 'string' || !RECEIPT_HOW.includes(raw.how) || !Number.isInteger(raw.hexes) || raw.hexes < 1) return undefined;
   if (!Number.isInteger(raw.q) || !Number.isInteger(raw.r)) return undefined;
   const out = { name: raw.name.slice(0, 200), how: raw.how, hexes: raw.hexes, ms: figure(raw.ms), at: figure(raw.at), q: raw.q, r: raw.r, shut: raw.shut === true };
+  const n = raw.nameAt;
+  if (n != null && typeof n === 'object' && Number.isInteger(n.q) && Number.isInteger(n.r)) out.nameAt = { q: n.q, r: n.r };
   for (const k of RECEIPT_FIELDS) out[k] = figure(raw[k]);
   return out;
 }

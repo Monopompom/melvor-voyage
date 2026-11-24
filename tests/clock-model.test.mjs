@@ -5,7 +5,7 @@ import { TOW_KINDS as ADRIFT_TOWS } from '../src/adrift-model.mjs';
 import { durationText } from '../src/clock-model.mjs';
 import {
   TICK_MS, LAND_MS, SEA_MS, groundFactor, seaMs, stepMs, ticksOf, routeMs, durationParts, clockText, clockNow, gameClockSeed,
-  cleanChoice, sameChoice, cleanChain, cleanVoyage, cleanEnding, ticksLeft, TOW_KINDS, TALLY_FIELDS, cleanTally, addTally, STORM_WAIT_STEP_MS, STORM_WAIT_MAX_MS, stormWaitMs,
+  cleanChoice, sameChoice, cleanChain, cleanVoyage, cleanEnding, cleanNameAt, ticksLeft, TOW_KINDS, TALLY_FIELDS, cleanTally, addTally, STORM_WAIT_STEP_MS, STORM_WAIT_MAX_MS, stormWaitMs,
 } from '../src/clock-model.mjs';
 
 const MIN = 60000;
@@ -256,4 +256,17 @@ test('a compact duration turns to days only from 100 hours, and a broken time re
   assert.deepEqual(durationText(100 * H), { key: 'MOD_VOY_CLOCK_D_H', vars: { d: '4', h: '4' } });
   assert.deepEqual(durationText(24000 * H, (n) => n.toLocaleString('en-US')), { key: 'MOD_VOY_CLOCK_D_H', vars: { d: '1,000', h: '0' } });
   for (const bad of [NaN, Infinity, -5, undefined]) assert.deepEqual(durationText(bad), { key: 'MOD_VOY_CLOCK_M', vars: { m: '1' } });
+});
+
+test('nameAt (build .703): a voyage and its ending keep the hex their name belongs to; junk or none, no field', () => {
+  const walk = [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: -1 }];
+  assert.deepEqual(cleanVoyage({ walk, name: 'Port', nameAt: { q: 2, r: -1, z: 9 } }).nameAt, { q: 2, r: -1 });
+  assert.equal('nameAt' in cleanVoyage({ walk, name: 'Willow Tree' }), false, "the planner's pick: text only");
+  assert.deepEqual(cleanEnding({ name: 'Port', nameAt: { q: 2, r: -1 } }).nameAt, { q: 2, r: -1 });
+  assert.equal('nameAt' in cleanEnding({ name: 'Port' }), false);
+  for (const junk of [undefined, null, 'x', [1, 2], { q: 1 }, { q: 0.5, r: 1 }, { q: 1, r: NaN }]) {
+    assert.equal(cleanNameAt(junk), undefined);
+    assert.equal('nameAt' in cleanVoyage({ walk, name: 'Port', nameAt: junk }), false);
+    assert.equal('nameAt' in cleanEnding({ name: 'Port', nameAt: junk }), false);
+  }
 });

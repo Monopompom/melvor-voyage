@@ -1090,13 +1090,15 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
     rows.push([{ html: `<b>${esc(t('MOD_VOY_JOURNAL_RECEIPT_GP'))}</b>` }, { html: `<b>${esc(gp(g.spent))}</b>`, cls: 'vj-num' }, { html: `<b>${esc(gp(g.earned))}</b>`, cls: 'vj-num' }]);
     rows.numeric = [false, true, true];
     const net = g.net > 0 ? t('MOD_VOY_JOURNAL_RECEIPT_NET_UP', { gp: shortNumber(g.net) }) : g.net < 0 ? t('MOD_VOY_JOURNAL_RECEIPT_NET_DOWN', { gp: shortNumber(-g.net) }) : t('MOD_VOY_JOURNAL_RECEIPT_NET_EVEN');
-    const line = (x) => t('MOD_VOY_JOURNAL_RECEIPT_LINE', { name: x.name, how: t(`MOD_VOY_JOURNAL_RECEIPT_HOW_${x.how.toUpperCase()}`), hexes: hexWord(x.hexes), took: state.clock?.duration?.(x.ms) ?? '' });
+    // A receipt's place said in the player's language now (build .703), the text kept when it has no hex.
+    const placeOf = (x) => state.clock?.placeName?.(x) ?? x.name;
+    const line = (x) => t('MOD_VOY_JOURNAL_RECEIPT_LINE', { name: placeOf(x), how: t(`MOD_VOY_JOURNAL_RECEIPT_HOW_${x.how.toUpperCase()}`), hexes: hexWord(x.hexes), took: state.clock?.duration?.(x.ms) ?? '' });
     let html = head + `<p class="vj-p"><b>${esc(line(r))}</b></p>`
       + ledger([t('MOD_VOY_JOURNAL_COL_RECEIPT_WHAT'), t('MOD_VOY_JOURNAL_COL_RECEIPT_SPENT'), t('MOD_VOY_JOURNAL_COL_RECEIPT_EARNED')], rows)
       + `<p class="vj-p ${g.net > 0 ? 'text-success' : g.net < 0 ? 'text-danger' : ''}">${esc(net)}</p>`;
     if (list.length > 1) {
       const signed = (n) => `${n > 0 ? '+' : n < 0 ? '\u2212' : ''}${shortNumber(Math.abs(n))}`;
-      const older = list.slice(1).map((x) => { const n = model.receiptGp(x).net; return [{ text: x.name }, { text: numberWithCommas(x.hexes), cls: 'vj-num' }, { text: signed(n), cls: `vj-num ${n > 0 ? 'text-success' : n < 0 ? 'text-danger' : ''}` }, { text: xp(x.xp), cls: 'vj-num' }]; });
+      const older = list.slice(1).map((x) => { const n = model.receiptGp(x).net; return [{ text: placeOf(x) }, { text: numberWithCommas(x.hexes), cls: 'vj-num' }, { text: signed(n), cls: `vj-num ${n > 0 ? 'text-success' : n < 0 ? 'text-danger' : ''}` }, { text: xp(x.xp), cls: 'vj-num' }]; });
       older.numeric = [false, true, true, true];
       html += `<p class="vj-p"><b>${esc(t('MOD_VOY_JOURNAL_RECEIPTS_EARLIER'))}</b></p>`
         + ledger([t('MOD_VOY_JOURNAL_COL_RECEIPT_VOYAGE'), t('MOD_VOY_JOURNAL_COL_RECEIPT_HEXES'), t('MOD_VOY_JOURNAL_COL_RECEIPT_GP'), t('MOD_VOY_JOURNAL_COL_RECEIPT_XP')], older);
