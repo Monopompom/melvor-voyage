@@ -302,7 +302,7 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
   let root;
 
   const ledger = (cols, rows) => `<table class="vj-ledger${rows.stack ? ' vj-stack' : ''}${rows.stack === 'words' ? ' vj-stack-words' : ''}"><thead><tr>${cols.map((c, i) => `<th class="${i > 0 && rows.numeric?.[i] ? 'vj-num' : ''}" data-no-skill-names>${esc(c)}</th>`).join('')}</tr></thead>`
-    + `<tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${i === 0 ? 'vj-first' : ''} ${c.cls ?? ''}" data-th="${esc(cols[i] ?? '')}"${c.plain ? ' data-no-skill-names' : ''}>${c.html === undefined ? esc(nb(c.text ?? c)) : nb(c.html)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    + `<tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${i === 0 ? 'vj-first' : ''} ${c.cls ?? ''}" data-th="${esc(c.th ?? cols[i] ?? '')}"${c.plain ? ' data-no-skill-names' : ''}>${c.html === undefined ? esc(nb(c.text ?? c)) : nb(c.html)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   /**
    * Book text with its crosslinks (journal-model.mjs splitLinks) as buttons. A link whose target isn't in the book
    * (an Adventure-only chapter, a guide page not written yet) stays plain text.
@@ -515,7 +515,8 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
       ...(r.wins > 0 ? [row('MOD_VOY_JOURNAL_RIVAL_ROW_BEATEN', numberWithCommas(r.wins))] : []),
       row('MOD_VOY_JOURNAL_RIVAL_ROW_BOUNTY', t('MOD_VOY_ENC_GP', { gp: numberWithCommas(r.bounty) })),
       ...(r.out ? (sea === '' ? [] : [row('MOD_VOY_JOURNAL_RIVAL_ROW_SEEN', t('MOD_VOY_JOURNAL_RIVAL_SEA', { sea }))])
-        : [row('MOD_VOY_JOURNAL_RIVAL_ROW_NOW', t('MOD_VOY_JOURNAL_RIVAL_AWAY', { n: numberWithCommas(r.backIn) }))]),
+        // Stacked on a phone, the "So far" head would sit over his state now: this row's value goes unlabelled.
+        : [[{ text: t('MOD_VOY_JOURNAL_RIVAL_ROW_NOW') }, { text: t('MOD_VOY_JOURNAL_RIVAL_AWAY', { n: numberWithCommas(r.backIn) }), th: '' }]]),
     ];
     rows.stack = 'words';
     return `<div class="vj-enc-rival">${ledger([t('MOD_VOY_JOURNAL_RIVAL_COL_WHAT'), t('MOD_VOY_JOURNAL_RIVAL_COL_NOW')], rows)}</div>`;

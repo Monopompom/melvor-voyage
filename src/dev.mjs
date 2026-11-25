@@ -637,7 +637,8 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       if (m === undefined) return 'road moments not loaded';
       if (folkId === undefined) return { registered: m.registered(), folks: m.fitting() };
       const h = game.skills.getObjectByID('worker_folks:Hiring');
-      const f = h?.crew?.all?.find((x) => x.id === folkId);
+      // Worker Folks keeps its crew in a Map.
+      const f = [...(h?.crew?.all?.values?.() ?? [])].find((x) => x.id === folkId);
       if (f === undefined || typeof h.moments?.force !== 'function') return 'no such Folk, or Worker Folks without moments';
       return h.moments.force(f, `voyage:${name ?? 'Traveller'}`);
     },

@@ -2220,6 +2220,7 @@ body.darkMode .voyage-clock-unknown { background: rgba(170, 195, 230, .1); }
   .vj-stack td::before { content: attr(data-th); flex: none; color: var(--vj-faint); font-size: 14.5px; font-weight: 600; text-align: left; }
   .vj-ledger.vj-stack td.vj-first { display: block; text-align: left; font-size: 17px; }
   .vj-stack td.vj-first::before { content: none; }
+  .vj-stack td[data-th=""]::before { content: none; }
   .vj-stack td .vj-fig { flex: 0 1 58%; }
   .vj-stack td .vj-costs { align-items: flex-end; text-align: right; }
 }
