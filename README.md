@@ -124,6 +124,16 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   left, Run 15% and the next hex's time again, and the last hexes it can't feed it walks hungry. A loss, or a failed
   Press on, also wounds it 30% of its max HP, which can kill it. A win's purse and loot go to your bank. Offline its bands fold in with
   yours; each Folk answers from its pack, and a fold only your Folks met puts none of your GP at stake.
+
+  A debt left unpaid for 7 days (with Worker Folks 1.13.0 or later) brings a raid once a day on that band's ground:
+  a tent depot first, else a Folk's room there, the dearest goods first up to what you owe, never gear and never a
+  Folk travelling with you. What they take lowers the debt; the Here panel's "Owed:" row counts the days left.
+- **The rival captain.** After 10 bands met at sea, Captain Sable Vane of the *Gannet* is out on the deep water, met
+  only by you in a ship, at most once a day, likelier on the seas you sail most. He plays a deck of captain cards that
+  grows by one each time you pay him or run, up to 12, each card making him a little stronger. Once you have met him,
+  every port board posts his bounty: 20,000 GP and 5,000 more for each card he has gained. Beat him for the bounty and,
+  the first time, the Rival's Tricorn, a charm that takes 10% off the Nerve of every band at sea. He comes back after
+  10 more bands at sea, a card stronger, and the bounty grows by 10,000 GP for every win. The Journal keeps his record.
 - **The card game.** A fight is your Resolve against the band's Nerve over at most 6 rounds. Each round you draw up
   to 5 cards and make up to 3 plays (a Quick card costs none), and once a round you may toss a card. The band shows
   its next move (a Strike, a Grab at your purse, a Call for help, a Brace), and you block it, race it or trick it.
@@ -281,6 +291,20 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   Trainee at half the Shop's price while it is aboard, if you have the licence and a free crew slot (it still counts as
   a hire, so the Shop's next one costs more), or it goes ashore at the next port or land you stop at. Until then it
   takes a berth and eats from the stores like the crew.
+
+  **On the road** (needs Worker Folks 1.13.0 or later). Couriers meet the bands too: bandits on land, pirates on a
+  packet's deep-sea hexes. The courier fights with its own deck and the card you lent it in the route editor; the
+  claim is 15% (bandits) or 25% (pirates) of what its load would sell for, paid from your GP, and a loss wounds it.
+  Offline it walks on and its band waits in your fold. A courier gets back 25% of its max HP at each bank stop, and on
+  the road heals 3% a hex for twice its road food; Footsore fades after 10 bank stops. The route editor refuses a bank
+  stop whose way could never be fed, and a courier tops up its road food at places on its way.
+  A Folk that dies on the road, by a band or by hunger, leaves a **cairn** where it fell with everything it had: its
+  load, purse and gear. Cairns show on the map and in the Here panel; collect one from its hex or the next. A band's
+  kill stays guarded by that band: beat it, see it off or pay its toll to collect. At most 20 cairns are kept; the
+  oldest goes to your bank.
+  Now and then a courier or a Folk walking alone meets something on the road (a short cut, a farmhouse, a lost
+  traveller) and asks you what to do; left unanswered it costs a little time or road food, never a load or a life.
+  Back from offline, Worker Folks' popup and Voyage's bands share one window: Next leads from one to the other.
 
 ## Settings (Mod Settings, under Voyage: Rules, Travel, Display and Keys)
 

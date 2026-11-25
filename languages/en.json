@@ -3242,6 +3242,8 @@
   "MOD_VOY_CAIRN_WHY_MOVING": "You are under way: stop first.",
   "MOD_VOY_CAIRN_WHY_BAND": "A band blocks your way: answer them first.",
   "MOD_VOY_CAIRN_MORE": "and ${n} more",
+  "MOD_VOY_CAIRN_TIP_ITEM": "${name} ×${n}",
+  "MOD_VOY_CAIRN_TIP_PURSE": "${name}: ${n}",
   "MOD_VOY_CAIRN_COLLECTED": "You collected ${name}’s cairn.",
   "MOD_VOY_CAIRN_COLLECTED_PART": "You took from ${name}’s cairn what your bank had room for; the rest stays in it.",
   "MOD_VOY_ENC_COURIER_LOAD": "Load worth ${gp} GP",

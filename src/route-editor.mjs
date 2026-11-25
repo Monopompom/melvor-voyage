@@ -162,6 +162,7 @@ export function install(ctx, { state, M, W, N, helpLayout, log }) {
       // Captured: the scroll is the body's, inside the panel.
       panel.addEventListener('scroll', closeMenus, { passive: true, capture: true });
       cartographyMap.append(panel);
+      window.addEventListener('resize', closeMenus);
     }
     const next = html();
     if (next !== shown) {
@@ -188,6 +189,7 @@ export function install(ctx, { state, M, W, N, helpLayout, log }) {
     version += 1;
     panel?.parentElement?.classList.remove('voyage-route-open');
     panel?.classList.add('d-none');
+    window.removeEventListener('resize', closeMenus);
     if (panel !== undefined) panel.innerHTML = '';
     couriers()?.forgetRoads?.();
   };

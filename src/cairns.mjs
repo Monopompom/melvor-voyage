@@ -147,15 +147,21 @@ export function install(ctx, { state, C, log }) {
     return true;
   };
 
-  /** What a cairn holds, for its row's tooltip: up to ten stacks by name, then how many more, and the purse. */
+  /** What a cairn holds, for its row's tooltip: up to ten stacks, each with its icon, then how many more, and the purse. */
   const TIP_ITEMS = 10;
   const holds = (c) => {
-    const name = (id) => { try { return game.items.getObjectByID(id)?.name ?? id; } catch { return id; } };
-    const cur = (id) => { try { return (id === 'melvorD:GP' ? game.gp : game.currencies.getObjectByID(id))?.name ?? id; } catch { return id; } };
-    const lines = c.items.slice(0, TIP_ITEMS).map((x) => `${name(x.id)} ×${count(x.qty)}`);
+    const item = (id) => { try { return game.items.getObjectByID(id); } catch { return undefined; } };
+    const cur = (id) => { try { return id === 'melvorD:GP' ? game.gp : game.currencies.getObjectByID(id); } catch { return undefined; } };
+    const lines = c.items.slice(0, TIP_ITEMS).map((x) => {
+      const it = item(x.id);
+      return { text: t('MOD_VOY_CAIRN_TIP_ITEM', { name: it?.name ?? x.id, n: count(x.qty) }), item: it === undefined ? undefined : x.id };
+    });
     if (c.items.length > TIP_ITEMS) lines.push(t('MOD_VOY_CAIRN_MORE', { n: `${c.items.length - TIP_ITEMS}` }));
-    for (const p of c.purse) lines.push(`${cur(p.id)}: ${count(p.amount)}`);
-    return lines.join('\n');
+    for (const p of c.purse) {
+      const cu = cur(p.id);
+      lines.push({ text: t('MOD_VOY_CAIRN_TIP_PURSE', { name: cu?.name ?? p.id, n: count(p.amount) }), media: cu?.media });
+    }
+    return lines;
   };
   /** The Here panel's rows: a cairn on your hex or the next one, who left it, its guard and Collect. */
   const panelHtml = () => {
@@ -168,10 +174,10 @@ export function install(ctx, { state, C, log }) {
         : ` <span class="text-warning voyage-keep"><i class="fa fa-shield-alt mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_CAIRN_GUARD', { band: state.encounters?.bandName?.(c.guard.band) ?? c.guard.band }))}</span>`;
       const label = esc(getLangString('MOD_VOY_CAIRN_COLLECT'));
       const btn = why === ''
-        ? `<button type="button" class="btn btn-sm btn-success voyage-row-btn voyage-cairn-btn" data-cairn="${esc(c.id)}"${c.guard === undefined ? '' : ` title="${esc(getLangString('MOD_VOY_CAIRN_COLLECT_GUARDED'))}"`}>${label}</button>`
+        ? `<button type="button" class="btn btn-sm ${c.guard === undefined ? 'btn-success' : 'btn-warning'} voyage-row-btn voyage-cairn-btn" data-cairn="${esc(c.id)}"${c.guard === undefined ? '' : ` title="${esc(getLangString('MOD_VOY_CAIRN_COLLECT_GUARDED'))}"`}>${label}</button>`
         : `<button type="button" class="btn btn-sm btn-outline-secondary disabled voyage-row-btn voyage-cairn-btn" data-cairn="${esc(c.id)}" aria-disabled="true" title="${esc(getLangString(CAIRN_WHY[why]))}">${label}</button>`;
       return `<div class="voyage-here-ship voyage-cairn-row"><span><span class="voyage-here-label">${esc(getLangString('MOD_VOY_CAIRN_LABEL'))}</span> `
-        + `<span class="voyage-keep" title="${esc(holds(c))}"><i class="fa fa-monument mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_CAIRN_OF', { name: c.name }))} <small class="text-muted">${esc(hexText(c))}</small></span>${guard}</span>${btn}</div>`;
+        + `<span class="voyage-keep"${(() => { const l = holds(c); return l.length === 0 ? '' : ` data-tip-lines="${esc(JSON.stringify(l))}"`; })()}><i class="fa fa-monument mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_CAIRN_OF', { name: c.name }))} <small class="text-muted">${esc(hexText(c))}</small></span>${guard}</span>${btn}</div>`;
     }).join('');
   };
   const click = (btn) => {

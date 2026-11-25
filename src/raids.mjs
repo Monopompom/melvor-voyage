@@ -65,7 +65,7 @@ export function install(ctx, { state, R, shortNumber, log }) {
         const img = icon() ? `<img class="skill-icon-xs mr-1" src="${esc(icon())}" alt="">` : '';
         for (const text of lines) {
           const h = document.createElement('h5');
-          h.className = 'font-w600 mb-1 text-warning';
+          h.className = 'font-w600 mb-1';
           h.innerHTML = img + esc(text);
           this.messageContainer.append(h);
         }

@@ -361,7 +361,11 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       : templateLangString('MOD_VOY_ENC_DEBT_ROW_RAID', { who: d.name, gp: shortNumber(d.gp), raid: raidText(ms) }))).join('\n');
     const soon = rows.filter((x) => x.ms !== undefined).sort((a, b) => a.ms - b.ms)[0];
     const soonText = soon === undefined ? '' : raidText(soon.ms);
-    const raidSpan = soonText === '' ? '' : ` <span class="text-danger font-size-sm voyage-debt-raid"><i class="fa fa-skull-crossbones mr-1" aria-hidden="true"></i>${esc(soonText)}</span>`;
+    // The time in it is the panel's own (an hourglass, never split); "Raid due" has none. The note moves as one piece:
+    // German and Chinese split "Raid / in 23h" across lines.
+    const soonHtml = soon === undefined ? '' : soon.ms <= 0 ? esc(soonText)
+      : helpLayout.withTime('MOD_VOY_ENC_DEBT_RAID_IN', { time: state.clock?.duration?.(soon.ms) ?? '' });
+    const raidSpan = soonText === '' ? '' : ` <span class="text-danger voyage-keep voyage-debt-raid"><i class="fa fa-skull-crossbones mr-1" aria-hidden="true"></i>${soonHtml}</span>`;
     const why = enc.payOffWhy();
     const btn = why === ''
       ? `<button type="button" class="btn btn-sm btn-success voyage-row-btn voyage-debt-pay">${esc(getLangString('MOD_VOY_ENC_DEBT_PAY'))}</button>`

@@ -501,7 +501,8 @@ div:has(> .voyage-stores-note:not(.d-none)) { flex-wrap: wrap; }
 }
 /* Polish round, 24 Nov 2026: in Chinese at 320px "剩余 68小时0分钟" ran 13px out of the row; below 360px the words
    around the time may wrap (the time itself stays whole, .voyage-time). Wider, it fits on one line, as .296 wants. */
-@media (max-width: 359.98px) {
+/* Under a 360px window: the block's content is 281px at 360px and 296px at 375px (measured, build .731). */
+@container voyage-status (max-width: 280px) {
   .voyage-season-left { white-space: normal; text-align: center; }
 }
 /* A shown duration (help-layout timeHtml, build .301): the hourglass, a little smaller, then "7h 7m", never split. */
