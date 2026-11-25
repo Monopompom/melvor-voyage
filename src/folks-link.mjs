@@ -1,6 +1,10 @@
 // Worker Folks: Hiring's API (mod.api.worker_folks), read by Voyage for phase 6. Voyage drives Folks only through an
 // API it knows: an older Worker Folks (none, or a lower version) is left alone, said once in the console.
 
+// The Courier job's id, as courier-model.mjs names it. A mod's modules come in through ctx.loadModule and can't import
+// each other by a relative path (the game then skips the whole mod), so it is written here; a test keeps both equal.
+export const COURIER_JOB = 'voyage:Courier';
+
 /** The lowest Worker Folks API version Voyage drives (6a: guards, places, events; 6b: workerOf, location text; 6c: skills, assign, hurt). */
 export const FOLKS_API_MIN = 3;
 
@@ -27,9 +31,15 @@ export function rankName(tier) {
 }
 
 const FOLK_STATUS = { idle: 'MOD_VOY_PANEL_FOLK_IDLE', strike: 'MOD_VOY_PANEL_FOLK_STRIKE', cooldown: 'MOD_VOY_PANEL_FOLK_REST', debt: 'MOD_VOY_PANEL_FOLK_DEBT' };
-/** What a Folk is doing, in a word or two: Idle, On strike, Resting, Owes wages, or its skill's name. */
+/**
+ * What a Folk is doing, in a word or two: Courier, Walking alone, Idle, On strike, Resting, Owes wages, or its skill's
+ * name. A courier or a walker has no skill and reads as idle to Worker Folks, but it is on the road, a band's stop
+ * included (Sitting 4, 25 Nov 2026: a held courier showed "Idle").
+ */
 export function folkDoing(f) {
   try {
+    if (f.job === COURIER_JOB) return getLangString('MOD_VOY_COURIER_JOB');
+    if (f.travel === 'walking') return getLangString('MOD_VOY_WALK_HEAD');
     const key = FOLK_STATUS[f.status];
     if (key !== undefined) return getLangString(key);
     return game.skills.getObjectByID(f.skillId ?? '')?.name ?? getLangString('MOD_VOY_PANEL_FOLK_IDLE');

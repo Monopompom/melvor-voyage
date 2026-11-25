@@ -617,13 +617,15 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
   };
   /** A lost fight wounds the Folk (R.FOLK_WOUND of its max HP); it can die of it. */
   const folkWound = (folk, lines) => {
-    killing = killerOf(folk);
+    const by = killing = killerOf(folk);
     let r;
     try { r = folk.courier === true ? state.couriers?.bandWound?.(folk.id) : state.walks?.bandWound?.(folk.id); } finally { killing = undefined; }
     if (r === undefined) return;
     // A Folk that died walks no hungry hexes: its pack line goes, the death says it all.
     if (r.dead) for (let i = lines.length - 1; i >= 0; i--) if (lines[i]?.key?.startsWith('MOD_VOY_ENC_RES_FOLK_TAKE_') && lines[i].vars?.name === folk.name) lines.splice(i, 1);
-    lines.push(k(r.dead ? 'MOD_VOY_ENC_RES_FOLK_DIED' : 'MOD_VOY_ENC_RES_FOLK_WOUND', { name: folk.name, hp: r.hp }));
+    // A courier killed by pirates on its packet died at sea, not on the road.
+    const died = by?.ground !== undefined && isSea(by.ground) ? 'MOD_VOY_ENC_RES_FOLK_DIED_SEA' : 'MOD_VOY_ENC_RES_FOLK_DIED';
+    lines.push(k(r.dead ? died : 'MOD_VOY_ENC_RES_FOLK_WOUND', { name: folk.name, hp: r.hp }));
   };
   /**
    * A courier's draw or loss (round 5): the band takes its claim times their Nerve left, from your GP; what you can't

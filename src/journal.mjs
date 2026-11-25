@@ -572,9 +572,8 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
     // Not \b: it never fires between Chinese characters, so a translated term would go unmarked.
     return text.replace(new RegExp(`(?<!\\w)(${words.join('|')})(?!\\w)`, 'g'), (m) => (suits.has(m) ? suitMark(suits.get(m), m) : `<b class="vj-term">${m}</b>`));
   };
-  /** A section's html dressed: a point's short lead-in ("A win:") bold, then the terms in every text run. */
-  const encDress = (html) => html
-    .replace(/<li>([^<:]{1,30}):/g, (m, lead) => (lead.trim().split(/\s+/).length <= 3 ? `<li><b>${lead}</b>:` : m))
+  /** A section's html dressed: a point's short lead-in ("A win:", "胜利：") bold, then the terms in every text run. */
+  const encDress = (html) => jm.boldLeads(html)
     .replace(/>([^<]+)</g, (m, run) => `>${markTerms(run)}<`);
   /** A round in three steps at the head of "How a fight goes": draw, play, their move; the rounds at most. */
   const encSteps = () => {

@@ -405,7 +405,7 @@ export function install(ctx, { state, decimal, log }) {
   // banner with the outcome, the two sides as the fight left them, the reckoning beside the spoils, the buttons docked.
   const FIND_KEYS = { MOD_VOY_ENC_RES_TRICK: 'fa-magic', MOD_VOY_ENC_RES_CARD: 'fa-gem' };
   const HARM_KEYS = { MOD_VOY_ENC_RES_BATTERED: 'fa-user-injured', MOD_VOY_ENC_RES_RUN_HULL: 'fa-ship', MOD_VOY_ENC_RES_RUN_CRATES: 'fa-box-open', MOD_VOY_ENC_RES_RUN_STORES: 'fa-utensils', MOD_VOY_ENC_RES_COURIER_RUN_PACK: 'fa-utensils', MOD_VOY_ENC_RES_RUN_TIME: 'fa-hourglass-half', MOD_VOY_ENC_RES_OWED: 'fa-file-invoice-dollar', MOD_VOY_ENC_RES_USED: 'fa-flask',
-    MOD_VOY_ENC_RES_FOLK_TAKE_HUNGRY: 'fa-utensils', MOD_VOY_ENC_RES_FOLK_TAKE_HUNGRY_ONE: 'fa-utensils', MOD_VOY_ENC_RES_FOLK_WOUND: 'fa-user-injured', MOD_VOY_ENC_RES_FOLK_DIED: 'fa-skull', MOD_VOY_ENC_RES_FOLK_RUN_TIME: 'fa-hourglass-half' };
+    MOD_VOY_ENC_RES_FOLK_TAKE_HUNGRY: 'fa-utensils', MOD_VOY_ENC_RES_FOLK_TAKE_HUNGRY_ONE: 'fa-utensils', MOD_VOY_ENC_RES_FOLK_WOUND: 'fa-user-injured', MOD_VOY_ENC_RES_FOLK_DIED: 'fa-skull', MOD_VOY_ENC_RES_FOLK_DIED_SEA: 'fa-skull', MOD_VOY_ENC_RES_FOLK_RUN_TIME: 'fa-hourglass-half' };
   // Lines that undo a harm, in the reckoning's good colour (Patch up on the result).
   const CURE_KEYS = { MOD_VOY_ENC_RES_PATCHED: 'fa-utensils' };
   const bannerIcon = (r) => (r.done === 'pay' ? 'fa-coins' : r.done === 'run' ? 'fa-running' : r.head?.key === 'MOD_VOY_ENC_RES_PRESS_WIN' ? 'fa-crown'

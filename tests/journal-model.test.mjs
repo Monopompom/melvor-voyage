@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultSave, loadSave, serializeSave, emptyJournal, cleanJournal, JOURNAL_GUIDES, JOURNAL_LIMITS, FREE_CHART_LEVELS, GOLBIN_GIFT } from '../src/voyage-model.mjs';
-import { addFound, addMiss, addPlace, placesOf, learn, byDistance, search, searchIndex, searchIn, parseHex, splitLinks, linkTargetExists, folksLines, chart, chartChance, freeChartsLeft, markUnread, markRead, unreadCount, CHART_ITEMS, JOURNAL_GUIDE_SECTIONS, JOURNAL_CHAPTERS, JOURNAL_WRITTEN } from '../src/journal-model.mjs';
+import { boldLeads, addFound, addMiss, addPlace, placesOf, learn, byDistance, search, searchIndex, searchIn, parseHex, splitLinks, linkTargetExists, folksLines, chart, chartChance, freeChartsLeft, markUnread, markRead, unreadCount, CHART_ITEMS, JOURNAL_GUIDE_SECTIONS, JOURNAL_CHAPTERS, JOURNAL_WRITTEN } from '../src/journal-model.mjs';
 
 test('v6 saves get an empty journal', () => {
   const v6 = { v: 6, landHexes: 3, waterHexes: 0, backfilled: true, ship: null, shipChecked: true, stores: { food: 10, fuel: 1 }, kitGiven: true, hold: [], unlockNotice: [] };
@@ -264,5 +264,31 @@ test('raids, road moments and cairns in the Bands chapter: every line needs Work
       assert.deepEqual(folksLines(lines, false), [], `${lang} ${sec}: gone without Worker Folks`);
       assert.equal(folksLines(lines, true).length, lines.length);
     }
+  }
+});
+
+test('a point\'s short lead-in is bold: up to 3 words before ":", up to 6 Chinese characters before "：" (build .722)', () => {
+  assert.equal(boldLeads('<li>A win: their purse</li>'), '<li><b>A win</b>: their purse</li>');
+  assert.equal(boldLeads('<li>Une ferme\u00a0: quand</li>'), '<li><b>Une ferme\u00a0</b>: quand</li>');
+  assert.equal(boldLeads('<li>A card leans on its skill: +1</li>'), '<li>A card leans on its skill: +1</li>');
+  assert.equal(boldLeads('<li>胜利：拿到钱袋</li>'), '<li><b>胜利</b>：拿到钱袋</li>');
+  assert.equal(boldLeads('<li>迷路的旅人：送他过去</li>'), '<li><b>迷路的旅人</b>：送他过去</li>');
+  assert.equal(boldLeads('<li>卡牌依赖其技能：+1</li>'), '<li>卡牌依赖其技能：+1</li>', '7 characters: a sentence');
+  assert.equal(boldLeads('<li>农舍，当其低于时：歇一晚</li>'), '<li>农舍，当其低于时：歇一晚</li>', 'a comma inside');
+  assert.equal(boldLeads('<li>A plain line.</li>'), '<li>A plain line.</li>');
+});
+
+test('the Bands chapter bolds the same points in every language as in English', async () => {
+  const { readFileSync } = await import('node:fs');
+  const read = (lang) => JSON.parse(readFileSync(new URL(`../languages/${lang}.json`, import.meta.url), 'utf8'));
+  const en = read('en');
+  const keys = Object.keys(en).filter((k) => /^MOD_VOY_JOURNAL_CH_ENCOUNTERS_\w+_BODY$/.test(k));
+  const marks = (json, k) => folksLines(json[k].split('\n'), true).filter((l) => l.startsWith('- '))
+    .map((l) => boldLeads(`<li>${l.slice(2)}`).startsWith('<li><b>'));
+  assert.ok(keys.length >= 10);
+  assert.ok(keys.some((k) => marks(en, k).includes(true)));
+  for (const lang of ['de', 'fr', 'zh-CN', 'zh-TW']) {
+    const json = read(lang);
+    for (const k of keys) assert.deepEqual(marks(json, k), marks(en, k), `${lang} ${k}`);
   }
 });

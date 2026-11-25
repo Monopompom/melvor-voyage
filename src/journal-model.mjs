@@ -165,6 +165,19 @@ export const folksLines = (lines, on, has = {}) => lines.flatMap((l) => {
   return keep ? [m[1] + l.slice(m[0].length)] : [];
 });
 
+/**
+ * A list point's short lead-in in bold ("<li>A win: …" → "<li><b>A win</b>: …"): up to 3 words before ':', or, in
+ * Chinese, up to 6 characters before the full-width '：' with no comma or stop among them ("胜利：", "迷路的旅人："). A
+ * longer lead is a sentence, not a label, and stays plain.
+ */
+export const LEAD_WORDS = 3;
+export const LEAD_CJK = 6;
+export const boldLeads = (html) => html.replace(/<li>([^<:：]{1,30})([:：])/g, (m, lead, colon) => {
+  const s = lead.trim();
+  const short = colon === '：' ? s.length > 0 && s.length <= LEAD_CJK && !/[\s，、。；$]/.test(s) : s.split(/\s+/).length <= LEAD_WORDS;
+  return short ? `<li><b>${lead}</b>${colon}` : m;
+});
+
 export const hexStr = (q, r) => `${q},${r}`;
 export function parseHex(s) {
   const [q, r] = String(s).split(',').map(Number);
