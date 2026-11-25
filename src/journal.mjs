@@ -495,7 +495,8 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
   };
   /**
    * The rival captain's record under his section (round 5): shown once you have met him. How often you met, paid, ran,
-   * lost or drew, the captain's cards he has shown, his bounty and the sea he was last seen on; once beaten, that.
+   * lost or drew, the captain's cards he has shown, how often beaten; his bounty and the sea he was last seen on, or
+   * while he refits after a defeat, how many sea bands until he is back.
    */
   const encRivalTable = () => {
     let r;
@@ -511,8 +512,10 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
       row('MOD_VOY_JOURNAL_RIVAL_ROW_LOST', numberWithCommas(r.lost)),
       row('MOD_VOY_JOURNAL_RIVAL_ROW_DREW', numberWithCommas(r.drew)),
       row('MOD_VOY_JOURNAL_RIVAL_ROW_CARDS', r.deck.map((id) => t(`MOD_VOY_RIVAL_CARD_${id.toUpperCase()}`)).join(getLangString('MOD_VOY_GATE_LIST_SEP'))),
-      ...(r.beaten > 0 ? [row('MOD_VOY_JOURNAL_RIVAL_ROW_BEATEN', t('MOD_VOY_JOURNAL_RIVAL_BEATEN'))]
-        : [row('MOD_VOY_JOURNAL_RIVAL_ROW_BOUNTY', t('MOD_VOY_ENC_GP', { gp: numberWithCommas(r.bounty) })), ...(sea === '' ? [] : [row('MOD_VOY_JOURNAL_RIVAL_ROW_SEEN', t('MOD_VOY_JOURNAL_RIVAL_SEA', { sea }))])]),
+      ...(r.wins > 0 ? [row('MOD_VOY_JOURNAL_RIVAL_ROW_BEATEN', numberWithCommas(r.wins))] : []),
+      row('MOD_VOY_JOURNAL_RIVAL_ROW_BOUNTY', t('MOD_VOY_ENC_GP', { gp: numberWithCommas(r.bounty) })),
+      ...(r.out ? (sea === '' ? [] : [row('MOD_VOY_JOURNAL_RIVAL_ROW_SEEN', t('MOD_VOY_JOURNAL_RIVAL_SEA', { sea }))])
+        : [row('MOD_VOY_JOURNAL_RIVAL_ROW_NOW', t('MOD_VOY_JOURNAL_RIVAL_AWAY', { n: numberWithCommas(r.backIn) }))]),
     ];
     rows.stack = 'words';
     return `<div class="vj-enc-rival">${ledger([t('MOD_VOY_JOURNAL_RIVAL_COL_WHAT'), t('MOD_VOY_JOURNAL_RIVAL_COL_NOW')], rows)}</div>`;
@@ -525,10 +528,10 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
     const n = (x) => `${Math.round(x)}`;
     const V = en.V;
     const rival = V === undefined ? {} : { rivalAfter: n(V.FIRST_AFTER), rivalOdds: n(1 / V.CHANCE), rivalStep: n(V.CARD_STEP * 100), rivalMax: n(E.RIVAL_START.length + E.RIVAL_GAINS.length),
-      rivalBase: numberWithCommas(V.BOUNTY_BASE), rivalPer: numberWithCommas(V.BOUNTY_STEP), rivalTricorn: n((1 - E.TRICORN_NERVE) * 100) };
+      rivalBase: numberWithCommas(V.BOUNTY_BASE), rivalPer: numberWithCommas(V.BOUNTY_STEP), rivalBack: n(V.RETURN_AFTER), rivalWin: numberWithCommas(V.BOUNTY_WIN), rivalTricorn: n((1 - E.TRICORN_NERVE) * 100) };
     // Road moments and cairns (round 5): their numbers from their models, when those loaded (their lines need Worker Folks).
     const RM = state.roadMoments?.RM;
-    const moments = RM === undefined ? {} : { shortOdds: n(RM.SHORT_ODDS * 3), shortHexes: n(RM.SHORT_HEXES), shortLost: n(RM.LOST_MS / 3600000), innBelow: n(RM.INN_BELOW * 100),
+    const moments = RM === undefined ? {} : { shortOdds: n(RM.SHORT_ODDS * 3), shortHexes: n(RM.SHORT_HEXES), shortLost: n(RM.LOST_MS / 3600000), ignoreHours: n(RM.IGNORED_MS / 3600000), innBelow: n(RM.INN_BELOW * 100),
       innHeal: n(RM.INN_HEAL * 100), innHours: n(RM.INN_MS / 3600000), guideHours: n(RM.GUIDE_MS / 3600000), guideGp: numberWithCommas(RM.GUIDE_GP) };
     const cairnMax = state.cairns?.max === undefined ? {} : { cairnMax: n(state.cairns.max) };
     return { ...rival, ...moments, ...cairnMax, encHideout: n(R.HIDEOUT_REACH), encBreather: n(R.BREATHER), encDebtPct: n(R.DEBT_PCT), encRaidDays: n(R.RAID_AFTER_MS / (24 * 3600 * 1000)), encTollLow: n(R.TOLL_PCT[1]),

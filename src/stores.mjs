@@ -89,6 +89,9 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
   };
   const hexes = (n) => t(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });
   const amounts = (food, fuel) => t('MOD_VOY_STORES_AMOUNTS', { food: hp(food), fuel: fuelText(fuel) });
+  /** What is short, only the parts that are: food alone reads "113 HP of food", not "…, 0 fuel" (seen in game, .719, .725). */
+  const shortAmounts = (food, fuel) => (fuel <= 0 && food > 0 ? t('MOD_VOY_STORES_AMOUNT_FOOD', { food: hp(food) })
+    : food <= 0 && fuel > 0 ? t('MOD_VOY_UNIT_FUEL', { n: fuelText(fuel) }) : amounts(food, fuel));
   /** The same with the ration and fuel art (page and panel), titled with the words. */
   // `tip` false (build .283): inside something with its own tooltip (the Here strip's stores chip), so only one shows.
   const icons = (food, fuel, tip = true) => `<span class="voyage-stores-icons"${tip ? ` title="${esc(amounts(food, fuel))}"` : ''}>` +
@@ -1014,7 +1017,7 @@ export function install(ctx, { state, model, storesModel, supplyModel, spoilMode
       if (help === undefined) return false;
       offerRescue(help, []);
       return true;
-    }, loadingHere, loadable, load, never, setNever, amounts, icons, hp, fuelText, fmLevel, capacity, astroLevel, night, nightAt, sightOf, timeOfDay, shift,
+    }, loadingHere, loadable, load, never, setNever, amounts, shortAmounts, icons, hp, fuelText, fmLevel, capacity, astroLevel, night, nightAt, sightOf, timeOfDay, shift,
     loaded() { try { state.afterTutorial?.(giveKit); } catch (e) { log('starter kit failed', e); } },
     /** For the dev console: set the stores outright. */
     set,

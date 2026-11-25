@@ -288,13 +288,14 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     return row(n, lines, button('btn-success', t('MOD_VOY_TASK_TAKE'), `data-task="take" data-id="${esc(n.id)}"`, why));
   };
   /**
-   * The rival captain's Wanted notice (round 5), on top of every board once you have met him and until you beat him:
+   * The rival captain's Wanted notice (round 5), on top of every board once you have met him, while he sails (gone
+   * while he refits after a defeat, back when he is):
    * his name, the sea he was last seen on, his captain's cards, the bounty. Nothing to take: beating him pays it.
    */
   const wantedRow = () => {
     let r;
     try { r = state.encounters?.rivalView?.(); } catch {}
-    if (r === undefined || !(r.met > 0) || r.beaten > 0) return '';
+    if (r === undefined || !(r.met > 0) || r.out !== true) return '';
     let sea = r.lastSea;
     try { sea = state.charts?.seaName?.(r.lastSea) ?? r.lastSea; } catch {}
     const lines = [

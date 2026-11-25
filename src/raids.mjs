@@ -95,8 +95,15 @@ export function install(ctx, { state, R, shortNumber, log }) {
     return took;
   };
   let lastLook = -Infinity;
-  /** On the skill's passive tick, online and offline: every LOOK_MS of game time, the raids due run. */
+  let ticks = 0;
+  /**
+   * On the skill's passive tick, online and offline: every LOOK_MS of game time, the raids due run. The game clock is
+   * read once a second online, every 10 s in a catch-up (build .728), not on every tick.
+   */
   const tick = () => {
+    ticks += 1;
+    if (ticks < (offlineNow() ? 200 : 20)) return;
+    ticks = 0;
     const at = now();
     if (at - lastLook < LOOK_MS && at >= lastLook) return;
     lastLook = at;
@@ -105,7 +112,7 @@ export function install(ctx, { state, R, shortNumber, log }) {
     if (a === undefined || enc?.raidsDue === undefined) return;
     for (const key of enc.raidsDue(at)) raidOne(a, key);
   };
-  ctx.onCharacterLoaded(() => { lastLook = -Infinity; away = []; });
+  ctx.onCharacterLoaded(() => { lastLook = -Infinity; ticks = 0; away = []; });
 
   const out = {
     tick,
@@ -115,7 +122,7 @@ export function install(ctx, { state, R, shortNumber, log }) {
       return a === undefined ? 'no Worker Folks API 13' : (state.encounters?.debts?.() ?? []).map((d) => ({ key: d.key, gp: d.gp, raidIn: state.encounters.raidIn(d.key), at: targetsFor(a, d.ground).map((x) => `${x.kind} ${x.name}`) }));
     },
     /** Dev: the raids due run now, without waiting for the minute's look. */
-    now: () => { lastLook = -Infinity; tick(); },
+    now: () => { lastLook = -Infinity; ticks = Infinity; tick(); },
   };
   return out;
 }

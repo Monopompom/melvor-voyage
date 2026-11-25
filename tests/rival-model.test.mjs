@@ -10,7 +10,7 @@ import { cleanFight } from '../src/encounter-rules-model.mjs';
 
 const fresh = () => V.cleanRival({}, E);
 
-test('he comes out after ten bands met at sea, at most once a day, more on the seas you sail most, never once beaten', () => {
+test('he comes out after ten bands met at sea, at most once a day, more on the seas you sail most, not while he refits', () => {
   const r = fresh();
   assert.equal(V.isOut(r), false);
   assert.equal(V.chanceOf(r, { hexes: 100, top: 100, now: 1 }), 0);
@@ -25,10 +25,34 @@ test('he comes out after ten bands met at sea, at most once a day, more on the s
   assert.equal(V.chanceOf(met, { hexes: 100, top: 100, now: 1000 + V.GAP_MS }), V.CHANCE);
   const beaten = V.ended(met, 'won', 5000, E);
   assert.equal(beaten.beaten, 5000);
-  assert.equal(V.isOut(beaten), false, 'the thread ends');
+  assert.equal(V.isOut(beaten), false, 'gone to refit');
   assert.equal(V.chanceOf(beaten, { hexes: 100, top: 100, now: 1e12 }), 0);
+  assert.equal(V.backIn(beaten), V.RETURN_AFTER);
   assert.equal(V.CHANCE, 1 / 6);
   assert.equal(V.FIRST_AFTER, 10);
+});
+
+test('beaten, he comes back ten sea bands later one card up, his bounty 10,000 GP more each win; the Tricorn is the first win\'s', () => {
+  const met = V.meeting({ ...fresh(), seaMet: 14 }, 'MistyPort', 1000);
+  const won = V.ended(met, 'won', 5000, E);
+  assert.deepEqual([won.wins, won.seaAt, won.cards], [1, 14, E.RIVAL_GAINS.slice(0, 1)]);
+  assert.equal(V.bountyOf(won), 20000 + 5000 + 10000);
+  const almost = { ...won, seaMet: 14 + V.RETURN_AFTER - 1 };
+  assert.deepEqual([V.isOut(almost), V.backIn(almost)], [false, 1]);
+  const back = { ...won, seaMet: 14 + V.RETURN_AFTER };
+  assert.deepEqual([V.isOut(back), V.backIn(back)], [true, 0]);
+  assert.equal(V.chanceOf(back, { hexes: 100, top: 100, now: 5000 + V.GAP_MS }), V.CHANCE);
+  const again = V.meeting(back, 'DeepPort', 9e6);
+  assert.deepEqual([again.beaten, again.met, V.isOut(again)], [0, 2, true], 'met again: he sails until beaten again');
+  const twice = V.ended(again, 'won', 1e7, E);
+  assert.deepEqual([twice.wins, twice.cards.length], [2, 2]);
+  assert.equal(V.bountyOf(twice), 20000 + 5000 * 2 + 10000 * 2);
+  let full = { ...twice, cards: E.RIVAL_GAINS.slice(), beaten: 0 };
+  full = V.ended(full, 'won', 2e7, E);
+  assert.equal(full.cards.length, E.RIVAL_GAINS.length, 'twelve cards at most: he stays at twelve');
+  assert.equal(V.bountyOf(full), 20000 + 5000 * 9 + 10000 * 3, 'the bounty still grows');
+  assert.equal(V.RETURN_AFTER, 10);
+  assert.equal(V.BOUNTY_WIN, 10000);
 });
 
 test('each Pay or Run gives him his next card, stronger and with a bigger bounty; a loss or a draw gives none', () => {
@@ -53,7 +77,10 @@ test('each Pay or Run gives him his next card, stronger and with a bigger bounty
 
 test('the save keeps his record; cards out of order or unknown are cut there', () => {
   const r = V.cleanRival({ seaMet: 12, met: 3, paid: 1, ran: 1, lost: 0, drew: 1, cards: ['broadside2', 'taunt', 'nope', 'ironbrace'], last: 99.5, lastSea: 'MistyPort', beaten: -4 }, E);
-  assert.deepEqual(r, { seaMet: 12, met: 3, paid: 1, ran: 1, lost: 0, drew: 1, cards: ['broadside2', 'taunt'], last: 99, lastSea: 'MistyPort', beaten: 0 });
+  assert.deepEqual(r, { seaMet: 12, met: 3, paid: 1, ran: 1, lost: 0, drew: 1, cards: ['broadside2', 'taunt'], last: 99, lastSea: 'MistyPort', beaten: 0, wins: 0, seaAt: 0 });
+  const old = V.cleanRival({ seaMet: 30, met: 4, beaten: 777 }, E);
+  assert.deepEqual([old.wins, old.seaAt, V.isOut(old), V.backIn(old)], [1, 30, false, V.RETURN_AFTER], 'beaten before he could return: one win, back ten sea bands from now');
+  assert.equal(V.cleanRival({ seaMet: 30, beaten: 777, wins: 3, seaAt: 99 }, E).seaAt, 30, 'never past the bands met');
   assert.deepEqual(V.cleanRival({ cards: ['taunt'] }, E).cards, [], 'not from the first gain: none');
   assert.deepEqual(V.cleanRival('junk', E), fresh());
   assert.equal(V.cleanRival({ lastSea: 'a b' }, E).lastSea, '');

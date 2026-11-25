@@ -6,6 +6,8 @@
 //   - ShortCut: a goatherd knows a short cut. Take it: most times the next hexes go by at once, else an hour is lost.
 //   - Farmhouse: hurt, a hot meal and a bed. Stay: HP back, an hour lost.
 //   - Traveller: a lost traveller asks the way. Walk them there: an hour lost, GP for it.
+// Left unanswered (Worker Folks takes the cautious answer when one runs out), each costs a little: the short cut and the
+// traveller an hour lost waiting, the farmhouse some road food spoiled. Picking the cautious answer yourself is free.
 // The numbers are in road-moments-model.mjs.
 
 const MOMENT_API = 13;
@@ -49,9 +51,41 @@ export function install(ctx, { state, RM, W, M, log }) {
     try { game.notifications.createInfoNotification('voyage:moment', text, state.voyageSkill?.()?.media); } catch {}
   };
   const named = (key, more) => (view) => t(key, { name: view?.name ?? '', ...(more?.(view) ?? {}) });
+  const provisions = () => { try { return state.stores?.enabled?.() === true; } catch { return false; } };
+
+  // ---- left unanswered: a small cost ---------------------------------------------------------------------------------
+  /** An hour lost waiting on the hex it walks into. */
+  const waited = (view) => {
+    if (editRoad(view, (road, at) => RM.slow(road, at, RM.IGNORED_MS))) tell(t('MOD_VOY_MOMENT_IGNORED_WAIT', { name: view.name, hours: hours(RM.IGNORED_MS) }));
+  };
+  /** Some road food spoiled: a courier's pack loses a share of its food, a Folk walking alone walks a hex more hungry. */
+  const spoiled = (view) => {
+    if (!provisions()) { waited(view); return; }
+    const here = onRoad(view);
+    if (here === undefined) return;
+    // Only food it carries can spoil: a courier with an empty pack (still on its way to load) or a walk already hungry
+    // to its end loses nothing, and no notice says it did.
+    let ok = false;
+    try {
+      if (here.kind === 'courier') {
+        const before = state.couriers.all?.()?.[view.id]?.pack?.food ?? 0;
+        ok = before > 0 && state.couriers.edit(view.id, (c) => ({ ...c, pack: RM.spoil(c.pack) })) === true;
+      } else {
+        const w = state.walks.walks?.()?.[view.id];
+        ok = w !== undefined && (w.hungry ?? 0) < w.road.length
+          && state.walks.edit(view.id, (x) => ({ ...x, hungry: Math.min(x.road.length, (x.hungry ?? 0) + RM.SPOIL_HEXES) })) === true;
+      }
+    } catch (e) { log('road moments: spoil failed', e); }
+    if (ok) tell(t('MOD_VOY_MOMENT_IGNORED_SPOIL', { name: view.name }));
+  };
+  /** The cautious answer: nothing when picked, `cost` when the moment ran out unanswered. */
+  const cautious = (cost, hintKey) => ({
+    tone: 'no',
+    hint: () => t(hintKey, { hours: hours(RM.IGNORED_MS) }),
+    apply: (view, how = {}) => { if (how?.expired === true) cost(view); },
+  });
 
   // ---- the three moments --------------------------------------------------------------------------------------------
-  const nothing = { tone: 'no', hint: () => t('MOD_VOY_MOMENT_HINT_NOTHING'), apply: () => {} };
   const DEFS = {
     ShortCut: {
       fits: (view) => RM.hexesAhead(onRoad(view)?.spot) > RM.SHORT_HEXES,
@@ -68,7 +102,7 @@ export function install(ctx, { state, RM, W, M, log }) {
             if (ok) tell(t(won ? 'MOD_VOY_MOMENT_ShortCut_WON' : 'MOD_VOY_MOMENT_ShortCut_LOST', { name: view.name, n: `${RM.SHORT_HEXES}`, hours: hours(RM.LOST_MS) }));
           },
         },
-        { id: 'road', label: () => t('MOD_VOY_MOMENT_ShortCut_NO'), ...nothing },
+        { id: 'road', label: () => t('MOD_VOY_MOMENT_ShortCut_NO'), ...cautious(waited, 'MOD_VOY_MOMENT_HINT_WAIT') },
       ],
       defaultAnswer: 'road',
     },
@@ -86,7 +120,7 @@ export function install(ctx, { state, RM, W, M, log }) {
             try { if (n > 0) api()?.heal?.(view.id, n, { cause: 'rest' }); } catch (e) { log('road moments: heal failed', e); }
           },
         },
-        { id: 'on', label: () => t('MOD_VOY_MOMENT_Farmhouse_NO'), ...nothing },
+        { id: 'on', label: () => t('MOD_VOY_MOMENT_Farmhouse_NO'), ...cautious(spoiled, 'MOD_VOY_MOMENT_HINT_SPOIL'), hint: () => t(provisions() ? 'MOD_VOY_MOMENT_HINT_SPOIL' : 'MOD_VOY_MOMENT_HINT_WAIT', { hours: hours(RM.IGNORED_MS) }) },
       ],
       defaultAnswer: 'on',
     },
@@ -104,7 +138,7 @@ export function install(ctx, { state, RM, W, M, log }) {
             tell(t('MOD_VOY_MOMENT_Traveller_PAID', { name: view.name, gp: fmt(RM.GUIDE_GP) }));
           },
         },
-        { id: 'point', label: () => t('MOD_VOY_MOMENT_Traveller_NO'), ...nothing },
+        { id: 'point', label: () => t('MOD_VOY_MOMENT_Traveller_NO'), ...cautious(waited, 'MOD_VOY_MOMENT_HINT_WAIT') },
       ],
       defaultAnswer: 'point',
     },

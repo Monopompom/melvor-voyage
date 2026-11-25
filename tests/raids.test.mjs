@@ -1,7 +1,8 @@
 // Raids in the game (src/raids.mjs) against fake encounters and a fake Worker Folks API 13: a due debt's band raids the
 // first place on its ground that gives anything (a tent before a Folk), the debt goes down by the value taken, every
 // due debt is marked raided for the day whether or not anything was found, a sea's band raids its coast, and nothing
-// happens without API 13 or more often than once a minute of game time.
+// happens without API 13 or more often than once a minute of game time. The game clock is read once every 20 ticks
+// online (200 in a catch-up), not on every tick.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as R from '../src/encounter-rules-model.mjs';
@@ -20,6 +21,7 @@ function setup({ version = 13, debts = { 'highwaymen:highlands': 500 }, gives = 
   const calls = [];
   const marks = [];
   let clock = 1000;
+  let reads = 0;
   const e = { debts: { ...debts } };
   const api = {
     version,
@@ -36,7 +38,7 @@ function setup({ version = 13, debts = { 'highwaymen:highlands': 500 }, gives = 
   const state = {
     folksGuarded: true,
     folksApi: () => api,
-    gameNow: () => clock,
+    gameNow: () => { reads += 1; return clock; },
     recordAt: (h) => ({ t: ground[`${h.q},${h.r}`] }),
     outposts: { list: () => tents },
     charts: { seaOf: (poi) => (poi === 'BeginningPort' ? [{ q: 7, r: 7 }] : []) },
@@ -50,7 +52,8 @@ function setup({ version = 13, debts = { 'highwaymen:highlands': 500 }, gives = 
     },
   };
   const out = install(ctx, { state, R, log: () => {} });
-  return { out, calls, marks, e, tick: (ms = 0) => { clock += ms; out.tick(); }, api };
+  // A second of game time: 20 ticks online.
+  return { out, calls, marks, e, tick: (ms = 0) => { clock += ms; for (let i = 0; i < 20; i += 1) out.tick(); }, one: () => out.tick(), reads: () => reads, api };
 }
 
 test('a due debt raids the tent on its ground first; the debt drops by what was taken and a notice says so', () => {
@@ -102,4 +105,19 @@ test('looked at once a minute of game time, and not at all without Worker Folks 
   const old = setup({ version: 12, gives: { tentA: 9 } });
   old.tick();
   assert.deepEqual(old.calls, []);
+});
+
+test('the game clock is read once every 20 ticks online, every 200 in a catch-up', () => {
+  const { one, reads } = setup({ gives: {} });
+  for (let i = 0; i < 19; i += 1) one();
+  assert.equal(reads(), 0);
+  one();
+  assert.equal(reads(), 1);
+  game._isInOnlineLoop = false;
+  try {
+    for (let i = 0; i < 199; i += 1) one();
+    assert.equal(reads(), 1);
+    one();
+    assert.equal(reads(), 2);
+  } finally { game._isInOnlineLoop = true; }
 });

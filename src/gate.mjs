@@ -385,8 +385,41 @@ export function install(ctx, { state, rules, terrainMod, zones, helpLayout, slay
   };
   const intervalRate = (skillId) => { const r = rawRate(skillId); return r > 0 && r < 1 ? r : 1; };
   const lastRate = new Map();
+  // Every interval of every skill passes through the patch below, about once a tick in a catch-up (build .728): the
+  // rate is kept per skill for the hex it was read on, and read again when that hex changes (you or the Folk moved), a
+  // setting or what you know changes (the listeners below), or after a game minute (RATE_TTL ticks), for what changes
+  // without a listener inside a catch-up (a survey, a cloud cleared). Without the skill's tick count, never kept.
+  const RATE_TTL = 1200;
+  const rateKept = new Map();
+  let rateEpoch = 0;
+  const ticksNow = () => state.voyageSkill?.()?.passiveTicks;
+  let onKept = { v: false, at: -Infinity, epoch: -1 };
+  /** on(), kept like the rates (the rules switch, the tutorial and a load bump the epoch). */
+  const gateOn = () => {
+    const now = ticksNow();
+    if (now !== undefined && onKept.epoch === rateEpoch && now - onKept.at < RATE_TTL && now >= onKept.at) return onKept.v;
+    const v = on();
+    if (now !== undefined) onKept = { v, at: now, epoch: rateEpoch };
+    return v;
+  };
+  const keptRate = (skillId) => {
+    if (!gateOn() || !rules.isGated(skillId)) return 1;
+    const folk = folkPlace(skillId);
+    const hex = folk === undefined ? state.position() : folk.place;
+    const now = ticksNow();
+    const k = rateKept.get(skillId);
+    if (k !== undefined && hex != null && now !== undefined && k.epoch === rateEpoch && now - k.at < RATE_TTL && now >= k.at
+      && k.q === hex.q && k.r === hex.r) return k.rate;
+    const rate = intervalRate(skillId);
+    if (hex != null && now !== undefined) rateKept.set(skillId, { rate, q: hex.q, r: hex.r, at: now, epoch: rateEpoch });
+    return rate;
+  };
+  /** Forgets the kept rates: settings, knowledge, a load. */
+  const forgetRates = () => { rateEpoch += 1; rateKept.clear(); };
+  state.listeners.push(forgetRates);
+  ctx.onCharacterLoaded(forgetRates);
   ctx.patch(Skill, 'modifyInterval').after(function (interval) {
-    const rate = intervalRate(this.id);
+    const rate = keptRate(this.id);
     if (lastRate.get(this.id) !== rate) { lastRate.set(this.id, rate); log(`${this.id} interval rate ${rate} (${interval} ms -> ${Math.round(interval / rate)} ms)`); }
     return rate === 1 ? undefined : Math.round(interval / rate);
   });

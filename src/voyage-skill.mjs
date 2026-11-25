@@ -49,6 +49,8 @@ export function createVoyageClass({ model, log }) {
     activeTick() { try { this.clock?.tick(); } catch (e) { log('voyage tick failed', e); } }
     /** Every tick, online and offline, whatever runs (Game.tick's passive tickers): the drift while Adrift (5b part two), the season, Folks walking alone (6d), travel traits' minute clock (6f), tents going up (6e, build .396). The game clock moves first (build .421), so each timer reads this tick's time. */
     passiveTick() {
+      // A plain count of ticks run (build .728), never saved: the gate keeps a skill's rate for a game minute by it.
+      this.passiveTicks = (this.passiveTicks ?? 0) + 1;
       try { this.clock?.gameTick?.(); } catch (e) { log('game clock tick failed', e); }
       try { this.weather?.tick(); } catch (e) { log('weather tick failed', e); }
       try { this.adrift?.tick(); } catch (e) { log('adrift tick failed', e); }

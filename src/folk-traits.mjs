@@ -79,6 +79,40 @@ export function install(ctx, { state, FT, S, log }) {
   /** The hex a Folk stands on: yours for a Folk with you, its own otherwise. */
   const hexOf = (f) => (f?.travel === 'with' ? state.position?.() : f?.place);
 
+  // Work done, added up per Folk and reported once a game minute (build .728): a report on each of the ~400,000 work
+  // actions of a full day away cost about 2 s of the catch-up. Reported early for a Folk whose "on one hex" count is
+  // about to start again (moved, a storm), so the order of work and reset stays as it was.
+  const workDue = new Map();
+  /** Whether a hex is near a market, kept until the next report (the market table changes seldom). */
+  const marketKept = new Map();
+  const nearKept = (hex) => {
+    if (hex == null || !Number.isInteger(hex.q)) return false;
+    const key = (hex.q + 4096) * 8192 + (hex.r + 4096);
+    let near = marketKept.get(key);
+    if (near === undefined) { near = nearMarket(hex); marketKept.set(key, near); }
+    return near;
+  };
+  /** Work time a Folk view did on its hex now. */
+  const addWork = (folk, ms) => {
+    let w = workDue.get(folk.id);
+    if (w === undefined) { w = { work: 0, market: 0 }; workDue.set(folk.id, w); }
+    w.work += ms;
+    if (nearKept(hexOf(folk))) w.market += ms;
+  };
+  /** Reports the work added up: one Folk's (`only`), or everyone's. */
+  const flushWork = (only) => {
+    if (workDue.size === 0) return;
+    const ids = only === undefined ? [...workDue.keys()] : [only];
+    for (const id of ids) {
+      const w = workDue.get(id);
+      if (w === undefined) continue;
+      workDue.delete(id);
+      if (w.work > 0) folkTraits.report(id, 'workOneHex', w.work);
+      if (w.market > 0) folkTraits.report(id, 'workNearMarket', w.market);
+    }
+    if (only === undefined) marketKept.clear();
+  };
+
   const folkTraits = {
     /** API 5 is there and the save can hold counts. */
     usable: () => api() !== undefined && record() !== undefined,
@@ -92,6 +126,7 @@ export function install(ctx, { state, FT, S, log }) {
     },
     /** A condition in a row is broken for one Folk (moved, a storm). */
     reset(folkId, source) {
+      flushWork(folkId);
       const rec = folkTraits.usable() ? recordOf(folkId) : undefined;
       if (rec !== undefined) FT.resetProgress(rec, source);
     },
@@ -122,6 +157,7 @@ export function install(ctx, { state, FT, S, log }) {
       if (still < STILL_EVERY_MS) return;
       const ms = still;
       still = 0;
+      flushWork();
       const a = api();
       if (a === undefined || record() === undefined) return;
       for (const f of a.folks()) {
@@ -210,20 +246,19 @@ export function install(ctx, { state, FT, S, log }) {
         if (rec !== undefined) FT.lost(rec, id);
       });
       for (const name of ['folkFired', 'folkDied']) {
-        a.on(name, ({ folk }) => { const map = all(); if (map !== undefined && folk?.id !== undefined) delete map[folk.id]; });
+        a.on(name, ({ folk }) => { workDue.delete(folk?.id); const map = all(); if (map !== undefined && folk?.id !== undefined) delete map[folk.id]; });
       }
       // A Folk's place or travel changed: the "on one hex" counts (Homebody, Footsore's fade) start again.
       a.on('folkMoved', ({ folk }) => { if (folk?.id !== undefined) folkTraits.reset(folk.id, 'moved'); });
       // Work done (online and in the catch-up): its time on one hex, and near a market when there is one.
       a.on('folkActionDone', ({ folk, intervalMs }) => {
-        if (folk?.id === undefined || !(intervalMs > 0)) return;
-        folkTraits.report(folk.id, 'workOneHex', intervalMs);
-        if (nearMarket(hexOf(a.folkById(folk.id)))) folkTraits.report(folk.id, 'workNearMarket', intervalMs);
+        if (typeof folk?.id !== 'string' || !(intervalMs > 0)) return;
+        addWork(folk, intervalMs);
       });
       state.folkTraits = folkTraits;
       log(`travel traits: ${FT.TRAITS.length} registered with Worker Folks`);
     } catch (e) { console.error('[Voyage] travel traits failed to register', e); }
   });
-  ctx.onCharacterLoaded(() => { cleaned = false; });
+  ctx.onCharacterLoaded(() => { cleaned = false; workDue.clear(); marketKept.clear(); });
   return folkTraits;
 }

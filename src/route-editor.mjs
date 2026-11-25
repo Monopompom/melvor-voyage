@@ -44,7 +44,7 @@ export function install(ctx, { state, M, W, N, helpLayout, log }) {
     // A bank stop whose way on the places could never feed, even full (round 5): it would stand there for good.
     const food = id === undefined ? undefined : couriers().foodCheck?.(id, stops);
     if (food !== undefined) {
-      return t('MOD_VOY_ROUTE_FOOD_NEVER', { stop: couriers().stopName(stops[food.at]), amounts: state.stores?.amounts?.(food.short.food, food.short.fuel) ?? '' });
+      return t('MOD_VOY_ROUTE_FOOD_NEVER', { stop: couriers().stopName(stops[food.at]), amounts: state.stores?.shortAmounts?.(food.short.food, food.short.fuel) ?? '' });
     }
     return '';
   };

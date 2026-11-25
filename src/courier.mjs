@@ -307,10 +307,7 @@ export function install(ctx, { state, M, W, H, N, rules, log }) {
    */
   const foodWaitText = (x) => {
     const left = { food: Math.max(0, (x?.need?.food ?? 0) - (x?.have?.food ?? 0)), fuel: Math.max(0, (x?.need?.fuel ?? 0) - (x?.have?.fuel ?? 0)) };
-    // Only what is short: food alone reads "113 HP of food", not "…, 0 fuel" (seen in game, build .719).
-    const amounts = left.fuel <= 0 && left.food > 0 ? t('MOD_VOY_STORES_AMOUNT_FOOD', { food: state.stores.hp(left.food) })
-      : left.food <= 0 && left.fuel > 0 ? t('MOD_VOY_UNIT_FUEL', { n: state.stores.fuelText(left.fuel) })
-        : state.stores.amounts(left.food, left.fuel);
+    const amounts = state.stores.shortAmounts(left.food, left.fuel);
     let why = { place: false };
     try { if (x?.hex !== undefined) why = state.stores.roadShort(x.hex, x.need, x.have); } catch (e) { log('courier food wait not read', e); }
     if (why.place && why.ms === Infinity) return t('MOD_VOY_COURIER_NO_FOOD_NEVER', { amounts });

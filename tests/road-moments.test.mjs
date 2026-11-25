@@ -52,7 +52,7 @@ globalThis.getLangString = (k) => k;
 globalThis.templateLangString = (k, v) => `${k} ${JSON.stringify(v)}`;
 globalThis.numberWithCommas = (n) => `${n}`;
 
-function setup({ version = 13 } = {}) {
+function setup({ version = 13, provisions = true } = {}) {
   const hooks = [];
   const ctx = { onCharacterLoaded: (f) => hooks.push(f), onCharacterSelectionLoaded: (f) => hooks.push(f) };
   const defs = {};
@@ -60,7 +60,7 @@ function setup({ version = 13 } = {}) {
   const notes = [];
   let gp = 0;
   globalThis.game = { _isInOnlineLoop: true, gp: { add: (n) => { gp += n; } }, notifications: { createInfoNotification: (id, text) => notes.push(text) } };
-  const couriers = { c1: { stops: [{ kind: 'bank', q: 0, r: 0 }, { kind: 'folk', id: 'x' }], next: 1, from: { q: 0, r: 0 }, road: road(8), reached: 1, into: 0 } };
+  const couriers = { c1: { stops: [{ kind: 'bank', q: 0, r: 0 }, { kind: 'folk', id: 'x' }], next: 1, from: { q: 0, r: 0 }, road: road(8), reached: 1, into: 0, pack: { food: 1000, fuel: 4 } } };
   const walks = { w1: { from: { q: 0, r: 0 }, road: road(3), start: 0, skillId: null } };
   const api = {
     version,
@@ -71,6 +71,7 @@ function setup({ version = 13 } = {}) {
   const state = {
     folksApi: () => api,
     gameNow: () => 0,
+    stores: { enabled: () => provisions },
     couriers: { all: () => couriers, edit: (id, fn) => { couriers[id] = M.cleanCourier(fn(couriers[id])); return couriers[id] !== undefined; } },
     walks: { walks: () => walks, edit: (id, fn) => { walks[id] = W.cleanWalk(fn(walks[id], 0)); return walks[id] !== undefined; } },
   };
@@ -78,7 +79,7 @@ function setup({ version = 13 } = {}) {
   for (const h of hooks) h();
   const courier = { id: 'c1', name: 'Tobin', travel: 'walking', job: M.COURIER_JOB, hp: 40, maxHp: 100 };
   const walker = { id: 'w1', name: 'Mira', travel: 'walking', job: null, hp: 100, maxHp: 100 };
-  const answer = (name, id, view) => defs[`voyage:${name}`].answers.find((a) => a.id === id).apply(view, { offline: false, expired: false });
+  const answer = (name, id, view, expired = false) => defs[`voyage:${name}`].answers.find((a) => a.id === id).apply(view, { offline: false, expired });
   return { out, defs, healed, notes, gp: () => gp, couriers, walks, courier, walker, answer };
 }
 
@@ -118,7 +119,7 @@ test('answers change the courier\'s road from where it stands, heal through Work
   assert.match(s.notes.at(-1), /^MOD_VOY_MOMENT_Traveller_PAID/);
   const plain = JSON.stringify(s.couriers.c1);
   s.answer('ShortCut', 'road', s.courier);
-  assert.equal(JSON.stringify(s.couriers.c1), plain, 'keeping to the road changes nothing');
+  assert.equal(JSON.stringify(s.couriers.c1), plain, 'keeping to the road, picked, changes nothing');
   s.answer('ShortCut', 'take', s.courier);
   assert.match(s.notes.at(-1), /^MOD_VOY_MOMENT_ShortCut_(WON|LOST)/);
 });
@@ -129,4 +130,44 @@ test('an answer taken once the Folk is off the road does nothing: no GP, no heal
   s.answer('Farmhouse', 'stay', { ...s.courier, travel: 'idle' });
   assert.equal(s.gp(), 0);
   assert.deepEqual(s.healed, []);
+});
+
+test('left unanswered, a moment costs a little: an hour lost waiting, or some road food spoiled; picked, the cautious answer is free', () => {
+  const s = setup();
+  const pick = (name) => s.defs[`voyage:${name}`].defaultAnswer;
+  const before = W.roadMs(s.couriers.c1.road);
+  for (const name of ['ShortCut', 'Farmhouse', 'Traveller']) s.answer(name, pick(name), s.courier);
+  assert.equal(W.roadMs(s.couriers.c1.road), before, 'picked: free');
+  assert.deepEqual(s.couriers.c1.pack, { food: 1000, fuel: 4 });
+  s.answer('ShortCut', pick('ShortCut'), s.courier, true);
+  assert.equal(W.roadMs(s.couriers.c1.road) - before, RM.IGNORED_MS);
+  assert.match(s.notes.at(-1), /^MOD_VOY_MOMENT_IGNORED_WAIT/);
+  s.answer('Traveller', pick('Traveller'), s.walker, true);
+  assert.equal(W.roadMs(s.walks.w1.road), 3 * 360000 + RM.IGNORED_MS);
+  s.answer('Farmhouse', pick('Farmhouse'), s.courier, true);
+  assert.deepEqual(s.couriers.c1.pack, { food: 900, fuel: 4 }, 'a tenth of the food, the fuel kept');
+  assert.match(s.notes.at(-1), /^MOD_VOY_MOMENT_IGNORED_SPOIL/);
+  s.answer('Farmhouse', pick('Farmhouse'), s.walker, true);
+  assert.equal(s.walks.w1.hungry, RM.SPOIL_HEXES, 'a Folk walking alone: a hex more hungry');
+  for (const name of ['ShortCut', 'Farmhouse', 'Traveller']) assert.match(s.defs[`voyage:${name}`].answers.find((a) => a.id === pick(name)).hint(s.courier), /^MOD_VOY_MOMENT_HINT_(WAIT|SPOIL)/);
+  const n = s.notes.length;
+  s.couriers.c1 = { ...s.couriers.c1, pack: { food: 0, fuel: 4 } };
+  s.answer('Farmhouse', pick('Farmhouse'), s.courier, true);
+  assert.equal(s.notes.length, n, 'nothing packed: nothing spoils, no notice');
+  s.walks.w1 = { ...s.walks.w1, hungry: s.walks.w1.road.length };
+  s.answer('Farmhouse', pick('Farmhouse'), s.walker, true);
+  assert.equal(s.notes.length, n, 'already hungry to the end: no notice');
+  assert.equal(RM.spoil({ food: 5, fuel: 1 }).food, 4);
+  assert.equal(RM.spoil(undefined), undefined);
+});
+
+test('without Provisions, an unanswered farmhouse loses an hour instead; off the road, nothing', () => {
+  const s = setup({ provisions: false });
+  const before = W.roadMs(s.couriers.c1.road);
+  s.answer('Farmhouse', 'on', s.courier, true);
+  assert.equal(W.roadMs(s.couriers.c1.road) - before, RM.IGNORED_MS);
+  assert.match(s.defs['voyage:Farmhouse'].answers.find((a) => a.id === 'on').hint(s.courier), /^MOD_VOY_MOMENT_HINT_WAIT/);
+  const walk = JSON.stringify(s.walks.w1);
+  s.answer('ShortCut', 'road', { ...s.walker, travel: 'idle' }, true);
+  assert.equal(JSON.stringify(s.walks.w1), walk);
 });

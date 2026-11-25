@@ -923,7 +923,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
     }
     redraw();
   };
-  /** You beat the rival captain: his bounty to your GP, the Tricorn, and his thread ends. */
+  /** You beat the rival captain: his bounty to your GP, the Tricorn the first time, and he goes to refit (back later). */
   const rivalBeaten = (f, lines) => {
     const e = enc();
     const bounty = V.bountyOf(e.rival);
@@ -931,7 +931,8 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
     lines.push(k('MOD_VOY_RIVAL_RES_BOUNTY', {}, bounty));
     if (e.trophies.tricorn !== true) { e.trophies.tricorn = true; lines.push(k('MOD_VOY_RIVAL_RES_TRICORN')); }
     e.rival = V.ended(e.rival, 'won', gameNow(), E);
-    log(`encounters: the rival beaten, bounty ${bounty} GP`);
+    lines.push(k('MOD_VOY_RIVAL_RES_BACK', { n: `${V.RETURN_AFTER}` }));
+    log(`encounters: the rival beaten (${e.rival.wins}), bounty ${bounty} GP, back after ${V.RETURN_AFTER} sea bands`);
   };
 
   // ---- debts ---------------------------------------------------------------------------------------------------------
@@ -1217,12 +1218,12 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
   const rivalDev = (what, n) => {
     const e = enc();
     if (e === undefined) return 'no save';
-    if (what === 'out') e.rival = { ...e.rival, seaMet: Math.max(e.rival.seaMet, V.FIRST_AFTER), beaten: 0 };
+    if (what === 'out') e.rival = e.rival.beaten > 0 ? { ...e.rival, seaMet: e.rival.seaAt + V.RETURN_AFTER } : { ...e.rival, seaMet: Math.max(e.rival.seaMet, V.FIRST_AFTER) };
     else if (what === 'next') rivalNext = true;
     else if (what === 'cards') e.rival = { ...e.rival, cards: E.RIVAL_GAINS.slice(0, Math.max(0, Math.min(E.RIVAL_GAINS.length, n ?? 0))) };
     else if (what === 'reset') e.rival = V.cleanRival({}, E);
     redraw();
-    return { ...e.rival, out: V.isOut(e.rival), bounty: V.bountyOf(e.rival), deck: V.deckOf(e.rival, E), next: rivalNext };
+    return { ...e.rival, out: V.isOut(e.rival), backIn: V.backIn(e.rival), bounty: V.bountyOf(e.rival), deck: V.deckOf(e.rival, E), next: rivalNext };
   };
 
   // ---- practice fights: what a pick would face and cost, read from the real rules, nothing written ---------------------
@@ -1237,7 +1238,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
     text, line, levels, tilt, grade, has, sim, sample, E, R, L,
     debts, debtTotal, payOffWhy, payOff, debtName, isSea, raidsDue, raidIn, raidMark, raidLower, ageDebts, rival: () => enc()?.rival, rivalDev,
     /** The rival captain for the board and the Journal: his record, whether he sails, his bounty and deck; undefined without a save. */
-    rivalView: () => { const r = enc()?.rival; return r === undefined ? undefined : { ...r, out: V.isOut(r), bounty: V.bountyOf(r), deck: V.deckOf(r, E) }; }, awayNow, oweNow, kindsNow, buyWhy, buyCard, bankQty, deckNow, shortSupplies,
+    rivalView: () => { const r = enc()?.rival; return r === undefined ? undefined : { ...r, out: V.isOut(r), backIn: V.backIn(r), bounty: V.bountyOf(r), deck: V.deckOf(r, E) }; }, awayNow, oweNow, kindsNow, buyWhy, buyCard, bankQty, deckNow, shortSupplies,
     /** The offline summary's line: how many bands wait on your return ('' for none). */
     awayNote: () => { const n = enc()?.away?.length ?? 0; return n === 0 ? '' : t(n === 1 ? 'MOD_VOY_ENC_AWAY_NOTE_ONE' : 'MOD_VOY_ENC_AWAY_NOTE', { n: `${n}` }); },
     enc, fight, ui, placeOf, roll, rollFolk, rollCourier, moved, act, saleGp: lootGp,

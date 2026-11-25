@@ -18,6 +18,20 @@ export const INN_MS = 3600 * 1000;
 /** The lost traveller: walking them there costs this long and they pay this much. [BALANCE] */
 export const GUIDE_MS = 3600 * 1000;
 export const GUIDE_GP = 2500;
+/**
+ * Left unanswered (Worker Folks takes the cautious answer when a moment runs out), a moment costs a little: the short
+ * cut and the lost traveller an hour lost waiting; the farmhouse a share of a courier's packed food spoiled, or one more
+ * hex walked hungry by a Folk walking alone (an hour lost waiting with Provisions off). Never a load or a life. [BALANCE]
+ */
+export const IGNORED_MS = 3600 * 1000;
+export const SPOIL_SHARE = 0.1;
+export const SPOIL_HEXES = 1;
+/** A courier's pack `{ food, fuel }` with SPOIL_SHARE of its food spoiled (whole food, fuel kept). */
+export function spoil(pack) {
+  if (pack == null || !Number.isFinite(pack.food)) return pack;
+  return { ...pack, food: Math.max(0, Math.floor(pack.food * (1 - SPOIL_SHARE))) };
+}
+
 /** A hex never takes longer than this, whatever is added to it. */
 const HEX_MAX_MS = 24 * 3600 * 1000;
 

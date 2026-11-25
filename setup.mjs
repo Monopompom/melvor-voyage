@@ -20,7 +20,7 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-25.723';
+export const BUILD = '2026-11-25.728';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
 const DEV = true;
 
@@ -504,8 +504,16 @@ export async function setup(ctx) {
   state.herePanel = herePanel.install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, shortNumber, log });
   // The map's Places card (1.8.1): home, camps, ports and recent places under the Legend. A failure: no card.
   try { (await ctx.loadModule('src/places.mjs')).install(ctx, { state, PM: await ctx.loadModule('src/places-model.mjs'), terrainMod, log }); } catch (e) { console.error('[Voyage] places card failed to load', e); state.places = undefined; }
-  /** The Voyage skill object, or undefined when it did not register. */
-  const voyageSkill = () => { try { return voyageSkillOk ? game.skills.getObjectByID(model.SKILL_ID) : undefined; } catch { return undefined; } };
+  /**
+   * The Voyage skill object, or undefined when it did not register. Kept once found (build .728): the game registers
+   * its skills once at boot, and this is asked several times a tick, online and in the catch-up.
+   */
+  let voyageSkillObj;
+  const voyageSkill = () => {
+    if (voyageSkillObj !== undefined) return voyageSkillObj;
+    try { voyageSkillObj = voyageSkillOk ? game.skills.getObjectByID(model.SKILL_ID) : undefined; } catch { voyageSkillObj = undefined; }
+    return voyageSkillObj;
+  };
   state.voyageSkill = voyageSkill;
   unlocks.install(ctx, { state, log });
   // The ship keeps its state in the skill's save, so without the skill it stays inert and travel is vanilla.
