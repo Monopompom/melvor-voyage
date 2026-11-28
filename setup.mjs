@@ -20,9 +20,9 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-25.732';
+export const BUILD = '2026-11-28.743';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
-const DEV = false;
+const DEV = true;
 
 export async function setup(ctx) {
   const log = DEV ? (...args) => console.log('[Voyage]', ...args) : () => {};
@@ -692,8 +692,14 @@ export async function setup(ctx) {
   // Markets with prices (phase 4): sale prices by market, the bank's Sell line, the journal's ledger.
   try {
     const marketModel = await ctx.loadModule('src/market-model.mjs');
-    (await ctx.loadModule('src/market.mjs')).install(ctx, { state, MM: marketModel, rules, hexes: table.hexes, shortNumber, log });
+    (await ctx.loadModule('src/market.mjs')).install(ctx, { state, MM: marketModel, PM: await ctx.loadModule('src/market-pressure-model.mjs'), C: await ctx.loadModule('src/clock-model.mjs'), rules, hexes: table.hexes, shortNumber, log });
   } catch (e) { console.error('[Voyage] market prices failed to load; the rest runs', e); state.market = undefined; }
+  // Port happenings (round 6): shortages and festivals in the prices, on the boards, the Here panel and Places.
+  if (state.market !== undefined) {
+    try {
+      (await ctx.loadModule('src/happenings.mjs')).install(ctx, { state, H: await ctx.loadModule('src/happenings-model.mjs'), terrainMod, shortNumber, log });
+    } catch (e) { console.error('[Voyage] port happenings failed to load; markets keep their own prices', e); state.happenings = undefined; }
+  }
   // Cargo runs (phase 4): the harbour board, the runs and the sealed cargo in the hold.
   if (voyageSkillOk) {
     try {
@@ -721,6 +727,14 @@ export async function setup(ctx) {
         (await ctx.loadModule('src/start.mjs')).install(ctx, { state, SM: startModel, M: cargoModel, rules, shipModel, hexes: table.hexes, log });
       } catch (e) { console.error('[Voyage] Random start failed to load; the rest runs', e); state.startChoice = undefined; }
     } catch (e) { console.error('[Voyage] cargo runs failed to load; the rest runs', e); state.cargo = undefined; }
+  }
+  // Treasure maps (round 6): read from the bank, dug on the hex the clue names; the game clock runs the dig.
+  if (voyageSkillOk) {
+    try {
+      (await ctx.loadModule('src/treasure.mjs')).install(ctx, { state, T: await ctx.loadModule('src/treasure-model.mjs'), hexes: table.hexes, terrainMod, helpLayout, shortNumber, log });
+      const s = voyageSkill();
+      if (s !== undefined) s.digTick = () => state.treasure?.passiveTick?.();
+    } catch (e) { console.error('[Voyage] treasure maps failed to load; the rest runs', e); state.treasure = undefined; }
   }
   const markPage = () => { const s = voyageSkill(); if (s !== undefined) s.renderQueue.page = true; };
   state.listeners.push(markPage);

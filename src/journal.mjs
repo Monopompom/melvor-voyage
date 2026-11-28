@@ -1272,11 +1272,11 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
     const all = entries();
     resIdx = { all };
     if (view.entry === undefined || !all.some((e) => e.id === view.entry)) view.entry = all[0]?.id;
-    const picker = view.pick !== undefined ? pickerPage() : undefined;
+    const picker = view.pick !== undefined ? pickerPage() : view.maps !== undefined ? mapsPage() : undefined;
     if (picker === undefined && view.entry !== undefined) seen(`a:${view.entry}`);
     const left = runningHead(t('MOD_VOY_JOURNAL_TITLE'), t('MOD_VOY_JOURNAL_TAB_RESOURCES'))
       + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_RESOURCES_TITLE'))}</h2>`
-      + chartsBand() + readAll('a:')
+      + chartsBand() + mapsBand() + readAll('a:')
       + searchBox('vj-search', 'MOD_VOY_JOURNAL_SEARCH_LABEL', view.query)
       + `<div class="vj-results">${resultsHtml(resIdx)}</div>`;
     return { left, right: picker ?? entryPage(all.find((e) => e.id === view.entry)) };
@@ -1309,6 +1309,46 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
     return `<div class="vj-charts"><div class="vj-charts-head">${esc(t('MOD_VOY_JOURNAL_CHARTS_HEAD'))}</div><div class="vj-charts-list">`
       + sources.map((c) => `<span class="vj-chart-chip"><img src="${c.media}" alt=""><span>${esc(c.name)}</span><b>×${c.count}</b></span>`).join('')
       + `</div><button type="button" class="vj-btn" data-vj-pick="open">${esc(t('MOD_VOY_JOURNAL_CHART_BUTTON'))}</button></div>`;
+  };
+  // ---- treasure maps held (round 6, src/treasure.mjs) ----------------------------------------------------------------
+  const treasure = () => state.treasure;
+  /** "Maps held" under the charts, only while one is held. */
+  const mapsBand = () => {
+    const list = treasure()?.held?.() ?? [];
+    if (list.length === 0) return '';
+    return `<div class="vj-charts"><div class="vj-charts-head">${esc(t('MOD_VOY_JOURNAL_MAPS_HEAD'))}</div><div class="vj-charts-list">`
+      + list.map((m) => `<span class="vj-chart-chip"><img src="${esc(treasure().art(m.grade))}" alt=""><span>${(treasure().mapNameLines?.(m) ?? [treasure().mapName(m)]).map(esc).join('<br>')}</span><b>${esc(t('MOD_VOY_JOURNAL_MAPS_DUG_N', { n: `${m.dug.length}` }))}</b></span>`).join('')
+      + `</div><button type="button" class="vj-btn" data-vj-tmaps="open">${esc(t('MOD_VOY_JOURNAL_MAPS_BUTTON'))}</button></div>`;
+  };
+  /**
+   * The maps held on the right page: each one's clue in the journal's hand (never solved), the hexes dug for it, Show on
+   * map for those, and Throw away (asked once more).
+   */
+  const mapsPage = () => {
+    const list = treasure()?.held?.() ?? [];
+    if (list.length === 0) { view.maps = undefined; return undefined; }
+    let html = runningHead(t('MOD_VOY_JOURNAL_TAB_RESOURCES'), t('MOD_VOY_JOURNAL_MAPS_HEAD'))
+      + `<h2 class="vj-h1">${esc(t('MOD_VOY_JOURNAL_MAPS_HEAD'))}</h2><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_MAPS_INTRO'))}</p>`;
+    for (const m of list) {
+      const tr = treasure();
+      const dug = m.dug.map(([q, r]) => at(q, r)).join(getLangString('MOD_VOY_GATE_LIST_SEP'));
+      html += `<div class="vj-section"><h3 class="vj-h3"><img class="vj-h3-icon" src="${esc(tr.art(m.grade))}" alt="" width="20" height="20">${esc(tr.mapName(m))}</h3>`
+        + `<ul class="vj-points">${m.facts.map((x) => `<li>${esc(tr.factText(x))}</li>`).join('')}</ul>`
+        + (tr.isOld(m) ? `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_MAPS_OLD'))}</p>` : '')
+        + `<p class="vj-p">${esc(m.dug.length === 0 ? t('MOD_VOY_JOURNAL_MAPS_NONE_DUG', { n: `${tr.maxWrong}` }) : t('MOD_VOY_JOURNAL_MAPS_DUG', { hexes: dug, n: `${tr.maxWrong - m.dug.length}` }))}</p>`;
+      if (view.maps?.confirm === m.id) {
+        html += `<div class="vj-confirm"><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_MAPS_THROW_ASK', { name: tr.mapName(m) }))}</p>`
+          + `<div class="vj-confirm-buttons"><button type="button" class="vj-btn" data-vj-tmap-no="1">${esc(t('MOD_VOY_JOURNAL_PICK_CANCEL'))}</button>`
+          + `<button type="button" class="vj-btn vj-btn-go" data-vj-tmap-yes="${esc(m.id)}">${esc(t('MOD_VOY_JOURNAL_MAPS_THROW'))}</button></div></div>`;
+      } else {
+        html += '<div class="vj-foot vj-foot-end">'
+          + (m.dug.length > 0 ? `<button type="button" class="vj-btn" data-vj-tmap-show="${esc(m.id)}">${esc(t('MOD_VOY_JOURNAL_SHOW_ON_MAP'))}</button>` : '')
+          + `<button type="button" class="vj-btn" data-vj-tmap-throw="${esc(m.id)}">${esc(t('MOD_VOY_JOURNAL_MAPS_THROW'))}</button></div>`;
+      }
+      html += '</div>';
+    }
+    // Nothing to cancel on a list: the foot leads back to the page it was opened from.
+    return html + `<div class="vj-foot vj-foot-end"><button type="button" class="vj-btn" data-vj-tmap-close="1">${esc(t('MOD_VOY_JOURNAL_ONE_BACK', { tab: t('MOD_VOY_JOURNAL_TAB_RESOURCES') }))}</button></div>`;
   };
   /** The picker on the right page: what to use, (for a free chart) which craft, then what to chart, then confirm. */
   const pickerPage = () => {
@@ -1638,17 +1678,31 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
       + (rows.length === 0 ? `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_ISLAND_NOTHING'))}</p>`
         : `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_ISLAND_KNOWS'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_COL_PLACE'), t('MOD_VOY_JOURNAL_COL_KIND')], rows));
   };
+  /** A price as it stands: the list's percent, struck with today's beside it while the market is pressed (round 6). */
+  const pctNow = (x) => (x.now === x.percent ? esc(`${x.percent}%`) : `<s>${esc(`${x.percent}%`)}</s> ${esc(`${x.now}%`)}`);
   /** A market's prices on its place page (phase 4): what it pays well and little for. */
   const marketPrices = (p) => {
     const m = state.market?.enabled?.() ? state.market.marketAt(p.q, p.r) : undefined;
     if (m === undefined) return '';
     // Each price on a scale around the usual 100%: right of the middle it pays more, left of it less.
     const list = state.market.listOf(m);
-    const reach = Math.max(1, ...list.map((x) => Math.abs(x.percent - 100)));
-    const rows = list.map((x) => [x.name, { html: figures.pivotCell(esc(`${x.percent}%`), x.percent, 100, reach, true), cls: `vj-figcell ${x.percent > 100 ? 'vj-dear' : 'vj-cheap'}` }]);
+    const reach = Math.max(1, ...list.map((x) => Math.max(Math.abs(x.percent - 100), Math.abs(x.now - 100))));
+    // A pressed price (round 6): the list's struck, today's beside it, on the scale where it stands today.
+    const rows = list.map((x) => [x.name, { html: figures.pivotCell(pctNow(x), x.now, 100, reach, true), cls: `vj-figcell ${x.now > 100 ? 'vj-dear' : x.now < 100 ? 'vj-cheap' : ''}` }]);
     rows.numeric = [false, false];
-    return `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_MARKET_PAYS'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_COL_GOODS'), t('MOD_VOY_JOURNAL_COL_PRICE')], rows)
-      + `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_MARKET_REST'))}</p>`;
+    // Processed rows too: selling bars presses the ore market, and the bars' own row says so (one name each).
+    const pressed = list.filter((x, i) => x.now < x.percent && list.findIndex((y) => y.name === x.name) === i);
+    const back = Math.max(0, ...pressed.map((x) => x.back));
+    const time = pressed.length > 0 ? state.market.duration?.(back) : undefined;
+    const glut = pressed.length === 0 ? '' : `<p class="vj-p">${esc(t(time === undefined ? 'MOD_VOY_JOURNAL_MARKET_GLUT_NOW' : 'MOD_VOY_JOURNAL_MARKET_GLUT', { goods: pressed.map((x) => x.name).join(getLangString('MOD_VOY_GATE_LIST_SEP')), time: time ?? '' }))}</p>`;
+    // What is on there now (round 6): a shortage or festival heard of, a blockade on its sea.
+    let heardHere = '';
+    try {
+      const words = state.happenings?.markAt?.(p.q, p.r);
+      if (words) heardHere = `<h3 class="vj-h3">${fa('fa-bullhorn', 'vj-h3-icon')}${esc(t('MOD_VOY_JOURNAL_MARKET_ON'))}</h3>` + words.split('\n').map((w) => `<p class="vj-p">${esc(w)}</p>`).join('');
+    } catch (e) { log('journal market happening failed', e); }
+    return heardHere + `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_MARKET_PAYS'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_COL_GOODS'), t('MOD_VOY_JOURNAL_COL_PRICE')], rows)
+      + glut + `<p class="vj-p vj-faint">${esc(t('MOD_VOY_JOURNAL_MARKET_REST'))}</p>`;
   };
   /**
    * The Pilotage page (4.36): how a level is earned and what each one gives, then every sea and land travelled, its
@@ -1723,7 +1777,7 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
   const marketsLedger = () => {
     const known = state.market.known().sort((a, b) => (state.market.name(a.id) < state.market.name(b.id) ? -1 : 1));
     const list = (m, dear) => state.market.listOf(m).filter((x) => !x.done && (dear ? x.percent > 100 : x.percent < 100))
-      .map((x) => `<span class="${dear ? 'vj-dear' : 'vj-cheap'}">${esc(x.name)} ${x.percent}%</span>`).join(getLangString('MOD_VOY_GATE_LIST_SEP')) || '–';
+      .map((x) => `<span class="${dear ? 'vj-dear' : 'vj-cheap'}">${esc(x.name)} ${pctNow(x)}</span>`).join(getLangString('MOD_VOY_GATE_LIST_SEP')) || '–';
     const rows = known.map((m) => [{ text: state.market.name(m.id), cls: 'vj-strong' }, { html: list(m, true) }, { html: list(m, false) }]);
     const left = state.market.total() - known.length;
     return runningHead(t('MOD_VOY_JOURNAL_TAB_PLACES'), t('MOD_VOY_JOURNAL_PLACES_TRADE'))
@@ -1970,7 +2024,7 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
       const clear = el.closest('[data-vj-clear]');
       if (clear !== null) { const s = root.querySelector(`#${clear.dataset.vjClear}`); if (s !== null) { s.value = ''; searched(s); s.focus(); } return; }
       const tab = el.closest('[data-vj-tab]');
-      if (tab !== null) { view.tab = tab.dataset.vjTab; view.back = null; view.pick = undefined; view.side = 'left'; render(); return; }
+      if (tab !== null) { view.tab = tab.dataset.vjTab; view.back = null; view.pick = undefined; view.maps = undefined; view.side = 'left'; render(); return; }
       if (el.closest('[data-vj-side]')) { showPage('.vj-left'); const sp = root.querySelector('.vj-spread'); if (sp && view.listAt > 0) sp.scrollTop = view.listAt; return; }
       // The Manifest (build .179): its button opens the first spread, a Crew row opens that chapter's spread.
       if (el.closest('[data-vj-manifest]')) { view.tab = 'how'; view.spread = 0; view.back = null; render(); showPage('.vj-right'); return; }
@@ -1994,12 +2048,26 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
         view[field] += dir; render(); return;
       }
       const entry = el.closest('[data-vj-entry]');
-      if (entry !== null) { view.entry = entry.dataset.vjEntry; view.pick = undefined; render(false, true); showPage('.vj-right', false); return; }
+      if (entry !== null) { view.entry = entry.dataset.vjEntry; view.pick = undefined; view.maps = undefined; render(false, true); showPage('.vj-right', false); return; }
       const pl = el.closest('[data-vj-place]');
       if (pl !== null) { view.place = pl.dataset.vjPlace; render(false, true); showPage('.vj-right', false); return; }
       const guide = el.closest('[data-vj-guide]');
       if (guide !== null) { view.guide = guide.dataset.vjGuide; view.back = null; render(false, true); showPage('.vj-right', false); return; }
-      if (el.closest('[data-vj-pick="open"]')) { view.pick = {}; render(); showPage('.vj-right'); return; }
+      if (el.closest('[data-vj-pick="open"]')) { view.pick = {}; view.maps = undefined; render(); showPage('.vj-right'); return; }
+      // Treasure maps held (round 6).
+      if (el.closest('[data-vj-tmaps="open"]')) { view.maps = {}; view.pick = undefined; render(); showPage('.vj-right'); return; }
+      if (el.closest('[data-vj-tmap-close]')) { view.maps = undefined; render(); return; }
+      const tThrow = el.closest('[data-vj-tmap-throw]');
+      if (tThrow !== null) { view.maps = { confirm: tThrow.dataset.vjTmapThrow }; render(); root.querySelector('[data-vj-tmap-yes]')?.focus(); return; }
+      if (el.closest('[data-vj-tmap-no]')) { view.maps = {}; render(); return; }
+      const tYes = el.closest('[data-vj-tmap-yes]');
+      if (tYes !== null) { state.treasure?.throwAway?.(tYes.dataset.vjTmapYes); view.maps = {}; render(); return; }
+      const tShow = el.closest('[data-vj-tmap-show]');
+      if (tShow !== null) {
+        const m = state.treasure?.mapById?.(tShow.dataset.vjTmapShow);
+        if (m !== undefined) showHexes(m.dug.map(([q, r]) => ({ q, r })), state.treasure.mapName(m));
+        return;
+      }
       const src = el.closest('[data-vj-pick-source]');
       if (src !== null) { view.pick = { source: src.dataset.vjPickSource }; render(); return; }
       const psk = el.closest('[data-vj-pick-skill]');

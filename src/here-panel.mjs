@@ -328,11 +328,21 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
   };
   /** Trade status on its own line under the terrain line; empty while trade is not gated. */
   const tradeLine = (status) => {
-    if (!state.active() || !state.settings.trade()) return '';
+    if (!state.active()) return '';
+    // A shortage or a festival at the market here (round 6), after the bank's link.
+    let on = '';
+    try { on = state.happenings?.hereWords?.() ?? ''; } catch {}
+    // With the Trade rule off the row only comes for a shortage or festival here: selling is open everywhere,
+    // but where it pays more is still news (.742).
+    const gated = state.settings.trade();
+    if (!gated && on === '') return '';
     // "Trade: OK" / "Trade: not here", laid out like the "Combat:" and "Works:" rows (label muted, same size as the value).
     const label = `<span class="voyage-here-label">${esc(getLangString('MOD_VOY_PANEL_TRADE_LABEL'))}</span> `;
     // "OK" opens the bank, where the selling is (build .267).
-    if (!state.tradeLocked?.()) return `<div class="voyage-here-place">${label}<button type="button" class="voyage-here-link voyage-bank-link text-success" title="${esc(getLangString('MOD_VOY_PANEL_TRADE_OK_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_TRADE_OK'))}</button></div>`;
+    if (!gated || !state.tradeLocked?.()) {
+      const hap = on === '' ? '' : ` <span class="text-success">· ${esc(on)}</span>`;
+      return `<div class="voyage-here-place">${label}<button type="button" class="voyage-here-link voyage-bank-link text-success" title="${esc(getLangString('MOD_VOY_PANEL_TRADE_OK_HINT'))}">${esc(getLangString('MOD_VOY_PANEL_TRADE_OK'))}</button>${hap}</div>`;
+    }
     const trader = status === 'here' ? ` <span class="text-warning" title="${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE_HINT'))}">· ${esc(getLangString('MOD_VOY_PANEL_TRADER_HERE'))}</span>` : '';
     // With a trader here the row says so, not "not here" beside "is here" (.308, scan B-36).
     // The tooltip sits on the value it explains, as Open bank's does, so its arrow points at "Not here", not at the
@@ -617,7 +627,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
     return parts.join(' · ');
   };
   const placeBox = (status, pos) => {
-    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + folksLine(pos) + (state.cairns?.panelHtml?.() ?? '') + (state.haul?.panelHtml?.() ?? '') + signLine() + homeLine() + pilotLine(pos) + (state.outposts?.panelHtml?.() ?? '');
+    let blockade = '';
+    try { blockade = state.happenings?.panelHtml?.() ?? ''; } catch {}
+    const inner = tradeLine(status) + debtLine() + harbourLine() + fightLine() + blockade + folksLine(pos) + (state.cairns?.panelHtml?.() ?? '') + (state.treasure?.panelHtml?.() ?? '') + (state.haul?.panelHtml?.() ?? '') + signLine() + homeLine() + pilotLine(pos) + (state.outposts?.panelHtml?.() ?? '');
     if (inner === '') return '';
     const toggle = `<button type="button" class="voyage-legend-toggle voyage-place-toggle" aria-expanded="${placeOpen}">` +
       `<i class="fa fa-caret-${placeOpen ? 'down' : 'right'} mr-1"></i>${esc(getLangString('MOD_VOY_PANEL_PLACE_TITLE'))}</button>`;
@@ -1148,6 +1160,9 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
       // A cairn (round 5): Collect, or its guard's fight.
       const cairnBtn = e.target instanceof Element ? e.target.closest('.voyage-cairn-btn') : null;
       if (cairnBtn !== null) { e.preventDefault(); state.cairns?.click(cairnBtn); render(); return; }
+      // Dig here and its Stop (round 6, src/treasure.mjs).
+      const digBtn = e.target instanceof Element ? e.target.closest('.voyage-dig-btn') : null;
+      if (digBtn !== null) { e.preventDefault(); state.treasure?.click(digBtn, render); render(); return; }
       // The haul: Restock a Folk's room.
       const haulBtn = e.target instanceof Element ? e.target.closest('.voyage-haul-btn') : null;
       if (haulBtn !== null) { e.preventDefault(); state.haul?.click(haulBtn); return; }

@@ -72,6 +72,8 @@ body:not(.darkMode) .bg-voyage { background-color: #6fa8c8 !important; }
    responsive sizing (user feedback, build .69). The min/max widths above only apply to the bottom-left fallback. */
 #voyage-here.voyage-here-top { position: absolute; top: 100%; left: 0; right: 0; z-index: 4; min-width: 0; max-width: none; margin-top: 6px; text-align: left; } /* over the map's buttons; the Legend and Places cards (5) and the route editor (5) open over it */
 /* The map's zoom and centre buttons, moved to the right edge under the top bar (here-panel.mjs moveMapControls). */
+/* A map's clue: bullets beside their words, the list centred as a block in a centred popup (.742). */
+.voyage-map-clue { display: inline-block; text-align: left; padding-left: 1.25rem; }
 .voyage-map-controls { position: absolute; right: 0; top: 62px; display: flex; flex-direction: column; align-items: flex-end; }
 /* Day or night, centred on top of the ship and stores band. */
 .voyage-here-ship.voyage-here-time { justify-content: center; }
@@ -975,6 +977,8 @@ body #voyage-journal .vj-page .text-muted { color: var(--vj-faint) !important; }
 .vj-chart-chip { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 16px; }
 .vj-chart-chip img { width: 26px; height: 26px; object-fit: contain; }
 .vj-charts .vj-btn { align-self: flex-start; }
+/* Maps held (round 6) sit under Charts to use: the two bands apart. */
+.vj-charts + .vj-charts { margin-top: 10px; }
 .vj-confirm { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; padding: 10px 12px; border-left: 3px solid #2f6b2f; background: rgba(47, 107, 47, .08); }
 .vj-confirm-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; } /* a pair, right-aligned (.209) */
 .vj-btn.vj-btn-go { background: #2f6b2f; border-color: #2f6b2f; color: #fff; }

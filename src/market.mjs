@@ -2,6 +2,9 @@
 // under the bank's Sell block (this market's rate, the best and the worst you know), and the price lists the journal
 // shows. The lists are pure (market-model.mjs); a market's list is known once the journal has noted the place (you
 // stood within a hex of it, or traded there). The Here panel shows no prices (the user: the panel is too busy).
+// Market pressure (round 6, market-pressure-model.mjs): what you sell at a market presses its price for that kind of
+// goods, and the price comes back over a game day. Port happenings (round 6, src/happenings.mjs) change it further: a
+// shortage pays its own percent for what it still wants, a festival pays more for its goods and takes more of them.
 
 /** Where each skill's goods go: [category, processed]. */
 const SKILL_CATEGORY = {
@@ -21,7 +24,7 @@ const DUSTS = ['melvorF:Stardust', 'melvorF:Golden_Stardust'];
 /** How long the sale prices' shared context (the market here, a Haggler, the trader, an outpost's Merchant) is kept. */
 const SALE_CTX_MS = 500;
 
-export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
+export function install(ctx, { state, MM, PM, C, rules, hexes, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -104,10 +107,82 @@ export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
   };
   const marketAt = (q, r) => byId.get(hexMarket.get(`${q},${r}`));
 
+  // ---- market pressure (round 6) --------------------------------------------------------------------------------
+  // Each market keeps a pressure for each kind of goods (the categories and an "other goods" bucket), kept in the save
+  // as the share of its depth still pressed. Only goods sold for GP press, never Voyage's own goods (they sell at
+  // their usual price everywhere).
+  const gameNow = () => { try { return state.gameNow?.() ?? Date.now(); } catch { return Date.now(); } };
+  const level = () => { try { return state.voyageSkill?.()?.level ?? 1; } catch { return 1; } };
+  const hexAt = new Map(hexes.map((h) => [`${h.q},${h.r}`, h]));
+  /** A market's size: the Capital City, a city, a farm, a port, else a market POI. */
+  const sizes = new Map();
+  const sizeOf = (m) => {
+    if (!sizes.has(m.id)) {
+      const f = hexAt.get(`${m.q},${m.r}`)?.f ?? [];
+      sizes.set(m.id, PM.sizeOf({ capital: m.id === 'CapitalCity' || f.includes('capital'), city: f.includes('city'), farm: MM.FARMS.includes(m.id), port: m.port === true }));
+    }
+    return sizes.get(m.id);
+  };
+  const depth = (m) => PM.depthOf(sizeOf(m), level());
+  /** The depth a sale of an item presses against: a festival takes more of its goods before the price falls. */
+  const depthFor = (m, item) => { let f = 1; try { f = state.happenings?.depthFactor?.(m, item) ?? 1; } catch {} return depth(m) * f; };
+  const pressable = (item) => item !== undefined && item.namespace !== 'voyage' && item.sellsFor?.currency === game.gp && item.sellsFor.quantity > 0;
+  const kindOf = (item) => PM.kindOf(categoryOf(item)?.[0]);
+  let cleanedFor;
+  /** The save's pressure entries, checked once per record. */
+  const entries = () => {
+    const rec = state.voyageSkill?.()?.record;
+    if (rec === undefined) return undefined;
+    if (cleanedFor !== rec) { rec.market = PM.cleanPressure(rec.market); cleanedFor = rec; }
+    return rec.market.p;
+  };
+  const entryOf = (m, kind) => entries()?.[PM.keyOf(m.id, kind)];
+  /** The multiplier a market pays for a kind now (1: not pressed). */
+  const pressNow = (m, kind) => (m === undefined ? 1 : PM.pressAt(entryOf(m, kind), gameNow()));
+  /** Game ms until a kind is back at its list price at a market (0: it is). */
+  const backIn = (m, kind) => (m === undefined ? 0 : PM.msUntilFull(entryOf(m, kind), gameNow()));
+  /** The multiplier a sale of `qty` of an item fetches: the average of the pressure it makes as it sells. */
+  const saleMultiplier = (m, item, qty) => {
+    if (m === undefined || !pressable(item)) return 1;
+    const share = PM.shareAt(entryOf(m, kindOf(item)), gameNow());
+    return PM.averagePress(share, item.sellsFor.quantity * Math.max(1, qty || 1), depthFor(m, item));
+  };
+  /** A duration in the game clock's words ("9h 5m"), or undefined while the clock is not loaded. */
+  const duration = (ms) => { try { const d = C.durationText(ms, numberWithCommas); return t(d.key, d.vars); } catch { return undefined; } };
+  /** A sale of `n` items went through at the market in reach (the bank's, or the hold's from hold.mjs). */
+  const noteSale = (item, n) => {
+    try {
+      if (!enabled() || !pressable(item) || !(n > 0)) return;
+      const m = saleContext().market;
+      const p = m === undefined ? undefined : entries();
+      if (p === undefined) return;
+      const now = gameNow();
+      const key = PM.keyOf(m.id, kindOf(item));
+      // A shortage takes what it still wants first; only the rest presses the market.
+      let value = item.sellsFor.quantity * n;
+      try { value = state.happenings?.sold?.(m, item, value) ?? value; } catch (e) { log('shortage fill failed', e); }
+      if (value > 0) p[key] = PM.sold(p[key], value, depthFor(m, item), now);
+      if (Object.keys(p).length > PM.ENTRIES_MAX / 2) state.voyageSkill().record.market.p = PM.pruned(p, now);
+      redrawSellSoon(true);
+    } catch (e) { log('market pressure note failed', e); }
+  };
+
   /** The percent this market pays for an item; 100 when it has no say. */
   const percent = (m, item) => {
     const c = categoryOf(item);
     return m === undefined || c === undefined ? 100 : MM.percentFor(m.prices, c[0], c[1]);
+  };
+  /**
+   * What a sale of `qty` of an item fetches at a market now: { p: the list's percent, press: the pressure's multiplier,
+   * pct: the percent of the usual price it all comes to, hap: the happening that changed it (a shortage, a festival) }.
+   */
+  const salePct = (m, item, qty = 1) => {
+    const p = percent(m, item);
+    if (m === undefined) return { p, press: 1, pct: p, hap: undefined };
+    const press = saleMultiplier(m, item, qty);
+    let hap;
+    try { hap = state.happenings?.adjust?.(m, item, qty, p * press); } catch {}
+    return { p, press, pct: hap?.pct ?? p * press, hap };
   };
 
   // ---- the sale price -------------------------------------------------------------------------------------------
@@ -133,14 +208,21 @@ export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
     };
     return saleCtx;
   };
-  ctx.patch(Bank, 'getItemSalePrice').after((price, item) => {
+  ctx.patch(Bank, 'getItemSalePrice').after((price, item, quantity = 1) => {
     try {
       if (!Number.isFinite(price)) return undefined;
       const c = saleContext();
       let out = price;
       if (enabled()) {
-        const p = percent(c.market, item);
-        const atMarket = p === 100 ? out : MM.marketPrice(out, p);
+        // The market's percent, its pressure and a happening there, before a Haggler (round 6). `price` is the whole
+        // sale's, so a big stack pays the average of the pressure it makes and of what a shortage still wants.
+        const s = salePct(c.market, item, quantity);
+        let atMarket;
+        if (s.hap !== undefined) atMarket = Math.floor((out * s.pct) / 100);
+        else {
+          atMarket = s.p === 100 ? out : MM.marketPrice(out, s.p);
+          if (s.press < 1) atMarket = Math.floor(atMarket * s.press);
+        }
         out = c.haggle === undefined ? atMarket : Math.floor((atMarket * (100 + c.haggle.pct)) / 100);
       }
       if (c.trader) out = Math.floor(out * (state.trader.HALF ?? 0.5));
@@ -164,12 +246,23 @@ export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
       game.notifications.createInfoNotification('voyage:nothing', t('MOD_VOY_MARKET_NOTHING', { what }), item.media, 0);
     } catch (e) { log('sold for nothing notice failed', e); }
   };
+  /** The item a bank sale is selling and how many the bank held before it, so the sale's count presses the market. */
+  let selling;
   ctx.patch(Bank, 'processItemSale').before(function (item, quantity) {
+    selling = undefined;
     try {
       const have = this.items.get(item)?.quantity ?? 0;
+      selling = { item, have };
       const n = Math.min(have, quantity);
       if (n > 0 && item.sellsFor?.currency === game.gp && item.sellsFor.quantity > 0 && this.getItemSalePrice(item, n) === 0) soldForNothing(item, n);
     } catch (e) { log('sale check failed', e); }
+    return undefined;
+  });
+  ctx.patch(Bank, 'processItemSale').after(function (_r, item) {
+    try {
+      if (selling !== undefined && selling.item === item) noteSale(item, selling.have - (this.items.get(item)?.quantity ?? 0));
+    } catch (e) { log('sale pressure failed', e); }
+    selling = undefined;
     return undefined;
   });
 
@@ -185,8 +278,11 @@ export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
     bones: ['MOD_VOY_MARKET_CAT_BONES'],
     stardust: ['MOD_VOY_MARKET_CAT_STARDUST'],
     ash: ['MOD_VOY_MARKET_CAT_ASH'],
+    other: ['MOD_VOY_MARKET_CAT_OTHER'],
   };
   const catName = (c, done) => t(CAT_KEYS[c][done && CAT_KEYS[c].length > 1 ? 1 : 0]);
+  /** A pressed share as the percent it takes off ("−18%"), amber while the price is below 90% of the list's. */
+  const glutHtml = (press) => `<span class="${press < 0.9 ? 'text-warning' : ''} font-w600">\u2212${Math.max(1, Math.round((1 - press) * 100))}%</span>`;
   /** Low, usual, high: amber below the usual price, plain at it, green above (a percent and the price it gives). */
   const tone = (p) => (p > 100 ? 'text-success' : p < 100 ? 'text-warning' : '');
   const pctHtml = (p) => `<span class="${tone(p)} font-w600">${p}%</span>`;
@@ -201,7 +297,9 @@ export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
       const item = bankItem?.item;
       const c = categoryOf(item);
       const anchor = this.sellItemButton?.parentElement;
-      if (!enabled() || c === undefined || anchor == null || item.sellsFor?.currency !== game.gp) { line?.classList.add('d-none'); return; }
+      const m0 = enabled() ? here() : undefined;
+      const pressed = m0 !== undefined && pressable(item) ? pressNow(m0, kindOf(item)) : 1;
+      if (!enabled() || (c === undefined && pressed >= 1) || anchor == null || item.sellsFor?.currency !== game.gp) { line?.classList.add('d-none'); return; }
       if (line === null) {
         line = document.createElement('div');
         line.className = 'col-12 voyage-market-line voyage-ui';
@@ -209,13 +307,26 @@ export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
       if (line.nextElementSibling !== anchor) anchor.before(line);
       const m = here();
       const parts = [];
-      const goods = catName(c[0], c[1]);
+      const goods = c === undefined ? catName('other', false) : catName(c[0], c[1]);
+      // Mid-sentence the kind is lower case in English and French; German nouns keep their capital, Chinese has none (.742).
+      const lowGoods = (s) => (typeof setLang === 'string' && setLang === 'de' ? s : s.toLowerCase());
       if (m !== undefined) {
         const p = percent(m, item);
-        const each = MM.eachPrice(item.sellsFor.quantity, p);
-        parts.push(`<div>${t(p === 100 ? 'MOD_VOY_MARKET_HERE_USUAL' : p > 100 ? 'MOD_VOY_MARKET_HERE_DEAR' : 'MOD_VOY_MARKET_HERE_CHEAP', { pct: pctHtml(p), market: `<b>${esc(name(m.id))}</b>`, goods: esc(goods.toLowerCase()) })}</div>`);
+        const press = pressable(item) ? pressNow(m, kindOf(item)) : 1;
+        const s = salePct(m, item, 1);
+        const pNow = s.hap === undefined ? p * press : s.pct;
+        const each = pNow === p ? MM.eachPrice(item.sellsFor.quantity, p) : Math.round(item.sellsFor.quantity * pNow) / 100;
+        if (c !== undefined) parts.push(`<div>${t(p === 100 ? 'MOD_VOY_MARKET_HERE_USUAL' : p > 100 ? 'MOD_VOY_MARKET_HERE_DEAR' : 'MOD_VOY_MARKET_HERE_CHEAP', { pct: pctHtml(p), market: `<b>${esc(name(m.id))}</b>`, goods: esc(lowGoods(goods)) })}</div>`);
+        // A shortage or a festival here (round 6).
+        try { for (const l of state.happenings?.sellLines?.(m, item) ?? []) parts.push(`<div>${l}</div>`); } catch (e) { log('happening sell lines failed', e); }
+        // Pressed (round 6): what it takes off, for which goods, and when the full price is back.
+        if (press < 1) {
+          const time = duration(backIn(m, kindOf(item)));
+          parts.push(`<div>${t(time === undefined ? 'MOD_VOY_MARKET_GLUT_NOW' : 'MOD_VOY_MARKET_GLUT', { pct: glutHtml(press), market: `<b>${esc(name(m.id))}</b>`, goods: esc(lowGoods(goods)), time: `<span class="voyage-time">${esc(time ?? '')}</span>` })}</div>`);
+        }
         // The price here coloured as its percent; the usual price plain, the one it is weighed against.
-        if (p !== 100) parts.push(`<div>${esc(t('MOD_VOY_MARKET_EACH', { gp: '\u0000', was: '\u0001' })).replace('\u0000', gpHtml(each, tone(p))).replace('\u0001', gpHtml(item.sellsFor.quantity))}</div>`);
+        const toneNow = tone(Math.round(pNow));
+        if (p !== 100 || press < 1 || s.hap !== undefined) parts.push(`<div>${esc(t('MOD_VOY_MARKET_EACH', { gp: '\u0000', was: '\u0001' })).replace('\u0000', gpHtml(each, toneNow)).replace('\u0001', gpHtml(item.sellsFor.quantity))}</div>`);
       }
       // At the wandering trader the bank says why the price is half (.308, scan B-65).
       try { if (m === undefined && state.trader?.present?.() === true) parts.push(`<div>${esc(t('MOD_VOY_MARKET_TRADER'))}</div>`); } catch {}
@@ -226,7 +337,7 @@ export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
         const h = m === undefined ? undefined : state.folkTraits?.haggle?.();
         if (h !== undefined) parts.push(`<div>${t('MOD_VOY_MARKET_HAGGLER', { name: `<b>${esc(h.folk.name)}</b>`, pct: `<span class="text-success font-w600">+${h.pct}%</span>` })}</div>`);
       } catch {}
-      const bw = MM.bestAndWorst(known(), c[0], c[1]);
+      const bw = c === undefined ? undefined : MM.bestAndWorst(known(), c[0], c[1], (km, pct) => Math.round(pct * pressNow(km, c[0])));
       if (bw !== undefined) {
         parts.push(`<div>${t('MOD_VOY_MARKET_BEST', { market: `<b>${esc(name(bw.best.id))}</b>`, pct: pctHtml(bw.best.percent) })}</div>`);
         if (bw.worst.id !== bw.best.id) parts.push(`<div>${t('MOD_VOY_MARKET_WORST', { market: `<b>${esc(name(bw.worst.id))}</b>`, pct: pctHtml(bw.worst.percent) })}</div>`);
@@ -237,12 +348,20 @@ export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
   });
   // The game draws the Sell block (its price, the total, our line) only when an item is picked: after a move to
   // another market's reach, draw the picked item again so the bank shows what a sale will now pay.
-  const redrawSell = () => {
+  const redrawSell = (force = false) => {
     try {
       const picked = game.bank.selectedBankItem;
-      if (picked === undefined || shownAt === undefined || (here()?.id ?? '') === shownAt || typeof bankSideBarMenu === 'undefined') return;
+      if (picked === undefined || shownAt === undefined || (!force && (here()?.id ?? '') === shownAt) || typeof bankSideBarMenu === 'undefined') return;
+      if (force && (game.bank.items.get(picked.item)?.quantity ?? 0) <= 0) return;
       bankSideBarMenu.selectedMenu.setItem(picked, game.bank);
     } catch (e) { log('market sell redraw failed', e); }
+  };
+  /** After a sale the picked item's line shows the new pressure (one redraw per burst of sales). */
+  let pressQueued = false;
+  const redrawSellSoon = () => {
+    if (pressQueued) return;
+    pressQueued = true;
+    setTimeout(() => { pressQueued = false; redrawSell(true); }, 0);
   };
   // One deferred redraw per burst of moves (build .401): a catch-up replays a voyage hex by hex inside one run of ticks.
   let sellQueued = false;
@@ -257,16 +376,32 @@ export function install(ctx, { state, MM, rules, hexes, shortNumber, log }) {
 
   // ---- the journal --------------------------------------------------------------------------------------------------
   /** A market's list for the journal, dearest first: [{ cat, done, percent }] including the worked goods. */
+  // Each row's `now` is its percent as it stands (market pressure, round 6) and `back` the game ms until it is the list's
+  // again; a kind the list leaves at 100% shows only while it is pressed (`pressedOnly`).
   const listOf = (m) => {
     const rows = [];
+    const row = (c, done, p) => {
+      const press = pressNow(m, c);
+      rows.push({ cat: c, done, percent: p, now: Math.round(p * press), back: press < 1 ? backIn(m, c) : 0, name: catName(c, done) });
+    };
     for (const [c, p] of Object.entries(m.prices)) {
-      rows.push({ cat: c, done: false, percent: p, name: catName(c, false) });
-      if (MM.PROCESSED.includes(c)) rows.push({ cat: c, done: true, percent: MM.percentFor(m.prices, c, true), name: catName(c, true) });
+      row(c, false, p);
+      if (MM.PROCESSED.includes(c)) row(c, true, MM.percentFor(m.prices, c, true));
+    }
+    for (const c of PM.KINDS) {
+      if (m.prices[c] !== undefined || pressNow(m, c) >= 1) continue;
+      row(c, false, 100);
+      rows[rows.length - 1].pressedOnly = true;
     }
     return rows.sort((a, b) => b.percent - a.percent || (a.name < b.name ? -1 : 1));
   };
 
-  const api = { enabled, here, known, marketAt, name, listOf, categoryOf, percent, soldForNothing, total: () => markets.length };
+  const api = {
+    enabled, here, known, marketAt, name, listOf, categoryOf, percent, soldForNothing, noteSale, duration, total: () => markets.length,
+    // For the port happenings (src/happenings.mjs): every market, its size and depth, the goods and their kinds.
+    all: () => [...byId.values()], sizeOf, depth, pressable, kindOf, goods: categories, catName, pctHtml,
+    redrawSell: () => redrawSellSoon(),
+  };
   state.market = api;
   return api;
 }

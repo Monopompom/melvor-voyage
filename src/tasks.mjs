@@ -314,6 +314,8 @@ export function install(ctx, { state, TM, CM, M, shipModel, terrainMod, stranded
     if (d === undefined) return `<div class="text-warning">${esc(t('MOD_VOY_PAGE_NO_SHIP'))}</div>`;
     if (NO_TASKS.includes(poi)) return `<div class="voyage-cargo-empty">${esc(t('MOD_VOY_CARGO_FAKE'))}</div>`;
     let out = wantedRow();
+    // Word from the harbours (round 6, src/happenings.mjs): the shortages and festivals heard of here.
+    try { out += state.happenings?.boardHtml?.() ?? ''; } catch {}
     if (d.cur !== null) out += `<div class="voyage-cargo-head">${esc(t('MOD_VOY_TASK_YOURS'))}</div>${curRow(d.cur, poi)}`;
     out += `<div class="voyage-cargo-head">${esc(t('MOD_VOY_TASK_POSTED'))}</div>`;
     const list = board(poi);

@@ -283,7 +283,7 @@ test('a deleted route: it unloads at the bank stop and is done', () => {
 
 test('save v33: no courier yet after the migration, and a route survives a reload', () => {
   const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 32, couriers: undefined }));
-  assert.deepEqual(report.applied, [32, 33]);
+  assert.deepEqual(report.applied, [32, 33, 34]);
   assert.equal(save.v, SAVE_VERSION);
   assert.deepEqual(save.couriers, {});
   const c = newCourier(route(), { q: 1, r: 1 });

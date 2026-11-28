@@ -90,7 +90,7 @@ test('collecting takes what the bank can hold and leaves the rest; the purse is 
 
 test('save v33 to v34: no cairn yet; cairns survive a reload', () => {
   const { save, report } = loadSave(JSON.stringify({ ...defaultSave(), v: 33, cairns: undefined }));
-  assert.deepEqual(report.applied, [33]);
+  assert.deepEqual(report.applied, [33, 34]);
   assert.equal(save.v, SAVE_VERSION);
   assert.deepEqual(save.cairns, []);
   const list = [cairn('a', 1)];

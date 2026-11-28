@@ -104,6 +104,8 @@ export function install(ctx, { state, shipModel, helpLayout, log }) {
         if (currency === game.gp) game.stats.Items.add(item, ItemStats.GpFromSale, price);
       } catch (e) { log('hold sale stats failed', e); }
       (state.saleListeners ?? []).forEach((f) => { try { f(); } catch (e) { log('sale listener failed', e); } });
+      // The hold's sale presses the market as the bank's does (round 6).
+      state.market?.noteSale?.(item, taken);
       if (price === 0 && currency === game.gp && item.sellsFor.quantity > 0) state.market?.soldForNothing?.(item, taken);
       log(`sold ${taken} ${item.id} from the ${kind}'s hold for ${price}`);
       done?.();

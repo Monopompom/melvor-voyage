@@ -64,8 +64,10 @@ export const TOKENS = {
 LOOT.rival = { ...LOOT.corsairs, trophy: undefined };
 export const BANK_SLOT_TOKEN = 'melvorF:Bank_Slot_Token';
 export const SIGNET_HALVES = ['melvorD:Signet_Ring_Half_A', 'melvorD:Signet_Ring_Half_B'];
+/** The treasure map a rare find gives by tier 1 to 4 (round 6): a Torn Map low, a Captain's Map at tier 4. */
+export const MAP_BY_TIER = [undefined, 'voyage:Torn_Map', 'voyage:Torn_Map', 'voyage:Weathered_Chart', 'voyage:Captains_Map'];
 /** The rare find's weights: the Signet halves and the trophy only at tiers 3 and 4. */
-export const RARE = [[50, 'token'], [20, 'bankslot'], [10, 'signet'], [20, 'trophy']];
+export const RARE = [[50, 'token'], [20, 'bankslot'], [10, 'signet'], [20, 'trophy'], [25, 'map']];
 
 const all = () => true;
 const randIn = (rnd, [a, b]) => a + Math.floor(rnd() * (b - a + 1));
@@ -96,7 +98,7 @@ export function lootAt(band, tier, grade, has = all) {
  * A win's loot: [{ id, qty, kind: 'haul' | 'stash' | 'rare' }] and, for a trophy, { trophy, qty: 1, kind: 'rare' }.
  * opt.press: a broken captain (the haul doubles, a chest for sure, the rare odds ×3). owned: the trophies you have
  * (one of a kind, so a second rolls a Bank Slot Token). opt.rare: a rare find for sure, of that kind ('token',
- * 'bankslot', 'signet' or 'trophy'), at any tier.
+ * 'bankslot', 'signet', 'trophy' or 'map'), at any tier.
  */
 export function rollLoot(band, tier, grade, rnd, opt = {}, owned = [], has = all) {
   const L = LOOT[band];
@@ -121,6 +123,7 @@ export function rollLoot(band, tier, grade, rnd, opt = {}, owned = [], has = all
     if (k === 'token') out.push({ id: TOKENS[L.skill], qty: randIn(rnd, [1, 3]), kind: 'rare' });
     else if (k === 'signet') out.push({ id: SIGNET_HALVES[rnd() < 0.5 ? 0 : 1], qty: 1, kind: 'rare' });
     else if (k === 'trophy') out.push({ trophy: L.trophy, qty: 1, kind: 'rare' });
+    else if (k === 'map') out.push({ id: MAP_BY_TIER[Math.min(4, Math.max(1, tier))], qty: 1, kind: 'rare' });
     else out.push({ id: BANK_SLOT_TOKEN, qty: 1, kind: 'rare' });
   }
   return out.filter((x) => x.trophy !== undefined || has(x.id));

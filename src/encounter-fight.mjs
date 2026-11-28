@@ -233,7 +233,8 @@ export function install(ctx, { state, decimal, log }) {
     const others = (away?.n ?? 1) - 1;
     const lead = away !== undefined
       ? t(others === 0 ? 'MOD_VOY_ENC_MEET_AWAY_ONE' : others === 1 ? 'MOD_VOY_ENC_MEET_AWAY_TWO' : 'MOD_VOY_ENC_MEET_AWAY', { band: api.bandName(f.opt.band), n: `${others}`, nerve: `${s.band.max}` })
-      : f.cairn !== undefined ? t('MOD_VOY_ENC_MEET_CAIRN', { band: api.bandName(f.opt.band), name: f.cairn.name, nerve: `${s.band.max}` })
+      // A treasure's guard (round 6) comes in as a cairn's does: its own words, the map's name.
+      : f.cairn !== undefined ? t(String(f.cairn.id).startsWith('treasure:') ? 'MOD_VOY_ENC_MEET_TREASURE' : 'MOD_VOY_ENC_MEET_CAIRN', { band: api.bandName(f.opt.band), name: f.cairn.name, nerve: `${s.band.max}` })
       : courier ? t(sea ? 'MOD_VOY_ENC_MEET_COURIER_SEA' : 'MOD_VOY_ENC_MEET_COURIER', { band: api.bandName(f.opt.band), name: folk.name, nerve: `${s.band.max}` })
       : folk !== undefined ? t('MOD_VOY_ENC_MEET_FOLK', { band: api.bandName(f.opt.band), name: folk.name, nerve: `${s.band.max}` })
         : f.opt.band === 'rival' ? t('MOD_VOY_ENC_MEET_RIVAL', { band: api.bandName(f.opt.band), n: `${(f.opt.rival ?? []).length}`, nerve: `${s.band.max}` })

@@ -114,7 +114,18 @@ export function install(ctx, { state, P, CM, hexes, terrainMod, log }) {
 
   const api = {
     areaAt, nameOf, levelAt, levelIn, hexesIn, moved,
+    /** Every hex's area: Map "q,r" -> area id (a treasure map's clue names it). */
+    regions: () => areaMap(),
     hexesFor: P.hexesFor,
+    /** Hexes given on an area (a lifted blockade's gift, round 6), its level notices as for sailing: { before, after } or undefined. */
+    gift: (area, n) => {
+      const r = rec();
+      const d = r === undefined ? undefined : P.addHexes(r, area, n);
+      if (d === undefined) return undefined;
+      for (const level of P.noticeLevels(d.before, d.after)) say(lineFor(area, level));
+      if (d.after !== d.before) { stamp += 1; const s = skill(); if (s !== undefined) s.renderQueue.page = true; }
+      return d;
+    },
     unlocks: P.unlockTable,
     stormShore: P.STORM_SHORE,
     /** Bumped when a level changes: the map's storm tracks redraw. */

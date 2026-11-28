@@ -34,6 +34,9 @@ export const FAMILIES = {
   // the travel traits (phase 6f, src/folk-traits.mjs): name, effect, and how a bad one fades
   MOD_VOY_TRAIT_: TRAVEL_TRAITS.flatMap((tr) => [tr.id, `${tr.id}_DESC`, ...(tr.fade === undefined ? [] : [`${tr.id}_FADES`])]),
   MOD_VOY_DIR_: DIRS,
+  // a treasure map's tale when read and when found, by grade (src/treasure.mjs)
+  MOD_VOY_MAP_TALE_: ['1', '2', '3'],
+  MOD_VOY_MAP_FOUND_TALE_: ['1', '2', '3'],
   // how a voyage on a receipt ended (src/journal.mjs receiptsLedger)
   MOD_VOY_JOURNAL_RECEIPT_HOW_: RECEIPT_HOW.map((h) => h.toUpperCase()),
   MOD_VOY_DIR_SHORT_: DIRS,

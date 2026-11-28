@@ -73,3 +73,20 @@ test('a rare card drops about one win in ten', () => {
   for (let k = 0; k < 10000; k++) if (rollCard(r) !== undefined) n++;
   assert.ok(n > 850 && n < 1150, `${n}`);
 });
+
+test('a treasure map is a rare find at every tier, its grade by the tier: Torn low, Weathered at 3, Captain\'s at 4', () => {
+  assert.deepEqual([1, 2, 3, 4].map((tier) => rollLoot('smugglers', tier, 3, rng(tier), { rare: 'map' }).filter((x) => x.kind === 'rare')),
+    [[{ id: 'voyage:Torn_Map', qty: 1, kind: 'rare' }], [{ id: 'voyage:Torn_Map', qty: 1, kind: 'rare' }],
+      [{ id: 'voyage:Weathered_Chart', qty: 1, kind: 'rare' }], [{ id: 'voyage:Captains_Map', qty: 1, kind: 'rare' }]]);
+  let maps = 0;
+  let rare = 0;
+  for (let k = 0; k < 20000; k++) {
+    for (const x of rollLoot('corsairs', 1, 2, rng(k), { press: true })) {
+      if (x.kind !== 'rare') continue;
+      rare++;
+      if (x.id === 'voyage:Torn_Map') maps++;
+    }
+  }
+  // At tiers 1-2 the rows are token 50, bank slot 20, map 25: about a quarter of the rare finds.
+  assert.ok(maps / rare > 0.2 && maps / rare < 0.33, `${maps} of ${rare}`);
+});

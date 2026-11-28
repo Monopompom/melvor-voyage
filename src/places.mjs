@@ -52,8 +52,12 @@ export function install(ctx, { state, PM, terrainMod, log }) {
     const here = r.distance === 0;
     const icon = r.media ? `<img class="voyage-places-icon" src="${esc(r.media)}" alt="">` : '<span class="voyage-places-icon"></span>';
     const due = r.due > 0 ? ` <i class="fa fa-anchor text-success" aria-label="${esc(t('MOD_VOY_PLACES_DUE'))}" title="${esc(t('MOD_VOY_PLACES_DUE'))}"></i>` : '';
+    // A shortage or a festival heard of there (round 6): a crier's horn, its words on hover.
+    let word;
+    try { word = g === 'ports' ? state.happenings?.markAt?.(r.q, r.r) : undefined; } catch {}
+    const hap = word === undefined ? '' : ` <i class="fa fa-bullhorn text-info" aria-label="${esc(word)}" title="${esc(word)}"></i>`;
     const dist = here ? t('MOD_VOY_PLACES_HERE') : r.distance === undefined ? '' : hexes(r.distance);
-    const show = `<button type="button" class="voyage-places-show${r.due > 0 ? ' text-success' : ''}" data-places-q="${r.q}" data-places-r="${r.r}">${icon}<span class="voyage-places-name">${esc(r.name)}${due}</span>`
+    const show = `<button type="button" class="voyage-places-show${r.due > 0 ? ' text-success' : ''}" data-places-q="${r.q}" data-places-r="${r.r}">${icon}<span class="voyage-places-name">${esc(r.name)}${due}${hap}</span>`
       + `<span class="voyage-places-dist text-muted">${esc(dist)}</span></button>`;
     const planBtn = plan && !here
       ? `<button type="button" class="btn btn-sm btn-outline-info voyage-places-plan" data-places-plan="${g}" data-places-q="${r.q}" data-places-r="${r.r}"${r.recent === undefined ? '' : ` data-places-i="${r.recent}"`}>${esc(t('MOD_VOY_PLACES_PLAN'))}</button>` : '';

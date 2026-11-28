@@ -12,7 +12,7 @@
  * 'encounters' (version 1.1.0, 4.33) is the bands met on road and sea and their card game, with live ledgers. Cargo, markets, notices and planning were chapters here until
  * build .231; they are Guide pages now (JOURNAL_GUIDE_SECTIONS), written at their first moment.
  */
-export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'crew', 'travels', 'clock', 'weather', 'road', 'encounters', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
+export const JOURNAL_CHAPTERS = ['foreword', 'crafts', 'map', 'lands', 'stores', 'ship', 'hold', 'crew', 'travels', 'clock', 'weather', 'road', 'encounters', 'world', 'compass', 'tricks', 'settings', 'leaving', 'adventure', 'lighthouse'];
 /**
  * The Old Man's Crew pages (build .116, the user's ask): a guide to Worker Folks: Hiring in the captain's voice, shown
  * as their own tab only while that mod is loaded. Written chapters like the ones below (MOD_VOY_JOURNAL_CH_CREW_*).
@@ -64,6 +64,8 @@ export const JOURNAL_WRITTEN = {
   weather: { sections: ['SEASON', 'BANDS', 'HARVEST', 'ICE', 'WIND', 'STORMS', 'RARE', 'OFF'] },
   // Bands and their card game (4.33, version 1.1.0): the tiers, the combos and the bands as live ledgers (journal.mjs).
   encounters: { sections: ['MEET', 'ANSWER', 'PRACTICE', 'ROUND', 'SUITS', 'STAKES', 'RAIDS', 'DECK', 'AWAY', 'FOLKS', 'MOMENTS', 'CAIRNS', 'BANDS', 'RIVAL'] },
+  // The world moves (round 6): markets that tire of one good, shortages, festivals, blockades, the news, treasure maps.
+  world: { sections: ['PRESSURE', 'SHORTAGES', 'FESTIVALS', 'BLOCKADES', 'NEWS', 'MAPS'] },
 };
 
 /**

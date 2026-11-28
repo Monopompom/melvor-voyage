@@ -17,7 +17,7 @@ const STEP = 5;
 const SAME_MARKET = { CapitalCitysAlleyways: 'CapitalCity', CapitalCitysKnights: 'CapitalCity', CapitalCitysSquare: 'CapitalCity' };
 export const NO_MARKET = ['FakePort'];
 /** Farms: crops and herbs cheap. */
-const FARMS = ['FarmersMarket', 'HarvestHavenFarm'];
+export const FARMS = ['FarmersMarket', 'HarvestHavenFarm'];
 
 /** The market a trading place's POI belongs to, or undefined (no POI, or the Fake Port). */
 export const marketOf = (poi) => (typeof poi !== 'string' || NO_MARKET.includes(poi) ? undefined : SAME_MARKET[poi] ?? poi);
@@ -97,13 +97,14 @@ export const eachPrice = (price, percent) => Math.round(price * percent) / 100;
 
 /**
  * The best and the worst market known for goods of `cat`: { best: { id, percent }, worst } among `known`
- * ([{ id, prices }]); undefined when nothing known differs from 100%.
+ * ([{ id, prices }]); undefined when nothing known differs from 100%. `adjust(m, percent)` gives the percent as it stands
+ * today (market pressure, round 6); by default the list's own.
  */
-export function bestAndWorst(known, cat, processed) {
+export function bestAndWorst(known, cat, processed, adjust = (_m, p) => p) {
   let best;
   let worst;
   for (const m of known) {
-    const percent = percentFor(m.prices, cat, processed);
+    const percent = adjust(m, percentFor(m.prices, cat, processed));
     if (best === undefined || percent > best.percent) best = { id: m.id, percent };
     if (worst === undefined || percent < worst.percent) worst = { id: m.id, percent };
   }

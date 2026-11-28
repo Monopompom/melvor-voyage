@@ -1,5 +1,5 @@
 /** Items whose name and description come from MOD_VOY_ITEM_<ID>_NAME / _DESC at load. */
-export const TEXT_ITEMS = ['Sack', 'Crate', 'Grapeshot', 'Smoke_Pot', 'Hot_Meal', 'Curing_Salt', 'Bitter_Draught_I', 'Bitter_Draught_II', 'Bitter_Draught_III', 'Bitter_Draught_IV'];
+export const TEXT_ITEMS = ['Sack', 'Crate', 'Grapeshot', 'Smoke_Pot', 'Hot_Meal', 'Curing_Salt', 'Bitter_Draught_I', 'Bitter_Draught_II', 'Bitter_Draught_III', 'Bitter_Draught_IV', 'Torn_Map', 'Weathered_Chart', 'Captains_Map'];
 /** Shop entries with a name of their own: MOD_VOY_SHOP_<ID>_NAME / _DESC. */
 export const TEXT_SHOP = ['Sturdy_Boots', 'Pack_Yak', 'Riding_Horse', 'Unicorn', 'Crossroads_Sign', 'Walking_Orders', 'Couriers_Licence', 'Supply_Contracts', 'Dry_Casks'];
 

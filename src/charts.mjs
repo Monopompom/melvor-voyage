@@ -219,7 +219,10 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
     const kind = kindOf(item);
     if (!usable() || kind === undefined || game.bank.getQty(item) < 1) return false;
     const pos = state.position?.();
-    const target = CM.rumourTarget(pos, unfound(), kind === 'sailor');
+    // A market not found yet with a shortage or a festival on (round 6) is the tale's first choice: it names what is on.
+    let pick;
+    try { pick = state.happenings?.rumourPick?.(unfound()); } catch (e) { log('rumour happening pick failed', e); }
+    const target = pick ?? CM.rumourTarget(pos, unfound(), kind === 'sailor');
     let sections;
     if (target !== undefined) {
       const ring = CM.ringOf(target, hexes);
@@ -230,6 +233,7 @@ export function install(ctx, { state, CM, model, rules, terrainMod, helpLayout, 
         { body: [{ html: `<i>${esc(taleOf(kind, target))}</i>`, cls: 'voyage-rumour-tale' }] },
         { body: [
           { html: t(d <= 1 ? 'MOD_VOY_RUMOUR_CLEARS_NEXT' : 'MOD_VOY_RUMOUR_CLEARS', { n: `<b class="text-success">${n}</b>`, d: `${d}`, dir: esc(dirWord(terrainMod.directionLabel(pos ?? target, target))) }) },
+          ...(pick === undefined ? [] : [{ html: esc(t('MOD_VOY_RUMOUR_HAPPENING', { what: pick.words })), cls: 'text-info' }]),
           { html: esc(t('MOD_VOY_RUMOUR_PLACE')), cls: 'text-muted' },
         ] },
       ];

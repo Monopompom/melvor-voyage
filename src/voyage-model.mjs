@@ -4,7 +4,7 @@
 export const SKILL_ID = 'voyage:Voyage';
 /** Marks the start of Voyage's own data inside the skill's save region ("VOYG"). */
 export const SAVE_MAGIC = 0x564f5947;
-export const SAVE_VERSION = 34;
+export const SAVE_VERSION = 35;
 
 /**
  * Base XP per hex entered (decided 15 Oct 2026: XP per hex travelled, water worth more). Placeholders for the balance
@@ -136,13 +136,17 @@ export const COMPASS_LEVELS = { steps: 10, name: 25 };
  * in its Worker Folks room. Checked by courier-model.mjs cleanCouriers where it is read.
  * `cairns` (save v34, round 5) is what Folks that died on the road left on their hex, oldest first, checked by
  * cairn-model.mjs cleanCairns where it is read.
+ * `market` (save v35, round 6) is the market pressure: { p: { "market|kind": { s, at } } }, the share of each market's
+ * depth still pressed for a kind at game ms `at`, checked by market-pressure-model.mjs cleanPressure where it is read.
+ * `happen` (save v35) is what the player did to the port happenings (shortages filled, blockades lifted, news told),
+ * and `maps` (save v35) the treasure maps held and the prizes left guarded; both are checked where they are read.
  */
 export function defaultSave() {
-  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, couriers: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [], receipts: [], slayer: { near: false, taken: {} }, pilotage: {}, routeBy: 'cheap', cairns: [] };
+  return { v: SAVE_VERSION, landHexes: 0, waterHexes: 0, backfilled: false, boat: null, ship: null, shipChecked: false, stores: { food: 0, fuel: 0 }, kitGiven: false, unlockNotice: [], journal: emptyJournal(), navigator: false, visited: '', sign: '', cargo: { boards: {}, runs: [] }, charted: '', tasks: { boards: {}, cur: null, wait: 0 }, start: '', voyage: null, ending: null, adrift: null, adriftEnd: null, waiting: null, wind: 0, jobs: {}, walks: {}, couriers: {}, outposts: {}, folkTraits: {}, events: {}, gameMs: 0, enc: {}, supply: {}, spoil: {}, neverLoad: [], home: null, recent: [], receipts: [], slayer: { near: false, taken: {} }, pilotage: {}, routeBy: 'cheap', cairns: [], market: { p: {} }, happen: {}, maps: {} };
 }
 
 /** The guide pages, in the order the journal lists them. Each is written the first time its rule matters. */
-export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'dig', 'compass', 'stranded', 'supply', 'spoil', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'planning', 'cargo', 'board', 'ports', 'market', 'notices', 'charts', 'rumour', 'stars', 'adrift', 'weather', 'bands', 'outfit', 'albatross', 'relics'];
+export const JOURNAL_GUIDES = ['terrain', 'zone', 'grace', 'trade', 'combat', 'dig', 'compass', 'stranded', 'supply', 'spoil', 'dinghy', 'island', 'longboat', 'brig', 'galleon', 'planning', 'cargo', 'board', 'ports', 'market', 'notices', 'charts', 'rumour', 'stars', 'adrift', 'weather', 'bands', 'outfit', 'albatross', 'relics', 'happenings', 'treasure'];
 /**
  * Kinds of place the journal records. `island`: a named island (ship-model ISLANDS) or the mainland, at the first hex
  * you stood on it; `port`: a port whose harbour board you used (phase 4 wrap-up).
@@ -249,6 +253,8 @@ export const MIGRATIONS = {
   32: (rec) => ({ ...rec, v: 33, couriers: {}, routeBy: 'cheap' }),
   // round 5: no Folk has died on the road yet, so no cairn stands (a debt's start date is set where enc is read)
   33: (rec) => ({ ...rec, v: 34, cairns: [] }),
+  // round 6: no market pressed yet, no happening touched, no treasure map held
+  34: (rec) => ({ ...rec, v: 35, market: { p: {} }, happen: {}, maps: {} }),
 };
 
 const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
@@ -431,6 +437,11 @@ function clean(rec) {
     pilotage: plainObject(rec.pilotage) ?? {},
     // Cairns (round 5): checked by cairn-model.mjs cleanCairns where it is read.
     cairns: Array.isArray(rec.cairns) ? rec.cairns : [],
+    // Market pressure (round 6): checked by market-pressure-model.mjs cleanPressure where it is read.
+    market: plainObject(rec.market) ?? { p: {} },
+    // Port happenings and treasure maps (round 6): checked where they are read.
+    happen: plainObject(rec.happen) ?? {},
+    maps: plainObject(rec.maps) ?? {},
   };
 }
 /** Foods a save keeps marked Never load at most: far more than the game has foods. */

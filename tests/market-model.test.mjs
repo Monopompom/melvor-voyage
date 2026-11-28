@@ -51,6 +51,9 @@ test('best and worst known market', () => {
   assert.deepEqual(bestAndWorst(known, 'fish', false), { best: { id: 'A', percent: 160 }, worst: { id: 'B', percent: 60 } });
   assert.equal(bestAndWorst(known, 'ore', false), undefined);
   assert.equal(bestAndWorst([], 'fish', false), undefined);
+  // round 6: a pressed market is weighed at today's price (A flooded to half: 80%, C's 100% is now the best)
+  const today = (m, p) => (m.id === 'A' ? Math.round(p * 0.5) : p);
+  assert.deepEqual(bestAndWorst(known, 'fish', false, today), { best: { id: 'C', percent: 100 }, worst: { id: 'B', percent: 60 } });
 });
 
 test('one item\'s price shows its fraction; the sale floors the sum', () => {

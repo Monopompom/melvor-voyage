@@ -96,9 +96,22 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
       let edge = false;
       try { edge = (state.terrain?.neighbours?.(rec.q, rec.r) ?? []).some((x) => x?.cloud === true); } catch {}
       const sea = state.charts?.seaAt?.(hex);
-      return { where: 'sea', tier: R.seaTier(sea, edge), ground: sea ?? '' };
+      // A blockade (round 6, src/happenings.mjs): its band holds the sea, one tier worse, at twice the odds.
+      let held;
+      try { held = state.happenings?.blockadeOn?.(sea); } catch {}
+      const tier = R.seaTier(sea, edge);
+      if (held !== undefined && tier > 0) return { where: 'sea', tier: Math.min(R.MAX_TIER, tier + 1), ground: sea ?? '', blockade: held.band };
+      return { where: 'sea', tier, ground: sea ?? '' };
     }
     return { where: 'land', tier: R.landTier(rec.t, hexDist(rec, R.HIDEOUT_HEX)), ground: rec.t ?? '' };
+  };
+  /**
+   * The bands that come for you on `p` at twice the odds: those you owe there, and a blockade's band on its sea
+   * (round 6), each once.
+   */
+  const owedOn = (e, p) => {
+    const owed = R.creditors(e.debts, E.bandsOf(p.where), p.ground);
+    return p.blockade === undefined || owed.includes(p.blockade) ? owed : [...owed, p.blockade];
   };
   // The dev console's voyageDev.encounter('force'): the next hex that can meet a band does (once).
   let forced = false;
@@ -333,7 +346,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
     if (e.calm > 0 && !forced) { e.calm -= 1; return false; }
     const p = placeOf(step, hex);
     if (p === undefined || p.tier < 1) return false;
-    const m = forced ? { band: undefined } : R.meetOn(p.tier, Math.random(), R.creditors(e.debts, E.bandsOf(p.where), p.ground));
+    const m = forced ? { band: undefined } : R.meetOn(p.tier, Math.random(), owedOn(e, p));
     if (m === undefined) return false;
     forced = false;
     // Bands met at sea bring the rival captain out (round 5); online, a sea band may be him, more often on the seas
@@ -448,7 +461,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
     }
     const p = placeOf(how, step);
     if (p === undefined || p.tier < 1) return false;
-    const m = forced ? { band: undefined } : R.meetOn(p.tier, Math.random(), R.creditors(e.debts, E.bandsOf(p.where), p.ground));
+    const m = forced ? { band: undefined } : R.meetOn(p.tier, Math.random(), owedOn(e, p));
     if (m === undefined) return false;
     let worth = 0;
     try { worth = courier.worth?.() ?? 0; } catch (err) { log('encounters: courier load not read', err); }
@@ -704,7 +717,8 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
       res.press = !auto;
       res.won = true;
       dropCard(lines, false);
-      if (f.opt.band === 'rival' && f.folk === undefined) rivalBeaten(f, lines);
+      if (f.opt.band === 'rival' && f.folk === undefined) rivalBeaten(f, lines, res);
+      blockadeWon(f, lines);
     } else if (s.over === 'fled') {
       res.head = k(keeps ? 'MOD_VOY_ENC_RES_FLED_GRABS' : 'MOD_VOY_ENC_RES_FLED');
       // They are gone: a cairn they guarded is free.
@@ -914,7 +928,9 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
     if (folk?.courier === true) { try { state.couriers?.bandDone?.(folk.id, done); } catch (err) { log('encounters: courier resume failed', err); } }
     else if (folk !== undefined) { try { state.walks?.bandDone?.(folk.id, done); } catch (err) { log('encounters: walk resume failed', err); } }
     else { try { state.clock?.encDone?.(done); } catch (err) { log('encounters: voyage hold failed', err); } }
-    if (cairn !== undefined) { try { state.cairns?.guardDone?.(cairn.id, beaten); } catch (err) { log('encounters: cairn hand-over failed', err); } }
+    // A treasure's guard (round 6, src/treasure.mjs) comes through as a cairn's does, its id marked.
+    if (cairn !== undefined && String(cairn.id).startsWith('treasure:')) { try { state.treasure?.guardDone?.(String(cairn.id).slice(9), beaten); } catch (err) { log('encounters: treasure hand-over failed', err); } }
+    else if (cairn !== undefined) { try { state.cairns?.guardDone?.(cairn.id, beaten); } catch (err) { log('encounters: cairn hand-over failed', err); } }
     // The rival's record: a Pay or a Run gives him his next card; a win was told when it came (rivalBeaten).
     if (f.opt?.band === 'rival' && folk === undefined && f.res?.won !== true) {
       const how = done === 'pay' ? 'pay' : done === 'run' ? 'run' : f.res?.tone === 'bad' ? 'lost' : 'drew';
@@ -923,13 +939,33 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
     }
     redraw();
   };
-  /** You beat the rival captain: his bounty to your GP, the Tricorn the first time, and he goes to refit (back later). */
-  const rivalBeaten = (f, lines) => {
+  /**
+   * A fight won on a blockaded sea (round 6): counted toward lifting it; the win that lifts it pays the port's bounty
+   * and gives Pilotage hexes on that sea. A courier's packet fight counts: you answer it.
+   */
+  const blockadeWon = (f, lines) => {
+    if (!isSea(f.ground)) return;
+    let r;
+    try { r = state.happenings?.wonAt?.(f.ground); } catch (err) { log('encounters: blockade win not counted', err); }
+    if (r === undefined) return;
+    let sea = f.ground;
+    try { sea = state.charts?.seaName?.(f.ground) ?? f.ground; } catch {}
+    if (!r.lifted) { lines.push(k('MOD_VOY_HAPPEN_RES_WIN', { sea, won: `${r.wins}`, need: `${r.need}` })); return; }
+    gpBy(r.bounty, f);
+    lines.push(k('MOD_VOY_HAPPEN_RES_LIFTED', { sea }, r.bounty));
+    if (r.pilot > 0) lines.push(k('MOD_VOY_HAPPEN_RES_PILOT', { sea, n: `${r.pilot}` }));
+  };
+  /**
+   * You beat the rival captain: his bounty to your GP, the Tricorn the first time, a Captain's Map in his loot (round
+   * 6), and he goes to refit (back later).
+   */
+  const rivalBeaten = (f, lines, res) => {
     const e = enc();
     const bounty = V.bountyOf(e.rival);
     gpBy(bounty, f);
     lines.push(k('MOD_VOY_RIVAL_RES_BOUNTY', {}, bounty));
     if (e.trophies.tricorn !== true) { e.trophies.tricorn = true; lines.push(k('MOD_VOY_RIVAL_RES_TRICORN')); }
+    if (res !== undefined && has(L.MAP_BY_TIER[4])) res.loot.push({ id: L.MAP_BY_TIER[4], qty: 1, kind: 'rare' });
     e.rival = V.ended(e.rival, 'won', gameNow(), E);
     lines.push(k('MOD_VOY_RIVAL_RES_BACK', { n: `${V.RETURN_AFTER}` }));
     log(`encounters: the rival beaten (${e.rival.wins}), bounty ${bounty} GP, back after ${V.RETURN_AFTER} sea bands`);
@@ -1270,6 +1306,14 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
     /** Whether an encounter is open (a band met, its result not yet read). */
     fightOpen: () => enc()?.fight != null,
     guardFight,
+    /** A rare card for a treasure's prize (round 6): yours, and its name; undefined when none could be given. */
+    giveCard: () => {
+      const e = enc();
+      if (e === undefined) return undefined;
+      const c = L.DROP_CARDS[Math.random() < 0.5 ? 0 : 1];
+      e.owned[c] = Math.min(99, (e.owned[c] ?? 0) + 1);
+      return t(E.cardKey(c));
+    },
     force: () => { forced = true; return 'the next hex that can meet a band does'; },
     bandName: (id) => t(E.bandKey(id)),
     offline: offlineNow,

@@ -913,6 +913,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       + `${costRows.length > 0 ? `<div class="voyage-stores-rows voyage-clock-rows text-info">${costRows.join('')}</div>` : ''}${hungryNote}${fogCostNote}</div>`
       + '</div>'
       + tentLeftHtml()
+      + (state.treasure?.digLeftHtml?.() ?? '')
       + stormHtml(info)
       + (fog === undefined ? bandHtml(path) : '')
       + waitHtml

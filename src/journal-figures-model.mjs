@@ -137,6 +137,7 @@ export const SECTION_ICONS = {
   leaving: { WHAT: 'fa-exclamation-triangle', KEEP: 'fa-save', SAFETY: 'fa-life-ring', HOW: 'fa-sign-out-alt' },
   adventure: { FIRST: 'fa-flag', NEXT: 'fa-route' },
   road: { MOUNTS: 'fa-horse', SIGN: 'fa-map-signs' },
+  world: { PRESSURE: 'fa-balance-scale', SHORTAGES: 'fa-hand-holding-usd', FESTIVALS: 'fa-glass-cheers', BLOCKADES: 'fa-skull-crossbones', NEWS: 'fa-bullhorn', MAPS: 'fa-map-marked-alt' },
   clock: { PACE: 'fa-stopwatch', WAY: 'fa-route', LAND: 'fa-flag-checkered', ASK: 'fa-random', FOG: 'fa-smog', AWAY: 'fa-bed', OFF: 'fa-power-off' },
   weather: { SEASON: 'fa-calendar-alt', BANDS: 'fa-thermometer-half', HARVEST: 'fa-seedling', ICE: 'fa-snowflake', WIND: 'fa-wind', STORMS: 'fa-bolt', RARE: 'fa-star', OFF: 'fa-power-off' },
   crew_hire: { START: 'fa-file-signature', WORKER: 'fa-hammer', PORT: 'fa-anchor' },

@@ -670,6 +670,25 @@ export function install(ctx, { state, terrainMod, rules, model, journalModel: jm
       if (what === 'rival') return e.rivalDev(...args);
       return 'sim, sample, you, meet, force, state, battered, calibrate, trophy, rare, away, owe, debts, age, raids, raid or rival';
     },
+    /**
+     * Port happenings (round 6): voyageDev.happen('list'), ('shortage', itemId, marketId?, hoursAgo?),
+     * ('festival', 'spring' | 'summer' | 'fall' | 'winter', marketId?), ('festival') to clear it,
+     * ('blockade', seaId?, band?), ('clear').
+     */
+    happen(what = 'list', ...args) {
+      const f = state.happenings?.force;
+      if (f === undefined) return 'happenings not loaded';
+      return typeof f[what] === 'function' ? f[what](...args) : 'list, shortage, festival, blockade or clear';
+    },
+    /**
+     * Treasure maps (round 6): voyageDev.map('list'), ('give', grade 1-3, n?), ('answer', id?) the hex a held map's
+     * treasure lies on, ('done') the running dig ends now, ('guard', true | false) the next grade 3 find is guarded or not.
+     */
+    map(what = 'list', ...args) {
+      const f = state.treasure?.force;
+      if (f === undefined) return 'treasure maps not loaded';
+      return typeof f[what] === 'function' ? f[what](...args) : 'list, give, answer, done or guard';
+    },
     /** What the stuck-game watchdog knows: loop state, who stopped the loop last, recent errors. */
     watchdog() { return watchdog.report(); },
     state,

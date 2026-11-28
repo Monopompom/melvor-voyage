@@ -392,6 +392,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
     c.sent = M.noteSent(c.sent, run.item, M.seasonOf(Date.now()));
     // The gear's cargo pay (gear.mjs) goes on the GP, not the XP.
     try { gp = state.gear?.payOf?.(gp) ?? gp; } catch {}
+    // A blockade on the sea of either port (round 6): the run pays more while it holds.
+    try { gp = state.happenings?.cargoPay?.(run, gp) ?? gp; } catch {}
     game.gp.add(gp);
     if (xp > 0) try { skill().addXP(xp); } catch (e) { log('cargo XP failed', e); }
     // On the receipt of the voyage that ended here.
@@ -399,6 +401,8 @@ export function install(ctx, { state, M, shipModel, hexes, dungeonIds, shortNumb
     if (M.finished(run)) c.runs = c.runs.filter((r) => r !== run);
     // Now and then the port's sea chart comes with the pay.
     try { state.charts?.rollDelivery?.(run.to); } catch (e) { log('delivery chart failed', e); }
+    // And a wrecked sea's port now and then a treasure map (round 6, src/treasure.mjs).
+    try { state.treasure?.rollWreck?.(run.to); } catch (e) { log('delivery map failed', e); }
     changed();
     usedPort(run.to, 'deliver');
     notify(t(late ? 'MOD_VOY_CARGO_DELIVERED_LATE' : M.finished(run) ? 'MOD_VOY_CARGO_DELIVERED_DONE' : 'MOD_VOY_CARGO_DELIVERED', { n: `${k}`, what: containerWord(run.c, k), gp: shortNumber(gp), xp: shortNumber(xp) }), late ? 'info' : 'success');
