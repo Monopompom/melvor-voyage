@@ -10,6 +10,7 @@ const SWAL_CLASS = { popup: 'voyage-ui', confirmButton: 'btn btn-success m-1', c
 export function install(ctx, { state, rules, terrainMod, storesModel, model, helpLayout, shortNumber, log }) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // Display text comes from languages/<code>.json; the English labels in terrain.mjs/rules.mjs are for tests and logs.
+  const pctOf = (n) => templateLangString('MOD_VOY_PERCENT', { n: `${n}` });
   const classLabel = (cls) => (terrainMod.CLASS_INFO[cls] !== undefined ? getLangString(terrainMod.classKey(cls)) : cls);
   const featureLabel = (f) => (terrainMod.FEATURE_INFO[f] !== undefined ? getLangString(terrainMod.featureKey(f)) : f);
 
@@ -128,7 +129,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         ? templateLangString(full ? 'MOD_VOY_PANEL_SKILL_WORKS' : 'MOD_VOY_PANEL_SKILL_WORKS_AT', { skill: name, percent: pct })
         : templateLangString(full ? 'MOD_VOY_PANEL_SKILL_WORKS_LIST' : 'MOD_VOY_PANEL_SKILL_WORKS_AT_LIST', { skill: name, percent: pct, names: zoneNote }));
       if (rate >= 1) { works.push(skillIcon(skill, worksTip(true), `<img class="skill-icon-xs" src="${skill.media}" alt="">`)); continue; }
-      if (rate > 0) { works.push(skillIcon(skill, worksTip(false), `<img class="skill-icon-xs" src="${skill.media}" alt=""><small class="text-warning">${pct}%</small>`, 'voyage-skill-rate')); continue; }
+      if (rate > 0) { works.push(skillIcon(skill, worksTip(false), `<img class="skill-icon-xs" src="${skill.media}" alt=""><small class="text-warning">${pctOf(pct)}</small>`, 'voyage-skill-rate')); continue; }
       // Tooltip in sentences: "Fishing is locked here. Needs water. Nearest known: 1 hex SW." The compass reading only
       // shows when no place is known; a known one already gives distance and direction.
       const noun = getLangString(rules.ruleNounKey(id));
@@ -770,7 +771,7 @@ export function install(ctx, { state, rules, terrainMod, storesModel, model, hel
         // The name starts the tooltip, so it takes a capital (build .270, the user: "ship name - capitalize").
         const named = sh.hullName?.(sh.vessel(kind)) ?? getLangString('MOD_VOY_SHIP_BOAT');
         const tip = `${named.charAt(0).toUpperCase()}${named.slice(1)}${getLangString('MOD_VOY_COLON')}${templateLangString('MOD_VOY_PANEL_HULL', { cond: `${c}` })}`;
-        out.push(chip(`<i class="fa fa-ship mr-1"></i>${c}%`, `${tip}.`, c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : '', 'voyage-chip-link voyage-find-ship', ` data-kind="${kind}"`));
+        out.push(chip(`<i class="fa fa-ship mr-1"></i>${pctOf(c)}`, `${tip}.`, c <= 0 ? 'text-danger' : c < 50 ? 'text-warning' : '', 'voyage-chip-link voyage-find-ship', ` data-kind="${kind}"`));
       }
     }
     // 3b. A storm within 3 hexes (phase 5c-3, the canvas's board 4: "a storm chip only when one is within 3 hexes").

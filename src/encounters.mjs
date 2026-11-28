@@ -666,6 +666,8 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
       res.loot = lootFor(f, false);
       res.press = !auto;
       dropCard(lines, false);
+      // A courier's packet beating a band on a blockaded sea counts toward lifting it, as your own win does.
+      if (f.folk.courier === true) blockadeWon(f, lines);
     } else if (s.over === 'fled') {
       res.head = k('MOD_VOY_ENC_RES_FLED');
       const half = Math.round(f.purse / 2);
@@ -953,7 +955,7 @@ export function install(ctx, { state, E, R, L, D, F, EM, S, V, terrainMod, short
     if (!r.lifted) { lines.push(k('MOD_VOY_HAPPEN_RES_WIN', { sea, won: `${r.wins}`, need: `${r.need}` })); return; }
     gpBy(r.bounty, f);
     lines.push(k('MOD_VOY_HAPPEN_RES_LIFTED', { sea }, r.bounty));
-    if (r.pilot > 0) lines.push(k('MOD_VOY_HAPPEN_RES_PILOT', { sea, n: `${r.pilot}` }));
+    if (r.pilot > 0) lines.push(k('MOD_VOY_HAPPEN_RES_PILOT', { sea, hexes: t(r.pilot === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${r.pilot}` }) }));
   };
   /**
    * You beat the rival captain: his bounty to your GP, the Tricorn the first time, a Captain's Map in his loot (round

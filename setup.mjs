@@ -20,16 +20,16 @@
 // as a book from the skill minibar, the page header (.117), the map panel, the Voyage page's "?" and every lock popup.
 
 /** Bumped on every zip build so the console shows which build is running. */
-export const BUILD = '2026-11-28.743';
+export const BUILD = '2026-11-28.751';
 /** Dev switch: true prints [Voyage] debug lines. Set to false for player builds. */
-const DEV = true;
+const DEV = false;
 
 export async function setup(ctx) {
   const log = DEV ? (...args) => console.log('[Voyage]', ...args) : () => {};
   console.info(`[Voyage] Far Shores — build ${BUILD}`);
   // Every player-facing text comes from languages/<code>.json (Translatable text); merged before anything reads it.
-  const { mergeLang, overEnglish, TEXT_ITEMS, TEXT_SHOP } = await ctx.loadModule('src/lang-merge.mjs');
-  await (await ctx.loadModule('src/lang.mjs')).install(ctx, { mergeLang, overEnglish });
+  const { mergeLang, overEnglish, quoteGermanNames, TEXT_ITEMS, TEXT_SHOP } = await ctx.loadModule('src/lang-merge.mjs');
+  await (await ctx.loadModule('src/lang.mjs')).install(ctx, { mergeLang, overEnglish, quoteGermanNames });
 
   // Hard requirement: Atlas of Discovery. Without it the mod registers nothing and never throws.
   const hasAoD = () => {
@@ -697,7 +697,7 @@ export async function setup(ctx) {
   // Port happenings (round 6): shortages and festivals in the prices, on the boards, the Here panel and Places.
   if (state.market !== undefined) {
     try {
-      (await ctx.loadModule('src/happenings.mjs')).install(ctx, { state, H: await ctx.loadModule('src/happenings-model.mjs'), terrainMod, shortNumber, log });
+      (await ctx.loadModule('src/happenings.mjs')).install(ctx, { state, H: await ctx.loadModule('src/happenings-model.mjs'), terrainMod, helpLayout, shortNumber, decimal, log });
     } catch (e) { console.error('[Voyage] port happenings failed to load; markets keep their own prices', e); state.happenings = undefined; }
   }
   // Cargo runs (phase 4): the harbour board, the runs and the sealed cargo in the hold.

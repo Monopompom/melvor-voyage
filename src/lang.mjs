@@ -7,7 +7,7 @@
 
 const SUPPORTED = ['en', 'de', 'fr', 'zh-CN', 'zh-TW'];
 
-export async function install(ctx, { mergeLang, overEnglish }) {
+export async function install(ctx, { mergeLang, overEnglish, quoteGermanNames }) {
   const read = async (lang) => {
     try {
       return await ctx.loadData(`languages/${lang}.json`);
@@ -27,6 +27,18 @@ export async function install(ctx, { mergeLang, overEnglish }) {
     globalThis.fetchLanguageJSON = async (lang) => {
       const json = await original(lang);
       return mergeLang(json, await load(lang));
+    };
+  }
+
+  // German: a place name with its own article goes in quotes after a preposition. Only the mod's own texts.
+  const template = globalThis.templateLangString;
+  if (typeof template === 'function' && typeof quoteGermanNames === 'function') {
+    globalThis.templateLangString = function (id, vars, ...rest) {
+      try {
+        // eslint-disable-next-line no-undef
+        if (typeof setLang === 'string' && setLang === 'de' && typeof id === 'string' && id.startsWith('MOD_VOY_')) vars = quoteGermanNames(getLangString(id), vars);
+      } catch {}
+      return template.call(this, id, vars, ...rest);
     };
   }
 

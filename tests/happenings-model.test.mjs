@@ -11,8 +11,8 @@ const markets = [
   { id: 'capital', depth: 96000, cheap: [] },
 ];
 const items = [
-  { id: 'melvorD:Raw_Shrimp', kind: 'fish' },
-  { id: 'melvorD:Oak_Logs', kind: 'logs' },
+  { id: 'melvorD:Raw_Shrimp', kind: 'fish', value: 1 },
+  { id: 'melvorD:Oak_Logs', kind: 'logs', value: 5 },
   { id: 'melvorD:Potato', kind: 'crops' },
   { id: 'melvorD:Topaz', kind: 'gems' },
   { id: 'melvorD:Iron_Bar', kind: 'bars' },
@@ -47,7 +47,7 @@ test('a rolled shortage asks for goods you have owned that the market does not p
       const it = items.find((x) => x.id === h.item);
       assert.ok(m && it);
       assert.ok(!m.cheap.includes(it.kind), `${h.market} never wants its own cheap ${it.kind}`);
-      assert.equal(h.want, m.depth * H.SHORTAGE_WANT);
+      assert.equal(h.want, H.shortageWant(m.depth, it.value));
       assert.equal(h.end - h.start, H.SHORTAGE_MS);
       assert.equal(h.sold, 0);
     } else {
@@ -224,4 +224,11 @@ test('the season festivals follow is kept while it lasts, and its start told fro
   assert.deepEqual(H.seasonFrom(undefined, 'winter', undefined, now), { key: 'winter', start: now });
   assert.deepEqual(H.cleanHappen({ season: first }).season, first);
   assert.equal(H.cleanHappen({ season: { key: 'monsoon', start: 5 } }).season, undefined);
+});
+
+test('a shortage wants at most 5000 of a cheap item, and the full GP of a dear one', () => {
+  assert.equal(H.shortageWant(96000, 5), 25000, 'a 5 GP potion: 5000 of them, not 38,400');
+  assert.equal(H.shortageWant(96000, 1000), 192000, 'a dear item: depth × 2 as before');
+  assert.equal(H.shortageWant(24000, 0), 48000, 'no value known: depth × 2');
+  assert.equal(H.shortageWant(24000, undefined), 48000);
 });

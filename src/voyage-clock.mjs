@@ -21,6 +21,8 @@ const CARTOGRAPHY_ID = 'melvorAoD:Cartography';
 export function install(ctx, { state, C, model, storesModel: S, shipModel, rules, terrainMod, helpLayout, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  /** A band's bold head and the gap after it: none after Chinese full-width punctuation ("：", "。" carry their own room). */
+  const bandHead = (key) => { const h = t(key); return `<b>${esc(h)}</b>${/[\uFF1A\u3002]$/.test(h) ? '' : ' '}`; };
   const num = (n) => numberWithCommas(Math.floor(n));
   const skill = () => state.voyageSkill?.();
   const usable = () => { const s = skill(); return s !== undefined && s.futureRaw === undefined; };
@@ -571,7 +573,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     const when = clockAt(Date.now() + Math.max(0, list[0].ms - state.gameNow()));
     const pushes = list.filter((x) => x.push).length;
     const vars = { time: when, hexes: hexes(list.length), extra: duration(Math.max(60000, info.stormMs ?? 0)), n: `${pushes}` };
-    return `<div class="voyage-storm-ahead"><i class="fa fa-bolt" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_STORM_AHEAD_HEAD'))}</b> `
+    return `<div class="voyage-storm-ahead"><i class="fa fa-bolt" aria-hidden="true"></i><span>${bandHead('MOD_VOY_STORM_AHEAD_HEAD')}`
       + `${esc(t(pushes > 0 ? 'MOD_VOY_STORM_AHEAD_PUSH' : 'MOD_VOY_STORM_AHEAD', vars))}</span></div>`;
   };
   /**
@@ -594,7 +596,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     const parts = [];
     if (top.land > 0) parts.push(t('MOD_VOY_PILOT_BANDS_LAND', { n: `${top.land}` }));
     if (top.sea > 0) parts.push(t('MOD_VOY_PILOT_BANDS_SEA', { n: `${top.sea}` }));
-    return `<div class="voyage-storm-ahead voyage-pilot-bands"><i class="fa fa-skull-crossbones" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_PILOT_BANDS_HEAD'))}</b> `
+    return `<div class="voyage-storm-ahead voyage-pilot-bands"><i class="fa fa-skull-crossbones" aria-hidden="true"></i><span>${bandHead('MOD_VOY_PILOT_BANDS_HEAD')}`
       + `${esc(t('MOD_VOY_PILOT_BANDS', { list: parts.join(t('MOD_VOY_PILOT_BANDS_AND')) }))}</span></div>`;
   };
   // Compact durations everywhere, "72h 0m" / "5m" (the user, build .298; lower case with a space since .301).
@@ -718,7 +720,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
       b = pos === undefined ? undefined : state.outposts?.building?.().find((x) => x.you && x.q === pos.q && x.r === pos.r);
     } catch (e) { log('tent check failed', e); }
     if (b === undefined) return '';
-    return `<div class="voyage-storm-ahead voyage-tent-left"><i class="fa fa-campground" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_CLOCK_TENT_LEFT_HEAD'))}</b> `
+    return `<div class="voyage-storm-ahead voyage-tent-left"><i class="fa fa-campground" aria-hidden="true"></i><span>${bandHead('MOD_VOY_CLOCK_TENT_LEFT_HEAD')}`
       + `${esc(t('MOD_VOY_CLOCK_TENT_LEFT', { time: duration(Math.max(60000, b.left)) }))}</span></div>`;
   };
   const confirmSetOff = (path, original, fog, extra = {}) => {
@@ -892,7 +894,7 @@ export function install(ctx, { state, C, model, storesModel: S, shipModel, rules
     }
     // Wait out the storm (the flat mechanics): only a plain voyage, set off from where you stand; a band under Storm ahead.
     const wait = fog === undefined && course === undefined ? stormWait(path, info) : undefined;
-    const waitHtml = wait === undefined ? '' : `<div class="voyage-storm-wait"><i class="fa fa-hourglass-half" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_STORM_WAIT_HEAD'))}</b> `
+    const waitHtml = wait === undefined ? '' : `<div class="voyage-storm-wait"><i class="fa fa-hourglass-half" aria-hidden="true"></i><span>${bandHead('MOD_VOY_STORM_WAIT_HEAD')}`
       + `${marked(t, 'MOD_VOY_STORM_WAIT_OFFER', {}, { wait: mark.time(duration(wait.waitMs)), total: mark.time(duration(wait.total)) })}</span></div>`;
     const fogChip = fog !== undefined && fog.fog > 0 ? `<span class="voyage-travel-chip voyage-fog-chip"><i class="fa fa-cloud mr-1" aria-hidden="true"></i>${esc(t('MOD_VOY_FOG_N_FOG', { n: `${fog.fog}` }))}</span>` : '';
     // Hexes walked hungry cost 30% more GP (the flat mechanics): in the cost, and a line saying why.

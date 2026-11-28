@@ -178,7 +178,31 @@ tricks for your trick book, and read up on every band in the Journal's new chapt
   live and grow from. On an island, the boat that brought you there is yours.
 - **Markets with prices.** Each market pays well for some goods (140 to 180%) and little for others (60 to 80%);
   worked goods fetch 20 points more than raw ones. You learn a market's prices by visiting it: the bank's Sell block
-  shows the price here and the best and worst you know, and the journal keeps a ledger.
+  shows the price here and the best and worst you know, and the journal keeps a ledger. A market can be flooded:
+  selling a lot of one kind of goods there brings its price down, to half at most (a city takes twice as much before
+  it gives, the Capital City four times, and every Voyage level a little more), and it climbs back to full within 24 h
+  of game time. The Sell block says how far down it is and when it is back.
+- **Port happenings.** The ports don't stand still, offline too:
+  - **Shortages:** a market wants one item you have owned at 250% of its price for 48 h, up to 5,000 of it; once that
+    many are sold there, it is filled.
+  - **Festivals:** each season a city or the capital holds a fair for its first 24 h (the Planting Fair, the Regatta,
+    the Harvest Feast, the Midwinter Market) and pays ×1.5 for that season's goods.
+  - **Blockades:** a band shuts a sea for up to 72 h: its bands are a tier worse and met twice as often on the deep
+    water, by you, your walking Folks and your couriers' packets alike. Win 3 fights there (your own or a courier's)
+    to lift it, for a bounty from its port and Pilotage on that sea. While it holds, a cargo run to or from its port
+    pays 25% more.
+  - **News travels:** a port's board lists "Word from the harbours", the happenings at the markets and seas you know,
+    each once its news has reached that port (30 minutes of game time a hex). A place you don't know is never named,
+    but a Tavern Tale read while one has something on names it. Welcome Back tells you what you would have heard.
+
+  The Journal's chapter "The world moves" has the rules; the Sell block, the Here panel and Places show what is on.
+- **Treasure maps.** Bands drop them now and then (the rougher the ground, the better the map), beating the rival
+  always gives one, and a cargo delivery near a wreck sometimes turns one up. Read one from the bank (a Weathered Chart needs
+  Cartography 40, a Captain's Map 80; at most 5 held) and it gives a clue that fits one hex on the whole map: the
+  Journal's Maps held band keeps it. Dig there from the Here panel: 30 minutes, an hour or two by the map, a timer
+  that runs beside your skill and offline, stopped if you leave the hex. A wrong hex costs the time; three and the map
+  falls apart. The right one pays GP and Pitch, and maybe a Bank Slot Token, a card, a Mastery Token or half a Signet
+  Ring. One Captain's Map in four is guarded by a band.
 - **Into the fog.** On a hex not surveyed yet, Explore there sets off a voyage that surveys its own way: each fog hex
   ahead is surveyed at Cartography's pace (its XP and finds as usual) before you sail in, and you may survey a hex or
   two beside the route as well. A hex your Cartography can't survey, nor will by the time you get there, bars the trip.
@@ -377,8 +401,8 @@ the mod drops all of its data: make a backup first (see Backups), or take your i
   once more. Make a backup before you remove the mod (see Backups): Restore Voyage brings it all back. Without one,
   take your goods out of the holds first, and don't save with the mod off if you mean to come back to your voyage.
 - **Balanced by simulation.** The pace of Timed travel over weeks of play comes from the mod's own simulation of a
-  captain's week, not from a week at the keyboard; sea chart drops from gathering and the Ancient Relics drops are
-  rare enough that they were checked by their numbers, not seen in play. If your game tells another story, say so on
+  captain's week, not from a week at the keyboard; sea chart drops from gathering, treasure maps from a delivery near
+  a wreck and the Ancient Relics drops are rare enough that they were checked by their numbers, not seen in play. If your game tells another story, say so on
   the mod page.
 
 ## Credits

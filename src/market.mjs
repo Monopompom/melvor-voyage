@@ -280,14 +280,19 @@ export function install(ctx, { state, MM, PM, C, rules, hexes, shortNumber, log 
     ash: ['MOD_VOY_MARKET_CAT_ASH'],
     other: ['MOD_VOY_MARKET_CAT_OTHER'],
   };
-  const catName = (c, done) => t(CAT_KEYS[c][done && CAT_KEYS[c].length > 1 ? 1 : 0]);
+  const catKey = (c, done) => CAT_KEYS[c][done && CAT_KEYS[c].length > 1 ? 1 : 0];
+  const catName = (c, done) => t(catKey(c, done));
+  /** A kind's name after "for" mid-sentence: the ones led by an adjective have their own form (German "für rohen Fisch"). */
+  const FOR_FORM = { MOD_VOY_MARKET_CAT_FISH: 'MOD_VOY_MARKET_CAT_FISH_FOR', MOD_VOY_MARKET_CAT_FISH_DONE: 'MOD_VOY_MARKET_CAT_FISH_DONE_FOR', MOD_VOY_MARKET_CAT_OTHER: 'MOD_VOY_MARKET_CAT_OTHER_FOR' };
+  /** A percent as each language writes it (French and German put a no-break space before "%"). */
+  const pctOf = (n) => t('MOD_VOY_PERCENT', { n: `${n}` });
   /** A pressed share as the percent it takes off ("−18%"), amber while the price is below 90% of the list's. */
-  const glutHtml = (press) => `<span class="${press < 0.9 ? 'text-warning' : ''} font-w600">\u2212${Math.max(1, Math.round((1 - press) * 100))}%</span>`;
+  const glutHtml = (press) => `<span class="${press < 0.9 ? 'text-warning' : ''} font-w600">\u2212${pctOf(Math.max(1, Math.round((1 - press) * 100)))}</span>`;
   /** Low, usual, high: amber below the usual price, plain at it, green above (a percent and the price it gives). */
   const tone = (p) => (p > 100 ? 'text-success' : p < 100 ? 'text-warning' : '');
-  const pctHtml = (p) => `<span class="${tone(p)} font-w600">${p}%</span>`;
+  const pctHtml = (p) => `<span class="${tone(p)} font-w600">${pctOf(p)}</span>`;
   /** A price after the GP icon, bold (build .263, the user: "GP icon and color", the price here low/mid/high). */
-  const gpHtml = (n, cls = '') => `<img class="voyage-skill-name-icon" src="${esc(game.gp.media)}" alt=""><b class="${cls}">${numberWithCommas(n)}</b>`;
+  const gpHtml = (n, cls = '') => `<span class="text-nowrap"><img class="voyage-skill-name-icon" src="${esc(game.gp.media)}" alt=""><b class="${cls}">${numberWithCommas(n)}</b></span>`;
   /** The market the selected item's Sell block was drawn for ('' for none); a move to another redraws it. */
   let shownAt;
   ctx.patch(BankSelectedItemMenuElement, 'setItem').after(function (_r, bankItem) {
@@ -307,22 +312,25 @@ export function install(ctx, { state, MM, PM, C, rules, hexes, shortNumber, log 
       if (line.nextElementSibling !== anchor) anchor.before(line);
       const m = here();
       const parts = [];
-      const goods = c === undefined ? catName('other', false) : catName(c[0], c[1]);
+      const goodsKey = c === undefined ? catKey('other', false) : catKey(c[0], c[1]);
       // Mid-sentence the kind is lower case in English and French; German nouns keep their capital, Chinese has none (.742).
       const lowGoods = (s) => (typeof setLang === 'string' && setLang === 'de' ? s : s.toLowerCase());
+      const forGoods = FOR_FORM[goodsKey] !== undefined ? t(FOR_FORM[goodsKey]) : lowGoods(t(goodsKey));
       if (m !== undefined) {
         const p = percent(m, item);
         const press = pressable(item) ? pressNow(m, kindOf(item)) : 1;
         const s = salePct(m, item, 1);
         const pNow = s.hap === undefined ? p * press : s.pct;
-        const each = pNow === p ? MM.eachPrice(item.sellsFor.quantity, p) : Math.round(item.sellsFor.quantity * pNow) / 100;
-        if (c !== undefined) parts.push(`<div>${t(p === 100 ? 'MOD_VOY_MARKET_HERE_USUAL' : p > 100 ? 'MOD_VOY_MARKET_HERE_DEAR' : 'MOD_VOY_MARKET_HERE_CHEAP', { pct: pctHtml(p), market: `<b>${esc(name(m.id))}</b>`, goods: esc(lowGoods(goods)) })}</div>`);
+        const exact = pNow === p ? MM.eachPrice(item.sellsFor.quantity, p) : Math.round(item.sellsFor.quantity * pNow) / 100;
+        // Cents only where they matter: from 1000 GP up the price each is whole ("50000665.51" at 100M, 28 Nov 2026).
+        const each = exact >= 1000 ? Math.round(exact) : exact;
+        if (c !== undefined) parts.push(`<div>${t(p === 100 ? 'MOD_VOY_MARKET_HERE_USUAL' : p > 100 ? 'MOD_VOY_MARKET_HERE_DEAR' : 'MOD_VOY_MARKET_HERE_CHEAP', { pct: pctHtml(p), market: `<b>${esc(name(m.id))}</b>`, goods: esc(forGoods) })}</div>`);
         // A shortage or a festival here (round 6).
         try { for (const l of state.happenings?.sellLines?.(m, item) ?? []) parts.push(`<div>${l}</div>`); } catch (e) { log('happening sell lines failed', e); }
         // Pressed (round 6): what it takes off, for which goods, and when the full price is back.
         if (press < 1) {
           const time = duration(backIn(m, kindOf(item)));
-          parts.push(`<div>${t(time === undefined ? 'MOD_VOY_MARKET_GLUT_NOW' : 'MOD_VOY_MARKET_GLUT', { pct: glutHtml(press), market: `<b>${esc(name(m.id))}</b>`, goods: esc(lowGoods(goods)), time: `<span class="voyage-time">${esc(time ?? '')}</span>` })}</div>`);
+          parts.push(`<div>${t(time === undefined ? 'MOD_VOY_MARKET_GLUT_NOW' : 'MOD_VOY_MARKET_GLUT', { pct: glutHtml(press), market: `<b>${esc(name(m.id))}</b>`, goods: esc(forGoods), time: `<span class="voyage-time">${esc(time ?? '')}</span>` })}</div>`);
         }
         // The price here coloured as its percent; the usual price plain, the one it is weighed against.
         const toneNow = tone(Math.round(pNow));
@@ -335,7 +343,7 @@ export function install(ctx, { state, MM, PM, C, rules, hexes, shortNumber, log 
         const sale = m === undefined && state.trader?.present?.() !== true ? state.folkTraits?.outpostSale?.() : undefined;
         if (sale !== undefined) parts.push(`<div>${t('MOD_VOY_MARKET_MERCHANT', { name: `<b>${esc(sale.folk.name)}</b>`, pct: pctHtml(Math.round(sale.rate * 100)), outpost: esc(sale.outpost.name ?? '') })}</div>`);
         const h = m === undefined ? undefined : state.folkTraits?.haggle?.();
-        if (h !== undefined) parts.push(`<div>${t('MOD_VOY_MARKET_HAGGLER', { name: `<b>${esc(h.folk.name)}</b>`, pct: `<span class="text-success font-w600">+${h.pct}%</span>` })}</div>`);
+        if (h !== undefined) parts.push(`<div>${t('MOD_VOY_MARKET_HAGGLER', { name: `<b>${esc(h.folk.name)}</b>`, pct: `<span class="text-success font-w600">+${pctOf(h.pct)}</span>` })}</div>`);
       } catch {}
       const bw = c === undefined ? undefined : MM.bestAndWorst(known(), c[0], c[1], (km, pct) => Math.round(pct * pressNow(km, c[0])));
       if (bw !== undefined) {

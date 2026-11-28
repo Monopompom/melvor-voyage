@@ -18,8 +18,9 @@ const FEST_KEYS = {
   midwinter: ['MOD_VOY_HAPPEN_FEST_MIDWINTER', 'MOD_VOY_HAPPEN_FEST_MIDWINTER_GOODS'],
 };
 
-export function install(ctx, { state, H, terrainMod, shortNumber, log }) {
+export function install(ctx, { state, H, terrainMod, helpLayout, shortNumber, decimal, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
+  const pctOf = (n) => t('MOD_VOY_PERCENT', { n: `${n}` });
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const M = () => state.market;
   const on = () => state.mode !== 'dormant' && M()?.enabled?.() === true;
@@ -54,7 +55,7 @@ export function install(ctx, { state, H, terrainMod, shortNumber, log }) {
       let had = (game.bank.items.get(item)?.quantity ?? 0) > 0;
       // ⚠ to see in game: the game's own count of an item found.
       if (!had) { try { had = game.stats.itemFindCount(item) > 0; } catch {} }
-      if (had) out.push({ id, kind });
+      if (had) out.push({ id, kind, value: item.sellsFor?.quantity ?? 0 });
     }
     return out.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   };
@@ -184,15 +185,18 @@ export function install(ctx, { state, H, terrainMod, shortNumber, log }) {
   };
 
   // ---- words ------------------------------------------------------------------------------------------------------
-  const timeLeft = (h, now) => M().duration(Math.max(0, h.end - now)) ?? `${Math.ceil(Math.max(0, h.end - now) / 3600000)}h`;
+  // A time never breaks across lines ("47h" / "12m" on a phone): its spaces are non-breaking.
+  const timeLeft = (h, now) => (M().duration(Math.max(0, h.end - now)) ?? t('MOD_VOY_CLOCK_H_M', { h: `${Math.ceil(Math.max(0, h.end - now) / 3600000)}`, m: '0' })).replace(/ /g, '\u00a0');
+  /** The festival's multiplier in the player's decimal mark ("×1,5" in German and French). */
+  const multOf = () => `×${typeof decimal === 'function' ? decimal(H.FESTIVAL_MULT, 2) : H.FESTIVAL_MULT}`;
   const timeHtml = (h, now) => `<span class="voyage-time">${esc(timeLeft(h, now))}</span>`;
   const itemOf = (id) => { try { return game.items.getObjectByID(id); } catch { return undefined; } };
   /** How many of the item a shortage still wants (its base value left over the item's own). */
   const leftCount = (h, item) => Math.ceil(H.wantLeft(h) / Math.max(1, item?.sellsFor?.quantity ?? 1));
   const festName = (f) => t(FEST_KEYS[f.festival]?.[0] ?? 'MOD_VOY_HAPPEN_FEST_PLANTING');
   const festGoods = (f) => t(FEST_KEYS[f.festival]?.[1] ?? 'MOD_VOY_HAPPEN_FEST_PLANTING_GOODS');
-  const PCT_HTML = () => `<span class="text-success font-w600">${H.SHORTAGE_PCT}%</span>`;
-  const MULT_HTML = () => `<span class="text-success font-w600">×${H.FESTIVAL_MULT}</span>`;
+  const PCT_HTML = () => `<span class="text-success font-w600">${pctOf(H.SHORTAGE_PCT)}</span>`;
+  const MULT_HTML = () => `<span class="text-success font-w600">${multOf()}</span>`;
 
   /** The Sell block's lines for an item at the market here (HTML): a shortage, a festival. */
   const sellLines = (m, item) => {
@@ -202,7 +206,8 @@ export function install(ctx, { state, H, terrainMod, shortNumber, log }) {
     const sh = shortageAt(m.id, item.id);
     if (sh !== undefined) out.push(t('MOD_VOY_HAPPEN_SELL_SHORTAGE', { market: `<b>${esc(M().name(m.id))}</b>`, pct: PCT_HTML(), item: esc(item.name), n: esc(shortNumber(leftCount(sh, item))), time: timeHtml(sh, now) }));
     const f = festivalAt(m.id, item);
-    if (f !== undefined) out.push(t('MOD_VOY_HAPPEN_SELL_FEST', { festival: `<b>${esc(festName(f))}</b>`, market: `<b>${esc(M().name(m.id))}</b>`, mult: MULT_HTML(), time: timeHtml(f, now) }));
+    // A shortage's own price replaces the festival's while it wants more: only its line shows (the user, 28 Nov 2026).
+    if (f !== undefined && sh === undefined) out.push(t('MOD_VOY_HAPPEN_SELL_FEST', { festival: `<b>${esc(festName(f))}</b>`, market: `<b>${esc(M().name(m.id))}</b>`, mult: MULT_HTML(), time: timeHtml(f, now) }));
     return out;
   };
 
@@ -254,7 +259,7 @@ export function install(ctx, { state, H, terrainMod, shortNumber, log }) {
       const p = m === undefined ? undefined : unfound.find((x) => M().marketAt?.(x.q, x.r)?.id === m.id);
       if (p === undefined) continue;
       const w = wordsOf({ h, m }, now);
-      return { ...p, words: `${w.title}: ${w.line}` };
+      return { ...p, words: t('MOD_VOY_HAPPEN_WORDS', { title: w.title, line: w.line }) };
     }
     return undefined;
   };
@@ -265,13 +270,13 @@ export function install(ctx, { state, H, terrainMod, shortNumber, log }) {
       return {
         title: t('MOD_VOY_HAPPEN_ROW_BLOCKADE', { band: bandName(h.band), sea }),
         line: t('MOD_VOY_HAPPEN_ROW_BLOCKADE_LINE', { won: `${h.wins}`, need: `${H.BLOCKADE_WINS}`, time: timeLeft(h, now) }),
-        more: t('MOD_VOY_HAPPEN_ROW_BLOCKADE_CARGO', { port: m === undefined ? sea : M().name(m.id), pct: `+${Math.round(H.CARGO_BONUS * 100)}%` }),
+        more: t('MOD_VOY_HAPPEN_ROW_BLOCKADE_CARGO', { port: m === undefined ? sea : M().name(m.id), pct: `+${pctOf(Math.round(H.CARGO_BONUS * 100))}` }),
       };
     }
     const market = M().name(m.id);
-    if (h.kind === 'festival') return { title: t('MOD_VOY_HAPPEN_ROW_FEST', { festival: festName(h), market }), line: t('MOD_VOY_HAPPEN_ROW_FEST_LINE', { goods: festGoods(h), mult: `×${H.FESTIVAL_MULT}`, time: timeLeft(h, now) }) };
+    if (h.kind === 'festival') return { title: t('MOD_VOY_HAPPEN_ROW_FEST', { festival: festName(h), market }), line: t('MOD_VOY_HAPPEN_ROW_FEST_LINE', { goods: festGoods(h), mult: multOf(), time: timeLeft(h, now) }) };
     const item = itemOf(h.item);
-    return { title: t('MOD_VOY_HAPPEN_ROW_SHORTAGE', { market, item: item?.name ?? h.item }), line: t('MOD_VOY_HAPPEN_ROW_SHORTAGE_LINE', { pct: `${H.SHORTAGE_PCT}%`, n: shortNumber(leftCount(h, item)), time: timeLeft(h, now) }) };
+    return { title: t('MOD_VOY_HAPPEN_ROW_SHORTAGE', { market, item: item?.name ?? h.item }), line: t('MOD_VOY_HAPPEN_ROW_SHORTAGE_LINE', { pct: `${pctOf(H.SHORTAGE_PCT)}`, n: shortNumber(leftCount(h, item)), time: timeLeft(h, now) }) };
   };
   const hexWords = (n) => t(n === 1 ? 'MOD_VOY_HEXES_ONE' : 'MOD_VOY_HEXES_MANY', { count: `${n}` });
   const festMedia = () => { try { return state.weather?.season?.()?.media || ctx.getResourceUrl('assets/icon.webp'); } catch { return ctx.getResourceUrl('assets/icon.webp'); } };
@@ -321,10 +326,10 @@ export function install(ctx, { state, H, terrainMod, shortNumber, log }) {
       const parts = [];
       for (const h of live) {
         if (h.kind !== 'shortage' || h.market !== m.id) continue;
-        parts.push(t('MOD_VOY_HAPPEN_HERE_SHORTAGE', { item: itemOf(h.item)?.name ?? h.item, pct: `${H.SHORTAGE_PCT}%` }));
+        parts.push(t('MOD_VOY_HAPPEN_HERE_SHORTAGE', { item: itemOf(h.item)?.name ?? h.item, pct: `${pctOf(H.SHORTAGE_PCT)}` }));
       }
       if (fest !== undefined && fest.market === m.id) parts.push(festName(fest));
-      return parts.join(' · ');
+      return parts.join('\u00a0· '); // a line never ends on the dot
     } catch (e) { log('here happening words failed', e); return ''; }
   };
 
@@ -338,8 +343,9 @@ export function install(ctx, { state, H, terrainMod, shortNumber, log }) {
       const h = current().live.find((x) => x.kind === 'blockade' && (x.sea === seaHere || x.sea === hereId));
       if (h === undefined) return '';
       const { now } = current();
-      const text = t('MOD_VOY_HAPPEN_HERE_BLOCKADE', { band: bandName(h.band), sea: seaName(h.sea), won: `${h.wins}`, need: `${H.BLOCKADE_WINS}`, time: timeLeft(h, now) });
-      return `<div class="voyage-here-place"><span class="voyage-here-label">${esc(t('MOD_VOY_HAPPEN_HERE_BLOCKADE_LABEL'))}</span> <span class="text-warning">${esc(text)}</span></div>`;
+      const vars = { band: bandName(h.band), sea: seaName(h.sea), won: `${h.wins}`, need: `${H.BLOCKADE_WINS}`, time: timeLeft(h, now) };
+      const text = helpLayout?.withTime ? helpLayout.withTime('MOD_VOY_HAPPEN_HERE_BLOCKADE', vars) : esc(t('MOD_VOY_HAPPEN_HERE_BLOCKADE', vars));
+      return `<div class="voyage-here-place"><span class="voyage-here-label">${esc(t('MOD_VOY_HAPPEN_HERE_BLOCKADE_LABEL'))}</span> <span class="text-warning">${text}</span></div>`;
     } catch (e) { log('blockade panel line failed', e); return ''; }
   };
 
@@ -351,7 +357,7 @@ export function install(ctx, { state, H, terrainMod, shortNumber, log }) {
       const x = heard().filter((y) => y.m?.id === m.id);
       if (x.length === 0) return undefined;
       const { now } = current();
-      return x.map((y) => { const w = wordsOf(y, now); return `${w.title}: ${w.line}`; }).join('\n');
+      return x.map((y) => { const w = wordsOf(y, now); return t('MOD_VOY_HAPPEN_WORDS', { title: w.title, line: w.line }); }).join('\n');
     } catch { return undefined; }
   };
 
@@ -391,7 +397,7 @@ export function install(ctx, { state, H, terrainMod, shortNumber, log }) {
       const now = gameNow();
       const s = H.slotOf(now);
       const start = Math.max(0, now - hoursAgo * 3600000);
-      const h = { id: `${s}:shortage`, kind: 'shortage', slot: s, start, end: start + H.SHORTAGE_MS, market: m.id, item: item.id, want: Math.round(M().depth(m) * H.SHORTAGE_WANT), sold: 0 };
+      const h = { id: `${s}:shortage`, kind: 'shortage', slot: s, start, end: start + H.SHORTAGE_MS, market: m.id, item: item.id, want: H.shortageWant(M().depth(m), item.sellsFor?.quantity ?? 0), sold: 0 };
       put({ ...d, live: [h, ...d.live.filter((x) => x.id !== h.id)] });
       M().redrawSell?.();
       return h;

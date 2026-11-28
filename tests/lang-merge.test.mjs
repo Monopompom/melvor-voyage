@@ -24,3 +24,16 @@ test('ignores non-string values and bad inputs', () => {
   assert.equal(mergeLang(undefined, { A: '1' }), undefined);
   assert.deepEqual(mergeLang({ A: '1' }, null), { A: '1' });
 });
+
+test('German names with an article are quoted after a preposition only', async () => {
+  const { quoteGermanNames: q } = await import('../src/lang-merge.mjs');
+  const hafen = 'Der überschattete Hafen';
+  assert.deepEqual(q('Das Zelt bei ${name} ist abgebaut.', { name: hafen }), { name: '„Der überschattete Hafen“' });
+  assert.deepEqual(q('Mangel bei <b>${market}</b>', { market: `<b>${hafen}</b>` }), { market: '<b>„Der überschattete Hafen“</b>' });
+  assert.deepEqual(q('${name}: Hafen', { name: hafen }), { name: hafen }, 'not after a preposition');
+  assert.deepEqual(q('Zelt bei ${name}', { name: 'Hafenstadt' }), { name: 'Hafenstadt' }, 'no article');
+  assert.deepEqual(q('Zelt bei ${name}', { name: 'Dieb' }), { name: 'Dieb' }, 'a word that only starts like one');
+  const vars = { n: 3 };
+  assert.equal(q('bei ${n}', vars), vars, 'numbers untouched, same object');
+  assert.deepEqual(q('(jetzt bei ${name})', { name: 'Die Mine' }), { name: '„Die Mine“' });
+});

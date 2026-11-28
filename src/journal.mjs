@@ -25,6 +25,7 @@ const ANYWHERE = ['melvorD:Agility', 'melvorD:Prayer', 'melvorAoD:Cartography', 
 
 export function install(ctx, { state, model, journalModel: jm, courierModel, figures, shipModel, storesModel, rules, terrainMod, shortNumber, decimal, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
+  const pctOf = (n) => t('MOD_VOY_PERCENT', { n: `${n}` });
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const iconUrl = ctx.getResourceUrl('assets/journal.webp');
   const start = state.zoneTable?.start;
@@ -295,7 +296,7 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
     return undefined;
   };
   const termLabel = (kind, x) => (kind === 'class' ? t(terrainMod.classKey(x)) : kind === 'feature' ? t(terrainMod.featureKey(x)) : terrainMod.areaLabel(x));
-  const rate = (r) => `${Math.round(r * 100)}%`;
+  const rate = (r) => pctOf(Math.round(r * 100));
 
   // ---------------------------------------------------------------------------------------------------- the book
   const view = { open: false, tab: 'how', spread: 0, crewSpread: 0, entry: undefined, place: undefined, guide: undefined, query: '', placeQuery: '', back: null, pick: undefined, side: 'left' };
@@ -678,7 +679,7 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
       : rate > 0 ? t('MOD_VOY_JOURNAL_CREW_SEV_STEP', { pct: pct(rate), level: `${level}` }) : t('MOD_VOY_JOURNAL_CREW_SEV_NONE', { level: `${level}` }))).join(getLangString('MOD_VOY_GATE_LIST_SEP')) : '';
     const cb = r?.crewBonus;
     // Worker Folks up to 1.3.0: +3% a Foreman, 15% at most, no Hiring 99 step.
-    const cbCap = cb?.topMax > cb?.max ? t('MOD_VOY_JOURNAL_CREW_CB_TOP', { max: `${cb.max}`, top: `${cb.topMax}`, level: `${cb.topLevel}` }) : `${cb?.max ?? 15}%`;
+    const cbCap = cb?.topMax > cb?.max ? t('MOD_VOY_JOURNAL_CREW_CB_TOP', { max: `${cb.max}`, top: `${cb.topMax}`, level: `${cb.topLevel}` }) : pctOf(cb?.max ?? 15);
     const vars = { promoLevel: `${r?.promotionLevel ?? 10}`, masteryGates: orList(gates), promoShare: `${Math.round((r?.promotionCostRate ?? 0.6) * 100)}`, slotCaps: caps.join(getLangString('MOD_VOY_GATE_LIST_SEP')),
       xpPerHour: byRank(r?.hiringXPPerHour), qualLevels: byRank(r?.qualification), qualLower: `${r?.qualificationLowering ?? ''}`, sevSteps: sev,
       cbPer: `${cb?.per ?? 3}`, cbCap, ordersLevel: `${r?.workOrdersLevel ?? ''}`, marksLevel: `${r?.marksLevel ?? ''}`, marksPct: Number.isFinite(r?.marksShare) ? pct(r.marksShare) : '' };
@@ -770,7 +771,7 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
       const mine = owns(p);
       // "Yours" under the name, not a column of its own: the page is narrow (build .172).
       return [{ html: `<span class="vj-mount">${p?.media ? `<img src="${p.media}" alt="">` : ''}<span><b>${esc(p?.name ?? m.id)}</b>${mine ? `<span class="vj-yes">${esc(t('MOD_VOY_JOURNAL_ROAD_YOURS'))}</span>` : ''}</span></span>` },
-        { text: `${m.level}`, cls: 'vj-num' }, { html: figures.barCell(esc(timed ? `×${decimal(m.speed, 2)}` : `${Math.round(m.cut * 100)}%`), pace(m), paceMax), cls: 'vj-figcell' },
+        { text: `${m.level}`, cls: 'vj-num' }, { html: figures.barCell(esc(timed ? `×${decimal(m.speed, 2)}` : pctOf(Math.round(m.cut * 100))), pace(m), paceMax), cls: 'vj-figcell' },
         { html: p === undefined ? '' : `<span class="vj-costs">${priceHtml(p)}</span>` }];
     });
     rows.numeric = [false, true, false, false];
@@ -1339,7 +1340,7 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
       if (view.maps?.confirm === m.id) {
         html += `<div class="vj-confirm"><p class="vj-p">${esc(t('MOD_VOY_JOURNAL_MAPS_THROW_ASK', { name: tr.mapName(m) }))}</p>`
           + `<div class="vj-confirm-buttons"><button type="button" class="vj-btn" data-vj-tmap-no="1">${esc(t('MOD_VOY_JOURNAL_PICK_CANCEL'))}</button>`
-          + `<button type="button" class="vj-btn vj-btn-go" data-vj-tmap-yes="${esc(m.id)}">${esc(t('MOD_VOY_JOURNAL_MAPS_THROW'))}</button></div></div>`;
+          + `<button type="button" class="vj-btn vj-btn-danger" data-vj-tmap-yes="${esc(m.id)}">${esc(t('MOD_VOY_JOURNAL_MAPS_THROW'))}</button></div></div>`;
       } else {
         html += '<div class="vj-foot vj-foot-end">'
           + (m.dug.length > 0 ? `<button type="button" class="vj-btn" data-vj-tmap-show="${esc(m.id)}">${esc(t('MOD_VOY_JOURNAL_SHOW_ON_MAP'))}</button>` : '')
@@ -1679,7 +1680,7 @@ export function install(ctx, { state, model, journalModel: jm, courierModel, fig
         : `<h3 class="vj-h3">${esc(t('MOD_VOY_JOURNAL_ISLAND_KNOWS'))}</h3>` + ledger([t('MOD_VOY_JOURNAL_COL_PLACE'), t('MOD_VOY_JOURNAL_COL_KIND')], rows));
   };
   /** A price as it stands: the list's percent, struck with today's beside it while the market is pressed (round 6). */
-  const pctNow = (x) => (x.now === x.percent ? esc(`${x.percent}%`) : `<s>${esc(`${x.percent}%`)}</s> ${esc(`${x.now}%`)}`);
+  const pctNow = (x) => (x.now === x.percent ? esc(pctOf(x.percent)) : `<s>${esc(pctOf(x.percent))}</s> ${esc(pctOf(x.now))}`);
   /** A market's prices on its place page (phase 4): what it pays well and little for. */
   const marketPrices = (p) => {
     const m = state.market?.enabled?.() ? state.market.marketAt(p.q, p.r) : undefined;

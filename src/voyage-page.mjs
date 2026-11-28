@@ -12,6 +12,7 @@ const CARTOGRAPHY_PAGE_ID = 'melvorAoD:Cartography';
 
 export function install(ctx, { state, model, shipModel, storesModel, supplyModel, rules, pageLayout, helpLayout, helpHtml, HELP_WIDTH, shortNumber, decimal, wideCount, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
+  const pctOf = (n) => t('MOD_VOY_PERCENT', { n: `${n}` });
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   /** A name of three words or more never leaves its last word alone on a line. */
   const keepEnd = (x) => String(x).replace(/^(\S+ .*\S) (\S+)$/, '$1\u00a0$2');
@@ -613,7 +614,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
     if (info.careen != null) {
       const left = state.clock?.duration?.(info.left) ?? '';
       return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/hull_condition.webp')}" alt="">` +
-        `<div class="flex-grow-1"><div><b>${label}</b> ${c}% <span class="text-info">${esc(t('MOD_VOY_PAGE_HULL_CAREENING', { cond: `${info.careen.to}`, left }))}</span></div>` +
+        `<div class="flex-grow-1"><div><b>${label}</b> ${pctOf(c)} <span class="text-info">${esc(t('MOD_VOY_PAGE_HULL_CAREENING', { cond: `${info.careen.to}`, left }))}</span></div>` +
         `<div class="progress voyage-hull-bar"><div class="progress-bar bg-info" style="width:${c}%"></div></div></div></div>` +
         // Not muted: it says the ship can't sail and what Stop loses, and what matters is never muted.
         `<div class="mt-2">${esc(t('MOD_VOY_PAGE_HULL_CAREEN_NOTE'))}</div>` +
@@ -624,7 +625,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
       ? `<div class="voyage-hold-main"><button type="button" class="btn btn-success" data-voyage-action="repair" data-kind="${kind}">${t('MOD_VOY_PAGE_HULL_REPAIR_TIME', { cond: `${info.plan.to}`, time: state.clock?.duration?.(info.ms) ?? '' })}</button></div>`
       : (c < 100 ? `<div class="text-warning mt-2">${esc(info.blocker)}</div>` : '');
     return section(`<div class="d-flex align-items-center"><img class="voyage-hull-icon mr-2" src="${ctx.getResourceUrl('assets/hull_condition.webp')}" alt="">` +
-      `<div class="flex-grow-1"><div><b>${label}</b> <span class="${c <= 0 ? 'text-danger' : c < storesModel.WORN ? 'text-warning' : ''}">${c}%</span></div>` +
+      `<div class="flex-grow-1"><div><b>${label}</b> <span class="${c <= 0 ? 'text-danger' : c < storesModel.WORN ? 'text-warning' : ''}">${pctOf(c)}</span></div>` +
       `<div class="progress voyage-hull-bar"><div class="progress-bar ${cls}" style="width:${c}%"></div></div></div></div>` +
       worn + (c < 100 ? `<div class="d-flex flex-wrap align-items-center mt-2">${costs.join('')}</div>` : '') + action);
   };
@@ -632,7 +633,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
   /** The item picked in the stores block (an id), kept while the page lives. */
   let picked;
   const PLACE_KEY = { port: 'MOD_VOY_STORES_PLACE_PORT', town: 'MOD_VOY_STORES_PLACE_TOWN', market: 'MOD_VOY_STORES_PLACE_MARKET', farm: 'MOD_VOY_STORES_PLACE_FARM' };
-  const pct = (x) => `${Math.round(x * 100)}%`;
+  const pct = (x) => pctOf(Math.round(x * 100));
 
   /**
    * The status row at the top of the page, under the skill header (user feedback, build .72): day or night and when it
@@ -849,8 +850,8 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         { body: [t(shipModel.hullBlurbKey(hull.id))] },
         { head: t('MOD_VOY_HELP_HEAD_WEAR'), body: [
           { table: { cols: [t('MOD_VOY_HELP_COL_HEX'), t('MOD_VOY_HELP_COL_WEAR')], rows: [
-            { cells: [t('MOD_VOY_HELP_SEA_HEX'), `${storesModel.WEAR.near}%`] },
-            { cells: [t('MOD_VOY_HELP_DEEP_HEX'), `${storesModel.WEAR.deep}%`], cls: ['text-warning'] },
+            { cells: [t('MOD_VOY_HELP_SEA_HEX'), pctOf(storesModel.WEAR.near)] },
+            { cells: [t('MOD_VOY_HELP_DEEP_HEX'), pctOf(storesModel.WEAR.deep)], cls: ['text-warning'] },
           ] } },
           { text: t('MOD_VOY_HELP_WORN', { worn: `${storesModel.WORN}`, pct: `${Math.round((shipModel.WORN_TIME - 1) * 100)}` }), cls: 'text-warning' },
           { text: t('MOD_VOY_HELP_WORN_THROUGH'), cls: 'text-danger' },
@@ -931,7 +932,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
         { head: t('MOD_VOY_HELP_HEAD_CREW_STORES'), body: [
           t('MOD_VOY_HELP_CREW_EATS'),
           { table: { cols: [t('MOD_VOY_HELP_COL_RANK'), t('MOD_VOY_HELP_COL_EATS')], rows: Object.entries(state.crewModel?.FOOD_SHARE ?? {}).map(([tier, share]) => ({
-            cells: [rankName(tier), `${Math.round(share * 100)}%`], cls: share === 1 ? ['font-w600'] : share < 1 ? ['text-success'] : ['text-warning'],
+            cells: [rankName(tier), pctOf(Math.round(share * 100))], cls: share === 1 ? ['font-w600'] : share < 1 ? ['text-success'] : ['text-warning'],
           })) } },
           { text: t('MOD_VOY_HELP_CREW_HUNGER', { pct: `${Math.round((state.crewModel?.HUNGER_SHARE ?? 0.1) * 100)}` }), cls: 'text-danger' },
           t('MOD_VOY_HELP_CREW_BLOCK'),
@@ -1019,7 +1020,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
           t('MOD_VOY_HELP_FORAGE_WHAT'),
           { table: { cols: [t('MOD_VOY_HELP_COL_LEVEL'), t('MOD_VOY_HELP_COL_CHANCE'), t('MOD_VOY_HELP_COL_FOOD')], rows: [1, 25, 50, 75, 99].map((l) => {
             const f = at(l);
-            return { cells: [`${l}`, `${Math.round(f.chance * 100)}%`, t('MOD_VOY_UNIT_FOOD', { n: st.hp(f.amount) })] };
+            return { cells: [`${l}`, pctOf(Math.round(f.chance * 100)), t('MOD_VOY_UNIT_FOOD', { n: st.hp(f.amount) })] };
           }) } },
           t('MOD_VOY_HELP_FORAGE_MORE', { fuel: st.fuelText(FM.FORAGE.driftFuel), pct: `${Math.round(FM.FORAGE.driftChance * 100)}` }),
         ] });
@@ -1085,7 +1086,7 @@ export function install(ctx, { state, model, shipModel, storesModel, supplyModel
           { table: { cols: xpCols, rows: [
             { cells: [t('MOD_VOY_HELP_LAND_HEX'), `${model.XP_PER_HEX.land}`] },
             { cells: [t('MOD_VOY_HELP_WATER_HEX'), `${model.XP_PER_HEX.water}`] },
-            { cells: [t('MOD_VOY_HELP_LIT_HEX'), `+${Math.round(model.STAR_XP * 100)}%`], cls: ['text-success'] },
+            { cells: [t('MOD_VOY_HELP_LIT_HEX'), `+${pctOf(Math.round(model.STAR_XP * 100))}`], cls: ['text-success'] },
             { cells: [t('MOD_VOY_HELP_FIRST_HEX'), `+${model.DISCOVERY_XP}`], cls: ['text-success'] },
           ] } },
           t('MOD_VOY_HELP_XP_FAST_TRAVEL'),

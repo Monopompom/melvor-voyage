@@ -23,6 +23,7 @@ const ROUTE_MEMO_MS = 30000;
 
 export function install(ctx, { state, model, planModel: P, storesModel: S, supplyModel, terrainMod, helpLayout, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
+  const pctOf = (n) => t('MOD_VOY_PERCENT', { n: `${n}` });
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const skill = () => state.voyageSkill?.();
   const usable = () => { const s = skill(); return s !== undefined && s.futureRaw === undefined; };
@@ -642,7 +643,7 @@ export function install(ctx, { state, model, planModel: P, storesModel: S, suppl
         const after = Math.max(0, cond - wear);
         // "Galleon hull", as the Stores block names it (.308, scan A2-19).
         const label = two ? t('MOD_VOY_PLAN_ROW_HULL_OF', { hull: capFirst(sh.hullName(sh.vessel(kind))) }) : t('MOD_VOY_PLAN_ROW_HULL');
-        rows += row(label, `${icon('assets/hull_condition.webp', t('MOD_VOY_PLAN_ROW_HULL'))}${cond}%${arrow}<span class="${after <= 0 ? 'text-danger' : after < 50 ? 'text-warning' : ''}">${after}%</span> <span class="text-muted ml-1">${esc(t('MOD_VOY_PLAN_WEAR', { wear: `${wear}` }))}</span>`);
+        rows += row(label, `${icon('assets/hull_condition.webp', t('MOD_VOY_PLAN_ROW_HULL'))}${pctOf(cond)}${arrow}<span class="${after <= 0 ? 'text-danger' : after < 50 ? 'text-warning' : ''}">${pctOf(after)}</span> <span class="text-muted ml-1">${esc(t('MOD_VOY_PLAN_WEAR', { wear: `${wear}` }))}</span>`);
       }
     }
     const gpOk = plan.costs?.checkIfOwned() ?? true;

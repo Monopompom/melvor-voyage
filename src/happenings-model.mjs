@@ -17,6 +17,13 @@ export const WEIGHTS = { shortage: 3, blockade: 1 };
 export const SHORTAGE_PCT = 250;
 export const SHORTAGE_MS = 48 * 60 * 60 * 1000;
 export const SHORTAGE_WANT = 2;
+/** A shortage never wants more than this many items, so a cheap good asks for a stack you could sell (the user, 28 Nov 2026). */
+export const SHORTAGE_MAX_ITEMS = 5000;
+/** A shortage's want in GP of base value: WANT × the market's depth, at most SHORTAGE_MAX_ITEMS of an item worth `value` each. */
+export const shortageWant = (depth, value) => {
+  const want = Math.round(depth * SHORTAGE_WANT);
+  return value > 0 ? Math.min(want, Math.round(value * SHORTAGE_MAX_ITEMS)) : want;
+};
 export const MAX_SHORTAGES = 3;
 /** A blockade: a band holds one sea of these tiers this long, one tier worse, until BLOCKADE_WINS fights there are won. */
 export const BLOCKADE_MS = 72 * 60 * 60 * 1000;
@@ -100,7 +107,8 @@ export const isLive = (h, now) => h !== undefined && h.done === undefined && h.s
  * - `seed`: the character's seed (any string or number);
  * - `live`: the happenings live at the slot's start (for the limits and so one market or sea is never doubled);
  * - `markets`: [{ id, depth, cheap: [kinds it pays little for] }];
- * - `items`: [{ id, kind }], the goods you have owned that a market could want (sold for GP, not the mod's own);
+ * - `items`: [{ id, kind, value }], the goods you have owned that a market could want (sold for GP, not the mod's own),
+ *   `value` the GP one sells for (caps the want);
  * - `seas`: [{ id, tier, weight }], weight your hexes sailed there (0: never sailed, never blockaded);
  * - `bands`: the sea bands a blockade can be.
  */
@@ -125,7 +133,7 @@ export function rollSlot(slot, ctx) {
   if (kind === 'shortage') {
     const m = pickOne(markets, r);
     const it = pickOne(items.filter((x) => !(m.cheap ?? []).includes(x.kind)), r);
-    return { id: `${slot}:shortage`, kind, slot, start, end: start + SHORTAGE_MS, market: m.id, item: it.id, want: Math.round(m.depth * SHORTAGE_WANT), sold: 0 };
+    return { id: `${slot}:shortage`, kind, slot, start, end: start + SHORTAGE_MS, market: m.id, item: it.id, want: shortageWant(m.depth, it.value), sold: 0 };
   }
   if (kind === 'blockade') {
     const sea = pickWeighted(seas, (x) => x.weight, r);

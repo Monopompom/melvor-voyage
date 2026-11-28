@@ -16,6 +16,8 @@ const DIG_WHY = {
 export function install(ctx, { state, T, hexes, terrainMod, helpLayout, shortNumber, log }) {
   const t = (key, vars) => (vars === undefined ? getLangString(key) : templateLangString(key, vars));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  /** A band's bold head and the gap after it: none after Chinese full-width punctuation ("：", "。" carry their own room). */
+  const bandHead = (key) => { const h = t(key); return `<b>${esc(h)}</b>${/[\uFF1A\u3002]$/.test(h) ? '' : ' '}`; };
   const skill = () => state.voyageSkill?.();
   const usable = () => { const s = skill(); return s !== undefined && s.futureRaw === undefined; };
   const notify = (text, kind = 'success') => { try { notifyPlayer(skill(), text, kind); } catch {} };
@@ -176,7 +178,7 @@ export function install(ctx, { state, T, hexes, terrainMod, helpLayout, shortNum
     const body = [{ html: `<i>${esc(t(`MOD_VOY_MAP_TALE_${map.grade}`))}</i>`, cls: 'voyage-rumour-tale' }];
     const clue = [{ html: clueHtml(entry) }];
     if (map.grade < grade) clue.push({ html: esc(t('MOD_VOY_MAP_READ_LOWER', { name: itemName(map.grade) })), cls: 'text-warning' });
-    clue.push({ html: esc(t('MOD_VOY_MAP_READ_HOW', { time: duration(T.DIG_MS[map.grade]), n: `${T.MAX_WRONG}` })), cls: 'text-muted' });
+    clue.push({ html: helpLayout.withTime('MOD_VOY_MAP_READ_HOW', { time: duration(T.DIG_MS[map.grade]), n: `${T.MAX_WRONG}` }) });
     popup(mapName(entry), item.media, [{ body }, { body: clue }]);
     changed();
     return true;
@@ -216,6 +218,7 @@ export function install(ctx, { state, T, hexes, terrainMod, helpLayout, shortNum
       box.innerHTML = `<div class="${headClass}"><h5 class="${titleClass}">${esc(t('MOD_VOY_RUMOUR_READ_TITLE'))}</h5></div>`
         + `<div class="col-12 pt-2"><div class="row no-gutters"><div class="col-12 py-1${line.why === '' ? '' : ' text-warning'}">${esc(line.text)}</div>`
         + `<div class="${mainColClass}">${button}</div></div></div>`;
+      try { state.tips?.apply(box); } catch {} // the greyed button's reason as the mod's tooltip, never the browser's
       const item = bankItem.item;
       const menu = this;
       box.querySelector('.voyage-map-go')?.addEventListener('click', (ev) => {
@@ -303,7 +306,11 @@ export function install(ctx, { state, T, hexes, terrainMod, helpLayout, shortNum
     const prize = T.prizeOf(m.grade, purse);
     const lines = [];
     const itemLine = (it, qty) => ({ html: `${it?.media ? `<img class="voyage-skill-name-icon" src="${it.media}" alt="">` : ''}${esc(t('MOD_VOY_MAP_PRIZE_ITEM', { name: it?.name ?? '', n: count(qty) }))}` });
-    if (prize.gp > 0) { game.gp.add(prize.gp); lines.push({ html: t('MOD_VOY_MAP_PRIZE_GP', { gp: `<span class="text-success">${esc(count(prize.gp))}</span>` }) }); }
+    if (prize.gp > 0) {
+      game.gp.add(prize.gp);
+      const icon = game.gp?.media ? `<img class="voyage-skill-name-icon" src="${esc(game.gp.media)}" alt="">` : '';
+      lines.push({ html: `${icon}${t('MOD_VOY_MAP_PRIZE_GP', { gp: `<span class="text-success font-w600">${esc(count(prize.gp))}</span>` })}` });
+    }
     const pitch = giveItem('voyage:Pitch', prize.pitch);
     if (pitch !== undefined) lines.push(itemLine(pitch, prize.pitch));
     const L = E?.L;
@@ -318,7 +325,8 @@ export function install(ctx, { state, T, hexes, terrainMod, helpLayout, shortNum
         if (it) lines.push(itemLine(it, qty));
       } else if (x === 'card') {
         const c = E?.giveCard?.();
-        if (c !== undefined) lines.push({ html: esc(t('MOD_VOY_ENC_RES_CARD', { name: c })) });
+        // The card's gem, as in a fight's spoils, sized like the item icons beside it (the user, 28 Nov 2026).
+        if (c !== undefined) lines.push({ html: `<i class="fa fa-gem text-info voyage-skill-name-icon text-center" aria-hidden="true"></i>${esc(t('MOD_VOY_ENC_RES_CARD', { name: c }))}` });
       } else if (x === 'relic') {
         try {
           const s = skill();
@@ -410,7 +418,9 @@ export function install(ctx, { state, T, hexes, terrainMod, helpLayout, shortNum
     if (!usable()) return '';
     const pos = state.position?.();
     if (pos === undefined) return '';
-    const label = `<span class="voyage-here-label">${esc(t('MOD_VOY_MAP_LABEL'))}</span> `;
+    // "Treasure map:" heads the first of these rows only; the next ones sit under it as one block (the user, 28 Nov 2026).
+    let labelled = false;
+    const lab = () => { if (labelled) return ''; labelled = true; return `<span class="voyage-here-label">${esc(t('MOD_VOY_MAP_LABEL'))}</span> `; };
     let html = '';
     const left = maps()?.left?.find((x) => same(x, pos));
     if (left !== undefined) {
@@ -419,12 +429,12 @@ export function install(ctx, { state, T, hexes, terrainMod, helpLayout, shortNum
       const cut = said.indexOf(' ');
       const head = cut < 0 ? Array.from(said)[0] ?? '' : said.slice(0, cut);
       const rest = said.slice(head.length);
-      html += `<div class="voyage-here-ship voyage-dig-row"><span>${label}<span class="text-warning"><span class="text-nowrap"><i class="fa fa-shield-alt mr-1" aria-hidden="true"></i>${esc(head)}</span>${esc(rest)}</span></span></div>`;
+      html += `<div class="voyage-here-ship voyage-dig-row"><span>${lab()}<span class="text-warning"><span class="text-nowrap"><i class="fa fa-shield-alt mr-1" aria-hidden="true"></i>${esc(head)}</span>${esc(rest)}</span></span></div>`;
     }
     const d = dig();
     if (d !== undefined) {
       const m = mapById(d.id);
-      html += `<div class="voyage-here-ship voyage-dig-row"><span title="${esc(t('MOD_VOY_MAP_DIG_GOING_TIP'))}">${label}${esc(t('MOD_VOY_MAP_DIG_GOING', { name: m === undefined ? '' : mapName(m), time: duration(digLeft()) }))}</span>`
+      html += `<div class="voyage-here-ship voyage-dig-row"><span title="${esc(t('MOD_VOY_MAP_DIG_GOING_TIP'))}">${lab()}${helpLayout.withTime('MOD_VOY_MAP_DIG_GOING', { name: m === undefined ? '' : mapName(m), time: duration(digLeft()) })}</span>`
         + `${digBtn('stop', 'btn-outline-danger', t('MOD_VOY_MAP_DIG_STOP'))}</div>`;
       return html;
     }
@@ -434,14 +444,14 @@ export function install(ctx, { state, T, hexes, terrainMod, helpLayout, shortNum
     const btn = why === ''
       ? digBtn('start', 'btn-success', t('MOD_VOY_MAP_DIG'))
       : digBtn('start', 'btn-outline-secondary disabled', t('MOD_VOY_MAP_DIG'), ` aria-disabled="true" title="${esc(t(DIG_WHY[why] ?? DIG_WHY.off))}"`);
-    return `${html}<div class="voyage-here-ship voyage-dig-row"><span>${label}${esc(text)}</span>${btn}</div>`;
+    return `${html}<div class="voyage-here-ship voyage-dig-row"><span>${lab()}${esc(text)}</span>${btn}</div>`;
   };
   /** Dig here with more than one map that may be dug: pick which, each with its clue. */
   const pick = (list, done) => {
     try {
       const rows = list.map((m) => `<div class="voyage-map-pick-row text-left mb-2"><div class="d-flex justify-content-between align-items-center"><b>${esc(mapName(m))}</b>`
         + `<button type="button" class="btn btn-sm btn-success voyage-map-pick" data-map="${esc(m.id)}">${esc(t('MOD_VOY_MAP_DIG'))}</button></div>${clueHtml(m)}`
-        + `<small class="text-muted">${esc(t('MOD_VOY_MAP_DIG_TAKES', { time: duration(T.DIG_MS[m.grade]) }))}</small></div>`).join('');
+        + `<small class="d-block text-muted">${esc(t('MOD_VOY_MAP_DIG_TAKES', { time: duration(T.DIG_MS[m.grade]) }))}</small></div>`).join('');
       SwalLocale.fire({
         title: esc(t('MOD_VOY_MAP_PICK_TITLE')),
         width: helpLayout.HELP_WIDTH,
@@ -449,7 +459,7 @@ export function install(ctx, { state, T, hexes, terrainMod, helpLayout, shortNum
         showConfirmButton: false,
         showCancelButton: true,
         cancelButtonText: t('MOD_VOY_OUTPOST_CANCEL'),
-        customClass: (() => { const c = { popup: 'voyage-ui', cancelButton: 'btn btn-secondary m-1' }; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
+        customClass: (() => { const c = { popup: 'voyage-ui', cancelButton: 'btn btn-outline-info m-1' }; return typeof createSwalCustomClass === 'function' ? createSwalCustomClass(c) : c; })(),
         didRender: (el) => {
           try { state.popupDidRender?.(el); } catch {}
           for (const b of (el ?? document).querySelectorAll('.voyage-map-pick')) {
@@ -474,7 +484,7 @@ export function install(ctx, { state, T, hexes, terrainMod, helpLayout, shortNum
     const d = dig();
     const pos = state.position?.();
     if (d === undefined || !same(pos, d)) return '';
-    return `<div class="voyage-storm-ahead voyage-tent-left"><i class="fa fa-map-marked-alt" aria-hidden="true"></i><span><b>${esc(t('MOD_VOY_MAP_DIG_LEFT_HEAD'))}</b> `
+    return `<div class="voyage-storm-ahead voyage-tent-left"><i class="fa fa-map-marked-alt" aria-hidden="true"></i><span>${bandHead('MOD_VOY_MAP_DIG_LEFT_HEAD')}`
       + `${esc(t('MOD_VOY_MAP_DIG_LEFT', { time: duration(Math.max(60000, digLeft())) }))}</span></div>`;
   };
 
